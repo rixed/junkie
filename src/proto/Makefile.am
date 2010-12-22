@@ -15,3 +15,4 @@ libproto_la_SOURCES = \
 	tcp.c udp.c
 
 libproto_la_LIBADD = ../tools/libtools.la
+libproto_la_LDFLAGS = -export-dynamic

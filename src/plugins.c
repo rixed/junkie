@@ -35,10 +35,6 @@ struct plugins plugins = LIST_HEAD_INITIALIZER(&plugins);
 static int plugin_ctor(struct plugin *plugin, char const *libname)
 {
     mutex_lock(&plugins_mutex);
-    if (0 != lt_dlinit()) {
-        mutex_unlock(&plugins_mutex);
-        DIE("Cannot init ltdl: %s", lt_dlerror());
-    }
     plugin->handle = lt_dlopen(libname);
     if (! plugin->handle) {
         mutex_unlock(&plugins_mutex);
@@ -72,7 +68,13 @@ static struct plugin *plugin_new(char const *libname)
 
 static void plugin_dtor(struct plugin *plugin)
 {
+    SLOG(LOG_DEBUG, "Unloading plugin %s", plugin->libname);
     LIST_REMOVE(plugin, entry);
+
+    // Call the plugin finalizer
+    void (*on_unload)(void) = lt_dlsym(plugin->handle, "on_unload");
+    if (on_unload) on_unload();
+
     int err = lt_dlclose(plugin->handle);
     if (err) SLOG(LOG_ERR, "Cannot unload plugin %s : %s", plugin->libname, lt_dlerror());
 }
@@ -81,6 +83,16 @@ static void plugin_del(struct plugin *plugin)
 {
     plugin_dtor(plugin);
     FREE(plugin);
+}
+
+void plugin_del_all(void)
+{
+    SLOG(LOG_DEBUG, "Unloading all plugins");
+
+    struct plugin *plugin;
+    while (NULL != (plugin = LIST_FIRST(&plugins))) {
+        plugin_del(plugin);
+    }
 }
 
 static struct ext_function sg_load_plugin;
@@ -107,13 +119,6 @@ static SCM g_unload_plugin(SCM filename)
     struct plugin *plugin = plugin_lookup(scm_to_tempstr(filename));
     if (! plugin) return SCM_BOOL_F;
 
-    // Call the plugin finalizer
-    void (*on_unload)(void) = lt_dlsym(plugin->handle, "on_unload");
-    if (! on_unload) {
-        SLOG(LOG_ERR, "Cannot unload plugin %s : no on_unload function", plugin->libname);
-        return SCM_BOOL_F;
-    }
-    on_unload();
     plugin_del(plugin);
     return SCM_BOOL_T;
 }
@@ -133,6 +138,9 @@ static SCM g_plugins(void)
 
 void plugins_init(void)
 {
+    if (0 != lt_dlinit()) {
+        DIE("Cannot init ltdl: %s", lt_dlerror());
+    }
     mutex_ctor(&plugins_mutex, "plugins");
 
     ext_function_ctor(&sg_load_plugin,
@@ -152,4 +160,5 @@ void plugins_init(void)
 
 void plugins_fini(void)
 {
+    lt_dlexit();
 }

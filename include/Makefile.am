@@ -25,7 +25,6 @@ pkginclude_HEADERS = \
 	junkie/tools/mutex.h \
 	junkie/tools/files.h \
 	junkie/tools/mallocer.h \
-	junkie/tools/rex.h \
 	junkie/tools/tempstr.h \
 	junkie/tools/hash.h \
 	junkie/tools/miscmacs.h \

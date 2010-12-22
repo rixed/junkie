@@ -18,3 +18,4 @@ junkie_SOURCES = \
 	plugins.h
 
 junkie_LDADD = proto/libproto.la tools/libtools.la
+junkie_LDFLAGS = -export-dynamic

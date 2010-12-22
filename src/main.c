@@ -67,35 +67,58 @@ static char const Id[] = "$Id: 0fd857db0dc7d9cc14d4c3bb21d3095225379cf2 $";
  * Initialize all components
  */
 
+static struct {
+    void (*init)(void);
+    void (*fini)(void);
+} initers[] = {
+#   define I(x) { x##_init, x##_fini }
+    I(log),
+	I(ext),
+	I(redim_array),
+	I(mallocer),
+	I(mutex),
+	I(plugins),
+	I(hash),
+	I(proto),
+	I(fuzzing),
+	I(cap),
+	I(eth),
+	I(ip6),
+	I(arp),
+	I(ip),
+	I(udp),
+	I(icmpv6),
+	I(tcp),
+	I(icmp),
+	I(sip),
+	I(bittorrent),
+	I(http),
+	I(rtp),
+	I(netbios),
+	I(ssl),
+	I(dns),
+	I(rtcp),
+	I(dns_tcp),
+	I(ftp),
+	I(mgcp),
+	I(sdp),
+	I(pkt_source),
+#   undef I
+};
+
 static void all_init(void)
 {
-    static void (*inits[])(void) = {
-        log_init, ext_init, redim_array_init, mallocer_init, mutex_init,
-        plugins_init, hash_init, proto_init, fuzzing_init,
-        cap_init, eth_init, ip6_init, arp_init, ip_init,
-        udp_init, icmpv6_init, tcp_init, icmp_init, sip_init,
-        bittorrent_init, http_init, rtp_init, netbios_init, ssl_init,
-        dns_init, rtcp_init, dns_tcp_init, ftp_init, mgcp_init,
-        sdp_init, pkt_source_init,
-    };
-    for (unsigned i = 0; i < NB_ELEMS(inits); i++) {
-        inits[i]();
+    for (unsigned i = 0; i < NB_ELEMS(initers); i++) {
+        initers[i].init();
     }
 }
 
 static void all_fini(void)
 {
-    static void (*finis[])(void) = {
-        log_fini, ext_fini, redim_array_fini, mallocer_fini, mutex_fini,
-        plugins_fini, hash_fini, proto_fini, fuzzing_fini,
-        cap_fini, eth_fini, ip6_fini, arp_fini, ip_fini,
-        udp_fini, icmpv6_fini, tcp_fini, icmp_fini, sip_fini,
-        bittorrent_fini, http_fini, rtp_fini, netbios_fini, ssl_fini,
-        dns_fini, rtcp_fini, dns_tcp_fini, ftp_fini, mgcp_fini,
-        netbios_fini, sdp_fini, pkt_source_fini,
-    };
-    for (unsigned i = NB_ELEMS(finis); i > 0; ) {
-        finis[--i]();
+    plugin_del_all();
+
+    for (unsigned i = NB_ELEMS(initers); i > 0; ) {
+        initers[--i].fini();
     }
 }
 

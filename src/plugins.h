@@ -19,6 +19,8 @@ struct plugin {
     proto_okfn_t *parse_callback;
 };
 
+void plugin_del_all(void);
+
 void plugins_init(void);
 void plugins_fini(void);
 
