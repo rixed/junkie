@@ -125,7 +125,8 @@ void slog(int priority, char const *filename, char const *funcname, char *fmt, .
         len += snprintf(str + len, sizeof(str) - len, "\n");
         len = MIN(len, (int)sizeof(str));
 
-        write(log_fd, str, len);
+        if (-1 == write(log_fd, str, len))
+            fprintf(stderr, "write(%d, %s, %d) = %s", log_fd, str, len, strerror(errno));
     }
 
     va_end(ap);
