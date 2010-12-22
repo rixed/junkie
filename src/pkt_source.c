@@ -300,11 +300,11 @@ static struct pkt_source *pkt_source_new_file(char const *filename, char const *
 
     pcap_t *handle = pcap_open_offline(filename, errbuf);
     if (! handle) {
-        SLOG(LOG_ERR, "Cannot open pcap file '%s' : %s", filename, errbuf);
+        SLOG(LOG_ERR, "Cannot open pcap file '%s': %s", filename, errbuf);
         return NULL;
     }
     if (errbuf[0] != '\0') {
-        SLOG(LOG_WARNING, "While opening pcap file '%s' : %s", filename, errbuf);
+        SLOG(LOG_WARNING, "While opening pcap file '%s': %s", filename, errbuf);
     }
 
     char const *basename = filename;
@@ -342,32 +342,45 @@ static struct pkt_source *pkt_source_new_if(char const *ifname, bool promisc, ch
 
     pcap_t *handle = pcap_create(ifname, errbuf);
     if (! handle) {
-        SLOG(LOG_ALERT, "Cannot create handle for device '%s' : %s", ifname, errbuf);
+        SLOG(LOG_ALERT, "Cannot create handle for device '%s': %s", ifname, errbuf);
         goto err2;
     }
 
     if (buffer_size > 0 && 0 != pcap_set_buffer_size(handle, buffer_size)) {
-        SLOG(LOG_ALERT, "Cannot set buffer size for packet source %s to %d bytes : %s", ifname, buffer_size, pcap_geterr(handle));
+        SLOG(LOG_ALERT, "Cannot set buffer size for packet source %s to %d bytes: %s", ifname, buffer_size, pcap_geterr(handle));
         goto err1;
     }
 
     if (0 != pcap_set_promisc(handle, promisc)) {
-        SLOG(LOG_ALERT, "Cannot set promiscuous mode to %s for packet source %s : %s", promisc ? "true":"false", ifname, pcap_geterr(handle));
+        SLOG(LOG_ALERT, "Cannot set promiscuous mode to %s for packet source %s: %s", promisc ? "true":"false", ifname, pcap_geterr(handle));
         goto err1;
     }
 
     if (0 != pcap_set_snaplen(handle, 65535)) {
-        SLOG(LOG_ALERT, "Cannot maximize snaplen for packet source %s : %s", ifname, pcap_geterr(handle));
+        SLOG(LOG_ALERT, "Cannot maximize snaplen for packet source %s: %s", ifname, pcap_geterr(handle));
         goto err1;
     }
 
     if (0 != pcap_set_timeout(handle, 1000)) {
-        SLOG(LOG_ALERT, "Cannot set timeout for packet source %s : %s", ifname, pcap_geterr(handle));
+        SLOG(LOG_ALERT, "Cannot set timeout for packet source %s: %s", ifname, pcap_geterr(handle));
         goto err1;
     }
 
-    if (0 != pcap_activate(handle)) {
-        SLOG(LOG_ALERT, "Cannot activate packet source %s : %s", ifname, pcap_geterr(handle));
+    switch (pcap_activate(handle)) {
+    case 0: /* no error, continue please */
+       break;
+    case PCAP_ERROR_PERM_DENIED:
+        /* special handling for this case:
+         * exit the program, otherwise all the dtor() will
+         * be called, thus trigger a SIGABRT in debug more,
+         * and undefined behaviour otherwise because of a
+         * NULL pointer dereferencement.
+         */
+        SLOG(LOG_ALERT, "%s: %s", ifname, pcap_geterr(handle));
+        _exit(EXIT_FAILURE);
+    default:
+        /* other error */
+        SLOG(LOG_ALERT, "Cannot activate packet source %s: %s", ifname, pcap_geterr(handle));
         goto err1;
     }
 
@@ -556,19 +569,19 @@ void pkt_source_init(void)
 
     ext_function_ctor(&sg_list_ifaces,
         "list-ifaces", 0, 0, 0, g_list_ifaces,
-        "(list-ifaces) : returns a list of all ifaces that can be opened for sniffing.\n"
+        "(list-ifaces): returns a list of all ifaces that can be opened for sniffing.\n"
         "Note that if you don't have sufficient permission to open a device then this device\n"
         "    will not appear in this list.\n"
         "See also (? 'open-iface) to start sniffing an interface.\n");
 
     ext_function_ctor(&sg_open_iface,
         "open-iface", 1, 3, 0, g_open_iface,
-        "(open-iface \"iface-name\") : open the given iface, and set it in promiscuous mode.\n"
-        "(open-iface \"iface-name\" #f) : open the given iface without setting it\n"
+        "(open-iface \"iface-name\"): open the given iface, and set it in promiscuous mode.\n"
+        "(open-iface \"iface-name\" #f): open the given iface without setting it\n"
         "    in promiscuous mode.\n"
-        "(open-iface \"iface-name\" #t \"filter\") : open the given iface in promiscuous mode,\n"
+        "(open-iface \"iface-name\" #t \"filter\"): open the given iface in promiscuous mode,\n"
         "    with the given packet filter.\n"
-        "(open-iface \"iface-name\" #t \"[filter]\" (* 10 1024 1024)) : open the given iface,\n"
+        "(open-iface \"iface-name\" #t \"[filter]\" (* 10 1024 1024)): open the given iface,\n"
         "    set it in promiscuous mode, apply the filter, and use a buffer size of 10Mb.\n"
         "Will return #t or #f depending on the success of the operation.\n"
         "See also (? 'list-ifaces) to have a list of all openable ifaces,\n"
@@ -576,24 +589,24 @@ void pkt_source_init(void)
 
     ext_function_ctor(&sg_close_iface,
         "close-iface", 1, 0, 0, g_close_iface,
-        "(close-iface \"iface-name\") : stop sniffing a previously opened iface.\n"
+        "(close-iface \"iface-name\"): stop sniffing a previously opened iface.\n"
         "See also (? 'open-iface).\n");
 
     ext_function_ctor(&sg_open_pcap,
         "open-pcap", 1, 1, 0, g_open_pcap,
-        "(open-pcap \"pcap-file\") : will start sniffing the content of this pcap file.\n"
-        "(open-pcap \"pcap-file\" \"filter\") : same as above, applying given filter.\n"
+        "(open-pcap \"pcap-file\"): will start sniffing the content of this pcap file.\n"
+        "(open-pcap \"pcap-file\" \"filter\"): same as above, applying given filter.\n"
         "Will return #t or #f according to the status of the operation.\n"
         "See also (? 'open-iface)\n");
 
     ext_function_ctor(&sg_iface_names,
         "iface-names", 0, 0, 0, g_iface_names,
-        "(iface-names) : returns the list of currently opened interfaces.\n"
+        "(iface-names): returns the list of currently opened interfaces.\n"
         "See also (? 'open-iface).\n");
 
     ext_function_ctor(&sg_iface_stats,
         "iface-stats", 1, 0, 0, g_iface_stats,
-        "(iface-stats \"iface-name\") : return detailed statistics about that packet source.\n"
+        "(iface-stats \"iface-name\"): return detailed statistics about that packet source.\n"
         "See also (? 'get-ifaces).\n");
 }
 
