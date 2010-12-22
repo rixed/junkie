@@ -372,7 +372,7 @@ static struct pkt_source *pkt_source_new_if(char const *ifname, bool promisc, ch
     case PCAP_ERROR_PERM_DENIED:
         /* special handling for this case:
          * exit the program, otherwise all the dtor() will
-         * be called, thus trigger a SIGABRT in debug more,
+         * be called, thus trigger a SIGABRT in debug mode,
          * and undefined behaviour otherwise because of a
          * NULL pointer dereferencement.
          */
