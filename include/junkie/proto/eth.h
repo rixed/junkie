@@ -36,6 +36,9 @@ void eth_subproto_dtor(struct eth_subproto *eth_subproto);
 /// Spawn a new eth parser for given vlan_id
 struct mux_subparser *eth_subparser_and_parser_new(struct parser *, struct proto *proto, struct parser *requestor, uint16_t vlan_id, struct timeval const *now);
 
+/// Convert an eth address into a displayable string
+char const *eth_addr_2_str(unsigned char const addr[ETH_ALEN]);
+
 void eth_init(void);
 void eth_fini(void);
 

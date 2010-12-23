@@ -54,7 +54,7 @@ static const uint16_t zero = 0;
  * Proto Infos
  */
 
-static char const *eth_addr_2_str(unsigned char const addr[ETH_ALEN])
+char const *eth_addr_2_str(unsigned char const addr[ETH_ALEN])
 {
     char *str = tempstr();
     size_t len = 0;
