@@ -366,21 +366,8 @@ static struct pkt_source *pkt_source_new_if(char const *ifname, bool promisc, ch
         goto err1;
     }
 
-    switch (pcap_activate(handle)) {
-    case 0: /* no error, continue please */
-       break;
-    case PCAP_ERROR_PERM_DENIED:
-        /* special handling for this case:
-         * exit the program, otherwise all the dtor() will
-         * be called, thus trigger a SIGABRT in debug mode,
-         * and undefined behaviour otherwise because of a
-         * NULL pointer dereferencement.
-         */
-        SLOG(LOG_ALERT, "%s: %s", ifname, pcap_geterr(handle));
-        _exit(EXIT_FAILURE);
-    default:
-        /* other error */
-        SLOG(LOG_ALERT, "Cannot activate packet source %s: %s", ifname, pcap_geterr(handle));
+    if (0 != pcap_activate(handle)) {
+        SLOG(LOG_ALERT, "Cannot activate packet source %s : %s", ifname, pcap_geterr(handle));
         goto err1;
     }
 
