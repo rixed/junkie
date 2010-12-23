@@ -52,6 +52,7 @@ HASH_TABLE(generic_hash, generic_value);
 } while (0)
 
 #define HASH_DEINIT(hash) do { \
+    LIST_REMOVE(hash, entry); \
     FREE((hash)->lists); \
 } while (0)
 
