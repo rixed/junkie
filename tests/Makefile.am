@@ -8,7 +8,8 @@ check_PROGRAMS = \
 	log_check redim_array_check mallocer_check \
 	ip_check udp_check tcp_check http_check sip_check \
 	sdp_check mgcp_check dns_check cnxtrack_check \
-	icmp_check rtcp_check flood_check port_range_check
+	icmp_check rtcp_check flood_check port_range_check \
+	arp_check
 
 TESTS = $(check_PROGRAMS)
 
@@ -58,6 +59,8 @@ icmp_check_SOURCES = icmp_check.c lib.c lib.h ../src/ext.c
 icmp_check_LDADD = ../src/tools/libtools.la ../src/proto/libproto.la
 rtcp_check_SOURCES = rtcp_check.c lib.c lib.h ../src/ext.c
 rtcp_check_LDADD = ../src/tools/libtools.la ../src/proto/libproto.la
+arp_check_SOURCES = arp_check.c lib.c lib.h ../src/ext.c
+arp_check_LDADD = ../src/tools/libtools.la ../src/proto/libproto.la
 flood_check_SOURCES = flood_check.c lib.c lib.h ../src/ext.c
 flood_check_LDADD = ../src/tools/libtools.la ../src/proto/libproto.la
 port_range_check_SOURCES = port_range_check.c lib.c lib.h ../src/ext.c

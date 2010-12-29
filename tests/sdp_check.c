@@ -102,7 +102,7 @@ int main(void)
     sdp_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("sdp_check.log");
-    
+
     parse_check();
     stress_check(proto_sdp);
 

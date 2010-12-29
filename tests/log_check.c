@@ -11,7 +11,7 @@
 static void check_simple(void)
 {
     char filename[] = "/tmp/junkie.check.XXXXXX";
-    mktemp(filename);
+    (void)mktemp(filename);
     assert(filename[0] != '\0');
     assert(0 == log_set_file(filename));
 
@@ -48,11 +48,11 @@ static void check_no_log(void)
 static void check_create_dir(void)
 {
     char filename[PATH_MAX] = "/tmp/randomdir.XXXXXX";
-    mktemp(filename);
+    (void)mktemp(filename);
     assert(filename[0] != '\0');
     int const len = strlen(filename);
     strncat(filename, "/randomfile.XXXXXX", sizeof(filename) - len - 1);
-    mktemp(filename);
+    (void)mktemp(filename);
     assert(filename[len] != '\0');
 
     assert(0 == log_set_file(filename));
@@ -71,7 +71,7 @@ static void check_set_get(void)
 
     // Mere test
     char filename[PATH_MAX] = "/tmp/check.XXXXXX";
-    mktemp(filename);
+    (void)mktemp(filename);
     assert(filename[0] != '\0');
     assert(0 == log_set_file(filename));
     assert(0 == strcmp(log_get_file(), filename));

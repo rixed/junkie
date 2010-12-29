@@ -38,7 +38,8 @@ static int plugin_ctor(struct plugin *plugin, char const *libname)
     plugin->handle = lt_dlopen(libname);
     if (! plugin->handle) {
         mutex_unlock(&plugins_mutex);
-        DIE("Cannot load plugin %s : %s", libname, lt_dlerror());
+        SLOG(LOG_ERR, "Cannot load plugin %s : %s", libname, lt_dlerror());
+        return -1;
     }
     snprintf(plugin->libname, sizeof(plugin->libname), "%s", libname);
     plugin->parse_callback = lt_dlsym(plugin->handle, "parse_callback");

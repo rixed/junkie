@@ -40,7 +40,7 @@ LOG_CATEGORY_DEF(proto_arp);
  * Parse
  */
 
-static char const *arp_opcode_2_str(uint16_t opcode)
+static char const *arp_opcode_2_str(unsigned opcode)
 {
     switch (opcode) {
         case 1: return "request";
@@ -80,9 +80,9 @@ static void fetch_ip(struct ip_addr *ip, uint16_t ar_pro, uint8_t const *ptr)
 static void fetch_hw(uint8_t mac[ETH_ALEN], uint16_t ar_hrd, uint8_t const *ptr)
 {
     if (ar_hrd == 1) {
-        memcpy(mac, ptr, 16);
+        memcpy(mac, ptr, sizeof(mac));
     } else {
-        memset(mac, 0, 16);
+        memset(mac, 0, sizeof(mac));
     }
 }
 
@@ -99,7 +99,6 @@ static enum proto_parse_status arp_parse(struct parser *parser, struct proto_lay
 
     // Now that we can dereference enough of the payload, display a useful log message
     SLOG(LOG_DEBUG, "New ARP packet with hard addr type %hu and proto addr type %hu", arp->ea_hdr.ar_hrd, arp->ea_hdr.ar_pro);
-    
     unsigned const ar_hrd = ntohs(arp->ea_hdr.ar_hrd);
     unsigned const ar_pro = ntohs(arp->ea_hdr.ar_pro);
     size_t const ar_hln = arp->ea_hdr.ar_hln;
@@ -124,7 +123,7 @@ static enum proto_parse_status arp_parse(struct parser *parser, struct proto_lay
     }
 
     // Check operation code
-    uint16_t const opcode = ntohs(arp->ea_hdr.ar_op);
+    unsigned const opcode = ntohs(arp->ea_hdr.ar_op);
     if (opcode != ARPOP_REQUEST && opcode != ARPOP_REPLY) {
         SLOG(LOG_DEBUG, "Unknown ARP opcode (%hu)", opcode);
         return PROTO_PARSE_ERR;
@@ -147,7 +146,7 @@ static enum proto_parse_status arp_parse(struct parser *parser, struct proto_lay
 
     fetch_ip(&info.sender, ar_pro, ptr);
     ptr += ar_pln;
-    
+
     fetch_hw(info.hw_target, ar_hrd, ptr);
     ptr += ar_hln;
 

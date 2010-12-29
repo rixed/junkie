@@ -16,7 +16,7 @@ extern struct proto *proto_arp;
 /// Description of an ARP message
 struct arp_proto_info {
     struct proto_info info;         ///< Generic infos
-    uint16_t opcode;                ///< 1 for requests, 2 for responses
+    unsigned opcode;                ///< 1 for requests, 2 for responses
     bool proto_addr_is_ip;
     bool hw_addr_is_eth;
     struct ip_addr sender;          ///< Set iff proto_addr_is_ip

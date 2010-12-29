@@ -11,7 +11,7 @@ AC_CONFIG_SRCDIR([src/main.c])
 AC_CONFIG_HEADERS([src/config.h])
 LT_INIT()
 
-AC_SUBST(TAGNAME, m4_esyscmd([git describe --tags]))
+AC_SUBST(TAGNAME, m4_esyscmd([git describe --tags || (if git symbolic-ref HEAD >/dev/null 2>&1; then git symbolic-ref HEAD | cut -d/ -f 3- ; else git name-rev HEAD | cut -d' ' -f 2; fi)]))
 AC_SUBST(BRANCHNAME, m4_esyscmd([if git symbolic-ref HEAD >/dev/null 2>&1; then git symbolic-ref HEAD | cut -d/ -f 3- ; else git name-rev HEAD | cut -d' ' -f 2; fi]))
 AC_SUBST(COMP_HOST, m4_esyscmd([hostname]))
 
@@ -33,24 +33,15 @@ AC_CHECK_HEADERS([arpa/inet.h fcntl.h inttypes.h limits.h malloc.h netinet/in.h 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_HEADER_STDBOOL
 AC_TYPE_UID_T
-AC_C_INLINE
-AC_TYPE_INT32_T
-AC_TYPE_INT64_T
-AC_TYPE_OFF_T
 AC_TYPE_PID_T
-AC_TYPE_SIZE_T
-AC_TYPE_SSIZE_T
-AC_TYPE_UINT16_T
-AC_TYPE_UINT32_T
-AC_TYPE_UINT64_T
-AC_TYPE_UINT8_T
 
 # Checks for library functions.
 AC_FUNC_CHOWN
-AC_FUNC_FORK
-AC_FUNC_MALLOC
-AC_FUNC_REALLOC
-AC_CHECK_FUNCS([clock_gettime gettimeofday localtime_r memmove memset mkdir regcomp rmdir sqrt strcasecmp strchr strdup strerror strncasecmp strstr strtoull prctl])
+AC_CHECK_FUNCS([clock_gettime localtime_r mkdir regcomp rmdir sqrt strcasecmp strncasecmp strtoull prctl])
+
+# Where to install various things
+AC_ARG_VAR([CONFDIR], [Where to store configuration files [SYSCONFDIR/junkie]])
+AS_IF([test "x$CONFDIR" = x], [CONFDIR="$sysconfdir/junkie"])
 
 AC_CONFIG_FILES([
 	Makefile

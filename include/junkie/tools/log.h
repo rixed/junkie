@@ -14,7 +14,7 @@
  * @brief log facility
  */
 
-extern bool in_background;  ///< Tells if junkie runs in daemon mode 
+extern bool in_background;  ///< Tells if junkie runs in daemon mode
 
 /** Set/Change the file where the logs are written to.
  * @param filename if not NULL, the logs will be written in this file from now on. If NULL, no more logs will be outputed.

@@ -242,8 +242,8 @@ struct proto_layer *proto_layer_get(
 );
 
 #define ASSIGN_LAYER_AND_INFO_OPT(proto, last) \
-    struct proto_layer *const layer_##proto = proto_layer_get(proto_##proto, last); \
-    struct proto##_proto_info const *const proto = layer_##proto ? DOWNCAST(layer_##proto->info, info, proto##_proto_info) : NULL;
+    struct proto_layer *layer_##proto = proto_layer_get(proto_##proto, last); \
+    struct proto##_proto_info const *proto = layer_##proto ? DOWNCAST(layer_##proto->info, info, proto##_proto_info) : NULL;
 
 /// Ugly macro, used if both TCP and UDP can handle a upper protocol (say... DNS or SIP)
 #define ASSIGN_LAYER_AND_INFO_OPT2(proto, proto_alt, last) \

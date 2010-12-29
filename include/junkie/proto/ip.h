@@ -36,6 +36,9 @@ struct ip_proto_info {
     unsigned way;               ///< The way used to store the mux subparsers
 };
 
+/// IPv6 and IPv4 uses the same proto_info. This define is required for ASSIGN_* MACROS.
+#define ip6_proto_info ip_proto_info
+
 /// Look for the mux_subparser handling connections between IP addresses src and dst for given protocol
 /** if proto is given, then restrict the lookup to this proto, and creates a new one if not found.
  * @return NULL if not found and not asked to create a new one. */

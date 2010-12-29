@@ -50,5 +50,6 @@ tests/sip_check
 tests/tcp_check
 tests/timeval_check
 tests/udp_check
+tests/arp_check
 doxydoc
 config/instvars.scm

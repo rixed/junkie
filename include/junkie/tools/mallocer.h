@@ -42,8 +42,8 @@ struct mallocer {
     }
 
 #define MALLOCER_INIT(name_) \
-    mutex_ctor(&mallocer_##name_.mutex, "mallocer "#name_); \
     if (! mallocer_##name_.inited) { \
+        mutex_ctor(&mallocer_##name_.mutex, "mallocer "#name_); \
         SLIST_INSERT_HEAD(&mallocers, &mallocer_##name_, entry); \
         mallocer_##name_.inited = true; \
     }

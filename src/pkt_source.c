@@ -614,7 +614,7 @@ void pkt_source_fini(void)
         if (is_empty) break;
         sleep(1);
     }
-    
+
     mutex_lock(&cap_parser_lock);
     if (cap_parser) cap_parser = parser_unref(cap_parser);
     mutex_unlock(&cap_parser_lock);
