@@ -83,12 +83,9 @@ static char const *eth_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-static void eth_proto_info_ctor(struct eth_proto_info *info, size_t head_len, size_t payload, uint16_t proto, uint16_t vlan_id, struct eth_hdr const *ethhdr)
+static void eth_proto_info_ctor(struct eth_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t head_len, size_t payload, uint16_t proto, uint16_t vlan_id, struct eth_hdr const *ethhdr)
 {
-    static struct proto_info_ops ops = {
-        .to_str = eth_info_2_str,
-    };
-    proto_info_ctor(&info->info, &ops, head_len, payload);
+    proto_info_ctor(&info->info, parser, parent, head_len, payload);
 
     info->vlan_id = collapse_vlans ? zero : vlan_id;
     ASSERT_COMPILE(sizeof(info->addr[0]) == sizeof(ethhdr->src));
@@ -128,7 +125,7 @@ struct mux_subparser *eth_subparser_and_parser_new(struct parser *parser, struct
     return mux_subparser_and_parser_new(mux_parser, proto, requestor, collapse_vlans ? &zero : &vlan_id, now);
 }
 
-static enum proto_parse_status eth_parse(struct parser *parser, struct proto_layer *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status eth_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct eth_hdr const *ethhdr = (struct eth_hdr *)packet;
@@ -166,9 +163,7 @@ static enum proto_parse_status eth_parse(struct parser *parser, struct proto_lay
 
     // Parse
     struct eth_proto_info info;
-    eth_proto_info_ctor(&info, ethhdr_len, wire_len - ethhdr_len, h_proto, vlan_id, ethhdr);
-    struct proto_layer layer;
-    proto_layer_ctor(&layer, parent, parser, &info.info);
+    eth_proto_info_ctor(&info, parser, parent, ethhdr_len, wire_len - ethhdr_len, h_proto, vlan_id, ethhdr);
 
     struct proto *sub_proto = NULL;
     struct eth_subproto *subproto;
@@ -183,11 +178,11 @@ static enum proto_parse_status eth_parse(struct parser *parser, struct proto_lay
     if (! subparser) goto fallback;
 
     assert(ethhdr_len <= cap_len);
-    if (0 != proto_parse(subparser->parser, &layer, way, packet + ethhdr_len, cap_len - ethhdr_len, wire_len - ethhdr_len, now, okfn)) goto fallback;
+    if (0 != proto_parse(subparser->parser, &info.info, way, packet + ethhdr_len, cap_len - ethhdr_len, wire_len - ethhdr_len, now, okfn)) goto fallback;
     return PROTO_OK;
 
 fallback:
-    (void)proto_parse(NULL, &layer, way, packet + ethhdr_len, cap_len - ethhdr_len, wire_len - ethhdr_len, now, okfn);
+    (void)proto_parse(NULL, &info.info, way, packet + ethhdr_len, cap_len - ethhdr_len, wire_len - ethhdr_len, now, okfn);
     return PROTO_OK;
 }
 
@@ -207,6 +202,7 @@ void eth_init(void)
         .parse = eth_parse,
         .parser_new = mux_parser_new,
         .parser_del = mux_parser_del,
+        .info_2_str = eth_info_2_str,
     };
     mux_proto_ctor(&mux_proto_eth, &ops, &mux_proto_ops, "Ethernet", ETH_TIMEOUT, sizeof(zero) /* vlan_id */, 8);
     LIST_INIT(&eth_subprotos);

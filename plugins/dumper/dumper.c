@@ -4,13 +4,13 @@
 #include <junkie/cpp.h>
 
 // Default parse continuation :
-static void dump_frame_rec(struct proto_layer const *layer)
+static void dump_frame_rec(struct proto_info const *info)
 {
-    if (layer->parent) dump_frame_rec(layer->parent);
-    printf("%s@%p: %s\n", layer->parser->proto->name, layer->parser, layer->info->ops->to_str(layer->info));
+    if (info->parent) dump_frame_rec(info->parent);
+    printf("%s@%p: %s\n", info->parser->proto->name, info->parser, info->parser->proto->ops->info_2_str(info));
 }
 
-int parse_callback(struct proto_layer *last)
+int parse_callback(struct proto_info const *last)
 {
     dump_frame_rec(last);
     printf("\n");

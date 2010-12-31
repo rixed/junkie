@@ -158,14 +158,9 @@ static char const *sip_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-static void sip_proto_info_ctor(struct sip_proto_info *info,
-                                size_t head_len, size_t payload)
+static void sip_proto_info_ctor(struct sip_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t head_len, size_t payload)
 {
-    static struct proto_info_ops ops = {
-        .to_str = sip_info_2_str,
-    };
-
-    proto_info_ctor(&info->info, &ops, head_len, payload);
+    proto_info_ctor(&info->info, parser, parent, head_len, payload);
 }
 
 /*
@@ -294,32 +289,29 @@ static int sip_extract_via(unsigned unused_ field, struct liner *liner, void *in
     return 0;
 }
 
-static void try_create_dual(struct sip_parser *sip_parser, struct sip_proto_info const *info, struct proto_layer *parent, unsigned way, struct timeval const *now)
+static void try_create_dual(struct sip_parser *sip_parser, struct sip_proto_info const *info, struct proto_info const *parent, unsigned way, struct timeval const *now)
 {
     unsigned server_port = 0;
-    struct proto_layer *layer_transp;
     struct proto *proto_transp;
+    struct proto_info const *info_transp;
     if (info->via.protocol == IPPROTO_UDP) {
-        ASSIGN_LAYER_AND_INFO_OPT(udp, parent);
-        if (! udp) return;
+        ASSIGN_INFO_CHK(udp, parent, );
         server_port = udp->key.port[!way];  // packet is going from client to server, so we want port[1] (dest), if not inversed
-        layer_transp = layer_udp;
+        info_transp = &udp->info;
         proto_transp = proto_udp;
     } else {
-        ASSIGN_LAYER_AND_INFO_OPT(tcp, parent);
-        if (! tcp) return;
+        ASSIGN_INFO_CHK(tcp, parent, );
         server_port = tcp->key.port[!way];
-        layer_transp = layer_tcp;
+        info_transp = &tcp->info;
         proto_transp = proto_tcp;
     }
-    ASSIGN_LAYER_AND_INFO_OPT(ip, layer_transp);
-    if (! layer_ip) return;
+    ASSIGN_INFO_CHK(ip, info_transp, );
 
     // Look for a transp parser between the server (ip->addr[!way]:server_port), and
     // the client address specified in Via field (info->via.addr:info->via.port)
     unsigned way2;
     struct mux_subparser *ip_subparser =
-        ip_subparser_lookup(layer_ip->parser, proto_transp, NULL, info->via.protocol, ip->key.addr+!way, &info->via.addr, &way2, now);
+        ip_subparser_lookup(ip->info.parser, proto_transp, NULL, info->via.protocol, ip->key.addr+!way, &info->via.addr, &way2, now);
     // Then for the SIP parser, child of this transp (UDP|TCP) parser
     if (! ip_subparser) return;
     struct mux_subparser *transp_subparser =
@@ -337,7 +329,7 @@ static void try_create_dual(struct sip_parser *sip_parser, struct sip_proto_info
     sip_parser->dual = DOWNCAST(DOWNCAST(dual_parser, parser, mux_parser), mux_parser, sip_parser);
 }
 
-static enum proto_parse_status sip_parse(struct parser *parser, struct proto_layer *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t unused_ *okfn)
+static enum proto_parse_status sip_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t unused_ *okfn)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct sip_parser *sip_parser = DOWNCAST(mux_parser, mux_parser, sip_parser);
@@ -375,14 +367,12 @@ static enum proto_parse_status sip_parse(struct parser *parser, struct proto_lay
 
     struct sip_proto_info info;
     info.set_values = 0;
-    struct proto_layer layer;
-    proto_layer_ctor(&layer, parent, parser, &info.info);
 
     size_t siphdr_len;
     if (0 != httper_parse(&httper, &siphdr_len, packet, cap_len, &info)) return PROTO_PARSE_ERR;
 
     assert(siphdr_len <= cap_len);
-    sip_proto_info_ctor(&info, siphdr_len, wire_len - siphdr_len);
+    sip_proto_info_ctor(&info, parser, parent, siphdr_len, wire_len - siphdr_len);
 
     // If we are a request (with a Via), without our dual, then create it
     if (
@@ -413,11 +403,11 @@ static enum proto_parse_status sip_parse(struct parser *parser, struct proto_lay
 
     if (! subparser) goto fallback;
 
-    if (0 != proto_parse(subparser->parser, &layer, way, packet + siphdr_len, cap_len - siphdr_len, wire_len - siphdr_len, now, okfn)) goto fallback;
+    if (0 != proto_parse(subparser->parser, &info.info, way, packet + siphdr_len, cap_len - siphdr_len, wire_len - siphdr_len, now, okfn)) goto fallback;
     return PROTO_OK;
 
 fallback:
-    (void)proto_parse(NULL, &layer, way, packet + siphdr_len, cap_len - siphdr_len, wire_len - siphdr_len, now, okfn);
+    (void)proto_parse(NULL, &info.info, way, packet + siphdr_len, cap_len - siphdr_len, wire_len - siphdr_len, now, okfn);
     return PROTO_OK;
 }
 
@@ -439,6 +429,7 @@ void sip_init(void)
         .parse      = sip_parse,
         .parser_new = sip_parser_new,
         .parser_del = sip_parser_del,
+        .info_2_str = sip_info_2_str,
     };
     mux_proto_ctor(&mux_proto_sip, &ops, &mux_proto_ops, "SIP", SIP_TIMEOUT, sizeof (unsigned long), SIP_HASH_SIZE);
     port_muxer_ctor(&udp_port_muxer, &udp_port_muxers, SIP_PORT, SIP_PORT, proto_sip);

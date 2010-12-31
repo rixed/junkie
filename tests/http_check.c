@@ -137,10 +137,10 @@ static struct parse_test {
 
 static unsigned current_test;
 
-static int http_info_check(struct proto_layer *layer)
+static int http_info_check(struct proto_info const *info_)
 {
-    // Check layer->info against parse_tests[current_test].expected
-    struct http_proto_info const *const info = DOWNCAST(layer->info, info, http_proto_info);
+    // Check info against parse_tests[current_test].expected
+    struct http_proto_info const *const info = DOWNCAST(info_, info, http_proto_info);
     struct http_proto_info const *const expected = &parse_tests[current_test].expected;
     assert(info->info.head_len == expected->info.head_len);
     assert(info->info.payload == expected->info.payload);
@@ -202,7 +202,7 @@ void build_url_check(void)
 }
 
 static bool caplen_reported;
-static int caplen_info_check(struct proto_layer unused_ *layer)
+static int caplen_info_check(struct proto_info const unused_ *info)
 {
     caplen_reported = true;
     return 0;

@@ -61,10 +61,10 @@ static struct parse_test {
 
 static unsigned cur_test;
 
-static int sdp_info_check(struct proto_layer *layer)
+static int sdp_info_check(struct proto_info const *info_)
 {
-    // Check layer->info against parse_tests[cur_test].expected
-    struct sdp_proto_info const *const info = DOWNCAST(layer->info, info, sdp_proto_info);
+    // Check info against parse_tests[cur_test].expected
+    struct sdp_proto_info const *const info = DOWNCAST(info_, info, sdp_proto_info);
     uint16_t port = parse_tests[cur_test].port;
     char    *ip   = parse_tests[cur_test].ip;
 

@@ -64,12 +64,9 @@ static char const *icmpv6_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-static void icmpv6_proto_info_ctor(struct icmp_proto_info *info, size_t packet_len, uint8_t type, uint8_t code)
+static void icmpv6_proto_info_ctor(struct icmp_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t packet_len, uint8_t type, uint8_t code)
 {
-    static struct proto_info_ops ops = {
-        .to_str = icmpv6_info_2_str,
-    };
-    proto_info_ctor(&info->info, &ops, packet_len, 0);
+    proto_info_ctor(&info->info, parser, parent, packet_len, 0);
     info->type = type;
     info->code = code;
     info->set_values = 0;
@@ -112,7 +109,7 @@ static bool icmpv6_is_err(uint8_t type)
     return !(type & 0x80);
 }
 
-static enum proto_parse_status icmpv6_parse(struct parser *parser, struct proto_layer *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status icmpv6_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     struct icmp_hdr *icmphdr = (struct icmp_hdr *)packet;
 
@@ -121,9 +118,7 @@ static enum proto_parse_status icmpv6_parse(struct parser *parser, struct proto_
     if (cap_len < sizeof(*icmphdr)) return PROTO_TOO_SHORT;
 
     struct icmp_proto_info info;
-    icmpv6_proto_info_ctor(&info, wire_len, icmphdr->type, icmphdr->code);
-    struct proto_layer layer;
-    proto_layer_ctor(&layer, parent, parser, &info.info);
+    icmpv6_proto_info_ctor(&info, parser, parent, wire_len, icmphdr->type, icmphdr->code);
 
     // Extract error values
     if (icmpv6_is_err(icmphdr->type)) {
@@ -132,7 +127,7 @@ static enum proto_parse_status icmpv6_parse(struct parser *parser, struct proto_
         }
     }
 
-    return proto_parse(NULL, &layer, way, NULL, 0, 0, now, okfn);
+    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn);
 }
 
 /*
@@ -151,6 +146,7 @@ void icmpv6_init(void)
         .parse      = icmpv6_parse,
         .parser_new = uniq_parser_new,
         .parser_del = uniq_parser_del,
+        .info_2_str = icmpv6_info_2_str,
     };
     uniq_proto_ctor(&uniq_proto_icmpv6, &ops, "ICMPv6");
     ip6_subproto_ctor(&icmpv6_ip6_subproto, IPPROTO_ICMPV6, proto_icmpv6);

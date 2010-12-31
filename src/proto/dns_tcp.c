@@ -38,7 +38,7 @@ static char const Id[] = "$Id: da1898e810e979d6a571be386ad1ac6163b7af5f $";
  * Parse
  */
 
-static enum proto_parse_status dns_tcp_parse(struct parser unused_ *parser, struct proto_layer *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status dns_tcp_parse(struct parser unused_ *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     size_t const hlen = 2;
     size_t offset = 0;

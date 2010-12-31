@@ -70,13 +70,9 @@ static char const *rtp_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-static void rtp_proto_info_ctor(struct rtp_proto_info *info, struct rtp_header const *rtph, size_t head_len, size_t payload)
+static void rtp_proto_info_ctor(struct rtp_proto_info *info, struct parser *parser, struct proto_info const *parent, struct rtp_header const *rtph, size_t head_len, size_t payload)
 {
-    static struct proto_info_ops ops = {
-        .to_str = rtp_info_2_str,
-    };
-
-    proto_info_ctor(&info->info, &ops, head_len, payload);
+    proto_info_ctor(&info->info, parser, parent, head_len, payload);
     info->payload_type = rtph->payload_type;
     info->sync_src = ntohl(rtph->ssrc);
     info->seq_num = ntohs(rtph->seq_num);
@@ -88,7 +84,7 @@ static void rtp_proto_info_ctor(struct rtp_proto_info *info, struct rtp_header c
  * Note: We assume RTP/AVP profile
  */
 
-static enum proto_parse_status rtp_parse(struct parser *parser, struct proto_layer *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status rtp_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     SLOG(LOG_DEBUG, "Starting RTP analysis");
 
@@ -105,11 +101,9 @@ static enum proto_parse_status rtp_parse(struct parser *parser, struct proto_lay
     if (cap_len < head_len) return PROTO_TOO_SHORT;
 
     struct rtp_proto_info info;
-    rtp_proto_info_ctor(&info, rtph, head_len, wire_len - head_len);
-    struct proto_layer layer;
-    proto_layer_ctor(&layer, parent, parser, &info.info);
+    rtp_proto_info_ctor(&info, parser, parent, rtph, head_len, wire_len - head_len);
 
-    return proto_parse(NULL, &layer, way, NULL, 0, 0, now, okfn);
+    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn);
 }
 
 /*
@@ -127,6 +121,7 @@ void rtp_init(void)
         .parse      = rtp_parse,
         .parser_new = uniq_parser_new,
         .parser_del = uniq_parser_del,
+        .info_2_str = rtp_info_2_str,
     };
     uniq_proto_ctor(&uniq_proto_rtp, &ops, "RTP");
 }

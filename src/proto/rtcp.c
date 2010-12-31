@@ -87,16 +87,9 @@ static char const *rtcp_info_2_str(struct proto_info const *info_)
 }
 
 
-static void rtcp_proto_info_ctor(struct rtcp_proto_info *info,
-                                 size_t head_len, size_t payload,
-                                 int32_t packet_lost, uint32_t jitter,
-                                 uint32_t lst, uint32_t dlsr, uint32_t ntp_ts)
+static void rtcp_proto_info_ctor(struct rtcp_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t head_len, size_t payload, int32_t packet_lost, uint32_t jitter, uint32_t lst, uint32_t dlsr, uint32_t ntp_ts)
 {
-    static struct proto_info_ops ops = {
-        .to_str = rtcp_info_2_str,
-    };
-
-    proto_info_ctor(&info->info, &ops, head_len, payload);
+    proto_info_ctor(&info->info, parser, parent, head_len, payload);
     info->cumul_lost = packet_lost;
     info->jitter = jitter;
     info->lsr = lst;
@@ -108,7 +101,7 @@ static void rtcp_proto_info_ctor(struct rtcp_proto_info *info,
  * Parse
  */
 
-static enum proto_parse_status rtcp_parse(struct parser *parser, struct proto_layer *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status rtcp_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     struct rtcp_head const *rtcphd = (struct rtcp_head *)packet;
 
@@ -151,11 +144,9 @@ static enum proto_parse_status rtcp_parse(struct parser *parser, struct proto_la
     } // FIXME: else jitter, packet_lost, lsr and ntp_ts are not set ?
 
     struct rtcp_proto_info info;
-    rtcp_proto_info_ctor(&info, wire_len, 0, packet_lost, jitter, lsr, dlsr, ntp_ts);
-    struct proto_layer layer;
-    proto_layer_ctor(&layer, parent, parser, &info.info);
+    rtcp_proto_info_ctor(&info, parser, parent, wire_len, 0, packet_lost, jitter, lsr, dlsr, ntp_ts);
 
-    return proto_parse(NULL, &layer, way, NULL, 0, 0, now, okfn);
+    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn);
 }
 
 /*
@@ -174,6 +165,7 @@ void rtcp_init(void)
         .parse = rtcp_parse,
         .parser_new = uniq_parser_new,
         .parser_del = uniq_parser_del,
+        .info_2_str = rtcp_info_2_str,
     };
 
     uniq_proto_ctor(&uniq_proto_rtcp, &ops, "RTCP");

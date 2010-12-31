@@ -71,9 +71,9 @@ static struct parse_test {
 
 static unsigned current_test;
 
-static int dns_info_check(struct proto_layer *layer)
+static int dns_info_check(struct proto_info const *info_)
 {
-	struct dns_proto_info const *const info = DOWNCAST(layer->info, info, dns_proto_info);
+	struct dns_proto_info const *const info = DOWNCAST(info_, info, dns_proto_info);
 	struct dns_proto_info const *const expected = &parse_tests[current_test].expected;
 
 #	define CHECK(field) assert(info->field == expected->field);

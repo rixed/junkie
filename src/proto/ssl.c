@@ -67,12 +67,9 @@ static char const *ssl_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-static void ssl_proto_info_ctor(struct ssl_proto_info *info, size_t head_len, size_t payload, enum ssl_mode mode)
+static void ssl_proto_info_ctor(struct ssl_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t head_len, size_t payload, enum ssl_mode mode)
 {
-    static struct proto_info_ops ops = {
-        .to_str = ssl_info_2_str,
-    };
-    proto_info_ctor(&info->info, &ops, head_len, payload);
+    proto_info_ctor(&info->info, parser, parent, head_len, payload);
 
     info->mode = mode;
 }
@@ -108,7 +105,7 @@ static int session_is_tls(uint8_t const *packet, size_t packet_len)
     return packet_len > 2 && packet[0] == 23 && packet[1] == 3 && packet[2] == 1;
 }
 
-static enum proto_parse_status ssl_parse(struct parser *parser, struct proto_layer *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status ssl_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     size_t const head_len = 3; // 3 bytes in the minimum size to tag a flow as ssl
 
@@ -130,11 +127,9 @@ static enum proto_parse_status ssl_parse(struct parser *parser, struct proto_lay
     // Parse
 
     struct ssl_proto_info info;
-    ssl_proto_info_ctor(&info, head_len, wire_len - head_len, mode);
-    struct proto_layer layer;
-    proto_layer_ctor(&layer, parent, parser, &info.info);
+    ssl_proto_info_ctor(&info, parser, parent, head_len, wire_len - head_len, mode);
 
-    return proto_parse(NULL, &layer, way, NULL, 0, 0, now, okfn);
+    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn);
 }
 
 /*
@@ -153,6 +148,7 @@ void ssl_init(void)
         .parse = ssl_parse,
         .parser_new = uniq_parser_new,
         .parser_del = uniq_parser_del,
+        .info_2_str = ssl_info_2_str,
     };
     uniq_proto_ctor(&uniq_proto_ssl, &ops, "SSL");
     port_muxer_ctor(&tcp_port_muxer, &tcp_port_muxers, 443, 443, proto_ssl);

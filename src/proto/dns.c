@@ -114,12 +114,9 @@ static char const *dns_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-static void dns_proto_info_ctor(struct dns_proto_info *info, size_t packet_len, uint16_t transaction_id, uint16_t flags)
+static void dns_proto_info_ctor(struct dns_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t packet_len, uint16_t transaction_id, uint16_t flags)
 {
-    static struct proto_info_ops ops = {
-        .to_str = dns_info_2_str,
-    };
-    proto_info_ctor(&info->info, &ops, packet_len, 0);
+    proto_info_ctor(&info->info, parser, parent, packet_len, 0);
     info->transaction_id = transaction_id;
     info->query = 0 == (flags & FLAG_QR);
     info->error_code = flags & FLAG_RCODE;
@@ -159,7 +156,7 @@ ssize_t extract_qname(char *name, size_t name_len, uint8_t const *buf, size_t bu
     return len + 1 + extract_qname(name + copy_len, name_len - copy_len, buf+len, buf_len-len, true);
 }
 
-static enum proto_parse_status dns_parse(struct parser *parser, struct proto_layer *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status dns_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     struct dns_header *dnshdr = (struct dns_header *)packet;
 
@@ -173,9 +170,7 @@ static enum proto_parse_status dns_parse(struct parser *parser, struct proto_lay
     uint16_t const nb_questions = ntohs(dnshdr->nb_questions);
 
     struct dns_proto_info info;
-    dns_proto_info_ctor(&info, wire_len, transaction_id, flags);
-    struct proto_layer layer;
-    proto_layer_ctor(&layer, parent, parser, &info.info);
+    dns_proto_info_ctor(&info, parser, parent, wire_len, transaction_id, flags);
 
     char tmp_name[sizeof(info.name)];    // to skip all but first names
 
@@ -196,7 +191,7 @@ static enum proto_parse_status dns_parse(struct parser *parser, struct proto_lay
     }
 
     // We don't care that much about the answer.
-    return proto_parse(NULL, &layer, way, NULL, 0, 0, now, okfn);
+    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn);
 }
 
 /*
@@ -215,6 +210,7 @@ void dns_init(void)
         .parse      = dns_parse,
         .parser_new = uniq_parser_new,
         .parser_del = uniq_parser_del,
+        .info_2_str = dns_info_2_str,
     };
     uniq_proto_ctor(&uniq_proto_dns, &ops, "DNS");
     port_muxer_ctor(&udp_port_muxer, &udp_port_muxers, 53, 53, proto_dns);

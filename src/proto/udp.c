@@ -54,12 +54,9 @@ static char const *udp_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-static void udp_proto_info_ctor(struct udp_proto_info *info, size_t head_len, size_t payload, uint16_t sport, uint16_t dport)
+static void udp_proto_info_ctor(struct udp_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t head_len, size_t payload, uint16_t sport, uint16_t dport)
 {
-    static struct proto_info_ops ops = {
-        .to_str = udp_info_2_str,
-    };
-    proto_info_ctor(&info->info, &ops, head_len, payload);
+    proto_info_ctor(&info->info, parser, parent, head_len, payload);
 
     info->key.port[0] = sport;
     info->key.port[1] = dport;
@@ -122,7 +119,7 @@ struct mux_subparser *udp_subparser_lookup(struct parser *parser, struct proto *
     return mux_subparser_lookup(mux_parser, proto, requestor, &key, now);
 }
 
-static enum proto_parse_status udp_parse(struct parser *parser, struct proto_layer *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status udp_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct udp_hdr const *udphdr = (struct udp_hdr *)packet;
@@ -154,9 +151,7 @@ static enum proto_parse_status udp_parse(struct parser *parser, struct proto_lay
     // Parse
 
     struct udp_proto_info info;
-    udp_proto_info_ctor(&info, sizeof(*udphdr), payload, sport, dport);
-    struct proto_layer layer;
-    proto_layer_ctor(&layer, parent, parser, &info.info);
+    udp_proto_info_ctor(&info, parser, parent, sizeof(*udphdr), payload, sport, dport);
 
     // Find out subparser based on exact ports
     struct udp_key key;
@@ -182,11 +177,11 @@ static enum proto_parse_status udp_parse(struct parser *parser, struct proto_lay
 
     if (! subparser) goto fallback;
 
-    if (0 != proto_parse(subparser->parser, &layer, way, packet + sizeof(*udphdr), cap_len - sizeof(*udphdr), wire_len - sizeof(*udphdr), now, okfn)) goto fallback;
+    if (0 != proto_parse(subparser->parser, &info.info, way, packet + sizeof(*udphdr), cap_len - sizeof(*udphdr), wire_len - sizeof(*udphdr), now, okfn)) goto fallback;
     return PROTO_OK;
 
 fallback:
-    (void)proto_parse(NULL, &layer, way, packet + sizeof(*udphdr), cap_len - sizeof(*udphdr), wire_len - sizeof(*udphdr), now, okfn);
+    (void)proto_parse(NULL, &info.info, way, packet + sizeof(*udphdr), cap_len - sizeof(*udphdr), wire_len - sizeof(*udphdr), now, okfn);
     return PROTO_OK;
 }
 
@@ -206,6 +201,7 @@ void udp_init(void)
         .parse = udp_parse,
         .parser_new = mux_parser_new,
         .parser_del = mux_parser_del,
+        .info_2_str = udp_info_2_str,
     };
     mux_proto_ctor(&mux_proto_udp, &ops, &mux_proto_ops, "UDP", UDP_TIMEOUT, sizeof(struct udp_key), UDP_HASH_SIZE);
     port_muxer_list_ctor(&udp_port_muxers, "UDP muxers");

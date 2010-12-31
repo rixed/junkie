@@ -61,9 +61,9 @@ static struct parse_test {
 
 static unsigned cur_test;
 
-static int arp_info_check(struct proto_layer *layer)
+static int arp_info_check(struct proto_info const *info_)
 {
-    struct arp_proto_info const *const info = DOWNCAST(layer->info, info, arp_proto_info);
+    struct arp_proto_info const *const info = DOWNCAST(info_, info, arp_proto_info);
     struct expected const *const exp = &parse_tests[cur_test].expected;
 
     assert(info->info.head_len == exp->head_len);

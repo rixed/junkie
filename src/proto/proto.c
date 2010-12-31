@@ -148,7 +148,7 @@ struct proto *proto_of_name(char const *name)
     return NULL;
 }
 
-enum proto_parse_status proto_parse(struct parser *parser, struct proto_layer *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+enum proto_parse_status proto_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     assert(cap_len <= wire_len);
 
@@ -187,17 +187,10 @@ enum proto_parse_status proto_parse(struct parser *parser, struct proto_layer *p
 }
 
 /*
- * Proto Layer
+ * Proto Infos
  */
 
-void proto_layer_ctor(struct proto_layer *layer, struct proto_layer *parent, struct parser *parser, struct proto_info const *info)
-{
-    layer->parent = parent;
-    layer->parser = parser;
-    layer->info = info;
-}
-
-struct proto_layer *proto_layer_get(struct proto const *proto, struct proto_layer *last)
+struct proto_info const *proto_info_get(struct proto const *proto, struct proto_info const *last)
 {
     while (last) {
         if (last->parser->proto == proto) return last;
@@ -207,13 +200,10 @@ struct proto_layer *proto_layer_get(struct proto const *proto, struct proto_laye
     return NULL;
 }
 
-/*
- * Proto Infos
- */
-
-void proto_info_ctor(struct proto_info *info, struct proto_info_ops const *ops, size_t head_len, size_t payload)
+void proto_info_ctor(struct proto_info *info, struct parser *parser, struct proto_info const *parent, size_t head_len, size_t payload)
 {
-    info->ops = ops;
+    info->parent = parent;
+    info->parser = parser;
     info->head_len = head_len;
     info->payload = payload;
 }
@@ -307,7 +297,7 @@ struct parser *parser_unref(struct parser *parser)
  * Dummy proto
  */
 
-static enum proto_parse_status dummy_parse(struct parser unused_ *parser, struct proto_layer *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status dummy_parse(struct parser unused_ *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     return proto_parse(NULL, parent, way, packet, cap_len, wire_len, now, okfn);
 }

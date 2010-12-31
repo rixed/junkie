@@ -91,9 +91,9 @@ static struct parse_test {
 
 static unsigned current_test;
 
-static int icmp_info_check(struct proto_layer *layer)
+static int icmp_info_check(struct proto_info const *info_)
 {
-    struct icmp_proto_info const *const info = DOWNCAST(layer->info, info, icmp_proto_info);
+    struct icmp_proto_info const *const info = DOWNCAST(info_, info, icmp_proto_info);
     struct icmp_proto_info const *const expected = &parse_tests[current_test].expected;
     assert(info->info.head_len == expected->info.head_len);
     assert(info->info.payload == expected->info.payload);

@@ -45,22 +45,19 @@ static int packet_is_netbios(uint8_t const *packet, size_t next_len)
     return len == next_len;
 }
 
-static char const *netbios_proto_info_2_str(struct proto_info const unused_ *info)
+static char const *netbios_info_2_str(struct proto_info const unused_ *info)
 {
     return "TODO";
 }
 
-static void netbios_proto_info_ctor(struct netbios_proto_info *info, size_t header, size_t payload)
+static void netbios_proto_info_ctor(struct netbios_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t header, size_t payload)
 {
-    static struct proto_info_ops const ops = {
-        .to_str = netbios_proto_info_2_str,
-    };
-    proto_info_ctor(&info->info, &ops, header, payload);
+    proto_info_ctor(&info->info, parser, parent, header, payload);
     info->mode = NETBIOS_CIFS;
 }
 
 
-static enum proto_parse_status netbios_parse(struct parser *parser, struct proto_layer *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status netbios_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     /* Sanity checks */
     if (wire_len < NETBIOS_HEADER_SIZE) return PROTO_PARSE_ERR;
@@ -70,10 +67,7 @@ static enum proto_parse_status netbios_parse(struct parser *parser, struct proto
 
     /* Parse */
     struct netbios_proto_info info;
-    netbios_proto_info_ctor(&info, NETBIOS_HEADER_SIZE, wire_len - NETBIOS_HEADER_SIZE);
-
-    struct proto_layer layer;
-    proto_layer_ctor(&layer, parent, parser, &info.info);
+    netbios_proto_info_ctor(&info, parser, parent, NETBIOS_HEADER_SIZE, wire_len - NETBIOS_HEADER_SIZE);
 
     uint8_t const *next_packet = packet + NETBIOS_HEADER_SIZE;
     struct parser *subparser = proto_cifs->ops->parser_new(proto_cifs, now);
@@ -106,6 +100,7 @@ void netbios_init(void)
         .parse      = netbios_parse,
         .parser_new = uniq_parser_new,
         .parser_del = uniq_parser_del,
+        .info_2_str = netbios_info_2_str,
     };
     uniq_proto_ctor(&uniq_proto_netbios, &ops, "Netbios");
 }

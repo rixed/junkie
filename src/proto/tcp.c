@@ -65,12 +65,9 @@ static char const *tcp_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-static void tcp_proto_info_ctor(struct tcp_proto_info *info, size_t head_len, size_t payload, uint16_t sport, uint16_t dport, struct tcp_hdr const *tcphdr)
+static void tcp_proto_info_ctor(struct tcp_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t head_len, size_t payload, uint16_t sport, uint16_t dport, struct tcp_hdr const *tcphdr)
 {
-    static struct proto_info_ops ops = {
-        .to_str = tcp_info_2_str,
-    };
-    proto_info_ctor(&info->info, &ops, head_len, payload);
+    proto_info_ctor(&info->info, parser, parent, head_len, payload);
 
     info->key.port[0] = sport;
     info->key.port[1] = dport;
@@ -194,7 +191,7 @@ struct mux_subparser *tcp_subparser_lookup(struct parser *parser, struct proto *
     return mux_subparser_lookup(mux_parser, proto, requestor, &key, now);
 }
 
-static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_layer *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct tcp_hdr const *tcphdr = (struct tcp_hdr *)packet;
@@ -225,9 +222,7 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_lay
     // Parse
 
     struct tcp_proto_info info;
-    tcp_proto_info_ctor(&info, tcphdr_len, wire_len - tcphdr_len, sport, dport, tcphdr);
-    struct proto_layer layer;
-    proto_layer_ctor(&layer, parent, parser, &info.info);
+    tcp_proto_info_ctor(&info, parser, parent, tcphdr_len, wire_len - tcphdr_len, sport, dport, tcphdr);
 
     // Find out subparser based on exact ports
     struct tcp_key key;
@@ -291,13 +286,13 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_lay
         tcp_subparser_del(subparser);
     }
 
-    int err = proto_parse(child, &layer, way, packet + tcphdr_len, cap_len - tcphdr_len, wire_len - tcphdr_len, now, okfn);
+    int err = proto_parse(child, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, wire_len - tcphdr_len, now, okfn);
     parser_unref(child);
     if (err) goto fallback;
     return PROTO_OK;
 
 fallback:
-    (void)proto_parse(NULL, &layer, way, packet + tcphdr_len, cap_len - tcphdr_len, wire_len - tcphdr_len, now, okfn);
+    (void)proto_parse(NULL, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, wire_len - tcphdr_len, now, okfn);
     return PROTO_OK;
 }
 
@@ -317,6 +312,7 @@ void tcp_init(void)
         .parse = tcp_parse,
         .parser_new = mux_parser_new,
         .parser_del = mux_parser_del,
+        .info_2_str = tcp_info_2_str,
     };
     static struct mux_proto_ops const mux_ops = {
         .subparser_new = tcp_subparser_new,

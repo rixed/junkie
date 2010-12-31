@@ -38,19 +38,16 @@ LOG_CATEGORY_DEF(proto_ftp);
  * Proto Infos
  */
 
-static void ftp_proto_info_ctor(struct ftp_proto_info *info, size_t head_len, size_t payload)
+static void ftp_proto_info_ctor(struct ftp_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t head_len, size_t payload)
 {
-    static struct proto_info_ops ops = {
-        .to_str = proto_info_2_str,
-    };
-    proto_info_ctor(&info->info, &ops, head_len, payload);
+    proto_info_ctor(&info->info, parser, parent, head_len, payload);
 }
 
 /*
  * Parse
  */
 
-static void check_for_passv(struct proto_layer const *layer_ip, struct ip_proto_info const *ip, struct parser *requestor, uint8_t const *packet, size_t packet_len, struct timeval const *now)
+static void check_for_passv(struct ip_proto_info const *ip, struct parser *requestor, uint8_t const *packet, size_t packet_len, struct timeval const *now)
 {
 
     // Merely check for passive mode transition
@@ -86,7 +83,7 @@ static void check_for_passv(struct proto_layer const *layer_ip, struct ip_proto_
     // source ip and port (since this message comes from the server).
     unsigned way;
     struct mux_subparser *tcp_parser = ip_subparser_lookup(
-        layer_ip->parser, proto_tcp, NULL, ip->key.protocol,
+        ip->info.parser, proto_tcp, NULL, ip->key.protocol,
         ip->key.addr+1, // client
         &new_addr,      // advertised passive server's IP
         &way,           // the way corresponding to client->server
@@ -104,11 +101,11 @@ static void check_for_passv(struct proto_layer const *layer_ip, struct ip_proto_
     }
 }
 
-static enum proto_parse_status ftp_parse(struct parser *parser, struct proto_layer *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status ftp_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     // Sanity Checks
-    ASSIGN_LAYER_AND_INFO_CHK(tcp, parent, -1);
-    ASSIGN_LAYER_AND_INFO_CHK(ip, layer_tcp, -1);
+    ASSIGN_INFO_CHK(tcp, parent, -1);
+    ASSIGN_INFO_CHK(ip, &tcp->info, -1);
     (void)tcp;
 
     // nope
@@ -116,13 +113,11 @@ static enum proto_parse_status ftp_parse(struct parser *parser, struct proto_lay
     // Parse
 
     struct ftp_proto_info info;
-    ftp_proto_info_ctor(&info, 0, wire_len);
-    struct proto_layer layer;
-    proto_layer_ctor(&layer, parent, parser, &info.info);
+    ftp_proto_info_ctor(&info, parser, parent, 0, wire_len);
 
-    check_for_passv(layer_ip, ip, parser, packet, cap_len, now);
+    check_for_passv(ip, parser, packet, cap_len, now);
 
-    return proto_parse(NULL, &layer, way, NULL, 0, 0, now, okfn);
+    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn);
 }
 
 /*
@@ -141,6 +136,7 @@ void ftp_init(void)
         .parse = ftp_parse,
         .parser_new = uniq_parser_new,
         .parser_del = uniq_parser_del,
+        .info_2_str = proto_info_2_str,
     };
     uniq_proto_ctor(&uniq_proto_ftp, &ops, "FTP");
     port_muxer_ctor(&tcp_port_muxer, &tcp_port_muxers, 21, 21, proto_ftp);

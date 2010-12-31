@@ -65,12 +65,9 @@ static char const *cap_info_2_str(struct proto_info const *info_)
 // des checks sur datalen (et stocker datalen dans les payload), mais quand même savoir la taille de la capture à ne pas dépasser
 
 // See note below about packet_len
-static void cap_proto_info_ctor(struct cap_proto_info *info, struct frame const *frame)
+static void cap_proto_info_ctor(struct cap_proto_info *info, struct parser *parser, struct proto_info const *parent, struct frame const *frame)
 {
-    static struct proto_info_ops ops = {
-        .to_str = cap_info_2_str,
-    };
-    proto_info_ctor(&info->info, &ops, sizeof(*frame), frame->cap_len);
+    proto_info_ctor(&info->info, parser, parent, sizeof(*frame), frame->cap_len);
 
     info->dev_id = collapse_ifaces ? zero : frame->pkt_source->dev_id;
     info->tv = frame->tv;
@@ -87,27 +84,25 @@ struct mux_subparser *cap_subparser_and_parser_new(struct parser *parser, struct
 }
 
 // cap_len is not the length of the actual packet, but the size of the data we receive, ie struct frame + what we captured from the wire.
-static enum proto_parse_status cap_parse(struct parser *parser, struct proto_layer *parent, unsigned way, uint8_t const *packet, size_t unused_ cap_len, size_t unused_ wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status cap_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t unused_ cap_len, size_t unused_ wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct frame const *frame = (struct frame *)packet;
 
     // Parse
     struct cap_proto_info info;
-    cap_proto_info_ctor(&info, frame);
-    struct proto_layer layer;
-    proto_layer_ctor(&layer, parent, parser, &info.info);
+    cap_proto_info_ctor(&info, parser, parent, frame);
 
     // Get an eth parser for this dev_id, or create one
     struct mux_subparser *subparser = mux_subparser_lookup(mux_parser, proto_eth, NULL, collapse_ifaces ? &zero : &frame->pkt_source->dev_id, now);
 
     if (! subparser) goto fallback;
 
-    if (0 != proto_parse(subparser->parser, &layer, way, frame->data, frame->cap_len, frame->wire_len, now, okfn)) goto fallback;
+    if (0 != proto_parse(subparser->parser, &info.info, way, frame->data, frame->cap_len, frame->wire_len, now, okfn)) goto fallback;
     return PROTO_OK;
 
 fallback:
-    (void)proto_parse(NULL, &layer, way, frame->data, frame->cap_len, frame->wire_len, now, okfn);
+    (void)proto_parse(NULL, &info.info, way, frame->data, frame->cap_len, frame->wire_len, now, okfn);
     return PROTO_OK;
 }
 
@@ -124,9 +119,10 @@ void cap_init(void)
     ext_param_collapse_ifaces_init();
 
     static struct proto_ops const ops = {
-        .parse       = cap_parse,
-        .parser_new  = mux_parser_new,
-        .parser_del  = mux_parser_del,
+        .parse      = cap_parse,
+        .parser_new = mux_parser_new,
+        .parser_del = mux_parser_del,
+        .info_2_str = cap_info_2_str,
     };
     mux_proto_ctor(&mux_proto_cap, &ops, &mux_proto_ops, "Capture", CAP_TIMEOUT, sizeof(zero)/* device_id */, 8);
 }

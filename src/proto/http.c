@@ -81,12 +81,9 @@ char const *http_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-static void http_proto_info_ctor(struct http_proto_info *info, size_t head_len, size_t payload)
+static void http_proto_info_ctor(struct http_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t head_len, size_t payload)
 {
-    static struct proto_info_ops ops = {
-        .to_str = http_info_2_str,
-    };
-    proto_info_ctor(&info->info, &ops, head_len, payload);
+    proto_info_ctor(&info->info, parser, parent, head_len, payload);
 }
 
 /*
@@ -138,7 +135,7 @@ static int http_extract_host(unsigned unused_ field, struct liner *liner, void *
     return 0;
 }
 
-static enum proto_parse_status http_parse(struct parser *parser, struct proto_layer *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status http_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     // Sanity checks + Parse
     static struct httper_command const commands[] = {
@@ -167,8 +164,6 @@ static enum proto_parse_status http_parse(struct parser *parser, struct proto_la
 
     struct http_proto_info info;    // we init the proto_info once validated
     info.set_values = 0;
-    struct proto_layer layer;
-    proto_layer_ctor(&layer, parent, parser, &info.info);
 
     size_t httphdr_len;
     if (0 != httper_parse(&httper, &httphdr_len, packet, cap_len, &info)) {
@@ -176,11 +171,11 @@ static enum proto_parse_status http_parse(struct parser *parser, struct proto_la
     }
 
     assert(httphdr_len <= cap_len);
-    http_proto_info_ctor(&info, httphdr_len, wire_len - httphdr_len);
+    http_proto_info_ctor(&info, parser, parent, httphdr_len, wire_len - httphdr_len);
 
     // TODO: use content type to choose a subparser ?
 
-    return proto_parse(NULL, &layer, way, packet + httphdr_len, cap_len - httphdr_len, wire_len - httphdr_len, now, okfn);
+    return proto_parse(NULL, &info.info, way, packet + httphdr_len, cap_len - httphdr_len, wire_len - httphdr_len, now, okfn);
 }
 
 /*
@@ -199,6 +194,7 @@ void http_init(void)
         .parse = http_parse,
         .parser_new = uniq_parser_new,
         .parser_del = uniq_parser_del,
+        .info_2_str = http_info_2_str,
     };
     uniq_proto_ctor(&uniq_proto_http, &ops, "HTTP");
     port_muxer_ctor(&tcp_port_muxer, &tcp_port_muxers, 80, 80, proto_http);

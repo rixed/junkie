@@ -41,12 +41,9 @@ static char const Id[] = "$Id: c1c50fb3b93381abf716bfa300605c930e937160 $";
  * Proto Infos (only the info ctor is different from ipv4
  */
 
-static void ip6_proto_info_ctor(struct ip_proto_info *info, size_t head_len, size_t payload, unsigned version, struct ipv6_hdr const *iphdr)
+static void ip6_proto_info_ctor(struct ip_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t head_len, size_t payload, unsigned version, struct ipv6_hdr const *iphdr)
 {
-    static struct proto_info_ops ops = {
-        .to_str = ip_info_2_str,
-    };
-    proto_info_ctor(&info->info, &ops, head_len, payload);
+    proto_info_ctor(&info->info, parser, parent, head_len, payload);
 
     info->version = version;
     ip_addr_ctor_from_ip6(&info->key.addr[0], &iphdr->src);
@@ -79,7 +76,7 @@ void ip6_subproto_dtor(struct ip_subproto *ip_subproto)
  * Parse
  */
 
-static enum proto_parse_status ip6_parse(struct parser *parser, struct proto_layer *parent, unsigned unused_ way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status ip6_parse(struct parser *parser, struct proto_info const *parent, unsigned unused_ way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct ipv6_hdr const *iphdr = (struct ipv6_hdr *)packet;
@@ -113,9 +110,7 @@ static enum proto_parse_status ip6_parse(struct parser *parser, struct proto_lay
     // Parse
 
     struct ip_proto_info info;
-    ip6_proto_info_ctor(&info, iphdr_len, payload, version, iphdr);
-    struct proto_layer layer;
-    proto_layer_ctor(&layer, parent, parser, &info.info);
+    ip6_proto_info_ctor(&info, parser, parent, iphdr_len, payload, version, iphdr);
 
     // Parse payload
 
@@ -135,11 +130,11 @@ static enum proto_parse_status ip6_parse(struct parser *parser, struct proto_lay
         goto fallback;
     }
 
-    if (0 != proto_parse(subparser->parser, &layer, way2, packet + iphdr_len, cap_len - iphdr_len, wire_len - iphdr_len, now, okfn)) goto fallback;
+    if (0 != proto_parse(subparser->parser, &info.info, way2, packet + iphdr_len, cap_len - iphdr_len, wire_len - iphdr_len, now, okfn)) goto fallback;
     return PROTO_OK;
 
 fallback:
-    (void)proto_parse(NULL, &layer, way2, packet + iphdr_len, cap_len - iphdr_len, wire_len - iphdr_len, now, okfn);
+    (void)proto_parse(NULL, &info.info, way2, packet + iphdr_len, cap_len - iphdr_len, wire_len - iphdr_len, now, okfn);
     return PROTO_OK;
 }
 
@@ -157,6 +152,7 @@ void ip6_init(void)
         .parse = ip6_parse,
         .parser_new = mux_parser_new,
         .parser_del = mux_parser_del,
+        .info_2_str = ip_info_2_str,
     };
     mux_proto_ctor(&mux_proto_ip6, &ops, &mux_proto_ops, "IPv6", IP6_TIMEOUT, sizeof(struct ip_key), IP6_HASH_SIZE);
     eth_subproto_ctor(&eth_subproto, ETH_PROTO_IPv6, proto_ip6);

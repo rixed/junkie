@@ -146,7 +146,7 @@ static struct test {
 
 static unsigned current_test = 0;
 
-static int check_last_proto(struct proto_layer *last)
+static int check_last_proto(struct proto_info const *last)
 {
     assert(0 == strcmp(last->parser->proto->name, tests[current_test].last_proto_name));
     return 0;

@@ -31,10 +31,10 @@ static struct parse_test {
 
 static unsigned current_test;
 
-static int udp_info_check(struct proto_layer *layer)
+static int udp_info_check(struct proto_info const *info_)
 {
-    // Check layer->info against parse_tests[current_test].expected
-    struct udp_proto_info const *const info = DOWNCAST(layer->info, info, udp_proto_info);
+    // Check info against parse_tests[current_test].expected
+    struct udp_proto_info const *const info = DOWNCAST(info_, info, udp_proto_info);
     struct udp_proto_info const *const expected = &parse_tests[current_test].expected;
     assert(info->info.head_len == expected->info.head_len);
     assert(info->info.payload == expected->info.payload);

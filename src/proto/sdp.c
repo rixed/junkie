@@ -71,16 +71,10 @@ static char const *sdp_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-static void sdp_proto_info_ctor(struct sdp_proto_info *info,
-                                size_t head_len, size_t payload)
+static void sdp_proto_info_ctor(struct sdp_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t head_len, size_t payload)
 {
-    static struct proto_info_ops ops = {
-        .to_str = sdp_info_2_str,
-    };
-
     memset(info, 0, sizeof *info);
-
-    proto_info_ctor(&info->info, &ops, head_len, payload);
+    proto_info_ctor(&info->info, parser, parent, head_len, payload);
 }
 
 /*
@@ -147,16 +141,15 @@ static int sdp_extract_port(unsigned unused_ cmd, struct liner *liner, void *inf
     return 0;
 }
 
-static void spawn_subparsers(struct ip_addr const *this_host, uint16_t this_port, struct ip_addr const *other_host, uint16_t other_port, struct proto_layer *parent, struct timeval const *now)
+static void spawn_subparsers(struct ip_addr const *this_host, uint16_t this_port, struct ip_addr const *other_host, uint16_t other_port, struct proto_info const *parent, struct timeval const *now)
 {
-    ASSIGN_LAYER_AND_INFO_OPT(ip, parent);
-    if (! ip) return;
+    ASSIGN_INFO_CHK(ip, parent, );
 
     SLOG(LOG_DEBUG, "Spawning RT(C)P parsers for %s:%"PRIu16"<->%s:%"PRIu16, ip_addr_2_str(this_host), this_port, ip_addr_2_str(other_host), other_port);
 
     unsigned way2;
     struct mux_subparser *udp_parser =
-        ip_subparser_lookup(layer_ip->parser, proto_udp, NULL, IPPROTO_UDP, this_host, other_host, &way2, now);
+        ip_subparser_lookup(ip->info.parser, proto_udp, NULL, IPPROTO_UDP, this_host, other_host, &way2, now);
 
     if (! udp_parser) return;
 
@@ -165,7 +158,7 @@ static void spawn_subparsers(struct ip_addr const *this_host, uint16_t this_port
     (void)udp_subparser_and_parser_new(udp_parser->parser, proto_rtcp, parent->parser, this_port+1, other_port+1, way2, now); // rtcp conntrack
 }
 
-static enum proto_parse_status sdp_parse(struct parser *parser, struct proto_layer *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status sdp_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     struct sdp_parser *sdp_parser = DOWNCAST(parser, parser, sdp_parser);
 
@@ -184,9 +177,7 @@ static enum proto_parse_status sdp_parse(struct parser *parser, struct proto_lay
     /* Parse */
 
     struct sdp_proto_info info;
-    sdp_proto_info_ctor(&info, wire_len, 0);
-    struct proto_layer layer;
-    proto_layer_ctor(&layer, parent, parser, &info.info);
+    sdp_proto_info_ctor(&info, parser, parent, wire_len, 0);
 
     if (0 != sdper_parse(&sdper, &cap_len, packet, cap_len, &info)) return PROTO_PARSE_ERR;
 
@@ -200,8 +191,8 @@ static enum proto_parse_status sdp_parse(struct parser *parser, struct proto_lay
             sdp_parser->host_set = true;
             sdp_parser->host = info.host;
             sdp_parser->port = info.port;
-            ASSIGN_LAYER_AND_INFO_OPT(ip, parent);
-            if (layer_ip) {
+            ASSIGN_INFO_OPT(ip, parent);
+            if (ip) {
                 sdp_parser->sender = ip->key.addr[0];
                 sdp_parser->sender_set = true;
             } else {
@@ -211,7 +202,7 @@ static enum proto_parse_status sdp_parse(struct parser *parser, struct proto_lay
             // Start conntracking between the advertized hosts
             spawn_subparsers(&sdp_parser->host, sdp_parser->port, &info.host, info.port, parent, now);
 
-            ASSIGN_LAYER_AND_INFO_OPT(ip, parent);
+            ASSIGN_INFO_OPT(ip, parent);
             bool may_use_stun[2] = {
                 0 != ip_addr_cmp(&sdp_parser->sender, &sdp_parser->host),
                 ip && 0 != ip_addr_cmp(&ip->key.addr[0], &info.host),
@@ -235,7 +226,7 @@ static enum proto_parse_status sdp_parse(struct parser *parser, struct proto_lay
         }
     }
 
-    return proto_parse(NULL, &layer, way, NULL, 0, 0, now, okfn);
+    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn);
 }
 
 /*
@@ -287,6 +278,7 @@ void sdp_init(void)
         .parse      = sdp_parse,
         .parser_new = sdp_parser_new,
         .parser_del = sdp_parser_del,
+        .info_2_str = sdp_info_2_str,
     };
     proto_ctor(&proto_sdp_, &ops, "SDP", SDP_TIMEOUT);
 }

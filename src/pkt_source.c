@@ -95,7 +95,7 @@ static char const *pkt_source_guile_name(struct pkt_source *pkt_source)
  * For now both iface anf files are treated the same.
  */
 
-static int parser_callbacks(struct proto_layer *last)
+static int parser_callbacks(struct proto_info const *last)
 {
     struct plugin *plugin;
     mutex_lock(&plugins_mutex);

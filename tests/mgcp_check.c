@@ -87,10 +87,10 @@ static struct parse_test {
 
 static unsigned cur_test, cur_msg;
 
-static int mgcp_info_check(struct proto_layer *layer)
+static int mgcp_info_check(struct proto_info const *info_)
 {
-    // Check layer->info against parse_tests[cur_test].expected
-    struct mgcp_proto_info const *const info = DOWNCAST(layer->info, info, mgcp_proto_info);
+    // Check info against parse_tests[cur_test].expected
+    struct mgcp_proto_info const *const info = DOWNCAST(info_, info, mgcp_proto_info);
     struct mgcp_proto_info const *const expected = parse_tests[cur_test].expected + cur_msg;
 
     assert(info->info.head_len == expected->info.head_len);

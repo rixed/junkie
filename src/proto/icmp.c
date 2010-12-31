@@ -141,12 +141,9 @@ static char const *icmp_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-static void icmp_proto_info_ctor(struct icmp_proto_info *info, size_t packet_len, uint8_t type, uint8_t code)
+static void icmp_proto_info_ctor(struct icmp_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t packet_len, uint8_t type, uint8_t code)
 {
-    static struct proto_info_ops ops = {
-        .to_str = icmp_info_2_str,
-    };
-    proto_info_ctor(&info->info, &ops, packet_len, 0);
+    proto_info_ctor(&info->info, parser, parent, packet_len, 0);
     info->type = type;
     info->code = code;
     info->set_values = 0;
@@ -214,7 +211,7 @@ static bool icmp_is_err(uint8_t type)
     return true;
 }
 
-static enum proto_parse_status icmp_parse(struct parser *parser, struct proto_layer *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status icmp_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     struct icmp_hdr *icmphdr = (struct icmp_hdr *)packet;
 
@@ -223,9 +220,7 @@ static enum proto_parse_status icmp_parse(struct parser *parser, struct proto_la
     if (cap_len < sizeof(*icmphdr)) return PROTO_TOO_SHORT;
 
     struct icmp_proto_info info;
-    icmp_proto_info_ctor(&info, wire_len, icmphdr->type, icmphdr->code);
-    struct proto_layer layer;
-    proto_layer_ctor(&layer, parent, parser, &info.info);
+    icmp_proto_info_ctor(&info, parser, parent, wire_len, icmphdr->type, icmphdr->code);
 
     // Extract error values
     if (icmp_is_err(icmphdr->type)) {
@@ -234,7 +229,7 @@ static enum proto_parse_status icmp_parse(struct parser *parser, struct proto_la
         }
     }
 
-    return proto_parse(NULL, &layer, way, NULL, 0, 0, now, okfn);
+    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn);
 }
 
 /*
@@ -253,6 +248,7 @@ void icmp_init(void)
         .parse      = icmp_parse,
         .parser_new = uniq_parser_new,
         .parser_del = uniq_parser_del,
+        .info_2_str = icmp_info_2_str,
     };
     uniq_proto_ctor(&uniq_proto_icmp, &ops, "ICMP");
     ip_subproto_ctor(&icmp_ip_subproto, IPPROTO_ICMP, proto_icmp);

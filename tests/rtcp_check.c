@@ -72,9 +72,9 @@ static struct parse_test {
 
 static unsigned cur_test;
 
-static int rtcp_info_check(struct proto_layer *layer)
+static int rtcp_info_check(struct proto_info const *info_)
 {
-    struct rtcp_proto_info const *const info = DOWNCAST(layer->info, info, rtcp_proto_info);
+    struct rtcp_proto_info const *const info = DOWNCAST(info_, info, rtcp_proto_info);
     struct expected const *const exp = &parse_tests[cur_test].exp;
 
 #define CHECK(field) assert(exp->field == info->field)

@@ -18,12 +18,12 @@
  * @brief Packet inspection
  *
  * Each packet received from libpcap is passed to a toplevel "capture" parser,
- * which then builds a small struct proto_layer describing the packet and handling
+ * which then builds a small struct proto_info describing the packet and handling
  * the payload to a child parser. This child parser performs in a similar fashion,
  * extracting from the received data the interesting bits, building another
- * struct proto_layer describing this parser and handling the payload to yet another
+ * struct proto_info describing this parser and handling the payload to yet another
  * parser, etc... At the end, once a leaf of the protocol tree is reached, the
- * user callback is called with the list of all these proto_layers.
+ * user callback is called with the list of all these proto_infos.
  *
  * Parsers are designed in order to be (as most as possible) independent on
  * each others. Their aim is to extract from the packet only the informations
@@ -33,7 +33,7 @@
  * Having independent parsers implies that every parser is committed to a given
  * behavior. For instance, every protocol parser must have a single parse
  * function receiving the relevant data from it's parent and its parent's
- * proto_layer (which can be used to inspect upper layers). This common
+ * proto_info (which can be used to inspect upper layers). This common
  * behavior is inherited from the struct proto that defines the behavior of
  * all parsers of this proto.
  *
@@ -64,17 +64,12 @@
  * is similar to netfilter hooks implementation (just to say it's not _that_
  * alien).
  *
- * So every parser (that have anything meaningful to communicate to a child
- * parser or the callback) build two structures on the stack : the specialized
- * proto_info and a proto_layer which links to the proto_info and to the
- * previous proto_layer.
- *
  * How can a parser call a sub-parser if they do not know each other ? Well,
  * obviously a parser must have some kind of knowledge of what other parsers
  * are available.  That's why the struct proto describing a parser is public,
  * so that a parser can spawn a new parser for this protocol. But that's the
  * only link that exists between two parsers, and apart from the case where a
- * parser look something into one of its parent's proto_layer then one can
+ * parser look something into one of its parent's proto_info then one can
  * safely modify a parser implementation without interfering with any other
  * parsers.
  *
@@ -86,11 +81,11 @@
  */
 
 struct parser;
-struct proto_layer;
+struct proto_info;
 /// The type for the continuation function
 /** This continuation function will actually call the parse_callback()
  * function of every loaded plugin. */
-typedef int proto_okfn_t(struct proto_layer *);
+typedef int proto_okfn_t(struct proto_info const *);
 
 /// The various possible exit codes of the parse functions
 enum proto_parse_status {
@@ -116,20 +111,22 @@ struct proto {
     struct proto_ops {
         /// Parse some data from the captured frame
         enum proto_parse_status (*parse)(
-            struct parser *parser,      ///< Reference to the parser of this protocol
-            struct proto_layer *prev,   ///< Parent's proto_layer
-            unsigned way,               ///< A direction identifier in the bearing protocol
-            uint8_t const *packet,      ///< Pointer into captured data. Look but don't touch
-            size_t cap_len,             ///< Size of the captured bytes
-            size_t wire_len,            ///< Actual size on the wire
-            struct timeval const *now,  ///< The current time
-            proto_okfn_t *okfn          ///< "Continuation" to call once/if the parsing is over
+            struct parser *parser,              ///< Reference to the parser of this protocol
+            struct proto_info const *parent,    ///< Parent's proto_info
+            unsigned way,                       ///< A direction identifier in the bearing protocol
+            uint8_t const *packet,              ///< Pointer into captured data. Look but don't touch
+            size_t cap_len,                     ///< Size of the captured bytes
+            size_t wire_len,                    ///< Actual size on the wire
+            struct timeval const *now,          ///< The current time
+            proto_okfn_t *okfn                  ///< "Continuation" to call once/if the parsing is over
         );
         /// Create a new parser of this protocol
         /// (notice that if the parser is stateless there is actually only one instance of it, refcounted)
         struct parser *(*parser_new)(struct proto *proto, struct timeval const *now);
         /// Delete a parser
         void (*parser_del)(struct parser *parser);
+        /// Pretty-print an info structure into a string
+        char const *(*info_2_str)(struct proto_info const *);
     } const *ops;
     char const *name;       ///< Protocol name, used mainly for pretty-printing
     uint64_t nb_frames;     ///< How many times we called this parse (count frames only if this parser is never called more than once on a frame)
@@ -167,14 +164,14 @@ void proto_dtor(struct proto *proto);
 
 /// Call this instead of accessing proto->ops->parse, so that counters are updated properly.
 enum proto_parse_status proto_parse(
-    struct parser *parser,      ///< The parser to hand over the payload to. If NULL okfn is called instead
-    struct proto_layer *parent, ///< Your proto_layer for your child to play with
-    unsigned way,               ///< Direction identifier (see struct mux_proto)
-    uint8_t const *packet,      ///< Raw data to parse
-    size_t cap_len,             ///< How many bytes are present in packet
-    size_t packet_len,          ///< How many bytes were present on the wire
-    struct timeval const *now,  ///< The current time
-    proto_okfn_t *okfn          ///< The "continuation"
+    struct parser *parser,              ///< The parser to hand over the payload to. If NULL okfn is called instead
+    struct proto_info const *parent,    ///< It's parent proto_info
+    unsigned way,                       ///< Direction identifier (see struct mux_proto)
+    uint8_t const *packet,              ///< Raw data to parse
+    size_t cap_len,                     ///< How many bytes are present in packet
+    size_t packet_len,                  ///< How many bytes were present on the wire
+    struct timeval const *now,          ///< The current time
+    proto_okfn_t *okfn                  ///< The "continuation"
 );
 
 /// Timeout all parsers that lived for too long
@@ -187,26 +184,23 @@ struct proto *proto_of_name(char const *);
 
 /// Protocol Informations.
 /** A proto parse function is supposed to overload this (publicly) and stores all relevant informations
- * gathered from the frame into its specialized proto_info.
- * Then, it's made accessible from the proto_layer which is build hereafter, and passed to its
- * children (and eventually to the continuation).
- */
+ * gathered from the frame into its specialized proto_info.  The protocol stack
+ * is made of struct proto_info linked together up to the capture layer.  The
+ * last one is passed to the "continuation" (from this last one the whole
+ * protocol stack can be accessed through the "parent" pointer). */
 struct proto_info {
-    /// The methods that every protocol implementing a custom proto_info (ie. \e every protocol) must implement.
-    /** This is not located in struct proto since you do not want to overload proto merely to change this function. */
-    // FIXME: This should probably be in struct proto nonetheless !
-    struct proto_info_ops {
-        char const *(*to_str)(struct proto_info const *);   ///< For pretty-printing
-    } const *ops;
+    struct proto_info const *parent;    ///< Previous proto_info, or NULL if we are at root (ie proto = capture)
+    struct parser *parser;              ///< The parser that generated this structure
     /// Common information that all protocol must fill one way or another
-    size_t head_len;    ///< Size of the header
-    size_t payload;     ///< Size of the embedded payload (including what we did not capture from the wire)
+    size_t head_len;                    ///< Size of the header
+    size_t payload;                     ///< Size of the embedded payload (including what we did not capture from the wire)
 };
 
 /// Constructor for a proto_info
 void proto_info_ctor(
     struct proto_info *info,            ///< The proto_info to construct
-    struct proto_info_ops const *ops,   ///< With this ops
+    struct parser *parser,              ///< The parser it belongs to
+    struct proto_info const *parent,    ///< Previous proto_info
     size_t head_len,                    ///< Preset this header length
     size_t payload                      ///< and this payload.
 );
@@ -215,53 +209,35 @@ void proto_info_ctor(
 /** Use it into your own to display head_len and payload. */
 char const *proto_info_2_str(struct proto_info const *);
 
-/// Protocol stack is made of struct proto_layer linked together up to the capture layer.
-/** The last one will be passed to the "continuation" (from this last one
- * the whole protocol stack can be accessed through the "parent" pointer).
- * This is not meant to be overloaded.  */
-struct proto_layer {
-    struct proto_layer *parent;     ///< Previous proto_layer, or NULL if we are at root (ie proto = capture)
-    struct parser *parser;          ///< Protocol that built this proto_layer
-    struct proto_info const *info;  ///< Information gathered by the parser (downcast it to the actual proto_info struct since you know the proto)
-};
-
-/// Constructor for a proto_layer
-void proto_layer_ctor(
-    struct proto_layer *layer,      ///< proto_layer to construct
-    struct proto_layer *parent,     ///< Previous proto_layer
-    struct parser *parser,          ///< Parser owning this layer
-    struct proto_info const *info   ///< The proto_info for this layer
-);
-
 /// Helper for metric modules.
-/** @returns the last proto_layer owned by the given proto.
+/** @returns the last proto_info owned by the given proto.
  */
-struct proto_layer *proto_layer_get(
-    struct proto const *proto,  ///< The proto to look for
-    struct proto_layer *last    ///< Where to start looking for
+struct proto_info const *proto_info_get(
+    struct proto const *proto,      ///< The proto to look for
+    struct proto_info const *last   ///< Where to start looking for
 );
 
-#define ASSIGN_LAYER_AND_INFO_OPT(proto, last) \
-    struct proto_layer *layer_##proto = proto_layer_get(proto_##proto, last); \
-    struct proto##_proto_info const *proto = layer_##proto ? DOWNCAST(layer_##proto->info, info, proto##_proto_info) : NULL;
+#define ASSIGN_INFO_OPT(proto, last) \
+    struct proto_info const *proto##_proto__ = proto_info_get(proto_##proto, last); \
+    struct proto##_proto_info const *proto = proto##_proto__ ? DOWNCAST(proto##_proto__, info, proto##_proto_info) : NULL;
 
-/// Ugly macro, used if both TCP and UDP can handle a upper protocol (say... DNS or SIP)
-#define ASSIGN_LAYER_AND_INFO_OPT2(proto, proto_alt, last) \
-    ASSIGN_LAYER_AND_INFO_OPT(proto, last); \
-    struct proto_layer *layer_##proto_alt = NULL; \
-    struct proto_alt##_proto_info *proto_alt = NULL; \
-    if (! layer_##proto) { \
-        layer_##proto_alt = proto_layer_get(proto_##proto_alt, last); \
-        proto_alt = layer_##proto_alt ? DOWNCAST(layer_##proto_alt->info, info, proto_alt##_proto_info) : NULL; \
+/// Used if both TCP and UDP can handle a upper protocol (say... DNS or SIP)
+#define ASSIGN_INFO_OPT2(proto, proto_alt, last) \
+    ASSIGN_INFO_OPT(proto, last); \
+    struct proto_info const *proto_alt##_proto__ = NULL; \
+    struct proto_alt##_proto_info const *proto_alt = NULL; \
+    if (! proto) { \
+        proto_alt##_proto__ = proto_info_get(proto_##proto_alt, last); \
+        proto_alt = proto_alt##_proto__ ? DOWNCAST(proto_alt##_proto__, info, proto_alt##_proto_info) : NULL; \
     }
 
-#define ASSIGN_LAYER_AND_INFO_CHK(proto, last, err) \
-    ASSIGN_LAYER_AND_INFO_OPT(proto, last); \
-    if (! layer_##proto) return err;
+#define ASSIGN_INFO_CHK(proto, last, err) \
+    ASSIGN_INFO_OPT(proto, last); \
+    if (! proto) return err;
 
-#define ASSIGN_LAYER_AND_INFO_CHK2(proto, proto_alt, last, err) \
-    ASSIGN_LAYER_AND_INFO_OPT2(proto, proto_alt, last); \
-    if (! layer_##proto && ! layer_##proto_alt) return err;
+#define ASSIGN_INFO_CHK2(proto, proto_alt, last, err) \
+    ASSIGN_INFO_OPT2(proto, proto_alt, last); \
+    if (! proto && ! proto_alt) return err;
 
 /*
  * Parsers

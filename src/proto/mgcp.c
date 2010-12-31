@@ -149,12 +149,9 @@ static char const *mgcp_info_2_str(struct proto_info const *info_)
         mgcp_params_2_str(info));
 }
 
-static void mgcp_proto_info_ctor(struct mgcp_proto_info *info, size_t head_len, size_t payload)
+static void mgcp_proto_info_ctor(struct mgcp_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t head_len, size_t payload)
 {
-    static struct proto_info_ops ops = {
-        .to_str = mgcp_info_2_str,
-    };
-    proto_info_ctor(&info->info, &ops, head_len, payload);
+    proto_info_ctor(&info->info, parser, parent, head_len, payload);
 }
 
 /*
@@ -262,15 +259,13 @@ static void parse_call_id(struct mgcp_proto_info *info, struct liner *liner)
 }
 
 // FIXME: give wire_len to liner ??
-static enum proto_parse_status mgcp_parse(struct parser *parser, struct proto_layer *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status mgcp_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     struct mgcp_parser *mgcp_parser = DOWNCAST(parser, parser, mgcp_parser);
 
     size_t payload = 0;
     // Parse one message (in case of piggybacking, will call ourself recursively so that okfn is called once for each msg)
     struct mgcp_proto_info info;
-    struct proto_layer layer;
-    proto_layer_ctor(&layer, parent, parser, &info.info);
 
     struct liner liner;
     liner_init(&liner, &delim_lines, (char const *)packet, cap_len);
@@ -354,18 +349,18 @@ static enum proto_parse_status mgcp_parse(struct parser *parser, struct proto_la
 
     // End of message
     const size_t tot_len = liner.start - (char const *)packet;
-    mgcp_proto_info_ctor(&info, tot_len - payload, payload);
+    mgcp_proto_info_ctor(&info, parser, parent, tot_len - payload, payload);
 
     if (child) {
         // TODO: We suppose a call is unique in the socket pair, ie. that this parser will handle only one call, so we can keep our SDP with us.
         // SO, create a mgcp_parser with an embedded sdp parser, created as soon as mgcp_parser is constructed.
         size_t const rem_len = liner_rem_length(&liner);
-        int err = proto_parse(child, &layer, way, (uint8_t *)liner.start, rem_len, rem_len, now, okfn);
-        if (err) proto_parse(NULL, &layer, way, NULL, 0, 0, now, okfn);
+        int err = proto_parse(child, &info.info, way, (uint8_t *)liner.start, rem_len, rem_len, now, okfn);
+        if (err) proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn);
         return PROTO_OK;
     }
 
-    (void)proto_parse(NULL, &layer, way, NULL, 0, 0, now, okfn);
+    (void)proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn);
 
     // In case of piggybacking, we may have further messages down there
     if (! liner_eof(&liner)) {
@@ -392,6 +387,7 @@ void mgcp_init(void)
         .parse      = mgcp_parse,
         .parser_new = mgcp_parser_new,
         .parser_del = mgcp_parser_del,
+        .info_2_str = mgcp_info_2_str,
     };
     proto_ctor(&proto_mgcp_, &ops, "MGCP", MGCP_TIMEOUT);
     port_muxer_ctor(&udp_port_muxer_gw, &udp_port_muxers, 2427, 2427, proto_mgcp);

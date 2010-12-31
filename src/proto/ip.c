@@ -62,12 +62,9 @@ char const *ip_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-static void ip_proto_info_ctor(struct ip_proto_info *info, size_t head_len, size_t payload, struct ip_hdr const *iphdr)
+static void ip_proto_info_ctor(struct ip_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t head_len, size_t payload, struct ip_hdr const *iphdr)
 {
-    static struct proto_info_ops ops = {
-        .to_str = ip_info_2_str,
-    };
-    proto_info_ctor(&info->info, &ops, head_len, payload);
+    proto_info_ctor(&info->info, parser, parent, head_len, payload);
 
     info->version = iphdr->version;
     ip_addr_ctor_from_ip4(&info->key.addr[0], iphdr->src);
@@ -122,7 +119,7 @@ struct mux_subparser *ip_subparser_lookup(struct parser *parser, struct proto *p
     return mux_subparser_lookup(mux_parser, proto, requestor, &key, now);
 }
 
-static enum proto_parse_status ip_parse(struct parser *parser, struct proto_layer *parent, unsigned unused_ way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info const *parent, unsigned unused_ way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct ip_hdr const *iphdr = (struct ip_hdr *)packet;
@@ -156,9 +153,7 @@ static enum proto_parse_status ip_parse(struct parser *parser, struct proto_laye
     // Parse
 
     struct ip_proto_info info;
-    ip_proto_info_ctor(&info, iphdr_len, ip_len - iphdr_len, iphdr);
-    struct proto_layer layer;
-    proto_layer_ctor(&layer, parent, parser, &info.info);
+    ip_proto_info_ctor(&info, parser, parent, iphdr_len, ip_len - iphdr_len, iphdr);
 
     // Parse payload
 
@@ -177,11 +172,11 @@ static enum proto_parse_status ip_parse(struct parser *parser, struct proto_laye
         goto fallback;
     }
 
-    if (0 != proto_parse(subparser->parser, &layer, info.way, packet + iphdr_len, cap_len - iphdr_len, wire_len - iphdr_len, now, okfn)) goto fallback;
+    if (0 != proto_parse(subparser->parser, &info.info, info.way, packet + iphdr_len, cap_len - iphdr_len, wire_len - iphdr_len, now, okfn)) goto fallback;
     return PROTO_OK;
 
 fallback:
-    (void)proto_parse(NULL, &layer, info.way, packet + iphdr_len, cap_len - iphdr_len, wire_len - iphdr_len, now, okfn);
+    (void)proto_parse(NULL, &info.info, info.way, packet + iphdr_len, cap_len - iphdr_len, wire_len - iphdr_len, now, okfn);
     return PROTO_OK;
 }
 
@@ -201,6 +196,7 @@ void ip_init(void)
         .parse = ip_parse,
         .parser_new = mux_parser_new,
         .parser_del = mux_parser_del,
+        .info_2_str = ip_info_2_str,
     };
     mux_proto_ctor(&mux_proto_ip, &ops, &mux_proto_ops, "IPv4", IP_TIMEOUT, sizeof(struct ip_key), IP_HASH_SIZE);
     eth_subproto_ctor(&eth_subproto, ETH_PROTO_IPv4, proto_ip);

@@ -93,7 +93,7 @@ static void fetch_hw(uint8_t mac[ETH_ADDR_LEN], unsigned hard_addr_fmt, uint8_t 
     }
 }
 
-static enum proto_parse_status arp_parse(struct parser *parser, struct proto_layer *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status arp_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     struct arp_hdr const *arp = (struct arp_hdr *)payload;
 
@@ -137,12 +137,9 @@ static enum proto_parse_status arp_parse(struct parser *parser, struct proto_lay
         return PROTO_PARSE_ERR;
     }
 
-    // Now build the proto_layer and proto_info
+    // Now build the proto_info
     struct arp_proto_info info;
-    static struct proto_info_ops ops = {
-        .to_str = arp_info_2_str,
-    };
-    proto_info_ctor(&info.info, &ops, arp_msg_size, wire_len - arp_msg_size);
+    proto_info_ctor(&info.info, parser, parent, arp_msg_size, wire_len - arp_msg_size);
 
     // Gather all interesting data
     info.opcode = opcode;
@@ -161,11 +158,8 @@ static enum proto_parse_status arp_parse(struct parser *parser, struct proto_lay
     fetch_ip(&info.target, prot_addr_fmt, ptr);
     ptr += prot_addr_len;
 
-    struct proto_layer layer;
-    proto_layer_ctor(&layer, parent, parser, &info.info);
-
     // And we are done
-    return proto_parse(NULL, &layer, way, NULL, 0, 0, now, okfn);
+    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn);
 }
 
 /*
@@ -184,6 +178,7 @@ void arp_init(void)
         .parse = arp_parse,
         .parser_new = uniq_parser_new,
         .parser_del = uniq_parser_del,
+        .info_2_str = arp_info_2_str,
     };
     uniq_proto_ctor(&uniq_proto_arp, &ops, "ARP");
     eth_subproto_ctor(&arp_eth_subproto, ETH_PROTO_ARP, proto_arp);
