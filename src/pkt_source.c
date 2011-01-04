@@ -173,6 +173,8 @@ static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, 
     // due to the frame structure, cap parser does not need cap_len nor wire_len
     (void)proto_parse(cap_parser, NULL, 0, (uint8_t *)&frame, 0, 0, &header->ts, parser_callbacks);
     mutex_unlock(&cap_parser_lock);
+
+    mux_subparser_kill_doomed();
 }
 
 static void pkt_source_del(struct pkt_source *);

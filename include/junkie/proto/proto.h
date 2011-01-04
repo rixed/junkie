@@ -419,11 +419,13 @@ struct proto *proto_of_scm_name(SCM name);
  *
  * @note Remember to add the packed_ attribute to your keys ! */
 struct mux_subparser {
-    struct parser *parser;              ///< The actual parser
-    struct parser *requestor;           ///< The parser that requested its creation
-    struct mux_parser *mux_parser;      ///< Backlink to the mux_parser in order to access nb_children
-    LIST_ENTRY(mux_subparser) h_entry;  ///< Its entry in the hash
-    char key[];                         ///< The key used to identify it (beware of the variable size)
+    struct parser *parser;                  ///< The actual parser
+    struct parser *requestor;               ///< The parser that requested its creation
+    struct mux_parser *mux_parser;          ///< Backlink to the mux_parser in order to access nb_children
+    LIST_ENTRY(mux_subparser) h_entry;      ///< Its entry in the hash
+    LIST_ENTRY(mux_subparser) doom_entry;   ///< Entry in the list of doomed mux_subparsers
+    bool doomed;                            ///< If this mux_subparser is tagged for deletion
+    char key[];                             ///< The key used to identify it (beware of the variable size)
 };
 
 /// A parser implementing a mux_proto is a mux_parser.
@@ -499,6 +501,18 @@ void mux_subparser_del(
 void mux_subparser_dtor(
     struct mux_subparser *mux_subparser ///< The mux_subparser to destruct
 );
+
+/// Mark a mux_subparser (and associated parser) for deletion
+/** It's unsafe to deletes assynchronously mux_subparsers during the parse, since
+ * parsers may kept references on mux_subparsers upper in the call stack. So when
+ * we want to delete a mux_subparser during the parse we merely add it to a list of
+ * mux_subparsers doomed for destruction, later deleted out of the parse functions.
+ * @see mux_subparser_kill_doomed()
+ */
+void mux_subparser_doom(struct mux_subparser *);
+
+/// Deletes all mux_subparsers that were marked for deletion
+void mux_subparser_kill_doomed(void);
 
 /// Search (and optionally create) a subparser
 struct mux_subparser *mux_subparser_lookup(

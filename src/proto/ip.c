@@ -265,16 +265,20 @@ struct mux_subparser *ip_subparser_lookup(struct parser *parser, struct proto *p
 
 /* The pkt_wait_list is now complete.
  * Construct a single payload from it, then call the subparse once for this payload.
- * But we also want to acknoledge the several IP fragments that were received, so we also must
- * call okfn for each IP info. The pkt_wait_list_dtor will do this for us. */
+ * But we also want to acknoledge the several IP fragments that were received (but the
+ * first one that count for the whole payload), so we also must call okfn for each IP info.
+ * The pkt_wait_list_dtor will do this for us. */
 static void reassemble(struct ip_reassembly *reassembly, struct proto_info *parent, unsigned way, struct timeval const *now, proto_okfn_t *okfn)
 {
     SLOG(LOG_DEBUG, "Reassembling ip_reassembly@%p", reassembly);
 
     uint8_t *payload = pkt_wait_list_reassemble(&reassembly->wl, 0, reassembly->end_offset);
     if (payload) {  // an obvious reason for !payload this would be that cap_len was not big enough
-        // best effort attempt
-        (void)proto_parse(reassembly->wl.parser, parent, way, payload, reassembly->end_offset, reassembly->end_offset, now, okfn);
+        if (PROTO_OK == proto_parse(reassembly->wl.parser, parent, way, payload, reassembly->end_offset, reassembly->end_offset, now, okfn)) {
+            // Remove the last fragment so that proto_parse() is not called for it
+            struct pkt_wait *const pkt = LIST_FIRST(&reassembly->wl.pkts);
+            if (pkt) pkt_wait_del(pkt, &reassembly->wl);
+        }
         FREE(payload);
     }
     ip_reassembly_dtor(reassembly, now);

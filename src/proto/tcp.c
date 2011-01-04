@@ -29,6 +29,7 @@
 #include <junkie/tools/tempstr.h>
 #include <junkie/tools/log.h>
 #include <junkie/tools/queue.h>
+#include <junkie/proto/pkt_wait_list.h>
 #include <junkie/proto/ip.h>
 #include <junkie/proto/tcp.h>
 #include "proto/ip_hdr.h"
@@ -117,9 +118,11 @@ static SCM g_tcp_del_port(SCM name, SCM port_min, SCM port_max)
 
 // We overload the mux_subparser in order to store cnx state.
 struct tcp_subparser {
-    bool fin[2], ack[2];
-    uint32_t fin_seqnum[2];    // indice = way
+    bool fin[2], ack[2], syn[2];
+    uint32_t fin_seqnum[2];     // indice = way
     uint32_t max_acknum[2];
+    uint32_t isn[2];
+    struct pkt_wait_list wl[2]; // for packets reordering. offsets will be relative to ISN
     struct mux_subparser mux_subparser;
 };
 
@@ -139,11 +142,31 @@ static bool tcp_subparser_term(struct tcp_subparser const *tcp_sub)
 
 static int tcp_subparser_ctor(struct tcp_subparser *tcp_subparser, struct mux_parser *mux_parser, struct parser *child, struct parser *requestor, void const *key)
 {
+    struct timeval now;
+    timeval_set_now(&now);
+
     CHECK_LAST_FIELD(tcp_subparser, mux_subparser, struct mux_subparser);
 
     tcp_subparser->fin[0] = tcp_subparser->fin[1] = false;
     tcp_subparser->ack[0] = tcp_subparser->ack[1] = false;
-    return mux_subparser_ctor(&tcp_subparser->mux_subparser, mux_parser, child, requestor, key);
+    tcp_subparser->syn[0] = tcp_subparser->syn[1] = false;
+
+    if (0 != pkt_wait_list_ctor(tcp_subparser->wl+0, 0 /* relative to the ISN */, 0, 100000, 50, 100000, child)) {
+        return -1;
+    }
+
+    if (0 != pkt_wait_list_ctor(tcp_subparser->wl+1, 0 /* relative to the ISN */, 0, 100000, 50, 100000, child)) {
+        pkt_wait_list_dtor(tcp_subparser->wl+0, &now);
+        return -1;
+    }
+
+    if (0 != mux_subparser_ctor(&tcp_subparser->mux_subparser, mux_parser, child, requestor, key)) {
+        pkt_wait_list_dtor(tcp_subparser->wl+0, &now);
+        pkt_wait_list_dtor(tcp_subparser->wl+1, &now);
+        return -1;
+    }
+
+    return 0;
 }
 
 static struct mux_subparser *tcp_subparser_new(struct mux_parser *mux_parser, struct parser *child, struct parser *requestor, void const *key)
@@ -171,7 +194,14 @@ struct mux_subparser *tcp_subparser_and_parser_new(struct parser *parser, struct
 static void tcp_subparser_del(struct mux_subparser *mux_subparser)
 {
     struct tcp_subparser *tcp_subparser = DOWNCAST(mux_subparser, mux_subparser, tcp_subparser);
+
+    struct timeval now;
+    timeval_set_now(&now);
+    pkt_wait_list_dtor(tcp_subparser->wl+0, &now);
+    pkt_wait_list_dtor(tcp_subparser->wl+1, &now);
+
     mux_subparser_dtor(&tcp_subparser->mux_subparser);
+
     FREE(tcp_subparser);
 }
 
@@ -254,23 +284,12 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
 
     if (! subparser) goto fallback;
 
-    // If the stream is over, we must delete the subparser before calling
-    // proto_parse since we are not allowed to keep a ref on a subparser across
-    // proto_parse (since proto_parse can lead to the creation of a new
-    // subparser, which can trigger the deletion of another subparser at random
-    // if nb_children hits max). So we ref the parser and kill the subparser
-    // before calling proto_parse.
-    // FIXME: we would like to be able to keep a ref on a subparser since we
-    // could want to delete a subparser based on the returned value of
-    // proto_parse !
-    struct parser *child = parser_ref(subparser->parser);
-
     // Keep track of TCP flags
     struct tcp_subparser *tcp_sub = DOWNCAST(subparser, mux_subparser, tcp_subparser);
     if (
         info.ack &&
         (!tcp_sub->ack[way] || seqnum_gt(info.ack_num, tcp_sub->max_acknum[way]))
-       ) {
+    ) {
         tcp_sub->ack[way] = true;
         tcp_sub->max_acknum[way] = info.ack_num;
     }
@@ -278,20 +297,34 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
         tcp_sub->fin[way] = true;
         tcp_sub->fin_seqnum[way] = info.seq_num + info.info.payload;    // The FIN is acked after the payload
     }
+    if (info.syn && !tcp_sub->syn[way]) {
+        tcp_sub->syn[way] = true;
+        tcp_sub->isn[way] = info.seq_num;
+    }
 
-    SLOG(LOG_DEBUG, "This subparser state : >Fin:%"PRIu32" Ack:%"PRIu32" <Fin:%"PRIu32" Ack:%"PRIu32,
+    SLOG(LOG_DEBUG, "This subparser state : >ISN:%"PRIu32" Fin:%"PRIu32" Ack:%"PRIu32" <ISN:%"PRIu32" Fin:%"PRIu32" Ack:%"PRIu32,
+        tcp_sub->syn[0] ? tcp_sub->isn[0] : 0,
         tcp_sub->fin[0] ? tcp_sub->fin_seqnum[0] : 0,
         tcp_sub->ack[0] ? tcp_sub->max_acknum[0] : 0,
+        tcp_sub->syn[1] ? tcp_sub->isn[1] : 0,
         tcp_sub->fin[1] ? tcp_sub->fin_seqnum[1] : 0,
         tcp_sub->ack[1] ? tcp_sub->max_acknum[1] : 0);
+
+    int err;
+    // Use the wait_list to parse this packet
+    if (tcp_sub->syn[way]) {
+        unsigned const offset = info.seq_num - tcp_sub->isn[way]-1;   // The SYN is not part of the payload
+        size_t packet_len = wire_len - tcphdr_len;
+        err = pkt_wait_list_add(tcp_sub->wl+way, offset, offset+packet_len, true, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, packet_len, now, okfn);
+    } else {    // So be it
+        err = proto_parse(subparser->parser, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, wire_len - tcphdr_len, now, okfn);
+    }
 
     if (tcp_subparser_term(tcp_sub)) {
         SLOG(LOG_DEBUG, "TCP cnx terminated (was %s)", parser_name(subparser->parser));
         tcp_subparser_del(subparser);
     }
 
-    int err = proto_parse(child, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, wire_len - tcphdr_len, now, okfn);
-    parser_unref(child);
     if (err) goto fallback;
     return PROTO_OK;
 

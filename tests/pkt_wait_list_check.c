@@ -129,7 +129,7 @@ static void reorder_check(void)
         int len = strlen(packets[p]) + 1;
         assert(PROTO_OK == pkt_wait_list_add(&wl, offset, offset+len, true, NULL, 0, (uint8_t *)packets[p], len, len, &now, NULL));
     }
- 
+
     // Check we parsed everything
     assert(LIST_EMPTY(&wl.pkts));
     assert(next_msg == 4);

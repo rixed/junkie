@@ -151,4 +151,7 @@ bool pkt_wait_list_is_complete(struct pkt_wait_list *, unsigned start_offset, un
  * or some required parts of the packets were not captured. */
 uint8_t *pkt_wait_list_reassemble(struct pkt_wait_list *, unsigned start_offset, unsigned end_offset);
 
+/// Removes a packet from a list, without calling the subparser.
+void pkt_wait_del(struct pkt_wait *, struct pkt_wait_list *);
+
 #endif

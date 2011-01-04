@@ -335,17 +335,23 @@ static void dummy_fini(void)
 // List of all mux_protos used to configure them from Guile
 static LIST_HEAD(mux_protos, mux_proto) mux_protos = LIST_HEAD_INITIALIZER(&mux_protos);
 
-void mux_subparser_dtor(struct mux_subparser *mux_subparser)
+void mux_subparser_dtor(struct mux_subparser *subparser)
 {
-    assert(mux_subparser->mux_parser->nb_children > 0);
-    mux_subparser->parser = parser_unref(mux_subparser->parser);
+    assert(subparser->mux_parser->nb_children > 0);
+    subparser->parser = parser_unref(subparser->parser);
 
     // As we avoid taking a reference to "ourself", we also avoid unrefing in this case
-    mux_subparser->requestor = mux_subparser->requestor != mux_subparser->parser ?
-        parser_unref(mux_subparser->requestor) : NULL;
+    subparser->requestor = subparser->requestor != subparser->parser ?
+        parser_unref(subparser->requestor) : NULL;
 
-    LIST_REMOVE(mux_subparser, h_entry);
-    mux_subparser->mux_parser->nb_children --;
+    LIST_REMOVE(subparser, h_entry);
+
+    if (subparser->doomed) {
+        LIST_REMOVE(subparser, doom_entry);
+        subparser->doomed = false;
+    }
+
+    subparser->mux_parser->nb_children --;
 }
 
 void mux_subparser_del(struct mux_subparser *subparser)
@@ -361,6 +367,34 @@ static bool nb_children_ok(struct mux_parser *mux_parser)
         mux_parser->nb_children < mux_parser->nb_max_children;
 }
 
+static struct mutex doomed_mutex;
+static LIST_HEAD(doomed_subparsers, mux_subparser) doomed_subparsers;
+
+void mux_subparser_doom(struct mux_subparser *subparser)
+{
+    if (subparser->doomed) return;
+
+    mutex_lock(&doomed_mutex);
+
+    LIST_INSERT_HEAD(&doomed_subparsers, subparser, doom_entry);
+    subparser->doomed = true;
+
+    mutex_unlock(&doomed_mutex);
+}
+
+void mux_subparser_kill_doomed(void)
+{
+    mutex_lock(&doomed_mutex);
+
+    struct mux_subparser *subparser;
+    while (NULL != (subparser = LIST_FIRST(&doomed_subparsers))) {
+        struct mux_proto *mux_proto = DOWNCAST(subparser->mux_parser->parser.proto, proto, mux_proto);
+        mux_proto->ops.subparser_del(subparser);
+    }
+
+    mutex_unlock(&doomed_mutex);
+}
+
 static void sacrifice_child(struct mux_parser *mux_parser)
 {
     struct mux_proto *mux_proto = DOWNCAST(mux_parser->parser.proto, proto, mux_proto);
@@ -369,10 +403,10 @@ static void sacrifice_child(struct mux_parser *mux_parser)
     static unsigned hh = 0;
     hh ++;
     for (unsigned h = hh % mux_parser->hash_size; h < mux_parser->hash_size; h++) {
-        struct mux_subparser *mux_subparser = LIST_FIRST(mux_parser->subparsers+h);
-        if (! mux_subparser) continue;
-        SLOG(LOG_DEBUG, "Too many children for mux %s, killing %p", parser_name(&mux_parser->parser), mux_subparser);
-        mux_proto->ops.subparser_del(mux_subparser);
+        struct mux_subparser *subparser = LIST_FIRST(mux_parser->subparsers+h);
+        if (! subparser) continue;
+        SLOG(LOG_DEBUG, "Too many children for mux %s, killing %p", parser_name(&mux_parser->parser), subparser);
+        mux_subparser_doom(subparser);
         mux_proto->nb_infanticide ++;
         return;
     }
@@ -384,23 +418,23 @@ static unsigned hash_key(void const *key, size_t key_sz, unsigned hash_sz)
     return hashlittle(key, key_sz, ANY_VALUE) % hash_sz;
 }
 
-int mux_subparser_ctor(struct mux_subparser *mux_subparser, struct mux_parser *mux_parser, struct parser *child, struct parser *requestor, void const *key)
+int mux_subparser_ctor(struct mux_subparser *subparser, struct mux_parser *mux_parser, struct parser *child, struct parser *requestor, void const *key)
 {
     assert(child);
-    CHECK_LAST_FIELD(mux_subparser, key, char);
-    SLOG(LOG_DEBUG, "Construct mux_subparser@%p for parser %s requested by %s", mux_subparser, parser_name(child), requestor ? parser_name(requestor) : "nobody");
+    SLOG(LOG_DEBUG, "Construct mux_subparser@%p for parser %s requested by %s", subparser, parser_name(child), requestor ? parser_name(requestor) : "nobody");
 
     if (! nb_children_ok(mux_parser)) sacrifice_child(mux_parser);
 
-    mux_subparser->parser = parser_ref(child);
-    mux_subparser->requestor = parser_ref(requestor);
-    mux_subparser->mux_parser = mux_parser;
+    subparser->parser = parser_ref(child);
+    subparser->requestor = parser_ref(requestor);
+    subparser->mux_parser = mux_parser;
+    subparser->doomed = false;
 
     struct mux_proto *mux_proto = DOWNCAST(mux_parser->parser.proto, proto, mux_proto);
     unsigned h = hash_key(key, mux_proto->key_size, mux_parser->hash_size);
-    LIST_INSERT_HEAD(mux_parser->subparsers+h, mux_subparser, h_entry);
+    LIST_INSERT_HEAD(mux_parser->subparsers+h, subparser, h_entry);
     mux_parser->nb_children ++;
-    memcpy(mux_subparser->key, key, mux_proto->key_size);
+    memcpy(subparser->key, key, mux_proto->key_size);
     return 0;
 }
 
@@ -415,15 +449,15 @@ void *mux_subparser_alloc(struct mux_parser *mux_parser, size_t size_without_key
 // Creates the subparser _and_ the parser
 struct mux_subparser *mux_subparser_new(struct mux_parser *mux_parser, struct parser *child, struct parser *requestor, void const *key)
 {
-    struct mux_subparser *mux_subparser = mux_subparser_alloc(mux_parser, sizeof(*mux_subparser));
-    if (unlikely_(! mux_subparser)) return NULL;
+    struct mux_subparser *subparser = mux_subparser_alloc(mux_parser, sizeof(*subparser));
+    if (unlikely_(! subparser)) return NULL;
 
-    if (0 != mux_subparser_ctor(mux_subparser, mux_parser, child, requestor, key)) {
-        FREE(mux_subparser);
+    if (0 != mux_subparser_ctor(subparser, mux_parser, child, requestor, key)) {
+        FREE(subparser);
         return NULL;
     }
 
-    return mux_subparser;
+    return subparser;
 }
 
 struct mux_subparser *mux_subparser_and_parser_new(struct mux_parser *mux_parser, struct proto *proto, struct parser *requestor, void const *key, struct timeval const *now)
@@ -432,14 +466,14 @@ struct mux_subparser *mux_subparser_and_parser_new(struct mux_parser *mux_parser
     if (unlikely_(! child)) return NULL;
 
     struct mux_proto *mux_proto = DOWNCAST(mux_parser->parser.proto, proto, mux_proto);
-    struct mux_subparser *mux_subparser = mux_proto->ops.subparser_new(mux_parser, child, requestor, key);
-    if (unlikely_(! mux_subparser)) {
+    struct mux_subparser *subparser = mux_proto->ops.subparser_new(mux_parser, child, requestor, key);
+    if (unlikely_(! subparser)) {
         child->proto->ops->parser_del(child);
     }
 
     parser_unref(child);    // No need to keep this anymore
 
-    return mux_subparser;
+    return subparser;
 }
 
 struct mux_subparser *mux_subparser_lookup(struct mux_parser *mux_parser, struct proto *create_proto, struct parser *requestor, void const *key, struct timeval const *now)
@@ -451,7 +485,7 @@ struct mux_subparser *mux_subparser_lookup(struct mux_parser *mux_parser, struct
     struct mux_subparser *subparser, *tmp;
     LIST_FOREACH_SAFE(subparser, mux_parser->subparsers+h, h_entry, tmp) {
         if (! subparser->parser->alive) {
-            mux_proto->ops.subparser_del(subparser);
+            mux_subparser_doom(subparser);
             continue;
         }
         if (
@@ -491,18 +525,18 @@ struct mux_subparser *mux_subparser_lookup(struct mux_parser *mux_parser, struct
     return mux_subparser_and_parser_new(mux_parser, create_proto, requestor, key, now);
 }
 
-void mux_subparser_change_key(struct mux_subparser *mux_subparser, struct mux_parser *mux_parser, void const *key)
+void mux_subparser_change_key(struct mux_subparser *subparser, struct mux_parser *mux_parser, void const *key)
 {
-    SLOG(LOG_DEBUG, "changing key for subparser @%p", mux_subparser);
+    SLOG(LOG_DEBUG, "changing key for subparser @%p", subparser);
 
     // Remove
-    LIST_REMOVE(mux_subparser, h_entry);
+    LIST_REMOVE(subparser, h_entry);
     // Change key
     struct mux_proto *mux_proto = DOWNCAST(mux_parser->parser.proto, proto, mux_proto);
-    memcpy(mux_subparser->key, key, mux_proto->key_size);
+    memcpy(subparser->key, key, mux_proto->key_size);
     // Re-insert
     unsigned h = hash_key(key, mux_proto->key_size, mux_parser->hash_size);
-    LIST_INSERT_HEAD(mux_parser->subparsers+h, mux_subparser, h_entry);
+    LIST_INSERT_HEAD(mux_parser->subparsers+h, subparser, h_entry);
 }
 
 int mux_parser_ctor(struct mux_parser *mux_parser, struct mux_proto *mux_proto, struct timeval const *now)
@@ -548,7 +582,7 @@ void mux_parser_dtor(struct mux_parser *mux_parser)
     // So, none of our child can delete us
     struct mux_proto *mux_proto = DOWNCAST(mux_parser->parser.proto, proto, mux_proto);
 
-    // Delete all children
+    // Delete all children (here there is not much choice than to delete for real)
     for (unsigned h = 0; h < mux_parser->hash_size; h++) {
         struct mux_subparser *subparser;
         while (NULL != (subparser = LIST_FIRST(mux_parser->subparsers+h))) {
@@ -747,6 +781,8 @@ static SCM g_mux_proto_set_hash_size(SCM name_, SCM hash_size_)
 void proto_init(void)
 {
     log_category_proto_init();
+    mutex_ctor(&doomed_mutex, "doomed mux_subparsers");
+    LIST_INIT(&doomed_subparsers);
     ext_param_nb_fuzzed_bits_init();
 
     ext_function_ctor(&sg_proto_stats,
@@ -794,7 +830,9 @@ void proto_init(void)
 
 void proto_fini(void)
 {
+    mux_subparser_kill_doomed();
     dummy_fini();
+    mutex_dtor(&doomed_mutex);
     ext_param_nb_fuzzed_bits_fini();
     log_category_proto_fini();
 }

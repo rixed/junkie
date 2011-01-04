@@ -64,7 +64,7 @@ static void pkt_wait_dtor(struct pkt_wait *pkt, struct pkt_wait_list *pkt_wl)
     }
 }
 
-static void pkt_wait_del(struct pkt_wait *pkt, struct pkt_wait_list *pkt_wl)
+void pkt_wait_del(struct pkt_wait *pkt, struct pkt_wait_list *pkt_wl)
 {
     pkt_wait_dtor(pkt, pkt_wl);
     FREE(pkt);
@@ -80,7 +80,7 @@ static enum proto_parse_status pkt_wait_parse(struct pkt_wait *pkt, struct pkt_w
         // then do not parse it
         return proto_parse(NULL, pkt->parent, pkt->way, NULL, 0, 0, now, pkt->okfn);
     }
-        
+
     // So we must parse from pkt_wl->next_offset to pkt->next_offset
     assert(pkt->offset <= pkt_wl->next_offset);
     unsigned trim = pkt_wl->next_offset - pkt->offset;
@@ -226,7 +226,7 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
 {
     SLOG(LOG_DEBUG, "Add a packet of %zu bytes at offset %u to waiting list @%p", packet_len, offset, pkt_wl);
 
-    /// Find its location and the previous pkt
+    // Find its location and the previous pkt
     struct pkt_wait *prev = NULL;
     struct pkt_wait *next;
     LIST_FOREACH(next, &pkt_wl->pkts, entry) {
@@ -236,11 +236,11 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
         prev = next;
     }
 
-    /// if previous == NULL and pkt_wl->next_offset == offset, call proto_parse directly, then advance next_offset.
+    // if previous == NULL and pkt_wl->next_offset == offset, call proto_parse directly, then advance next_offset.
     if (! prev && pkt_wl->next_offset == offset && can_parse) {
         enum proto_parse_status status = proto_parse(pkt_wl->parser, parent, way, packet, cap_len, packet_len, now, okfn);
 
-        /// Now parse as much as we can while advancing next_offset, returning the first error we obtain
+        // Now parse as much as we can while advancing next_offset, returning the first error we obtain
         pkt_wl->next_offset = next_offset;
         while (status == PROTO_OK) {
             struct pkt_wait *pkt = LIST_FIRST(&pkt_wl->pkts);
@@ -251,13 +251,17 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
         return status;
     }
 
-    /// else if gap with previous > acceptable_gap, call okfn directly and we are done
+    // else if gap with previous > acceptable_gap or if the packet is fully in the past
+    // then call okfn directly and we are done
     unsigned prev_offset = prev ? prev->offset : pkt_wl->next_offset;
-    if (pkt_wl->acceptable_gap > 0 && (int)(offset - prev_offset) > (int)pkt_wl->acceptable_gap) {
+    if (
+        (pkt_wl->acceptable_gap > 0 && (int)(offset - prev_offset) > (int)pkt_wl->acceptable_gap) ||
+        (int)(next_offset - prev_offset) <= 0
+    ) {
         return proto_parse(NULL, parent, way, packet, cap_len, packet_len, now, okfn);
     }
 
-    /// else insert the packet and wait
+    // else insert the packet and wait
     struct pkt_wait *pkt = pkt_wait_new(offset, next_offset, parent, way, packet, cap_len, packet_len, okfn);
     if (! pkt) return proto_parse(NULL, parent, way, NULL, 0, 0, now, okfn); // silently discard
 

@@ -11,8 +11,11 @@
 /// Compile time assertion
 #define ASSERT_COMPILE(x) do { switch (0) { case 0: case (x):; } } while (0)
 
-#define CHECK_LAST_FIELD(container, field_name, content) do {                 \
-        ASSERT_COMPILE(sizeof(struct container) <= offsetof(struct container, field_name) + sizeof (content) + 3 /*magic value for padding*/); \
+#define STRUCT_ALIGNMENT (sizeof(void *))
+#define PAD_SIZE(x) (((x + (STRUCT_ALIGNMENT-1))/STRUCT_ALIGNMENT)*STRUCT_ALIGNMENT)
+
+#define CHECK_LAST_FIELD(container, field_name, content) do { \
+    ASSERT_COMPILE(sizeof(struct container) <= PAD_SIZE(offsetof(struct container, field_name) + sizeof (content))); \
 } while (0/*CONSTCOND*/)
 
 /// Various utilities
