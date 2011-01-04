@@ -44,6 +44,13 @@ LOG_CATEGORY_DEF(proto_udp);
  * Proto Infos
  */
 
+static void const *udp_info_addr(struct proto_info const *info_, size_t *size)
+{
+    struct udp_proto_info const *info = DOWNCAST(info_, info, udp_proto_info);
+    if (size) *size = sizeof(*info);
+    return info;
+}
+
 static char const *udp_info_2_str(struct proto_info const *info_)
 {
     struct udp_proto_info const *info = DOWNCAST(info_, info, udp_proto_info);
@@ -54,7 +61,7 @@ static char const *udp_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-static void udp_proto_info_ctor(struct udp_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t head_len, size_t payload, uint16_t sport, uint16_t dport)
+static void udp_proto_info_ctor(struct udp_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, uint16_t sport, uint16_t dport)
 {
     proto_info_ctor(&info->info, parser, parent, head_len, payload);
 
@@ -119,7 +126,7 @@ struct mux_subparser *udp_subparser_lookup(struct parser *parser, struct proto *
     return mux_subparser_lookup(mux_parser, proto, requestor, &key, now);
 }
 
-static enum proto_parse_status udp_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status udp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct udp_hdr const *udphdr = (struct udp_hdr *)packet;
@@ -198,10 +205,11 @@ void udp_init(void)
     log_category_proto_udp_init();
 
     static struct proto_ops const ops = {
-        .parse = udp_parse,
+        .parse      = udp_parse,
         .parser_new = mux_parser_new,
         .parser_del = mux_parser_del,
         .info_2_str = udp_info_2_str,
+        .info_addr  = udp_info_addr,
     };
     mux_proto_ctor(&mux_proto_udp, &ops, &mux_proto_ops, "UDP", UDP_TIMEOUT, sizeof(struct udp_key), UDP_HASH_SIZE);
     port_muxer_list_ctor(&udp_port_muxers, "UDP muxers");

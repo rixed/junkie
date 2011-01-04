@@ -74,6 +74,13 @@ struct rtcp_report_bloc {
  * Proto infos
  */
 
+static void const *rtcp_info_addr(struct proto_info const *info_, size_t *size)
+{
+    struct rtcp_proto_info const *info = DOWNCAST(info_, info, rtcp_proto_info);
+    if (size) *size = sizeof(*info);
+    return info;
+}
+
 static char const *rtcp_info_2_str(struct proto_info const *info_)
 {
     struct rtcp_proto_info const *info = DOWNCAST(info_, info, rtcp_proto_info);
@@ -87,7 +94,7 @@ static char const *rtcp_info_2_str(struct proto_info const *info_)
 }
 
 
-static void rtcp_proto_info_ctor(struct rtcp_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t head_len, size_t payload, int32_t packet_lost, uint32_t jitter, uint32_t lst, uint32_t dlsr, uint32_t ntp_ts)
+static void rtcp_proto_info_ctor(struct rtcp_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, int32_t packet_lost, uint32_t jitter, uint32_t lst, uint32_t dlsr, uint32_t ntp_ts)
 {
     proto_info_ctor(&info->info, parser, parent, head_len, payload);
     info->cumul_lost = packet_lost;
@@ -101,7 +108,7 @@ static void rtcp_proto_info_ctor(struct rtcp_proto_info *info, struct parser *pa
  * Parse
  */
 
-static enum proto_parse_status rtcp_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status rtcp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     struct rtcp_head const *rtcphd = (struct rtcp_head *)packet;
 
@@ -162,10 +169,11 @@ void rtcp_init(void)
     log_category_proto_rtcp_init();
 
     static struct proto_ops const ops = {
-        .parse = rtcp_parse,
+        .parse      = rtcp_parse,
         .parser_new = uniq_parser_new,
         .parser_del = uniq_parser_del,
         .info_2_str = rtcp_info_2_str,
+        .info_addr  = rtcp_info_addr,
     };
 
     uniq_proto_ctor(&uniq_proto_rtcp, &ops, "RTCP");

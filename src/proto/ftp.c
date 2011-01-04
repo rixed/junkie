@@ -38,7 +38,7 @@ LOG_CATEGORY_DEF(proto_ftp);
  * Proto Infos
  */
 
-static void ftp_proto_info_ctor(struct ftp_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t head_len, size_t payload)
+static void ftp_proto_info_ctor(struct ftp_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload)
 {
     proto_info_ctor(&info->info, parser, parent, head_len, payload);
 }
@@ -101,7 +101,7 @@ static void check_for_passv(struct ip_proto_info const *ip, struct parser *reque
     }
 }
 
-static enum proto_parse_status ftp_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status ftp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     // Sanity Checks
     ASSIGN_INFO_CHK(tcp, parent, -1);
@@ -133,10 +133,11 @@ void ftp_init(void)
     log_category_proto_ftp_init();
 
     static struct proto_ops const ops = {
-        .parse = ftp_parse,
+        .parse      = ftp_parse,
         .parser_new = uniq_parser_new,
         .parser_del = uniq_parser_del,
         .info_2_str = proto_info_2_str,
+        .info_addr  = proto_info_addr,
     };
     uniq_proto_ctor(&uniq_proto_ftp, &ops, "FTP");
     port_muxer_ctor(&tcp_port_muxer, &tcp_port_muxers, 21, 21, proto_ftp);

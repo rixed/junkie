@@ -58,7 +58,11 @@ int iph_ctor(void *ip_, size_t len, uint32_t src, uint32_t dst)
     ip->tos = 0;
     ip->tot_len = htons(len);
     ip->id = 0;
-    ip->fragment_off = 0;
+    ip->frag_offset_lo = 0;
+    ip->frag_offset_hi = 0;
+    ip->more_fragments = 0;
+    ip->dont_fragment = 0;
+    ip->reserved = 0;
     ip->ttl = 64;
     ip->protocol = IPPROTO_UDP;
     ip->checksum = 0x1234;
@@ -209,6 +213,4 @@ ssize_t tcp_stream_next(struct tcp_stream *stream, unsigned *way_)
 
     return stream_packet(stream, way);
 }
-
-void gsubr_init() {}
 

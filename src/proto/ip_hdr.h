@@ -1,9 +1,11 @@
+// -*- c-basic-offset: 4; c-backslash-column: 79; indent-tabs-mode: nil -*-
+// vim:sw=4 ts=4 sts=4 expandtab
 #ifndef IP_HDR_H_101230
 #define IP_HDR_H_101230
 #include <stdint.h>
 #include <junkie/config.h>
 #include <junkie/cpp.h>
-#include <netinet/in.h>	// For struct in6_addr (same than in ip_addr.h)
+#include <netinet/in.h> // For struct in6_addr (same than in ip_addr.h)
 
 // Definition of an IP header
 struct ip_hdr {
@@ -17,7 +19,19 @@ struct ip_hdr {
     uint8_t tos;
     uint16_t tot_len;
     uint16_t id;
-    uint16_t fragment_off;
+#   ifdef WORDS_BIGENDIAN
+    uint8_t reserved:1;
+    uint8_t dont_fragment:1;
+    uint8_t more_fragments:1;
+    uint8_t frag_offset_hi:5;
+    uint8_t frag_offset_lo;
+#   else
+    uint8_t frag_offset_hi:5;
+    uint8_t more_fragments:1;
+    uint8_t dont_fragment:1;
+    uint8_t reserved:1;
+    uint8_t frag_offset_lo;
+#   endif
     uint8_t ttl;
     uint8_t protocol;
     uint16_t checksum;

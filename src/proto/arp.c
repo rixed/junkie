@@ -56,6 +56,13 @@ static char const *arp_opcode_2_str(enum arp_opcode opcode)
     return "unknown";
 }
 
+static void const *arp_info_addr(struct proto_info const *info_, size_t *size)
+{
+    struct arp_proto_info const *info = DOWNCAST(info_, info, arp_proto_info);
+    if (size) *size = sizeof(*info);
+    return info;
+}
+
 static char const *arp_info_2_str(struct proto_info const *info_)
 {
     struct arp_proto_info const *info = DOWNCAST(info_, info, arp_proto_info);
@@ -93,7 +100,7 @@ static void fetch_hw(uint8_t *mac, unsigned hard_addr_fmt, uint8_t const *ptr)
     }
 }
 
-static enum proto_parse_status arp_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status arp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     struct arp_hdr const *arp = (struct arp_hdr *)payload;
 
@@ -175,10 +182,11 @@ void arp_init(void)
     log_category_proto_arp_init();
 
     static struct proto_ops const ops = {
-        .parse = arp_parse,
+        .parse      = arp_parse,
         .parser_new = uniq_parser_new,
         .parser_del = uniq_parser_del,
         .info_2_str = arp_info_2_str,
+        .info_addr  = arp_info_addr,
     };
     uniq_proto_ctor(&uniq_proto_arp, &ops, "ARP");
     eth_subproto_ctor(&arp_eth_subproto, ETH_PROTO_ARP, proto_arp);

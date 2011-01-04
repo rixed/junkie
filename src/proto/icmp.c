@@ -129,6 +129,13 @@ char *icmp_err_2_str(struct icmp_err const *err, unsigned set_values)
     return str;
 }
 
+static void const *icmp_info_addr(struct proto_info const *info_, size_t *size)
+{
+    struct icmp_proto_info const *info = DOWNCAST(info_, info, icmp_proto_info);
+    if (size) *size = sizeof(*info);
+    return info;
+}
+
 static char const *icmp_info_2_str(struct proto_info const *info_)
 {
     struct icmp_proto_info const *info = DOWNCAST(info_, info, icmp_proto_info);
@@ -141,7 +148,7 @@ static char const *icmp_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-static void icmp_proto_info_ctor(struct icmp_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t packet_len, uint8_t type, uint8_t code)
+static void icmp_proto_info_ctor(struct icmp_proto_info *info, struct parser *parser, struct proto_info *parent, size_t packet_len, uint8_t type, uint8_t code)
 {
     proto_info_ctor(&info->info, parser, parent, packet_len, 0);
     info->type = type;
@@ -211,7 +218,7 @@ static bool icmp_is_err(uint8_t type)
     return true;
 }
 
-static enum proto_parse_status icmp_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status icmp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     struct icmp_hdr *icmphdr = (struct icmp_hdr *)packet;
 
@@ -249,6 +256,7 @@ void icmp_init(void)
         .parser_new = uniq_parser_new,
         .parser_del = uniq_parser_del,
         .info_2_str = icmp_info_2_str,
+        .info_addr  = icmp_info_addr,
     };
     uniq_proto_ctor(&uniq_proto_icmp, &ops, "ICMP");
     ip_subproto_ctor(&icmp_ip_subproto, IPPROTO_ICMP, proto_icmp);

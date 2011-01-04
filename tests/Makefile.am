@@ -9,7 +9,7 @@ check_PROGRAMS = \
 	ip_check udp_check tcp_check http_check sip_check \
 	sdp_check mgcp_check dns_check cnxtrack_check \
 	icmp_check rtcp_check flood_check port_range_check \
-	arp_check
+	arp_check pkt_wait_list_check ip_reassembly_check
 
 TESTS = $(check_PROGRAMS)
 
@@ -65,6 +65,10 @@ flood_check_SOURCES = flood_check.c lib.c lib.h ../src/ext.c
 flood_check_LDADD = ../src/tools/libtools.la ../src/proto/libproto.la
 port_range_check_SOURCES = port_range_check.c lib.c lib.h ../src/ext.c
 port_range_check_LDADD = ../src/tools/libtools.la ../src/proto/libproto.la
+pkt_wait_list_check_SOURCES = pkt_wait_list_check.c lib.c lib.h ../src/ext.c ../src/proto/proto.c
+pkt_wait_list_check_LDADD = ../src/tools/libtools.la
+ip_reassembly_check_SOURCES = ip_reassembly_check.c lib.c lib.h ../src/ext.c
+ip_reassembly_check_LDADD = ../src/tools/libtools.la ../src/proto/libproto.la
 
 distclean-local:
 	rm -f *.log vgcore.* core.* core

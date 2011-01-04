@@ -43,6 +43,7 @@ struct ip_proto_info {
 struct mux_subparser *ip_subparser_lookup(struct parser *parser, struct proto *proto, struct parser *requestor, unsigned protocol, struct ip_addr const *src, struct ip_addr const *dst, unsigned *way, struct timeval const *now);
 
 /// Only usefull for proto/ip6
+void const *ip_info_addr(struct proto_info const *, size_t *);
 char const *ip_info_2_str(struct proto_info const *);
 unsigned ip_key_ctor(struct ip_key *, unsigned protocol, struct ip_addr const *, struct ip_addr const *);
 

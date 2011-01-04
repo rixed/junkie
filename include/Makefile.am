@@ -23,6 +23,7 @@ pkginclude_HEADERS = \
 	junkie/proto/rtcp.h \
 	junkie/proto/sip.h \
 	junkie/proto/port_muxer.h \
+	junkie/proto/pkt_wait_list.h \
 	junkie/tools/mutex.h \
 	junkie/tools/files.h \
 	junkie/tools/mallocer.h \

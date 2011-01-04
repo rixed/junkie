@@ -139,6 +139,13 @@ static char const *via_2_str(struct sip_via const *via)
     return str;
 }
 
+static void const *sip_info_addr(struct proto_info const *info_, size_t *size)
+{
+    struct sip_proto_info const *info = DOWNCAST(info_, info, sip_proto_info);
+    if (size) *size = sizeof(*info);
+    return info;
+}
+
 static char const *sip_info_2_str(struct proto_info const *info_)
 {
     struct sip_proto_info const *info = DOWNCAST(info_, info, sip_proto_info);
@@ -158,7 +165,7 @@ static char const *sip_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-static void sip_proto_info_ctor(struct sip_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t head_len, size_t payload)
+static void sip_proto_info_ctor(struct sip_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload)
 {
     proto_info_ctor(&info->info, parser, parent, head_len, payload);
 }
@@ -289,7 +296,7 @@ static int sip_extract_via(unsigned unused_ field, struct liner *liner, void *in
     return 0;
 }
 
-static void try_create_dual(struct sip_parser *sip_parser, struct sip_proto_info const *info, struct proto_info const *parent, unsigned way, struct timeval const *now)
+static void try_create_dual(struct sip_parser *sip_parser, struct sip_proto_info const *info, struct proto_info *parent, unsigned way, struct timeval const *now)
 {
     unsigned server_port = 0;
     struct proto *proto_transp;
@@ -329,7 +336,7 @@ static void try_create_dual(struct sip_parser *sip_parser, struct sip_proto_info
     sip_parser->dual = DOWNCAST(DOWNCAST(dual_parser, parser, mux_parser), mux_parser, sip_parser);
 }
 
-static enum proto_parse_status sip_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t unused_ *okfn)
+static enum proto_parse_status sip_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t unused_ *okfn)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct sip_parser *sip_parser = DOWNCAST(mux_parser, mux_parser, sip_parser);
@@ -430,6 +437,7 @@ void sip_init(void)
         .parser_new = sip_parser_new,
         .parser_del = sip_parser_del,
         .info_2_str = sip_info_2_str,
+        .info_addr  = sip_info_addr,
     };
     mux_proto_ctor(&mux_proto_sip, &ops, &mux_proto_ops, "SIP", SIP_TIMEOUT, sizeof (unsigned long), SIP_HASH_SIZE);
     port_muxer_ctor(&udp_port_muxer, &udp_port_muxers, SIP_PORT, SIP_PORT, proto_sip);

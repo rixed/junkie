@@ -41,7 +41,7 @@ static char const Id[] = "$Id: c1c50fb3b93381abf716bfa300605c930e937160 $";
  * Proto Infos (only the info ctor is different from ipv4
  */
 
-static void ip6_proto_info_ctor(struct ip_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t head_len, size_t payload, unsigned version, struct ipv6_hdr const *iphdr)
+static void ip6_proto_info_ctor(struct ip_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, unsigned version, struct ipv6_hdr const *iphdr)
 {
     proto_info_ctor(&info->info, parser, parent, head_len, payload);
 
@@ -76,7 +76,7 @@ void ip6_subproto_dtor(struct ip_subproto *ip_subproto)
  * Parse
  */
 
-static enum proto_parse_status ip6_parse(struct parser *parser, struct proto_info const *parent, unsigned unused_ way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status ip6_parse(struct parser *parser, struct proto_info *parent, unsigned unused_ way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct ipv6_hdr const *iphdr = (struct ipv6_hdr *)packet;
@@ -149,10 +149,11 @@ static struct eth_subproto eth_subproto;
 void ip6_init(void)
 {
     static struct proto_ops const ops = {
-        .parse = ip6_parse,
+        .parse      = ip6_parse,
         .parser_new = mux_parser_new,
         .parser_del = mux_parser_del,
         .info_2_str = ip_info_2_str,
+        .info_addr  = ip_info_addr,
     };
     mux_proto_ctor(&mux_proto_ip6, &ops, &mux_proto_ops, "IPv6", IP6_TIMEOUT, sizeof(struct ip_key), IP6_HASH_SIZE);
     eth_subproto_ctor(&eth_subproto, ETH_PROTO_IPv6, proto_ip6);

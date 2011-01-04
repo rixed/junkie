@@ -48,6 +48,13 @@ LOG_CATEGORY_DEF(proto_tcp);
  * Proto Infos
  */
 
+static void const *tcp_info_addr(struct proto_info const *info_, size_t *size)
+{
+    struct tcp_proto_info const *info = DOWNCAST(info_, info, tcp_proto_info);
+    if (size) *size = sizeof(*info);
+    return info;
+}
+
 static char const *tcp_info_2_str(struct proto_info const *info_)
 {
     struct tcp_proto_info const *info = DOWNCAST(info_, info, tcp_proto_info);
@@ -65,7 +72,7 @@ static char const *tcp_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-static void tcp_proto_info_ctor(struct tcp_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t head_len, size_t payload, uint16_t sport, uint16_t dport, struct tcp_hdr const *tcphdr)
+static void tcp_proto_info_ctor(struct tcp_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, uint16_t sport, uint16_t dport, struct tcp_hdr const *tcphdr)
 {
     proto_info_ctor(&info->info, parser, parent, head_len, payload);
 
@@ -141,10 +148,7 @@ static int tcp_subparser_ctor(struct tcp_subparser *tcp_subparser, struct mux_pa
 
 static struct mux_subparser *tcp_subparser_new(struct mux_parser *mux_parser, struct parser *child, struct parser *requestor, void const *key)
 {
-    // FIXME: move this into a public mux_subparser_malloc(mux_proto) ??
-    MALLOCER(tcp_subparsers);
-    struct mux_proto *mux_proto = DOWNCAST(mux_parser->parser.proto, proto, mux_proto);
-    struct tcp_subparser *tcp_subparser = MALLOC(tcp_subparsers, sizeof(*tcp_subparser) + mux_proto->key_size);
+    struct tcp_subparser *tcp_subparser = mux_subparser_alloc(mux_parser, sizeof(*tcp_subparser));
     if (! tcp_subparser) return NULL;
 
     if (0 != tcp_subparser_ctor(tcp_subparser, mux_parser, child, requestor, key)) {
@@ -191,7 +195,7 @@ struct mux_subparser *tcp_subparser_lookup(struct parser *parser, struct proto *
     return mux_subparser_lookup(mux_parser, proto, requestor, &key, now);
 }
 
-static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct tcp_hdr const *tcphdr = (struct tcp_hdr *)packet;
@@ -309,10 +313,11 @@ void tcp_init(void)
     log_category_proto_tcp_init();
 
     static struct proto_ops const ops = {
-        .parse = tcp_parse,
+        .parse      = tcp_parse,
         .parser_new = mux_parser_new,
         .parser_del = mux_parser_del,
         .info_2_str = tcp_info_2_str,
+        .info_addr  = tcp_info_addr,
     };
     static struct mux_proto_ops const mux_ops = {
         .subparser_new = tcp_subparser_new,

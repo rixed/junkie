@@ -59,6 +59,13 @@ struct rtp_header {
  * Proto infos
  */
 
+static void const *rtp_info_addr(struct proto_info const *info_, size_t *size)
+{
+    struct rtp_proto_info const *info = DOWNCAST(info_, info, rtp_proto_info);
+    if (size) *size = sizeof(*info);
+    return info;
+}
+
 static char const *rtp_info_2_str(struct proto_info const *info_)
 {
     struct rtp_proto_info const *info = DOWNCAST(info_, info, rtp_proto_info);
@@ -70,7 +77,7 @@ static char const *rtp_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-static void rtp_proto_info_ctor(struct rtp_proto_info *info, struct parser *parser, struct proto_info const *parent, struct rtp_header const *rtph, size_t head_len, size_t payload)
+static void rtp_proto_info_ctor(struct rtp_proto_info *info, struct parser *parser, struct proto_info *parent, struct rtp_header const *rtph, size_t head_len, size_t payload)
 {
     proto_info_ctor(&info->info, parser, parent, head_len, payload);
     info->payload_type = rtph->payload_type;
@@ -84,7 +91,7 @@ static void rtp_proto_info_ctor(struct rtp_proto_info *info, struct parser *pars
  * Note: We assume RTP/AVP profile
  */
 
-static enum proto_parse_status rtp_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status rtp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     SLOG(LOG_DEBUG, "Starting RTP analysis");
 
@@ -122,6 +129,7 @@ void rtp_init(void)
         .parser_new = uniq_parser_new,
         .parser_del = uniq_parser_del,
         .info_2_str = rtp_info_2_str,
+        .info_addr  = rtp_info_addr,
     };
     uniq_proto_ctor(&uniq_proto_rtp, &ops, "RTP");
 }

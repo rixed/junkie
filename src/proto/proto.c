@@ -148,7 +148,7 @@ struct proto *proto_of_name(char const *name)
     return NULL;
 }
 
-enum proto_parse_status proto_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+enum proto_parse_status proto_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     assert(cap_len <= wire_len);
 
@@ -200,12 +200,18 @@ struct proto_info const *proto_info_get(struct proto const *proto, struct proto_
     return NULL;
 }
 
-void proto_info_ctor(struct proto_info *info, struct parser *parser, struct proto_info const *parent, size_t head_len, size_t payload)
+void proto_info_ctor(struct proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload)
 {
     info->parent = parent;
     info->parser = parser;
     info->head_len = head_len;
     info->payload = payload;
+}
+
+void const *proto_info_addr(struct proto_info const *info, size_t *size)
+{
+    if (size) *size = sizeof(*info);
+    return info;
 }
 
 char const *proto_info_2_str(struct proto_info const *info)
@@ -297,7 +303,7 @@ struct parser *parser_unref(struct parser *parser)
  * Dummy proto
  */
 
-static enum proto_parse_status dummy_parse(struct parser unused_ *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status dummy_parse(struct parser unused_ *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     return proto_parse(NULL, parent, way, packet, cap_len, wire_len, now, okfn);
 }
@@ -398,12 +404,18 @@ int mux_subparser_ctor(struct mux_subparser *mux_subparser, struct mux_parser *m
     return 0;
 }
 
-// Creates the subparser _and_ the parser
-struct mux_subparser *mux_subparser_new(struct mux_parser *mux_parser, struct parser *child, struct parser *requestor, void const *key)
+void *mux_subparser_alloc(struct mux_parser *mux_parser, size_t size_without_key)
 {
     MALLOCER(mux_subparsers);
     struct mux_proto *mux_proto = DOWNCAST(mux_parser->parser.proto, proto, mux_proto);
-    struct mux_subparser *mux_subparser = MALLOC(mux_subparsers, sizeof(*mux_subparser) + mux_proto->key_size);
+    void *subparser = MALLOC(mux_subparsers, size_without_key + mux_proto->key_size);
+    return subparser;
+}
+
+// Creates the subparser _and_ the parser
+struct mux_subparser *mux_subparser_new(struct mux_parser *mux_parser, struct parser *child, struct parser *requestor, void const *key)
+{
+    struct mux_subparser *mux_subparser = mux_subparser_alloc(mux_parser, sizeof(*mux_subparser));
     if (unlikely_(! mux_subparser)) return NULL;
 
     if (0 != mux_subparser_ctor(mux_subparser, mux_parser, child, requestor, key)) {

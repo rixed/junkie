@@ -12,7 +12,8 @@ libproto_la_SOURCES = \
 	rtcp.c rtp.c \
 	sdp.c sdper.c sdper.h \
 	sip.c ssl.c \
-	tcp.c udp.c
+	tcp.c udp.c \
+	pkt_wait_list.c
 
 libproto_la_LIBADD = ../tools/libtools.la
 libproto_la_LDFLAGS = -export-dynamic

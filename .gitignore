@@ -54,3 +54,5 @@ tests/arp_check
 doxydoc
 config/instvars.scm
 tests/tags
+tests/pkt_wait_list_check
+tests/ip_reassembly_check

@@ -45,19 +45,26 @@ static int packet_is_netbios(uint8_t const *packet, size_t next_len)
     return len == next_len;
 }
 
+static void const *netbios_info_addr(struct proto_info const *info_, size_t *size)
+{
+    struct netbios_proto_info const *info = DOWNCAST(info_, info, netbios_proto_info);
+    if (size) *size = sizeof(*info);
+    return info;
+}
+
 static char const *netbios_info_2_str(struct proto_info const unused_ *info)
 {
     return "TODO";
 }
 
-static void netbios_proto_info_ctor(struct netbios_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t header, size_t payload)
+static void netbios_proto_info_ctor(struct netbios_proto_info *info, struct parser *parser, struct proto_info *parent, size_t header, size_t payload)
 {
     proto_info_ctor(&info->info, parser, parent, header, payload);
     info->mode = NETBIOS_CIFS;
 }
 
 
-static enum proto_parse_status netbios_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status netbios_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     /* Sanity checks */
     if (wire_len < NETBIOS_HEADER_SIZE) return PROTO_PARSE_ERR;
@@ -101,6 +108,7 @@ void netbios_init(void)
         .parser_new = uniq_parser_new,
         .parser_del = uniq_parser_del,
         .info_2_str = netbios_info_2_str,
+        .info_addr  = netbios_info_addr,
     };
     uniq_proto_ctor(&uniq_proto_netbios, &ops, "Netbios");
 }

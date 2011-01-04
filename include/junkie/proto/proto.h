@@ -111,14 +111,14 @@ struct proto {
     struct proto_ops {
         /// Parse some data from the captured frame
         enum proto_parse_status (*parse)(
-            struct parser *parser,              ///< Reference to the parser of this protocol
-            struct proto_info const *parent,    ///< Parent's proto_info
-            unsigned way,                       ///< A direction identifier in the bearing protocol
-            uint8_t const *packet,              ///< Pointer into captured data. Look but don't touch
-            size_t cap_len,                     ///< Size of the captured bytes
-            size_t wire_len,                    ///< Actual size on the wire
-            struct timeval const *now,          ///< The current time
-            proto_okfn_t *okfn                  ///< "Continuation" to call once/if the parsing is over
+            struct parser *parser,      ///< Reference to the parser of this protocol
+            struct proto_info *parent,  ///< Parent's proto_info
+            unsigned way,               ///< A direction identifier in the bearing protocol
+            uint8_t const *packet,      ///< Pointer into captured data. Look but don't touch
+            size_t cap_len,             ///< Size of the captured bytes
+            size_t wire_len,            ///< Actual size on the wire
+            struct timeval const *now,  ///< The current time
+            proto_okfn_t *okfn          ///< "Continuation" to call once/if the parsing is over
         );
         /// Create a new parser of this protocol
         /// (notice that if the parser is stateless there is actually only one instance of it, refcounted)
@@ -127,6 +127,8 @@ struct proto {
         void (*parser_del)(struct parser *parser);
         /// Pretty-print an info structure into a string
         char const *(*info_2_str)(struct proto_info const *);
+        /// Return the start address and size of an overloaded proto_info (used to copy it, see pkt_wait_list)
+        void const *(*info_addr)(struct proto_info const *, size_t *);
     } const *ops;
     char const *name;       ///< Protocol name, used mainly for pretty-printing
     uint64_t nb_frames;     ///< How many times we called this parse (count frames only if this parser is never called more than once on a frame)
@@ -164,14 +166,14 @@ void proto_dtor(struct proto *proto);
 
 /// Call this instead of accessing proto->ops->parse, so that counters are updated properly.
 enum proto_parse_status proto_parse(
-    struct parser *parser,              ///< The parser to hand over the payload to. If NULL okfn is called instead
-    struct proto_info const *parent,    ///< It's parent proto_info
-    unsigned way,                       ///< Direction identifier (see struct mux_proto)
-    uint8_t const *packet,              ///< Raw data to parse
-    size_t cap_len,                     ///< How many bytes are present in packet
-    size_t packet_len,                  ///< How many bytes were present on the wire
-    struct timeval const *now,          ///< The current time
-    proto_okfn_t *okfn                  ///< The "continuation"
+    struct parser *parser,      ///< The parser to hand over the payload to. If NULL okfn is called instead
+    struct proto_info *parent,  ///< It's parent proto_info
+    unsigned way,               ///< Direction identifier (see struct mux_proto)
+    uint8_t const *packet,      ///< Raw data to parse
+    size_t cap_len,             ///< How many bytes are present in packet
+    size_t packet_len,          ///< How many bytes were present on the wire
+    struct timeval const *now,  ///< The current time
+    proto_okfn_t *okfn          ///< The "continuation"
 );
 
 /// Timeout all parsers that lived for too long
@@ -183,31 +185,36 @@ unsigned proto_timeout(struct timeval const *now);
 struct proto *proto_of_name(char const *);
 
 /// Protocol Informations.
-/** A proto parse function is supposed to overload this (publicly) and stores all relevant informations
- * gathered from the frame into its specialized proto_info.  The protocol stack
- * is made of struct proto_info linked together up to the capture layer.  The
- * last one is passed to the "continuation" (from this last one the whole
- * protocol stack can be accessed through the "parent" pointer). */
+/** A proto parse function is supposed to overload this (publicly) and stores
+ * all relevant informations gathered from the frame into its specialized
+ * proto_info.  The protocol stack is made of struct proto_info linked together
+ * up to the capture layer.  The last one is passed to the "continuation" (from
+ * this last one the whole protocol stack can be accessed through the "parent"
+ * pointer). */
 struct proto_info {
-    struct proto_info const *parent;    ///< Previous proto_info, or NULL if we are at root (ie proto = capture)
-    struct parser *parser;              ///< The parser that generated this structure
+    struct proto_info *parent;  ///< Previous proto_info, or NULL if we are at root (ie proto = capture)
+    struct parser *parser;      ///< The parser that generated this structure
     /// Common information that all protocol must fill one way or another
-    size_t head_len;                    ///< Size of the header
-    size_t payload;                     ///< Size of the embedded payload (including what we did not capture from the wire)
+    size_t head_len;            ///< Size of the header
+    size_t payload;             ///< Size of the embedded payload (including what we did not capture from the wire)
 };
 
 /// Constructor for a proto_info
 void proto_info_ctor(
-    struct proto_info *info,            ///< The proto_info to construct
-    struct parser *parser,              ///< The parser it belongs to
-    struct proto_info const *parent,    ///< Previous proto_info
-    size_t head_len,                    ///< Preset this header length
-    size_t payload                      ///< and this payload.
+    struct proto_info *info,    ///< The proto_info to construct
+    struct parser *parser,      ///< The parser it belongs to
+    struct proto_info *parent,  ///< Previous proto_info
+    size_t head_len,            ///< Preset this header length
+    size_t payload              ///< and this payload.
 );
 
-/// Base implementation for proto_info to_str method.
+/// Base implementation for info_2_str method.
 /** Use it into your own to display head_len and payload. */
 char const *proto_info_2_str(struct proto_info const *);
+
+/// Base implementation for info_addr method.
+/** Use it if you do not overload proto_info (?) */
+void const *proto_info_addr(struct proto_info const *, size_t *);
 
 /// Helper for metric modules.
 /** @returns the last proto_info owned by the given proto.
@@ -452,6 +459,10 @@ struct mux_parser {
 
 /// @returns the size to be allocated before creating the mux_parser
 size_t mux_parser_size(struct mux_proto *mux_proto);
+
+/** If you overload struct mux_subparser, you might want to use this to allocate your
+ * custom mux_subparser since its length depends on the key size. */
+void *mux_subparser_alloc(struct mux_parser *mux_parser, size_t size_without_key);
 
 /// Create a mux_subparser for a given parser
 struct mux_subparser *mux_subparser_new(

@@ -52,11 +52,13 @@ static void foreach_line_check(void)
 
 int main(void)
 {
+    log_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("files_check.log");
 
     mkdir_all_check();
     foreach_line_check();
 
+    log_fini();
     return EXIT_SUCCESS;
 }

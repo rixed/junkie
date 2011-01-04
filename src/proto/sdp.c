@@ -58,6 +58,13 @@ struct sdp_parser {
  * Proto Infos
  */
 
+static void const *sdp_info_addr(struct proto_info const *info_, size_t *size)
+{
+    struct sdp_proto_info const *info = DOWNCAST(info_, info, sdp_proto_info);
+    if (size) *size = sizeof(*info);
+    return info;
+}
+
 static char const *sdp_info_2_str(struct proto_info const *info_)
 {
     struct sdp_proto_info const *info = DOWNCAST(info_, info, sdp_proto_info);
@@ -71,7 +78,7 @@ static char const *sdp_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-static void sdp_proto_info_ctor(struct sdp_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t head_len, size_t payload)
+static void sdp_proto_info_ctor(struct sdp_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload)
 {
     memset(info, 0, sizeof *info);
     proto_info_ctor(&info->info, parser, parent, head_len, payload);
@@ -141,7 +148,7 @@ static int sdp_extract_port(unsigned unused_ cmd, struct liner *liner, void *inf
     return 0;
 }
 
-static void spawn_subparsers(struct ip_addr const *this_host, uint16_t this_port, struct ip_addr const *other_host, uint16_t other_port, struct proto_info const *parent, struct timeval const *now)
+static void spawn_subparsers(struct ip_addr const *this_host, uint16_t this_port, struct ip_addr const *other_host, uint16_t other_port, struct proto_info *parent, struct timeval const *now)
 {
     ASSIGN_INFO_CHK(ip, parent, );
 
@@ -158,7 +165,7 @@ static void spawn_subparsers(struct ip_addr const *this_host, uint16_t this_port
     (void)udp_subparser_and_parser_new(udp_parser->parser, proto_rtcp, parent->parser, this_port+1, other_port+1, way2, now); // rtcp conntrack
 }
 
-static enum proto_parse_status sdp_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status sdp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     struct sdp_parser *sdp_parser = DOWNCAST(parser, parser, sdp_parser);
 
@@ -279,6 +286,7 @@ void sdp_init(void)
         .parser_new = sdp_parser_new,
         .parser_del = sdp_parser_del,
         .info_2_str = sdp_info_2_str,
+        .info_addr  = sdp_info_addr,
     };
     proto_ctor(&proto_sdp_, &ops, "SDP", SDP_TIMEOUT);
 }

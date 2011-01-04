@@ -99,6 +99,13 @@ static char const *dns_class_2_str(enum dns_class class)
     return "UNKNWON";
 }
 
+static void const *dns_info_addr(struct proto_info const *info_, size_t *size)
+{
+    struct dns_proto_info const *info = DOWNCAST(info_, info, dns_proto_info);
+    if (size) *size = sizeof(*info);
+    return info;
+}
+
 static char const *dns_info_2_str(struct proto_info const *info_)
 {
     struct dns_proto_info const *info = DOWNCAST(info_, info, dns_proto_info);
@@ -114,7 +121,7 @@ static char const *dns_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-static void dns_proto_info_ctor(struct dns_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t packet_len, uint16_t transaction_id, uint16_t flags)
+static void dns_proto_info_ctor(struct dns_proto_info *info, struct parser *parser, struct proto_info *parent, size_t packet_len, uint16_t transaction_id, uint16_t flags)
 {
     proto_info_ctor(&info->info, parser, parent, packet_len, 0);
     info->transaction_id = transaction_id;
@@ -156,7 +163,7 @@ ssize_t extract_qname(char *name, size_t name_len, uint8_t const *buf, size_t bu
     return len + 1 + extract_qname(name + copy_len, name_len - copy_len, buf+len, buf_len-len, true);
 }
 
-static enum proto_parse_status dns_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status dns_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     struct dns_header *dnshdr = (struct dns_header *)packet;
 
@@ -211,6 +218,7 @@ void dns_init(void)
         .parser_new = uniq_parser_new,
         .parser_del = uniq_parser_del,
         .info_2_str = dns_info_2_str,
+        .info_addr  = dns_info_addr,
     };
     uniq_proto_ctor(&uniq_proto_dns, &ops, "DNS");
     port_muxer_ctor(&udp_port_muxer, &udp_port_muxers, 53, 53, proto_dns);

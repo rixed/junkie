@@ -140,6 +140,13 @@ static char const *mgcp_params_2_str(struct mgcp_proto_info const *info)
         info->cnx_id[0] != '\0' ? info->call_id:"");
 }
 
+static void const *mgcp_info_addr(struct proto_info const *info_, size_t *size)
+{
+    struct mgcp_proto_info const *info = DOWNCAST(info_, info, mgcp_proto_info);
+    if (size) *size = sizeof(*info);
+    return info;
+}
+
 static char const *mgcp_info_2_str(struct proto_info const *info_)
 {
     struct mgcp_proto_info const *info = DOWNCAST(info_, info, mgcp_proto_info);
@@ -149,7 +156,7 @@ static char const *mgcp_info_2_str(struct proto_info const *info_)
         mgcp_params_2_str(info));
 }
 
-static void mgcp_proto_info_ctor(struct mgcp_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t head_len, size_t payload)
+static void mgcp_proto_info_ctor(struct mgcp_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload)
 {
     proto_info_ctor(&info->info, parser, parent, head_len, payload);
 }
@@ -259,7 +266,7 @@ static void parse_call_id(struct mgcp_proto_info *info, struct liner *liner)
 }
 
 // FIXME: give wire_len to liner ??
-static enum proto_parse_status mgcp_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status mgcp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     struct mgcp_parser *mgcp_parser = DOWNCAST(parser, parser, mgcp_parser);
 
@@ -388,6 +395,7 @@ void mgcp_init(void)
         .parser_new = mgcp_parser_new,
         .parser_del = mgcp_parser_del,
         .info_2_str = mgcp_info_2_str,
+        .info_addr  = mgcp_info_addr,
     };
     proto_ctor(&proto_mgcp_, &ops, "MGCP", MGCP_TIMEOUT);
     port_muxer_ctor(&udp_port_muxer_gw, &udp_port_muxers, 2427, 2427, proto_mgcp);

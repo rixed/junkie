@@ -60,6 +60,7 @@ static void rem_block(struct mallocer_block *block)
 
 void *mallocer_alloc(struct mallocer *mallocer, size_t size)
 {
+    // FIXME: align return address to 16 bytes
     struct mallocer_block *block = malloc(sizeof(*block) + size);
     if (! block) return NULL;
     mutex_lock(&mallocer->mutex);

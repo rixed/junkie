@@ -57,7 +57,7 @@ static bool is_bittorrent(uint8_t const *packet, size_t packet_len)
         (packet_len >= strlen(STR2) && 0 == strnstr((char const *)packet, STR2, strlen(STR2)));
 }
 
-static enum proto_parse_status bittorrent_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status bittorrent_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     if (! is_bittorrent(packet, cap_len)) return PROTO_PARSE_ERR;
 
@@ -80,10 +80,11 @@ void bittorrent_init(void)
     log_category_proto_bittorrent_init();
 
     static struct proto_ops const ops = {
-        .parse = bittorrent_parse,
+        .parse      = bittorrent_parse,
         .parser_new = uniq_parser_new,
         .parser_del = uniq_parser_del,
         .info_2_str = proto_info_2_str,
+        .info_addr  = proto_info_addr,
     };
     uniq_proto_ctor(&uniq_proto_bittorrent, &ops, "bittorrent");
     port_muxer_ctor(&tcp_port_muxer, &tcp_port_muxers, 6881, 6999, proto_bittorrent);

@@ -70,6 +70,13 @@ char const *eth_addr_2_str(unsigned char const addr[ETH_ADDR_LEN])
     return str;
 }
 
+static void const *eth_info_addr(struct proto_info const *info_, size_t *size)
+{
+    struct eth_proto_info const *info = DOWNCAST(info_, info, eth_proto_info);
+    if (size) *size = sizeof(*info);
+    return info;
+}
+
 static char const *eth_info_2_str(struct proto_info const *info_)
 {
     struct eth_proto_info const *info = DOWNCAST(info_, info, eth_proto_info);
@@ -83,7 +90,7 @@ static char const *eth_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-static void eth_proto_info_ctor(struct eth_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t head_len, size_t payload, uint16_t proto, uint16_t vlan_id, struct eth_hdr const *ethhdr)
+static void eth_proto_info_ctor(struct eth_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, uint16_t proto, uint16_t vlan_id, struct eth_hdr const *ethhdr)
 {
     proto_info_ctor(&info->info, parser, parent, head_len, payload);
 
@@ -125,7 +132,7 @@ struct mux_subparser *eth_subparser_and_parser_new(struct parser *parser, struct
     return mux_subparser_and_parser_new(mux_parser, proto, requestor, collapse_vlans ? &zero : &vlan_id, now);
 }
 
-static enum proto_parse_status eth_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status eth_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct eth_hdr const *ethhdr = (struct eth_hdr *)packet;
@@ -199,10 +206,11 @@ void eth_init(void)
     ext_param_collapse_vlans_init();
 
     static struct proto_ops const ops = {
-        .parse = eth_parse,
+        .parse      = eth_parse,
         .parser_new = mux_parser_new,
         .parser_del = mux_parser_del,
         .info_2_str = eth_info_2_str,
+        .info_addr  = eth_info_addr,
     };
     mux_proto_ctor(&mux_proto_eth, &ops, &mux_proto_ops, "Ethernet", ETH_TIMEOUT, sizeof(zero) /* vlan_id */, 8);
     LIST_INIT(&eth_subprotos);

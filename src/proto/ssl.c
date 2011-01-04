@@ -57,6 +57,13 @@ char const *ssl_mode_2_str(enum ssl_mode mode)
  * Proto Infos
  */
 
+static void const *ssl_info_addr(struct proto_info const *info_, size_t *size)
+{
+    struct ssl_proto_info const *info = DOWNCAST(info_, info, ssl_proto_info);
+    if (size) *size = sizeof(*info);
+    return info;
+}
+
 static char const *ssl_info_2_str(struct proto_info const *info_)
 {
     struct ssl_proto_info const *info = DOWNCAST(info_, info, ssl_proto_info);
@@ -67,7 +74,7 @@ static char const *ssl_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-static void ssl_proto_info_ctor(struct ssl_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t head_len, size_t payload, enum ssl_mode mode)
+static void ssl_proto_info_ctor(struct ssl_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, enum ssl_mode mode)
 {
     proto_info_ctor(&info->info, parser, parent, head_len, payload);
 
@@ -105,7 +112,7 @@ static int session_is_tls(uint8_t const *packet, size_t packet_len)
     return packet_len > 2 && packet[0] == 23 && packet[1] == 3 && packet[2] == 1;
 }
 
-static enum proto_parse_status ssl_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status ssl_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     size_t const head_len = 3; // 3 bytes in the minimum size to tag a flow as ssl
 
@@ -145,10 +152,11 @@ void ssl_init(void)
     log_category_proto_ssl_init();
 
     static struct proto_ops const ops = {
-        .parse = ssl_parse,
+        .parse      = ssl_parse,
         .parser_new = uniq_parser_new,
         .parser_del = uniq_parser_del,
         .info_2_str = ssl_info_2_str,
+        .info_addr  = ssl_info_addr,
     };
     uniq_proto_ctor(&uniq_proto_ssl, &ops, "SSL");
     port_muxer_ctor(&tcp_port_muxer, &tcp_port_muxers, 443, 443, proto_ssl);

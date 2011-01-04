@@ -50,6 +50,13 @@ static const uint8_t zero = 0; // When collapsing devices we use this fake devic
  * Proto Infos
  */
 
+static void const *cap_info_addr(struct proto_info const *info_, size_t *size)
+{
+    struct cap_proto_info const *info = DOWNCAST(info_, info, cap_proto_info);
+    if (size) *size = sizeof(*info);
+    return info;
+}
+
 static char const *cap_info_2_str(struct proto_info const *info_)
 {
     struct cap_proto_info const *info = DOWNCAST(info_, info, cap_proto_info);
@@ -65,7 +72,7 @@ static char const *cap_info_2_str(struct proto_info const *info_)
 // des checks sur datalen (et stocker datalen dans les payload), mais quand même savoir la taille de la capture à ne pas dépasser
 
 // See note below about packet_len
-static void cap_proto_info_ctor(struct cap_proto_info *info, struct parser *parser, struct proto_info const *parent, struct frame const *frame)
+static void cap_proto_info_ctor(struct cap_proto_info *info, struct parser *parser, struct proto_info *parent, struct frame const *frame)
 {
     proto_info_ctor(&info->info, parser, parent, sizeof(*frame), frame->cap_len);
 
@@ -84,7 +91,7 @@ struct mux_subparser *cap_subparser_and_parser_new(struct parser *parser, struct
 }
 
 // cap_len is not the length of the actual packet, but the size of the data we receive, ie struct frame + what we captured from the wire.
-static enum proto_parse_status cap_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t unused_ cap_len, size_t unused_ wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status cap_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t unused_ cap_len, size_t unused_ wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct frame const *frame = (struct frame *)packet;
@@ -123,6 +130,7 @@ void cap_init(void)
         .parser_new = mux_parser_new,
         .parser_del = mux_parser_del,
         .info_2_str = cap_info_2_str,
+        .info_addr  = cap_info_addr,
     };
     mux_proto_ctor(&mux_proto_cap, &ops, &mux_proto_ops, "Capture", CAP_TIMEOUT, sizeof(zero)/* device_id */, 8);
 }

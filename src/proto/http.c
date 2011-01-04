@@ -66,6 +66,13 @@ static char const *http_method_2_str(enum http_method method)
  * Proto Infos
  */
 
+static void const *http_info_addr(struct proto_info const *info_, size_t *size)
+{
+    struct http_proto_info const *info = DOWNCAST(info_, info, http_proto_info);
+    if (size) *size = sizeof(*info);
+    return info;
+}
+
 char const *http_info_2_str(struct proto_info const *info_)
 {
     struct http_proto_info const *info = DOWNCAST(info_, info, http_proto_info);
@@ -81,7 +88,7 @@ char const *http_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-static void http_proto_info_ctor(struct http_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t head_len, size_t payload)
+static void http_proto_info_ctor(struct http_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload)
 {
     proto_info_ctor(&info->info, parser, parent, head_len, payload);
 }
@@ -135,7 +142,7 @@ static int http_extract_host(unsigned unused_ field, struct liner *liner, void *
     return 0;
 }
 
-static enum proto_parse_status http_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status http_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     // Sanity checks + Parse
     static struct httper_command const commands[] = {
@@ -191,10 +198,11 @@ void http_init(void)
     log_category_proto_http_init();
 
     static struct proto_ops const ops = {
-        .parse = http_parse,
+        .parse      = http_parse,
         .parser_new = uniq_parser_new,
         .parser_del = uniq_parser_del,
         .info_2_str = http_info_2_str,
+        .info_addr  = http_info_addr,
     };
     uniq_proto_ctor(&uniq_proto_http, &ops, "HTTP");
     port_muxer_ctor(&tcp_port_muxer, &tcp_port_muxers, 80, 80, proto_http);

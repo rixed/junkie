@@ -52,6 +52,13 @@ static char const *icmpv6_type_2_str(uint8_t type)
     return "UNKNOWN";
 }
 
+static void const *icmpv6_info_addr(struct proto_info const *info_, size_t *size)
+{
+    struct icmp_proto_info const *info = DOWNCAST(info_, info, icmp_proto_info);
+    if (size) *size = sizeof(*info);
+    return info;
+}
+
 static char const *icmpv6_info_2_str(struct proto_info const *info_)
 {
     struct icmp_proto_info const *info = DOWNCAST(info_, info, icmp_proto_info);
@@ -64,7 +71,7 @@ static char const *icmpv6_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-static void icmpv6_proto_info_ctor(struct icmp_proto_info *info, struct parser *parser, struct proto_info const *parent, size_t packet_len, uint8_t type, uint8_t code)
+static void icmpv6_proto_info_ctor(struct icmp_proto_info *info, struct parser *parser, struct proto_info *parent, size_t packet_len, uint8_t type, uint8_t code)
 {
     proto_info_ctor(&info->info, parser, parent, packet_len, 0);
     info->type = type;
@@ -109,7 +116,7 @@ static bool icmpv6_is_err(uint8_t type)
     return !(type & 0x80);
 }
 
-static enum proto_parse_status icmpv6_parse(struct parser *parser, struct proto_info const *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status icmpv6_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     struct icmp_hdr *icmphdr = (struct icmp_hdr *)packet;
 
@@ -147,6 +154,7 @@ void icmpv6_init(void)
         .parser_new = uniq_parser_new,
         .parser_del = uniq_parser_del,
         .info_2_str = icmpv6_info_2_str,
+        .info_addr  = icmpv6_info_addr,
     };
     uniq_proto_ctor(&uniq_proto_icmpv6, &ops, "ICMPv6");
     ip6_subproto_ctor(&icmpv6_ip6_subproto, IPPROTO_ICMPV6, proto_icmpv6);
