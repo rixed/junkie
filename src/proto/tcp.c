@@ -39,7 +39,6 @@ static char const Id[] = "$Id: f1e4973c1763a7a217c77b2e7a667edf3f209eb7 $";
 #undef LOG_CAT
 #define LOG_CAT proto_tcp_log_category
 
-LOG_CATEGORY_DEC(proto_tcp);
 LOG_CATEGORY_DEF(proto_tcp);
 
 #define TCP_TIMEOUT 120
@@ -311,13 +310,16 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
         tcp_sub->ack[1] ? tcp_sub->max_acknum[1] : 0);
 
     int err;
-    // Use the wait_list to parse this packet
-    if (tcp_sub->syn[way]) {
-        unsigned const offset = info.seq_num - tcp_sub->isn[way]-1;   // The SYN is not part of the payload
-        size_t packet_len = wire_len - tcphdr_len;
-        err = pkt_wait_list_add(tcp_sub->wl+way, offset, offset+packet_len, true, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, packet_len, now, okfn);
-    } else {    // So be it
-        err = proto_parse(subparser->parser, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, wire_len - tcphdr_len, now, okfn);
+    if (wire_len > tcphdr_len) {    // Use the wait_list to parse this packet
+        if (tcp_sub->syn[way]) {
+            unsigned const offset = info.seq_num - tcp_sub->isn[way]-1;   // The SYN is not part of the payload
+            size_t packet_len = wire_len - tcphdr_len;
+            err = pkt_wait_list_add(tcp_sub->wl+way, offset, offset+packet_len, true, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, packet_len, now, okfn);
+        } else {    // So be it
+            err = proto_parse(subparser->parser, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, wire_len - tcphdr_len, now, okfn);
+        }
+    } else {    // no need to bother the subparser with no payload
+        err = proto_parse(NULL, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, wire_len - tcphdr_len, now, okfn);
     }
 
     if (tcp_subparser_term(tcp_sub)) {

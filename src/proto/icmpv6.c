@@ -31,7 +31,6 @@ static char const icmpv6_Id[] = "$Id: be896b1f62e312d5d97d8f01af293f1a9fd19294 $
 #undef LOG_CAT
 #define LOG_CAT proto_icmpv6_log_category
 
-LOG_CATEGORY_DEC(proto_icmpv6);
 LOG_CATEGORY_DEF(proto_icmpv6);
 
 /*

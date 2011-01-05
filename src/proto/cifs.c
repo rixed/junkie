@@ -25,7 +25,6 @@ static char const Id[] = "$Id: dc743f7b4589d91ff5d4b2500ede0f478ebdb2de $";
 #undef LOG_CAT
 #define LOG_CAT proto_cifs_log_category
 
-LOG_CATEGORY_DEC(proto_cifs);
 LOG_CATEGORY_DEF(proto_cifs);
 
 static int unused_ cifs_parse(struct parser unused_ *parser,

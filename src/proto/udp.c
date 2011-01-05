@@ -34,7 +34,6 @@ static char const udp_Id[] = "$Id: 0d4dcb20e67fb576b956de6ca7a66a15ccb9d583 $";
 #undef LOG_CAT
 #define LOG_CAT proto_udp_log_category
 
-LOG_CATEGORY_DEC(proto_udp);
 LOG_CATEGORY_DEF(proto_udp);
 
 #define UDP_TIMEOUT 120

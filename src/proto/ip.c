@@ -39,7 +39,6 @@ static char const Id[] = "$Id: 003ae93bbf458d21ffd9582b447feb9019b93405 $";
 #undef LOG_CAT
 #define LOG_CAT proto_ip_log_category
 
-LOG_CATEGORY_DEC(proto_ip);
 LOG_CATEGORY_DEF(proto_ip);
 
 #define IP_TIMEOUT (60*60)

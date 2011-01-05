@@ -98,6 +98,17 @@ enum proto_parse_status {
     PROTO_TOO_SHORT,
 };
 
+typedef enum proto_parse_status parse_fun(
+    struct parser *parser,      ///< The parser to hand over the payload to. If NULL okfn is called instead
+    struct proto_info *parent,  ///< It's parent proto_info
+    unsigned way,               ///< Direction identifier (see struct mux_proto)
+    uint8_t const *packet,      ///< Raw data to parse
+    size_t cap_len,             ///< How many bytes are present in packet
+    size_t wire_len,            ///< How many bytes were present on the wire
+    struct timeval const *now,  ///< The current time
+    proto_okfn_t *okfn          ///< The "continuation"
+);
+
 /// A protocol implementation.
 /** Only one instance for each protocol ever exist (located in the protocol compilation unit).
  * Can be overloaded to achieve special behavior (for instance see mux_proto or uniq_proto).
@@ -110,16 +121,7 @@ struct proto {
     /// The methods that must be implemented
     struct proto_ops {
         /// Parse some data from the captured frame
-        enum proto_parse_status (*parse)(
-            struct parser *parser,      ///< Reference to the parser of this protocol
-            struct proto_info *parent,  ///< Parent's proto_info
-            unsigned way,               ///< A direction identifier in the bearing protocol
-            uint8_t const *packet,      ///< Pointer into captured data. Look but don't touch
-            size_t cap_len,             ///< Size of the captured bytes
-            size_t wire_len,            ///< Actual size on the wire
-            struct timeval const *now,  ///< The current time
-            proto_okfn_t *okfn          ///< "Continuation" to call once/if the parsing is over
-        );
+        parse_fun *parse;
         /// Create a new parser of this protocol
         /// (notice that if the parser is stateless there is actually only one instance of it, refcounted)
         struct parser *(*parser_new)(struct proto *proto, struct timeval const *now);
@@ -165,16 +167,7 @@ void proto_ctor(
 void proto_dtor(struct proto *proto);
 
 /// Call this instead of accessing proto->ops->parse, so that counters are updated properly.
-enum proto_parse_status proto_parse(
-    struct parser *parser,      ///< The parser to hand over the payload to. If NULL okfn is called instead
-    struct proto_info *parent,  ///< It's parent proto_info
-    unsigned way,               ///< Direction identifier (see struct mux_proto)
-    uint8_t const *packet,      ///< Raw data to parse
-    size_t cap_len,             ///< How many bytes are present in packet
-    size_t packet_len,          ///< How many bytes were present on the wire
-    struct timeval const *now,  ///< The current time
-    proto_okfn_t *okfn          ///< The "continuation"
-);
+parse_fun proto_parse;
 
 /// Timeout all parsers that lived for too long
 /** @returns the number of deleted parsers. */

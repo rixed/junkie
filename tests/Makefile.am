@@ -10,9 +10,12 @@ check_PROGRAMS = \
 	sdp_check mgcp_check dns_check cnxtrack_check \
 	icmp_check rtcp_check flood_check port_range_check \
 	arp_check pkt_wait_list_check ip_reassembly_check \
-	tcp_reorder_check
+	tcp_reorder_check streambuf_check \
+	postgres_check
 
-TESTS = $(check_PROGRAMS)
+dist_check_SCRIPTS = postgres.test
+
+TESTS = $(check_PROGRAMS) $(dist_check_SCRIPTS)
 
 TESTS_ENVIRONMENT = EF_ALLOW_MALLOC_0=1
 
@@ -72,6 +75,10 @@ ip_reassembly_check_SOURCES = ip_reassembly_check.c lib.c lib.h ../src/ext.c
 ip_reassembly_check_LDADD = ../src/tools/libtools.la ../src/proto/libproto.la
 tcp_reorder_check_SOURCES = tcp_reorder_check.c lib.c lib.h ../src/ext.c
 tcp_reorder_check_LDADD = ../src/tools/libtools.la ../src/proto/libproto.la
+streambuf_check_SOURCES = streambuf_check.c lib.c lib.h ../src/ext.c
+streambuf_check_LDADD = ../src/tools/libtools.la ../src/proto/libproto.la
+postgres_check_SOURCES = postgres_check.c lib.c lib.h ../src/ext.c
+postgres_check_LDADD = ../src/tools/libtools.la ../src/proto/libproto.la
 
 clean-local:
 	rm -f *.log vgcore.* core.* core

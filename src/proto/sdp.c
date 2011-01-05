@@ -40,7 +40,6 @@ static char const Id[] = "$Id: e9dc9dbf074ba863e946d13272c7f7ea15581dd6 $";
 #undef LOG_CAT
 #define LOG_CAT proto_sdp_log_category
 
-LOG_CATEGORY_DEC(proto_sdp);
 LOG_CATEGORY_DEF(proto_sdp);
 
 #define SDP_TIMEOUT (5 * 60)

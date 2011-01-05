@@ -39,7 +39,6 @@ EXT_PARAM_RW(nb_fuzzed_bits, "nb-fuzzed-bits", uint, "Max number of bits to fuzz
 #undef LOG_CAT
 #define LOG_CAT proto_log_category
 
-LOG_CATEGORY_DEC(proto);
 LOG_CATEGORY_DEF(proto);
 
 struct protos protos;
@@ -179,6 +178,7 @@ enum proto_parse_status proto_parse(struct parser *parser, struct proto_info *pa
 
     enum proto_parse_status ret = parser->proto->ops->parse(parser, parent, way, packet, cap_len, wire_len, now, okfn);
     if (ret == PROTO_TOO_SHORT) {
+        SLOG(LOG_DEBUG, "Too short for parser %s", parser_name(parser));
         // We are missing some informations but we've done as much as possible.
         if (okfn) (void)okfn(parent);
         return PROTO_OK;   // This is not a parse error if okfn fails.

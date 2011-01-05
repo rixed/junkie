@@ -33,7 +33,6 @@ static char const Id[] = "$Id: a29b66d469dfd3519df7242ba7ab092d4330a4cf $";
 #undef LOG_CAT
 #define LOG_CAT proto_mgcp_log_category
 
-LOG_CATEGORY_DEC(proto_mgcp);
 LOG_CATEGORY_DEF(proto_mgcp);
 
 #define MGCP_TIMEOUT 120

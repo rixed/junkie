@@ -37,7 +37,6 @@ static char const Id[] = "$Id: 51a18a0ad76ab10ef1fcc9cee870304e884cdc44 $";
 #undef LOG_CAT
 #define LOG_CAT proto_capture_log_category
 
-LOG_CATEGORY_DEC(proto_capture);
 LOG_CATEGORY_DEF(proto_capture);
 
 #define CAP_TIMEOUT (60*60)

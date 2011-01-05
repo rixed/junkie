@@ -42,7 +42,6 @@ static char const Id[] = "$Id: de51c32f9992fe12b61752bf374468184b1a952d $";
 #undef LOG_CAT
 #define LOG_CAT proto_sip_log_category
 
-LOG_CATEGORY_DEC(proto_sip);
 LOG_CATEGORY_DEF(proto_sip);
 
 #define SIP_TIMEOUT (60 * 5)
@@ -76,6 +75,7 @@ static struct parser *sip_parser_new(struct proto *proto, struct timeval const *
 {
     MALLOCER(sip_parsers);
     struct sip_parser *sip_parser = MALLOC(sip_parsers, sizeof(*sip_parser) - sizeof(sip_parser->mux_parser) + mux_parser_size(&mux_proto_sip));
+    if (! sip_parser) return NULL;
 
     if (-1 == sip_parser_ctor(sip_parser, proto, now)) {
         FREE(sip_parser);

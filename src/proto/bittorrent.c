@@ -35,7 +35,6 @@ static char const bittorrent_Id[] = "$Id: bb54fce9fbd42ea3ac1130ba0d0f994a3deaae
 #undef LOG_CAT
 #define LOG_CAT proto_bittorrent_log_category
 
-LOG_CATEGORY_DEC(proto_bittorrent);
 LOG_CATEGORY_DEF(proto_bittorrent);
 
 /*

@@ -1,0 +1,10 @@
+#!/bin/sh
+
+NAME="PostgreSQL"
+PCAPS="pcap/postgres/cant_connect.pcap pcap/postgres/connect.pcap pcap/postgres/command.pcap pcap/postgres/select.pcap pcap/postgres/connect_ssl.pcap"
+filter() {
+	grep '^PostgreSQL' | cut -d' ' -f 2-
+}
+OUTPUT="postgres.out"
+
+. ./dump_test

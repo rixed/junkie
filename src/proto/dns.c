@@ -33,7 +33,6 @@ static char const Id[] = "$Id: 37812fa0f43e01eeaf93d649ebc8f11fa64aa3c0 $";
 #undef LOG_CAT
 #define LOG_CAT proto_dns_log_category
 
-LOG_CATEGORY_DEC(proto_dns);
 LOG_CATEGORY_DEF(proto_dns);
 
 struct dns_header {

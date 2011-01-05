@@ -32,7 +32,6 @@ static char const Id[] = "$Id: 41d9ce8a5da8afbfb5153b5c45632295bc52b6f9 $";
 #undef LOG_CAT
 #define LOG_CAT proto_arp_log_category
 
-LOG_CATEGORY_DEC(proto_arp);
 LOG_CATEGORY_DEF(proto_arp);
 
 // Description of an ARP header

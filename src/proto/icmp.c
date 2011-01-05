@@ -31,7 +31,6 @@ static char const Id[] = "$Id: cec9e9e404a6e9491b912c6adb58350490d49047 $";
 #undef LOG_CAT
 #define LOG_CAT proto_icmp_log_category
 
-LOG_CATEGORY_DEC(proto_icmp);
 LOG_CATEGORY_DEF(proto_icmp);
 
 /*

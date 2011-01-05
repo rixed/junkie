@@ -38,7 +38,6 @@ static char const Id[] = "$Id: 0477d160214401d1ceeb489639cc1a86210de55d $";
 #undef LOG_CAT
 #define LOG_CAT proto_http_log_category
 
-LOG_CATEGORY_DEC(proto_http);
 LOG_CATEGORY_DEF(proto_http);
 
 /*

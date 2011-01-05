@@ -31,7 +31,6 @@ static char const Id[] = "$Id: 3e05158da417030091e16eea01fa73c2f5df62dd $";
 #undef LOG_CAT
 #define LOG_CAT proto_rtcp_log_category
 
-LOG_CATEGORY_DEC(proto_rtcp);
 LOG_CATEGORY_DEF(proto_rtcp);
 
 struct rtcp_head {

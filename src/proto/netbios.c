@@ -31,7 +31,6 @@ static char const Id[] = "$Id: 9ceb049707094753513467be6533a0d5f6b886bb $";
 #undef LOG_CAT
 #define LOG_CAT proto_netbios_log_category
 
-LOG_CATEGORY_DEC(proto_netbios);
 LOG_CATEGORY_DEF(proto_netbios);
 
 #define NETBIOS_SESSION_MESSAGE 0x00 /* unused yet */

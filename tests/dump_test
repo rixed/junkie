@@ -1,0 +1,32 @@
+#!/bin/sh
+
+check_set()
+{
+	if ! test -n "$1" ; then
+		echo "test variable '$1' must be set"
+		exit 1
+	fi
+}
+
+check_set "NAME"
+check_set "PCAPS"
+check_set "OUTPUT"
+if ! test -r "$OUTPUT" ; then
+	echo "Cannot read test output file ($OUTPUT)"
+	exit 1
+fi
+
+output=`tempfile`
+
+for pcap in $PCAPS ; do
+	echo "-- $pcap --" | tee -a $output
+	../src/junkie -p ../plugins/dumper/.libs/dumper.so -e '(open-pcap "'$pcap'")' | filter >> $output
+done
+
+if ! diff "$output" "$OUTPUT"; then
+	echo "Output differ from $OUTPUT ! (see actual output in $output)"
+	exit 1
+else
+	rm -f $output
+fi
+

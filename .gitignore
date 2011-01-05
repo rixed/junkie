@@ -57,3 +57,5 @@ tests/tags
 tests/pkt_wait_list_check
 tests/ip_reassembly_check
 tests/tcp_reorder_check
+tests/streambuf_check
+tests/postgres_check
