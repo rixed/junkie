@@ -1,0 +1,10 @@
+#!/bin/sh
+
+NAME="MySQL"
+PCAPS="pcap/mysql/cant_connect.pcap pcap/mysql/command.pcap pcap/mysql/insert.pcap pcap/mysql/select.pcap"
+filter() {
+	grep '^MySQL' | cut -d' ' -f 2-
+}
+OUTPUT="mysql.out"
+
+. ./dump_test

@@ -22,10 +22,11 @@ pkginclude_HEADERS = \
 	junkie/proto/mgcp.h \
 	junkie/proto/rtcp.h \
 	junkie/proto/sip.h \
-	junkie/proto/postgres.h \
+	junkie/proto/sql.h \
 	junkie/proto/port_muxer.h \
 	junkie/proto/pkt_wait_list.h \
 	junkie/proto/streambuf.h \
+	junkie/proto/cursor.h \
 	junkie/tools/mutex.h \
 	junkie/tools/files.h \
 	junkie/tools/mallocer.h \

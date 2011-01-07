@@ -27,8 +27,9 @@
 #include <junkie/tools/mallocer.h>
 #include <junkie/proto/proto.h>
 #include <junkie/proto/tcp.h>
-#include <junkie/proto/postgres.h>
+#include <junkie/proto/sql.h>
 #include <junkie/proto/streambuf.h>
+#include <junkie/proto/cursor.h>
 
 static char const Id[] = "$Id$";
 
@@ -90,97 +91,106 @@ static void pg_parser_del(struct parser *parser)
  * Proto infos
  */
 
-static char const *pg_ssl_2_str(enum pg_ssl ssl)
+static char const *sql_ssl_2_str(enum sql_ssl ssl)
 {
     switch (ssl) {
-        case PG_SSL_REQUESTED: return "SSL requested";
-        case PG_SSL_GRANTED:   return "SSL granted";
-        case PG_SSL_REFUSED:   return "SSL refused";
+        case SQL_SSL_REQUESTED: return "SSL requested";
+        case SQL_SSL_GRANTED:   return "SSL granted";
+        case SQL_SSL_REFUSED:   return "SSL refused";
     }
-    assert(!"Unknown pg_ssl");
+    assert(!"Unknown sql_ssl");
     return "INVALID";
 }
 
-static char const *pg_msg_type_2_str(enum pg_msg_type type)
+static char const *sql_msg_type_2_str(enum sql_msg_type type)
 {
     switch (type) {
-        case PG_STARTUP: return "startup";
-        case PG_QUERY:   return "query";
-        case PG_EXIT:    return "exit";
+        case SQL_STARTUP: return "startup";
+        case SQL_QUERY:   return "query";
+        case SQL_EXIT:    return "exit";
     }
-    assert(!"Unknown pg_msg_type");
+    assert(!"Unknown sql_msg_type");
     return "INVALID";
 }
 
-static char const *startup_query_2_str(struct postgres_proto_info const *info)
+static char const *startup_query_2_str(struct sql_proto_info const *info)
 {
     return tempstr_printf(", %s%s%s%s%s%s%s",
-        info->set_values & PG_SSL_REQUEST ? pg_ssl_2_str(info->u.startup.ssl_request) : "No SSL",
-        info->set_values & PG_USER   ? ", user=" : "",
-        info->set_values & PG_USER   ? info->u.startup.user : "",
-        info->set_values & PG_DBNAME ? ", dbname=" : "",
-        info->set_values & PG_DBNAME ? info->u.startup.dbname : "",
-        info->set_values & PG_PASSWD ? ", passwd=" : "",
-        info->set_values & PG_PASSWD ? info->u.startup.passwd : "");
+        info->set_values & SQL_SSL_REQUEST ? sql_ssl_2_str(info->u.startup.ssl_request) : "No SSL",
+        info->set_values & SQL_USER   ? ", user=" : "",
+        info->set_values & SQL_USER   ? info->u.startup.user : "",
+        info->set_values & SQL_DBNAME ? ", dbname=" : "",
+        info->set_values & SQL_DBNAME ? info->u.startup.dbname : "",
+        info->set_values & SQL_PASSWD ? ", passwd=" : "",
+        info->set_values & SQL_PASSWD ? info->u.startup.passwd : "");
 }
 
-static char const *startup_reply_2_str(struct postgres_proto_info const *info)
+// FIXME: a unsigned_if_set_2_str(info, set_mask, field_name, field_value) to replace various -1 for unset ints.
+static char const *startup_reply_2_str(struct sql_proto_info const *info)
 {
-    return tempstr_printf(", %s%s",
-        info->set_values & PG_SSL_REQUEST ? pg_ssl_2_str(info->u.startup.ssl_request) : "No SSL",
-        info->set_values & PG_CNX_DONE    ? ", Authentication OK":"");
+    return tempstr_printf(", %s, AuthStatus=%d",
+        info->set_values & SQL_SSL_REQUEST ? sql_ssl_2_str(info->u.startup.ssl_request) : "No SSL",
+        info->set_values & SQL_AUTH_STATUS ? (int)info->u.startup.status : -1);
 }
 
-static char const *query_query_2_str(struct postgres_proto_info const *info)
+static char const *query_query_2_str(struct sql_proto_info const *info)
 {
     return tempstr_printf("%s%s%s",
-        info->set_values & PG_SQL ? ", query='" : "",
-        info->set_values & PG_SQL ? info->u.query.sql : "",
-        info->set_values & PG_SQL ? "'" : "");
+        info->set_values & SQL_SQL ? ", query='" : "",
+        info->set_values & SQL_SQL ? info->u.query.sql : "",
+        info->set_values & SQL_SQL ? "'" : "");
 }
 
-static char const *query_reply_2_str(struct postgres_proto_info const *info)
+static char const *query_reply_2_str(struct sql_proto_info const *info)
 {
     return tempstr_printf(", status=%d, nb_rows=%d, nb_fields=%d",
-        info->set_values & PG_STATUS    ? (int)info->u.query.status : -1,
-        info->set_values & PG_NB_ROWS   ? (int)info->u.query.nb_rows : -1,
-        info->set_values & PG_NB_FIELDS ? (int)info->u.query.nb_fields : -1);
+        info->set_values & SQL_STATUS    ? (int)info->u.query.status : -1,
+        info->set_values & SQL_NB_ROWS   ? (int)info->u.query.nb_rows : -1,
+        info->set_values & SQL_NB_FIELDS ? (int)info->u.query.nb_fields : -1);
 }
 
-static char const *exit_2_str(struct postgres_proto_info const unused_ *info)
+static char const *exit_2_str(struct sql_proto_info const unused_ *info)
 {
     return "";
 }
 
-static char const *pg_info_2_str(struct proto_info const *info_)
+static char const *version_info_2_str(struct sql_proto_info const *info)
 {
-    struct postgres_proto_info const *info = DOWNCAST(info_, info, postgres_proto_info);
+    if (! (info->set_values & SQL_VERSION)) return "";
+    return tempstr_printf(", version=%u.%u", info->version_maj, info->version_min);
+}
+
+char const *sql_info_2_str(struct proto_info const *info_)
+{
+    struct sql_proto_info const *info = DOWNCAST(info_, info, sql_proto_info);
     char *str = tempstr();
 
-    char const *(*spec_info_2_str)(struct postgres_proto_info const *);
+    char const *(*spec_info_2_str)(struct sql_proto_info const *);
     switch (info->msg_type) {
-        case PG_STARTUP:
+        case SQL_STARTUP:
             spec_info_2_str = info->is_query ? startup_query_2_str : startup_reply_2_str;
             break;
-        case PG_QUERY:
+        case SQL_QUERY:
             spec_info_2_str = info->is_query ? query_query_2_str : query_reply_2_str;
             break;
-        case PG_EXIT:
+        case SQL_EXIT:
             spec_info_2_str = exit_2_str;
             break;
     }
 
-    snprintf(str, TEMPSTR_SIZE, "%s, %s%s",
+    snprintf(str, TEMPSTR_SIZE, "%s, %s%s, %s%s",
         proto_info_2_str(info_),
-        pg_msg_type_2_str(info->msg_type),
+        info->is_query ? "Clt->Srv" : "Srv->Clt",
+        version_info_2_str(info),
+        sql_msg_type_2_str(info->msg_type),
         spec_info_2_str(info));
 
     return str;
 }
 
-static void const *pg_info_addr(struct proto_info const *info_, size_t *size)
+void const *sql_info_addr(struct proto_info const *info_, size_t *size)
 {
-    struct postgres_proto_info const *info = DOWNCAST(info_, info, postgres_proto_info);
+    struct sql_proto_info const *info = DOWNCAST(info_, info, sql_proto_info);
     if (size) *size = sizeof(*info);
     return info;
 }
@@ -188,91 +198,6 @@ static void const *pg_info_addr(struct proto_info const *info_, size_t *size)
 /*
  * Parse
  */
-
-struct cursor {
-    uint8_t const *head;
-    size_t cap_len;     // remaining length that can be read
-};
-
-static void cursor_rollback(struct cursor *cursor, unsigned n)
-{
-    cursor->cap_len += n;
-    cursor->head -= n;
-}
-
-#define CHECK_LEN(cursor, x, rollback) do { \
-    if ((cursor)->cap_len  < (x)) { cursor_rollback(cursor, rollback); return PROTO_TOO_SHORT; } \
-} while(0)
-
-static void cursor_ctor(struct cursor *cursor, uint8_t const *head, size_t cap_len)
-{
-    cursor->head = head;
-    cursor->cap_len = cap_len;
-}
-
-static uint8_t cursor_read_u8(struct cursor *cursor)
-{
-    assert(cursor->cap_len >= 1);
-    cursor->cap_len --;
-    SLOG(LOG_DEBUG, "Reading byte 0x%x, %zu left", *cursor->head, cursor->cap_len);
-    return *cursor->head++;
-}
-
-static uint16_t cursor_read_u16n(struct cursor *cursor)
-{
-    uint32_t a = cursor_read_u8(cursor);
-    uint32_t b = cursor_read_u8(cursor);
-    return (a << 8) | b;
-}
-
-static uint32_t cursor_read_u32n(struct cursor *cursor)
-{
-    uint32_t a = cursor_read_u8(cursor);
-    uint32_t b = cursor_read_u8(cursor);
-    uint32_t c = cursor_read_u8(cursor);
-    uint32_t d = cursor_read_u8(cursor);
-    return (a << 24) | (b << 16) | (c << 8) | d;
-}
-
-// returns a tempstr with the (beginning of the) string
-// max_len is the maximum number of bytes to read. If it's reached before the end of string (nul) then
-// PROTO_TOO_SHORT is returned (and the cursor is rollbacked)
-static enum proto_parse_status cursor_read_string(struct cursor *cursor, char **str_, size_t max_len)
-{
-    char *str = tempstr();
-    unsigned len;
-    if (max_len > TEMPSTR_SIZE-1) max_len = TEMPSTR_SIZE-1;
-
-    for (len = 0; len < max_len; len ++) {
-        CHECK_LEN(cursor, 1, len);
-        uint8_t c = cursor_read_u8(cursor);
-        if (c == '\0') break;
-        str[len] = c;
-    }
-    if (len == max_len) {
-        cursor_rollback(cursor, len);
-        return PROTO_TOO_SHORT;
-    }
-
-    str[len] = '\0';
-
-    SLOG(LOG_DEBUG, "Reading string '%s'", str);
-
-    if (str_) *str_ = str;
-    return PROTO_OK;
-}
-
-static void cursor_drop(struct cursor *cursor, unsigned n)
-{
-    assert(cursor->cap_len >= n);
-    cursor->cap_len -= n;
-    cursor->head += n;
-}
-
-static bool cursor_is_empty(struct cursor const *cursor)
-{
-    return cursor->cap_len == 0;
-}
 
 /* Read a message header, return type and msg length, and advance the cursor to the msg payload.
  * if type is NULL that means no type are read from the cursor.
@@ -305,9 +230,9 @@ static enum proto_parse_status cursor_read_msg(struct cursor *cursor, uint8_t *t
     return PROTO_OK;
 }
 
-static enum proto_parse_status pg_parse_init(struct postgres_parser *pg_parser, struct postgres_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status pg_parse_init(struct postgres_parser *pg_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
-    info->msg_type = PG_STARTUP;
+    info->msg_type = SQL_STARTUP;
 
     /* NONE phase is when we haven't seen the startup message yet.
      * In this phase, we expect to see from the client a startup message,
@@ -325,10 +250,13 @@ static enum proto_parse_status pg_parse_init(struct postgres_parser *pg_parser, 
         uint32_t msg = cursor_read_u32n(&cursor);
         if (msg == 80877103) {  // magic value for SSL request
             SLOG(LOG_DEBUG, "Msg is an SSL request");
-            info->set_values |= PG_SSL_REQUEST;
-            info->u.startup.ssl_request = PG_SSL_REQUESTED;
+            info->set_values |= SQL_SSL_REQUEST;
+            info->u.startup.ssl_request = SQL_SSL_REQUESTED;
         } else if (msg == 196608) { // version number, here 00 03 00 00 (ie. 3.0), which is parsed here
             SLOG(LOG_DEBUG, "Msg is a startup message for v3.0");
+            info->version_maj = 3;
+            info->version_min = 0;
+            info->set_values |= SQL_VERSION;
             // fine, now parse all the strings that follow
             do {
                 char *name, *value;
@@ -338,10 +266,10 @@ static enum proto_parse_status pg_parse_init(struct postgres_parser *pg_parser, 
                 status = cursor_read_string(&cursor, &value, len);
                 if (status != PROTO_OK) return status;
                 if (0 == strcmp(name, "user")) {
-                    info->set_values |= PG_USER;
+                    info->set_values |= SQL_USER;
                     snprintf(info->u.startup.user, sizeof(info->u.startup.user), "%s", value);
                 } else if (0 == strcmp(name, "database")) {
-                    info->set_values |= PG_DBNAME;
+                    info->set_values |= SQL_DBNAME;
                     snprintf(info->u.startup.dbname, sizeof(info->u.startup.dbname), "%s", value);
                 }
             } while (1);
@@ -353,11 +281,11 @@ static enum proto_parse_status pg_parse_init(struct postgres_parser *pg_parser, 
         }
     } else {    // reply (to an SSL request)
         if (wire_len != 1 || cap_len < 1) return PROTO_TOO_SHORT;
-        info->set_values |= PG_SSL_REQUEST;
+        info->set_values |= SQL_SSL_REQUEST;
         if (payload[0] == 'S') {
-            info->u.startup.ssl_request = PG_SSL_GRANTED;  // We will get parse errors from now on :-<
+            info->u.startup.ssl_request = SQL_SSL_GRANTED;  // We will get parse errors from now on :-<
         } else if (payload[0] == 'N') {
-            info->u.startup.ssl_request = PG_SSL_REFUSED;
+            info->u.startup.ssl_request = SQL_SSL_REFUSED;
         } else {
             return PROTO_PARSE_ERR;
         }
@@ -366,9 +294,9 @@ static enum proto_parse_status pg_parse_init(struct postgres_parser *pg_parser, 
     return proto_parse(NULL, &info->info, way, NULL, 0, 0, now, okfn);
 }
 
-static enum proto_parse_status pg_parse_startup(struct postgres_parser *pg_parser, struct postgres_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status pg_parse_startup(struct postgres_parser *pg_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
-    info->msg_type = PG_STARTUP;
+    info->msg_type = SQL_STARTUP;
 
     struct cursor cursor;
     cursor_ctor(&cursor, payload, cap_len);
@@ -387,15 +315,18 @@ static enum proto_parse_status pg_parse_startup(struct postgres_parser *pg_parse
         if (status == PROTO_TOO_SHORT) {    // in case of GSSAPI or SSPI authentication then the "string" is in fact arbitrary bytes
             passwd = "GSSAPI/SSPI";
         }
-        info->set_values |= PG_PASSWD;
+        info->set_values |= SQL_PASSWD;
         snprintf(info->u.startup.passwd, sizeof(info->u.startup.passwd), "%s", passwd);
     } else {    // Authentication request
         if (type != 'R' || len < 4) return PROTO_PARSE_ERR;
         // We don't care about the auth method, we just want to know when auth is complete
         uint32_t auth_type = cursor_read_u32n(&cursor);
+        info->set_values |= SQL_AUTH_STATUS;
         if (auth_type == 0) {   // AuthenticationOK
             pg_parser->phase = QUERY;   // we don't wait for the ReadyForQuery msg since we are not interrested in following messages
-            info->set_values |= PG_CNX_DONE;
+            info->u.startup.status = 0;
+        } else {
+            info->u.startup.status = -1;
         }
     }
 
@@ -423,10 +354,10 @@ static enum proto_parse_status fetch_nb_rows(char const *result, unsigned *nb_ro
     return PROTO_OK;
 }
 
-static enum proto_parse_status pg_parse_query(struct postgres_parser *pg_parser, struct postgres_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status pg_parse_query(struct postgres_parser *pg_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
     enum proto_parse_status status;
-    info->msg_type = PG_QUERY;
+    info->msg_type = SQL_QUERY;
 
     struct cursor cursor;
     cursor_ctor(&cursor, payload, cap_len);
@@ -444,10 +375,10 @@ static enum proto_parse_status pg_parse_query(struct postgres_parser *pg_parser,
             char *sql;
             status = cursor_read_string(&cursor, &sql, len);
             if (status != PROTO_OK) return status;
-            info->set_values |= PG_SQL;
+            info->set_values |= SQL_SQL;
             snprintf(info->u.query.sql, sizeof(info->u.query.sql), "%s", sql);
         } else if (type == 'X') {
-            info->msg_type = PG_EXIT;
+            info->msg_type = SQL_EXIT;
             pg_parser->phase = EXIT;
         } else return PROTO_PARSE_ERR;
     } else {
@@ -466,12 +397,12 @@ static enum proto_parse_status pg_parse_query(struct postgres_parser *pg_parser,
             if (type == 'T') {  // row description (fetch nb_fields)
                 if (len < 2) return PROTO_PARSE_ERR;
                 info->u.query.nb_fields = cursor_read_u16n(&cursor);
-                info->set_values |= PG_NB_FIELDS;
+                info->set_values |= SQL_NB_FIELDS;
                 SLOG(LOG_DEBUG, "Setting nb_fields to %u", info->u.query.nb_fields);
             } else if (type == 'D') {   // data row
                 if (len < 2) return PROTO_PARSE_ERR;
-                if (! (info->set_values & PG_NB_ROWS)) {
-                    info->set_values |= PG_NB_ROWS;
+                if (! (info->set_values & SQL_NB_ROWS)) {
+                    info->set_values |= SQL_NB_ROWS;
                     info->u.query.nb_rows = 0;
                 }
                 info->u.query.nb_rows ++;
@@ -482,13 +413,13 @@ static enum proto_parse_status pg_parse_query(struct postgres_parser *pg_parser,
                 if (status != PROTO_OK) return status;
                 status = fetch_nb_rows(result, &info->u.query.nb_rows);
                 if (status == PROTO_OK) {
-                    info->set_values |= PG_NB_ROWS;
+                    info->set_values |= SQL_NB_ROWS;
                 } else {
                     //return status;    // Do not use this as the actual protocol does not seam to implement the doc :-<
                 }
             } else if (type == 'E') {   // error
                 SLOG(LOG_DEBUG, "Ask for termination");
-                info->set_values |= PG_STATUS;
+                info->set_values |= SQL_STATUS;
                 info->u.query.status = -1;  // TODO: fetch an error code
             }
             // Skip what's left of this message and go for the next
@@ -511,7 +442,7 @@ static enum proto_parse_status pg_sbuf_parse(struct parser *parser, struct proto
     }
 
     // Now build the proto_info
-    struct postgres_proto_info info;
+    struct sql_proto_info info;
     proto_info_ctor(&info.info, parser, parent, wire_len, 0);
     info.is_query = way == pg_parser->c2s_way;
     info.set_values = 0;
@@ -549,8 +480,8 @@ void postgres_init(void)
         .parse      = pg_parse,
         .parser_new = pg_parser_new,
         .parser_del = pg_parser_del,
-        .info_2_str = pg_info_2_str,
-        .info_addr  = pg_info_addr,
+        .info_2_str = sql_info_2_str,
+        .info_addr  = sql_info_addr,
     };
     proto_ctor(&proto_postgres_, &ops, "PostgreSQL", PG_TIMEOUT);
     port_muxer_ctor(&pg_tcp_muxer, &tcp_port_muxers, 5432, 5432, proto_postgres);

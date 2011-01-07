@@ -14,8 +14,10 @@ libproto_la_SOURCES = \
 	sip.c ssl.c \
 	tcp.c udp.c \
 	postgres.c \
+	mysql.c \
 	pkt_wait_list.c \
-	streambuf.c
+	streambuf.c \
+	cursor.c
 
 libproto_la_LIBADD = ../tools/libtools.la
 libproto_la_LDFLAGS = -export-dynamic

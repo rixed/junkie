@@ -13,7 +13,7 @@ check_PROGRAMS = \
 	tcp_reorder_check streambuf_check \
 	postgres_check
 
-dist_check_SCRIPTS = postgres.test
+dist_check_SCRIPTS = postgres.test mysql.test
 
 TESTS = $(check_PROGRAMS) $(dist_check_SCRIPTS)
 
