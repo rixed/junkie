@@ -128,20 +128,22 @@ static int look_for_delim(size_t *tok_len, size_t *delim_len, char const *start,
     return 0;
 }
 
+// If we have another delimiter just after the delimiter, make it part of the delimiter
 static void liner_skip_delimiters(struct liner *liner)
 {
-    if (liner->delims->collapse) {
-        size_t next_tok_size, next_delim_size;
-        while (0 == look_for_delim(
-            &next_tok_size, &next_delim_size,
-            liner->start + liner->tok_size + liner->delim_size,
-            liner->rem_size - liner->tok_size - liner->delim_size,
-            liner->delims)
-        ) {
-            if (0 != next_tok_size) break;
-            SLOG(LOG_DEBUG, "absorbing one more delimiter (delim len now %zu)", liner->delim_size);
-            liner->delim_size += next_delim_size;
-        }
+    if (! liner->delims->collapse) return;
+    
+    size_t const rem = liner->rem_size - liner->tok_size - liner->delim_size;
+    char const *const after = liner->start + liner->tok_size + liner->delim_size;
+
+    for (unsigned d = 0; d < liner->delims->nb_delims; d++) {
+        struct liner_delimiter const *const delim = liner->delims->delims+d;
+        if (delim->len > rem) continue;
+        if (0 != strncmp(after, delim->str, delim->len)) continue;
+        liner->delim_size += delim->len;
+        SLOG(LOG_DEBUG, "absorbing one more delimiter (delim len now %zu)", liner->delim_size);
+        liner_skip_delimiters(liner);
+        break;
     }
 }
 
