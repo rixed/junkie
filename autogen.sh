@@ -8,6 +8,5 @@ libtoolize --force &&
 aclocal &&
 autoheader &&
 automake --add-missing --foreign &&
-autoconf
-
+autoconf &&
 echo "Now run configure and make."
