@@ -27,6 +27,8 @@ struct icmp_proto_info {
     } err;                      ///< Defined if set_values & ICMP_ERR_SET
 };
 
+#define icmpv6_proto_info icmp_proto_info   ///< For ASSIGN_INFO MACROs
+
 // Used by ICMPv6
 char *icmp_err_2_str(struct icmp_err const *err, unsigned set_values);
 int icmp_extract_err_ports(struct icmp_err *err, uint8_t const *packet);
