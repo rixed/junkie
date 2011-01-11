@@ -27,7 +27,7 @@ HASH_TABLE(test_hash, h_value);
 
 static void check_hash_size(struct test_hash *h, unsigned expected_size)
 {
-    assert(h->size == expected_size);
+    assert(h->base.size == expected_size);
     unsigned count = 0;
     struct h_value *v;
     HASH_FOREACH(v, h, entry) count++;
@@ -67,7 +67,7 @@ static void hash_check(unsigned nb_elem)
     HASH_FOREACH_SAFE(v, &h, entry, tmp) {
         HASH_REMOVE(&h, v, entry);
     }
-    assert(0 == h.size);
+    assert(0 == h.base.size);
 
     HASH_DEINIT(&h);
 }
@@ -84,11 +84,11 @@ static void rehash_check(void)
     HASH_INSERT(&h, v, &v->value, entry);
     v = v_new(3);
     HASH_INSERT(&h, v, &v->value, entry);
-    assert(h.size == 3);
+    assert(h.base.size == 3);
 
     // Now we have a hash that's too big. Let's resize :
     HASH_TRY_REHASH(&h, value, entry);
-    assert(HASH_AVG_LENGTH(&h) >= HASH_LENGTH_MIN || h.nb_lists <= h.nb_lists_min);
+    assert(HASH_AVG_LENGTH(&h) >= HASH_LENGTH_MIN || h.base.nb_lists <= h.base.nb_lists_min);
     assert(HASH_AVG_LENGTH(&h) <= HASH_LENGTH_MAX);
 
     check_hash_size(&h, 3);
@@ -111,7 +111,7 @@ static void rehash_check(void)
     HASH_FOREACH_SAFE(v, &h, entry, tmp) {
         HASH_REMOVE(&h, v, entry);
     }
-    assert(0 == h.size);
+    assert(h.base.size == 0);
 
     HASH_DEINIT(&h);
 

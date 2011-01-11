@@ -125,7 +125,7 @@ void slog(int priority, char const *filename, char const *funcname, char *fmt, .
         len += snprintf(str + len, sizeof(str) - len, "\n");
         len = MIN(len, (int)sizeof(str));
 
-        (void)write(log_fd, str, len);
+        if (write(log_fd, str, len)) {} // To clean gcc stupid warn_unused_result
     }
 
     va_end(ap);

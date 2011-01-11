@@ -42,15 +42,17 @@ static struct ext_function sg_hash_names;
 static SCM g_hash_names(void)
 {
     SCM ret = SCM_EOL;
-    struct generic_hash *hash;
-    LIST_FOREACH(hash, &hashes, entry) ret = scm_cons(scm_from_locale_string(hash->name), ret);
+    struct hash_base *hash;
+    LIST_FOREACH(hash, &hashes, entry) {
+        ret = scm_cons(scm_from_locale_string(hash->name), ret);
+    }
     return ret;
 }
 
-static struct generic_hash *hash_of_scm_name(SCM name_)
+static struct hash_base *hash_of_scm_name(SCM name_)
 {
     char *name = scm_to_tempstr(name_);
-    struct generic_hash *hash;
+    struct hash_base *hash;
     LIST_FOREACH(hash, &hashes, entry) {
         if (0 == strcasecmp(name, hash->name)) return hash;
     }
@@ -60,7 +62,7 @@ static struct generic_hash *hash_of_scm_name(SCM name_)
 static struct ext_function sg_hash_stats;
 static SCM g_hash_stats(SCM name_)
 {
-    struct generic_hash *hash = hash_of_scm_name(name_);
+    struct hash_base *hash = hash_of_scm_name(name_);
     if (! hash) return SCM_UNSPECIFIED;
 
     return scm_list_n(
