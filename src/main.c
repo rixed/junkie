@@ -83,7 +83,8 @@ static struct {
     I(rtp),         I(netbios),     I(ssl),
     I(dns),         I(rtcp),        I(dns_tcp),
     I(ftp),         I(mgcp),        I(sdp),
-    I(postgres),    I(mysql),       I(pkt_source),
+    I(postgres),    I(mysql),       I(tns),
+    I(pkt_source),
 #   undef I
 };
 

@@ -1,0 +1,10 @@
+#!/bin/sh
+
+NAME="Oracle"
+PCAPS="pcap/oracle/connect_close.pcap pcap/oracle/create_table.pcap pcap/oracle/delete.pcap pcap/oracle/insert.pcap pcap/oracle/select.pcap"
+filter() {
+	grep '^TNS' | cut -d' ' -f 2-
+}
+OUTPUT="oracle.out"
+
+. ./dump_test

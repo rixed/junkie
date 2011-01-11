@@ -105,6 +105,7 @@ static char const *sql_ssl_2_str(enum sql_ssl ssl)
 static char const *sql_msg_type_2_str(enum sql_msg_type type)
 {
     switch (type) {
+        case SQL_UNKNOWN: return "unknown";
         case SQL_STARTUP: return "startup";
         case SQL_QUERY:   return "query";
         case SQL_EXIT:    return "exit";
@@ -165,8 +166,10 @@ char const *sql_info_2_str(struct proto_info const *info_)
     struct sql_proto_info const *info = DOWNCAST(info_, info, sql_proto_info);
     char *str = tempstr();
 
-    char const *(*spec_info_2_str)(struct sql_proto_info const *);
+    char const *(*spec_info_2_str)(struct sql_proto_info const *) = NULL;
     switch (info->msg_type) {
+        case SQL_UNKNOWN:
+            break;
         case SQL_STARTUP:
             spec_info_2_str = info->is_query ? startup_query_2_str : startup_reply_2_str;
             break;
@@ -183,7 +186,7 @@ char const *sql_info_2_str(struct proto_info const *info_)
         info->is_query ? "Clt->Srv" : "Srv->Clt",
         version_info_2_str(info),
         sql_msg_type_2_str(info->msg_type),
-        spec_info_2_str(info));
+        spec_info_2_str ? spec_info_2_str(info) : "");
 
     return str;
 }

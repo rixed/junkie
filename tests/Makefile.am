@@ -11,9 +11,9 @@ check_PROGRAMS = \
 	icmp_check rtcp_check flood_check port_range_check \
 	arp_check pkt_wait_list_check ip_reassembly_check \
 	tcp_reorder_check streambuf_check \
-	postgres_check
+	postgres_check oracle_check
 
-dist_check_SCRIPTS = postgres.test mysql.test
+dist_check_SCRIPTS = postgres.test mysql.test oracle.test
 
 TESTS = $(check_PROGRAMS) $(dist_check_SCRIPTS)
 
@@ -79,6 +79,8 @@ streambuf_check_SOURCES = streambuf_check.c lib.c lib.h ../src/ext.c
 streambuf_check_LDADD = ../src/tools/libtools.la ../src/proto/libproto.la
 postgres_check_SOURCES = postgres_check.c lib.c lib.h ../src/ext.c
 postgres_check_LDADD = ../src/tools/libtools.la ../src/proto/libproto.la
+oracle_check_SOURCES = oracle_check.c lib.c lib.h ../src/ext.c
+oracle_check_LDADD = ../src/tools/libtools.la ../src/proto/libproto.la
 
 clean-local:
 	rm -f *.log vgcore.* core.* core

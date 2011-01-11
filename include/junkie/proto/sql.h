@@ -12,12 +12,14 @@
 
 extern struct proto *proto_postgres;
 extern struct proto *proto_mysql;
+extern struct proto *proto_tns;
 
 /// Description of a sql message
 struct sql_proto_info {
     struct proto_info info;             ///< Generic infos
     bool is_query;                      ///< Set if the message is sent by the client
     enum sql_msg_type {                 ///< The phase where the connection is at
+        SQL_UNKNOWN,                    ///< When we do not understand the protocol, but know that it actually is this protocol
         SQL_STARTUP,                    ///< Connection establishment
         SQL_QUERY,                      ///< Query
         SQL_EXIT,                       ///< Terminating the connection
@@ -64,5 +66,7 @@ void postgres_init(void);
 void postgres_fini(void);
 void mysql_init(void);
 void mysql_fini(void);
+void tns_init(void);
+void tns_fini(void);
 
 #endif
