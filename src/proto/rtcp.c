@@ -33,16 +33,11 @@ static char const Id[] = "$Id: 3e05158da417030091e16eea01fa73c2f5df62dd $";
 
 LOG_CATEGORY_DEF(proto_rtcp);
 
-struct rtcp_head {
-#   ifndef WORDS_BIGENDIAN
-    uint8_t rec_count:5;
-    uint8_t padding:1;
-    uint8_t version:2;
-#   else
-    uint8_t version:2;
-    uint8_t padding:1;
-    uint8_t rec_count:5;
-#   endif
+struct rtcp_hdr {
+    uint8_t flags;
+#   define REC_COUNT_MASK 0x1FU
+#   define PADDING_MASK   0x20U
+#   define VERSION_MASK   0xC0U
     uint8_t type;
     uint16_t length;
     uint32_t ssrc;
@@ -56,13 +51,8 @@ struct rtcp_head {
 
 struct rtcp_report_bloc {
     uint32_t ssrc;
-#   ifndef WORDS_BIGENDIAN
-    uint32_t fraction_lost:8;
-    int32_t tot_lost:24;
-#   else
-    int32_t tot_lost:24;
-    uint32_t fraction_lost:8;
-#   endif
+    uint8_t fraction_lost;
+    uint8_t tot_lost[3];
     uint32_t highest_seqnum;
     uint32_t inter_jitter;
     uint32_t last_sr;
@@ -109,19 +99,22 @@ static void rtcp_proto_info_ctor(struct rtcp_proto_info *info, struct parser *pa
 
 static enum proto_parse_status rtcp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
-    struct rtcp_head const *rtcphd = (struct rtcp_head *)packet;
+    struct rtcp_hdr const *rtcphd = (struct rtcp_hdr *)packet;
 
     // Sanity Check
     if (wire_len < sizeof(*rtcphd)) return PROTO_PARSE_ERR;
     if (cap_len < sizeof(*rtcphd)) return PROTO_TOO_SHORT;
 
-    size_t len = (ntohs(rtcphd->length) + 1) * 4;
+    size_t len = (READ_U16N(&rtcphd->length) + 1) * 4;
     if (wire_len < len) return PROTO_PARSE_ERR;
     if (cap_len < len) return PROTO_TOO_SHORT;
 
     // Parse
-    SLOG(LOG_DEBUG, "version=%u, rec_count=%u", rtcphd->version, rtcphd->rec_count);
-    if (rtcphd->rec_count == 0) {
+    unsigned const version = READ_U8(&rtcphd->flags) >> 6U;
+    unsigned const rec_count = READ_U8(&rtcphd->flags) & REC_COUNT_MASK;
+    unsigned const type = READ_U8(&rtcphd->type);
+    SLOG(LOG_DEBUG, "version=%u, rec_count=%u", version, rec_count);
+    if (rec_count == 0) {
         SLOG(LOG_DEBUG, "Giving up since no record");
         return 0;  // Don't proceed further if there's no report
     }
@@ -129,11 +122,11 @@ static enum proto_parse_status rtcp_parse(struct parser *parser, struct proto_in
     int32_t packet_lost = 0;
     uint32_t jitter = 0, lsr = 0, dlsr = 0, ntp_ts = 0;
     struct rtcp_report_bloc const *report;
-    switch (rtcphd->type) {
+    switch (type) {
         case 200:   // Sender report -> we have a rtcp_sender_info
             report = (struct rtcp_report_bloc *)(rtcphd->info+1);
-            if ((ssize_t)len < (uint8_t *)report - packet) return -1;    // check we have at least sender info block
-            ntp_ts = ((ntohl(rtcphd->info[0].ntp_ts_msw) & 0x0000ffff) << 16) | ((ntohl(rtcphd->info[0].ntp_ts_lsw) & 0xffff0000) >> 16);
+            if ((ssize_t)len < (uint8_t *)report - packet) return PROTO_PARSE_ERR;    // check we have at least sender info block
+            ntp_ts = ((READ_U32N(&rtcphd->info[0].ntp_ts_msw) & 0x0000ffffU) << 16) | ((READ_U32N(&rtcphd->info[0].ntp_ts_lsw) & 0xffff0000U) >> 16);
             break;
         case 201:   // Receiver report -> we have no rtcp_sender_info
             report = (struct rtcp_report_bloc *)rtcphd->info;
@@ -143,10 +136,10 @@ static enum proto_parse_status rtcp_parse(struct parser *parser, struct proto_in
     }
 
     if ((ssize_t)len >= (uint8_t *)(report + 1) - packet) {
-        packet_lost = ntohl(report->tot_lost) >> 8;    // FIXME: wont work on big endian or with <0 values
-        jitter = ntohl(report->inter_jitter);
-        lsr = ntohl(report->last_sr);
-        dlsr = ntohl(report->delay_since_last_sr);
+        packet_lost = READ_U24N(report->tot_lost);
+        jitter = READ_U32N(&report->inter_jitter);
+        lsr = READ_U32N(&report->last_sr);
+        dlsr = READ_U32N(&report->delay_since_last_sr);
     } // FIXME: else jitter, packet_lost, lsr and ntp_ts are not set ?
 
     struct rtcp_proto_info info;

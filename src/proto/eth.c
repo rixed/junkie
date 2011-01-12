@@ -135,7 +135,7 @@ static enum proto_parse_status eth_parse(struct parser *parser, struct proto_inf
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct eth_hdr const *ethhdr = (struct eth_hdr *)packet;
-    uint16_t h_proto = ntohs(ethhdr->proto);
+    uint16_t h_proto = READ_U16N(&ethhdr->proto);
     uint16_t vlan_id = 0;
     size_t ethhdr_len = sizeof(*ethhdr);
 
@@ -152,7 +152,7 @@ static enum proto_parse_status eth_parse(struct parser *parser, struct proto_inf
         struct eth_lcc {
             uint16_t h_proto;
         } packed_ *eth_lcc = (struct eth_lcc *)((char *)ethhdr + ethhdr_len);
-        h_proto = ntohs(eth_lcc->h_proto);
+        h_proto = READ_U16N(&eth_lcc->h_proto);
         ethhdr_len += 2;
         // We dont care about the source MAC being funny
     }
@@ -162,8 +162,8 @@ static enum proto_parse_status eth_parse(struct parser *parser, struct proto_inf
         struct eth_vlan {
             uint16_t vlan_id, h_proto;
         } packed_ *eth_vlan = (struct eth_vlan *)((char *)ethhdr + ethhdr_len);
-        h_proto = ntohs(eth_vlan->h_proto);
-        vlan_id = ntohs(eth_vlan->vlan_id) & 0xfff;
+        h_proto = READ_U16N(&eth_vlan->h_proto);
+        vlan_id = READ_U16N(&eth_vlan->vlan_id) & 0xfff;
         ethhdr_len += 4;
     }
 

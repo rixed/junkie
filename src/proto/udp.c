@@ -138,7 +138,7 @@ static enum proto_parse_status udp_parse(struct parser *parser, struct proto_inf
 
     if (cap_len < sizeof(*udphdr)) return PROTO_TOO_SHORT;
 
-    size_t tot_len = ntohs(udphdr->len);
+    size_t tot_len = READ_U16N(&udphdr->len);
     if (tot_len < sizeof(*udphdr)) {
         SLOG(LOG_DEBUG, "Bogus UDP packet : UDP tot len shorter than UDP header (%zu < %zu)", tot_len, sizeof(*udphdr));
         return PROTO_PARSE_ERR;
@@ -150,8 +150,8 @@ static enum proto_parse_status udp_parse(struct parser *parser, struct proto_inf
         return PROTO_PARSE_ERR;
     }
 
-    uint16_t const sport = ntohs(udphdr->src);
-    uint16_t const dport = ntohs(udphdr->dst);
+    uint16_t const sport = READ_U16N(&udphdr->src);
+    uint16_t const dport = READ_U16N(&udphdr->dst);
     SLOG(LOG_DEBUG, "New UDP packet of %zu bytes (%zu captured), ports %"PRIu16" -> %"PRIu16, wire_len, cap_len, sport, dport);
 
     // Parse

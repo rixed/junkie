@@ -48,8 +48,8 @@ static void ip6_proto_info_ctor(struct ip_proto_info *info, struct parser *parse
     info->version = version;
     ip_addr_ctor_from_ip6(&info->key.addr[0], &iphdr->src);
     ip_addr_ctor_from_ip6(&info->key.addr[1], &iphdr->dst);
-    info->key.protocol = iphdr->next;
-    info->ttl = iphdr->hop_limit;
+    info->key.protocol = READ_U8(&iphdr->next);
+    info->ttl = READ_U8(&iphdr->hop_limit);
 }
 
 /*
@@ -91,17 +91,19 @@ static enum proto_parse_status ip6_parse(struct parser *parser, struct proto_inf
 
     if (cap_len < iphdr_len) return PROTO_TOO_SHORT;
 
-    SLOG(LOG_DEBUG, "New packet of %zu bytes, proto %"PRIu8", %"PRINIPQUAD6"->%"PRINIPQUAD6,
-        wire_len, iphdr->next, NIPQUAD6(&iphdr->src), NIPQUAD6(&iphdr->dst));
-
-    size_t const payload = ntohs(iphdr->payload_len);
+    unsigned const next = READ_U8(&iphdr->next);
+    size_t const payload = READ_U16N(&iphdr->payload_len);
     size_t const ip_len = iphdr_len + payload;
+    unsigned const version = IP6_VERSION(iphdr);
+
+    SLOG(LOG_DEBUG, "New packet of %zu bytes, proto %u, %"PRINIPQUAD6"->%"PRINIPQUAD6,
+        wire_len, next, NIPQUAD6(&iphdr->src), NIPQUAD6(&iphdr->dst));
+
     if (ip_len > wire_len) {
         SLOG(LOG_DEBUG, "Bogus IPv6 total length : %zu > %zu", ip_len, wire_len);
         return PROTO_PARSE_ERR;
     }
 
-    unsigned const version = iphdr->version;
     if (version != 6) {
         SLOG(LOG_DEBUG, "Bogus IPv6 version : %u instead of 6", version);
         return PROTO_PARSE_ERR;

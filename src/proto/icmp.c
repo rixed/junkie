@@ -177,24 +177,24 @@ static int icmp_extract_err_infos(struct icmp_proto_info *info, uint8_t const *p
         return -1;
     }
     struct ip_hdr const *iphdr = (struct ip_hdr const *)packet;
-    size_t iphdr_len = iphdr->hdr_len * 4;
+    size_t iphdr_len = IP_HDR_LENGTH(iphdr);
     if (iphdr_len > packet_len - 8) {
         SLOG(LOG_DEBUG, "Bogus ICMP packet IP header too long (%zu > %zu)",
             iphdr_len, packet_len = 8);
         return -1;
     }
 
-    err->protocol = iphdr->protocol;
-    ip_addr_ctor_from_ip4(err->addr+0, iphdr->src);
-    ip_addr_ctor_from_ip4(err->addr+1, iphdr->dst);
+    err->protocol = READ_U8(&iphdr->protocol);
+    ip_addr_ctor_from_ip4(err->addr+0, READ_U32(&iphdr->src));
+    ip_addr_ctor_from_ip4(err->addr+1, READ_U32(&iphdr->dst));
 
-    switch (iphdr->protocol) {
+    switch (err->protocol) {
         case IPPROTO_TCP:
         case IPPROTO_UDP:
             info->set_values |= ICMP_ERR_PORT_SET;
             return icmp_extract_err_ports(err, packet + iphdr_len);
         default:
-            SLOG(LOG_DEBUG, "ICMP Error for unsuported protocol %u", iphdr->protocol);
+            SLOG(LOG_DEBUG, "ICMP Error for unsuported protocol %u", err->protocol);
             return 0;
     }
 }
@@ -226,10 +226,10 @@ static enum proto_parse_status icmp_parse(struct parser *parser, struct proto_in
     if (cap_len < sizeof(*icmphdr)) return PROTO_TOO_SHORT;
 
     struct icmp_proto_info info;
-    icmp_proto_info_ctor(&info, parser, parent, wire_len, icmphdr->type, icmphdr->code);
+    icmp_proto_info_ctor(&info, parser, parent, wire_len, READ_U8(&icmphdr->type), READ_U8(&icmphdr->code));
 
     // Extract error values
-    if (icmp_is_err(icmphdr->type)) {
+    if (icmp_is_err(READ_U8(&icmphdr->type))) {
         if (0 == icmp_extract_err_infos(&info, packet + sizeof(*icmphdr), cap_len - sizeof(*icmphdr))) {
             info.set_values |= ICMP_ERR_SET;
         }

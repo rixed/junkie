@@ -35,7 +35,7 @@ static char const Id[] = "$Id: 37812fa0f43e01eeaf93d649ebc8f11fa64aa3c0 $";
 
 LOG_CATEGORY_DEF(proto_dns);
 
-struct dns_header {
+struct dns_hdr {
     uint16_t transaction_id;
     uint16_t flags;
     uint16_t nb_questions;
@@ -164,16 +164,16 @@ ssize_t extract_qname(char *name, size_t name_len, uint8_t const *buf, size_t bu
 
 static enum proto_parse_status dns_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
 {
-    struct dns_header *dnshdr = (struct dns_header *)packet;
+    struct dns_hdr *dnshdr = (struct dns_hdr *)packet;
 
     // Sanity checks
     if (wire_len < sizeof(*dnshdr)) return PROTO_PARSE_ERR;
     if (cap_len < sizeof(*dnshdr)) return PROTO_TOO_SHORT;
 
     size_t parsed = sizeof(*dnshdr);
-    uint16_t const flags = ntohs(dnshdr->flags);
-    uint16_t const transaction_id = ntohs(dnshdr->transaction_id);
-    uint16_t const nb_questions = ntohs(dnshdr->nb_questions);
+    uint16_t const flags = READ_U16N(&dnshdr->flags);
+    uint16_t const transaction_id = READ_U16N(&dnshdr->transaction_id);
+    uint16_t const nb_questions = READ_U16N(&dnshdr->nb_questions);
 
     struct dns_proto_info info;
     dns_proto_info_ctor(&info, parser, parent, wire_len, transaction_id, flags);

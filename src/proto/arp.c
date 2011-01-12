@@ -111,10 +111,10 @@ static enum proto_parse_status arp_parse(struct parser *parser, struct proto_inf
     if (cap_len < sizeof(*arp)) return PROTO_TOO_SHORT;
 
     // Now that we can dereference enough of the payload, display a useful log message
-    unsigned const hard_addr_fmt = ntohs(arp->hard_addr_fmt);
-    unsigned const prot_addr_fmt = ntohs(arp->prot_addr_fmt);
-    size_t const hard_addr_len = arp->hard_addr_len;
-    size_t const prot_addr_len = arp->prot_addr_len;
+    unsigned const hard_addr_fmt = READ_U16N(&arp->hard_addr_fmt);
+    unsigned const prot_addr_fmt = READ_U16N(&arp->prot_addr_fmt);
+    size_t const hard_addr_len = READ_U8(&arp->hard_addr_len);
+    size_t const prot_addr_len = READ_U8(&arp->prot_addr_len);
 
     SLOG(LOG_DEBUG, "New ARP packet with hard addr type %hu and proto addr type %hu", hard_addr_fmt, prot_addr_fmt);
 
@@ -137,7 +137,7 @@ static enum proto_parse_status arp_parse(struct parser *parser, struct proto_inf
     }
 
     // Check operation code
-    unsigned const opcode = ntohs(arp->opcode);
+    unsigned const opcode = READ_U16N(&arp->opcode);
     if (opcode != ARP_REQUEST && opcode != ARP_REPLY) {
         SLOG(LOG_DEBUG, "Unknown ARP opcode (%u)", opcode);
         return PROTO_PARSE_ERR;

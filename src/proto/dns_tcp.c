@@ -44,7 +44,7 @@ static enum proto_parse_status dns_tcp_parse(struct parser unused_ *parser, stru
     size_t offset = 0;
 
     while (offset + hlen < cap_len) {
-        size_t len = ntohs(*(uint16_t*)packet);
+        size_t len = READ_U16N(packet);
         offset += hlen;
 
         // Sanity check

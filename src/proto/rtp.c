@@ -32,22 +32,14 @@ static char const Id[] = "$Id: 7730ab99426100f6032d4a006fe59b9a5c492958 $";
 
 LOG_CATEGORY_DEF(proto_rtp);
 
-struct rtp_header {
-#   ifndef WORDS_BIGENDIAN
-    uint8_t csrc_count:4;
-    uint8_t extension:1;
-    uint8_t padding:1;
-    uint8_t version:2;
-    uint8_t payload_type:7;
-    uint8_t marker:1;
-#   else
-    uint8_t version:2;  // should be 2
-    uint8_t padding:1;  // presence of padding at the end of payload
-    uint8_t extension:1;    // presence of a header extension
-    uint8_t csrc_count:4;
-    uint8_t marker:1;
-    uint8_t payload_type:7;
-#   endif
+struct rtp_hdr {
+    uint8_t flags0, flags1;
+#   define F0_CSRC_COUNT_MASK 0x0FU
+#   define F0_EXTENSION_MASK  0x10U // presence of a header extension
+#   define F0_PADDING_MASK    0x20U // presence of padding at the end of payload
+#   define F0_VERSION_MASK    0xC0U // should be 2
+#   define F1_MARKER_MASK     0x80U
+#   define F1_PLD_TYPE_MASK   0x7FU
     uint16_t seq_num;
     uint32_t timestamp;
     uint32_t ssrc;
@@ -76,13 +68,13 @@ static char const *rtp_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-static void rtp_proto_info_ctor(struct rtp_proto_info *info, struct parser *parser, struct proto_info *parent, struct rtp_header const *rtph, size_t head_len, size_t payload)
+static void rtp_proto_info_ctor(struct rtp_proto_info *info, struct parser *parser, struct proto_info *parent, struct rtp_hdr const *rtph, size_t head_len, size_t payload)
 {
     proto_info_ctor(&info->info, parser, parent, head_len, payload);
-    info->payload_type = rtph->payload_type;
-    info->sync_src = ntohl(rtph->ssrc);
-    info->seq_num = ntohs(rtph->seq_num);
-    info->timestamp = ntohl(rtph->timestamp);
+    info->payload_type = READ_U8(&rtph->flags1) && F1_PLD_TYPE_MASK;
+    info->sync_src = READ_U32N(&rtph->ssrc);
+    info->seq_num = READ_U16N(&rtph->seq_num);
+    info->timestamp = READ_U32N(&rtph->timestamp);
 }
 
 /*
@@ -95,14 +87,16 @@ static enum proto_parse_status rtp_parse(struct parser *parser, struct proto_inf
     SLOG(LOG_DEBUG, "Starting RTP analysis");
 
     /* Parse */
-    struct rtp_header *rtph = (struct rtp_header *)packet;
+    struct rtp_hdr *rtph = (struct rtp_hdr *)packet;
     if (wire_len < sizeof(*rtph)) return PROTO_PARSE_ERR;
     if (cap_len < sizeof(*rtph)) return PROTO_TOO_SHORT;
 
-    SLOG(LOG_DEBUG, "RTP header, version=%u, CSRC_count=%u, payload_type=%u",
-        rtph->version, rtph->csrc_count, rtph->payload_type);
+    unsigned const version = READ_U8(&rtph->flags0) >> 6U;
+    unsigned const csrc_count = READ_U8(&rtph->flags0) & F0_CSRC_COUNT_MASK;
+    unsigned const payload_type = READ_U8(&rtph->flags1) & F1_PLD_TYPE_MASK;
+    SLOG(LOG_DEBUG, "RTP header, version=%u, CSRC_count=%u, payload_type=%u", version, csrc_count, payload_type);
 
-    size_t head_len = sizeof(*rtph) + rtph->csrc_count * 4;
+    size_t head_len = sizeof(*rtph) + csrc_count * 4;
     if (wire_len < head_len) return PROTO_PARSE_ERR;
     if (cap_len < head_len) return PROTO_TOO_SHORT;
 

@@ -78,13 +78,13 @@ static void tcp_proto_info_ctor(struct tcp_proto_info *info, struct parser *pars
 
     info->key.port[0] = sport;
     info->key.port[1] = dport;
-    info->syn = tcphdr->syn;
-    info->ack = tcphdr->ack;
-    info->rst = tcphdr->rst;
-    info->fin = tcphdr->fin;
-    info->window = ntohs(tcphdr->window);
-    info->ack_num = ntohl(tcphdr->ack_seq);
-    info->seq_num = ntohl(tcphdr->seq_num);
+    info->syn = !!(READ_U8(&tcphdr->flags) & TCP_SYN_MASK);
+    info->ack = !!(READ_U8(&tcphdr->flags) & TCP_ACK_MASK);
+    info->rst = !!(READ_U8(&tcphdr->flags) & TCP_RST_MASK);
+    info->fin = !!(READ_U8(&tcphdr->flags) & TCP_FIN_MASK);
+    info->window = READ_U16N(&tcphdr->window);
+    info->ack_num = READ_U32N(&tcphdr->ack_seq);
+    info->seq_num = READ_U32N(&tcphdr->seq_num);
 }
 
 /*
@@ -237,7 +237,7 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
 
     if (cap_len < sizeof(*tcphdr)) return PROTO_TOO_SHORT;
 
-    size_t tcphdr_len = tcphdr->doff * 4;
+    size_t tcphdr_len = TCP_HDR_LENGTH(tcphdr);
     if (tcphdr_len > wire_len) {
         SLOG(LOG_DEBUG, "Bogus TCP packet : wrong length %zu > %zu", tcphdr_len, wire_len);
         return -1;
@@ -245,12 +245,16 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
 
     if (tcphdr_len > cap_len) return PROTO_TOO_SHORT;
 
-    uint16_t const sport = ntohs(tcphdr->src);
-    uint16_t const dport = ntohs(tcphdr->dst);
+    uint16_t const sport = READ_U16N(&tcphdr->src);
+    uint16_t const dport = READ_U16N(&tcphdr->dst);
+    bool const syn = !!(READ_U8(&tcphdr->flags) & TCP_SYN_MASK);
+    bool const fin = !!(READ_U8(&tcphdr->flags) & TCP_FIN_MASK);
+    bool const ack = !!(READ_U8(&tcphdr->flags) & TCP_ACK_MASK);
+    bool const rst = !!(READ_U8(&tcphdr->flags) & TCP_RST_MASK);
     SLOG(LOG_DEBUG, "New TCP packet of %zu bytes (%zu captured), %zu payload, ports %"PRIu16" -> %"PRIu16" Flags: %s%s%s%s, Seq:%"PRIu32", Ack:%"PRIu32,
         wire_len, cap_len, wire_len - tcphdr_len, sport, dport,
-        tcphdr->syn ? "Syn":"", tcphdr->fin ? "Fin":"", tcphdr->ack ? "Ack":"", tcphdr->rst ? "Rst":"",
-        ntohl(tcphdr->seq_num), ntohl(tcphdr->ack_seq));
+        syn ? "Syn":"", fin ? "Fin":"", ack ? "Ack":"", rst ? "Rst":"",
+        READ_U32N(&tcphdr->seq_num), READ_U32N(&tcphdr->ack_seq));
 
     // Parse
 

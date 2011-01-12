@@ -74,11 +74,11 @@ static void ip_proto_info_ctor(struct ip_proto_info *info, struct parser *parser
 {
     proto_info_ctor(&info->info, parser, parent, head_len, payload);
 
-    info->version = iphdr->version;
-    ip_addr_ctor_from_ip4(&info->key.addr[0], iphdr->src);
-    ip_addr_ctor_from_ip4(&info->key.addr[1], iphdr->dst);
-    info->key.protocol = iphdr->protocol;
-    info->ttl = iphdr->ttl;
+    info->version = READ_U8(&iphdr->version_hdrlen) >> 4;
+    ip_addr_ctor_from_ip4(&info->key.addr[0], READ_U32(&iphdr->src));
+    ip_addr_ctor_from_ip4(&info->key.addr[1], READ_U32(&iphdr->dst));
+    info->key.protocol = READ_U8(&iphdr->protocol);
+    info->ttl = READ_U8(&iphdr->ttl);
     info->way = 0;  // will be set later
 }
 
@@ -109,12 +109,15 @@ void ip_subproto_dtor(struct ip_subproto *ip_subproto)
 static bool is_fragment(struct ip_hdr const *ip)
 {
     // No need to set fragment offset in host byte order to test for 0
-    return unlikely_(ip->frag_offset_lo) || unlikely_(ip->frag_offset_hi) || unlikely_(ip->more_fragments);
+    return
+        unlikely_(READ_U8(&ip->frag_offset_lo)) ||
+        unlikely_(READ_U8(&ip->flags) & IP_FRAG_OFFSET_MASK) ||
+        unlikely_(READ_U8(&ip->flags) & IP_MORE_FRAGS_MASK);
 }
 
 static unsigned fragment_offset(struct ip_hdr const *ip)
 {
-    return (ip->frag_offset_lo + ip->frag_offset_hi * 256) * 8;
+    return (READ_U8(&ip->frag_offset_lo) + (READ_U8(&ip->flags) & IP_FRAG_OFFSET_MASK) * 256) * 8;
 }
 
 // We overload the mux_subparser to fit the pkt_wait_list required for IP reassembly
@@ -292,21 +295,24 @@ static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info
 
     if (cap_len < sizeof(*iphdr)) return PROTO_TOO_SHORT;
 
-    SLOG(LOG_DEBUG, "New packet of %zu bytes, proto %hu, %"PRINIPQUAD"->%"PRINIPQUAD,
-        wire_len, iphdr->protocol, NIPQUAD(&iphdr->src), NIPQUAD(&iphdr->dst));
+    unsigned const protocol = READ_U8(&iphdr->protocol);
+    unsigned const version = IP_VERSION(iphdr);
+    size_t const iphdr_len = IP_HDR_LENGTH(iphdr);
 
-    size_t ip_len = ntohs(iphdr->tot_len);
+    SLOG(LOG_DEBUG, "New packet of %zu bytes, proto %hu, %"PRINIPQUAD"->%"PRINIPQUAD,
+        wire_len, protocol, NIPQUAD(&iphdr->src), NIPQUAD(&iphdr->dst));
+
+    size_t ip_len = READ_U16N(&iphdr->tot_len);
     if (ip_len > wire_len) {
         SLOG(LOG_DEBUG, "Bogus IPv4 total length : %zu > %zu", ip_len, wire_len);
         return PROTO_PARSE_ERR;
     }
 
-    if (iphdr->version != 4) {
-        SLOG(LOG_DEBUG, "Bogus IPv4 version : %u instead of 4", (unsigned)iphdr->version);
+    if (version != 4) {
+        SLOG(LOG_DEBUG, "Bogus IPv4 version : %u instead of 4", version);
         return PROTO_PARSE_ERR;
     }
 
-    size_t iphdr_len = iphdr->hdr_len * 4;
     if (iphdr_len > ip_len) {
         SLOG(LOG_DEBUG, "Bogus IPv4 header length : %zu > %zu", iphdr_len, ip_len);
         return PROTO_PARSE_ERR;
@@ -333,7 +339,7 @@ static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info
         }
     }
     if (! subparser) {
-        SLOG(LOG_DEBUG, "IPv4 protocol %u unknown", iphdr->protocol);
+        SLOG(LOG_DEBUG, "IPv4 protocol %u unknown", protocol);
         goto fallback;
     }
 
@@ -341,13 +347,13 @@ static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info
     if (is_fragment(iphdr)) {
         struct ip_subparser *ip_subparser = DOWNCAST(subparser, mux_subparser, ip_subparser);
         unsigned const offset = fragment_offset(iphdr);
-        uint16_t id = ntohs(iphdr->id); // Not required but ease debugging
+        uint16_t id = READ_U16N(&iphdr->id);
         SLOG(LOG_DEBUG, "IP packet is a fragment of id %"PRIu16", offset=%u", id, offset);
         struct ip_reassembly *reassembly = ip_reassembly_lookup(ip_subparser, id, subparser->parser, now);
         if (! reassembly) goto fallback;
         assert(reassembly->in_use && reassembly->constructed);
         size_t frag_len = wire_len - iphdr_len;
-        if (! iphdr->more_fragments) {
+        if (! (READ_U8(&iphdr->flags) & IP_MORE_FRAGS_MASK)) {
             reassembly->got_last = 1;
             reassembly->end_offset = offset + frag_len;
         }

@@ -53,16 +53,12 @@ int iph_ctor(void *ip_, size_t len, uint32_t src, uint32_t dst)
     struct ip_hdr *ip = ip_;
     if (len < sizeof(*ip)) return -1;
 
-    ip->hdr_len = sizeof(*ip)/4;
-    ip->version = 4;
+    ip->version_hdrlen = 0x04 | (sizeof(*ip)/4);
     ip->tos = 0;
     ip->tot_len = htons(len);
     ip->id = 0;
+    ip->flags = 0;
     ip->frag_offset_lo = 0;
-    ip->frag_offset_hi = 0;
-    ip->more_fragments = 0;
-    ip->dont_fragment = 0;
-    ip->reserved = 0;
     ip->ttl = 64;
     ip->protocol = IPPROTO_UDP;
     ip->checksum = 0x1234;
@@ -100,12 +96,9 @@ int tcph_ctor(void *tcp_, size_t len, uint16_t src, uint16_t dst, uint32_t seqnu
     tcp->dst = htons(dst);
     tcp->seq_num = htonl(seqnum);
     tcp->ack_seq = htonl(acknum);
-    tcp->res1 = tcp->psh = tcp->urg = tcp->res2 = 0;
-    tcp->doff = sizeof(*tcp)/4;  // no options
-    tcp->syn = syn;
-    tcp->fin = fin;
-    tcp->ack = ack;
-    tcp->rst = rst;
+    tcp->hdr_len = tcp->flags = 0;
+    tcp->hdr_len = (sizeof(*tcp)/4) << 4U;  // no options
+    tcp->flags = (syn ? TCP_SYN_MASK:0) | (fin ? TCP_FIN_MASK:0) | (ack ? TCP_ACK_MASK:0) | (rst ? TCP_RST_MASK:0);
     tcp->window = 0x8000;
     tcp->checksum = 0x1234;
     tcp->urg_ptr = 0;
