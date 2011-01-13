@@ -206,6 +206,50 @@ static void *sniffer(struct pkt_source *pkt_source, pcap_handler callback)
     return NULL;
 }
 
+// Beware that pkt is an in/out parameter
+static void sync_times(struct timeval const *file_start, struct timeval const *replay_start, struct timeval *pkt)
+{
+    int64_t const pkt_age = timeval_sub(pkt, file_start);
+    struct timeval tv = *replay_start;
+    timeval_add_usec(&tv, pkt_age);
+    // We must wait until tv
+    struct timeval now;
+    timeval_set_now(&now);
+    int64_t wait_time = timeval_sub(&tv, &now);
+    if (wait_time > 10000 /* 10 msec */) usleep(wait_time);
+    *pkt = tv; // Set ideal 'now' time in pkt
+}
+
+// Same as above, but try to follow original capture packet rate
+static void *sniffer_rt(struct pkt_source *pkt_source, pcap_handler callback)
+{
+    SLOG(LOG_INFO, "Reading packets in realtime from packet source %s", pkt_source_name(pkt_source));
+    struct timeval file_start, replay_start;
+    timeval_reset(&file_start);
+    timeval_set_now(&replay_start);
+
+    do {
+        struct pcap_pkthdr *pkt_hdr;
+        const unsigned char *packet;
+        int res = pcap_next_ex(pkt_source->pcap_handle, &pkt_hdr, &packet);
+        if (res < 0) {
+            if (res != -2) {
+                SLOG(LOG_ERR, "Cannot pcap_dispatch on pkt_source %s: %s", pkt_source_name(pkt_source), pcap_geterr(pkt_source->pcap_handle));
+            }
+            SLOG(LOG_INFO, "Stop sniffing on packet source %s (%"PRIuLEAST64" packets recieved)", pkt_source_name(pkt_source), pkt_source->nb_packets);
+            pkt_source_del(pkt_source);
+            return NULL;
+        }
+        assert(res == 1);   // 0 should not happen
+        pkt_source->nb_packets ++;
+        if (! timeval_is_set(&file_start)) file_start = pkt_hdr->ts;
+        sync_times(&file_start, &replay_start, &pkt_hdr->ts);
+        callback((void *)pkt_source, pkt_hdr, packet);
+    } while (1);
+
+    return NULL;
+}
+
 static void *iface_sniffer(void *pkt_source_)
 {
     struct pkt_source *pkt_source = pkt_source_;
@@ -216,8 +260,15 @@ static void *iface_sniffer(void *pkt_source_)
 static void *file_sniffer(void *pkt_source_)
 {
     struct pkt_source *pkt_source = pkt_source_;
-    set_thread_name(tempstr_printf("J-snif-%s[%u]", pkt_source->name, pkt_source->instance));
+    set_thread_name(tempstr_printf("J-read-%s[%u]", pkt_source->name, pkt_source->instance));
     return sniffer(pkt_source, parse_packet);
+}
+
+static void *file_sniffer_rt(void *pkt_source_)
+{
+    struct pkt_source *pkt_source = pkt_source_;
+    set_thread_name(tempstr_printf("J-read-%s[%u]", pkt_source->name, pkt_source->instance));
+    return sniffer_rt(pkt_source, parse_packet);
 }
 
 /*
@@ -293,7 +344,7 @@ static struct pkt_source *pkt_source_new(char const *name, pcap_t *pcap_handle, 
     return pkt_source;
 }
 
-static struct pkt_source *pkt_source_new_file(char const *filename, char const *filter)  // TODO: add parameter regarding speed of replay etc...
+static struct pkt_source *pkt_source_new_file(char const *filename, char const *filter, bool rt)
 {
     char errbuf[PCAP_ERRBUF_SIZE] = "";
 
@@ -318,7 +369,7 @@ static struct pkt_source *pkt_source_new_file(char const *filename, char const *
         return NULL;
     }
 
-    struct pkt_source *pkt_source = pkt_source_new(basename, handle, file_sniffer, true);
+    struct pkt_source *pkt_source = pkt_source_new(basename, handle, rt ? file_sniffer_rt:file_sniffer, true);
     if (! pkt_source) {
         pcap_close(handle);
     }
@@ -467,21 +518,22 @@ static struct ext_function sg_open_iface;
 static SCM g_open_iface(SCM ifname_, SCM promisc_, SCM filter_, SCM buffer_size_)
 {
     char *ifname = scm_to_tempstr(ifname_);
-    bool promisc = promisc_ == SCM_UNDEFINED || scm_to_bool(promisc_);
+    bool const promisc = promisc_ == SCM_UNDEFINED || scm_to_bool(promisc_);
     char const *filter = filter_ == SCM_UNDEFINED ? NULL : scm_to_tempstr(filter_);
-    int buffer_size = buffer_size_ == SCM_UNDEFINED ? 0 : scm_to_int(buffer_size_);
+    int const buffer_size = buffer_size_ == SCM_UNDEFINED ? 0 : scm_to_int(buffer_size_);
 
     struct pkt_source *pkt_source = pkt_source_new_if(ifname, promisc, filter, buffer_size);
     return pkt_source ? scm_from_locale_string(pkt_source_guile_name(pkt_source)) : SCM_UNSPECIFIED;
 }
 
 static struct ext_function sg_open_pcap;
-static SCM g_open_pcap(SCM filename_, SCM filter_)
+static SCM g_open_pcap(SCM filename_, SCM rt_, SCM filter_)
 {
     char const *filename = scm_to_tempstr(filename_);
     char const *filter = filter_ == SCM_UNDEFINED ? NULL : scm_to_tempstr(filter_);
+    bool const rt = rt_ == SCM_UNDEFINED ? false : scm_to_bool(rt_);
 
-    struct pkt_source *pkt_source = pkt_source_new_file(filename, filter);
+    struct pkt_source *pkt_source = pkt_source_new_file(filename, filter, rt);
     return pkt_source ? SCM_BOOL_T : SCM_BOOL_F;
 }
 
@@ -581,9 +633,10 @@ void pkt_source_init(void)
         "See also (? 'open-iface).\n");
 
     ext_function_ctor(&sg_open_pcap,
-        "open-pcap", 1, 1, 0, g_open_pcap,
-        "(open-pcap \"pcap-file\") : will start sniffing the content of this pcap file.\n"
-        "(open-pcap \"pcap-file\" \"filter\") : same as above, applying given filter.\n"
+        "open-pcap", 1, 2, 0, g_open_pcap,
+        "(open-pcap \"pcap-file\") : read the content of this pcap file, fullspeed.\n"
+        "(open-pcap \"pcap-file\" #t) : read this pcap file using its packet rate rather than fullspeed.\n"
+        "(open-pcap \"pcap-file\" #f \"filter\") : read a pcap file, applying given filter.\n"
         "Will return #t or #f according to the status of the operation.\n"
         "See also (? 'open-iface)\n");
 

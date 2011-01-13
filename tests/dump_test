@@ -20,7 +20,7 @@ output=`tempfile`
 
 for pcap in $PCAPS ; do
 	echo "-- $pcap --" | tee -a $output
-	../src/junkie -p ../plugins/dumper/.libs/dumper.so -e '(open-pcap "'$pcap'")' | filter >> $output
+	../src/junkie -p ../plugins/dumper/.libs/dumper.so -r "$pcap" | filter >> $output
 done
 
 if ! diff "$output" "$OUTPUT"; then
