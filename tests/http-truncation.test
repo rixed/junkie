@@ -1,0 +1,10 @@
+#!/bin/sh
+
+NAME="PostgreSQL"
+PCAPS="pcap/truncation/http-96.pcap"
+filter() {
+	grep '^HTTP' | cut -d' ' -f 2-
+}
+OUTPUT="http-truncation.out"
+
+. ./dump_test

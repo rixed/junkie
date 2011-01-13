@@ -1,0 +1,7 @@
+-- pcap/truncation/http-96.pcap --
+head_len=24, payload=593, method=GET, code=unset, content_length=unset, mime_type=unset, host=le, url=/
+head_len=24, payload=542, method=unset, code=301, content_length=unset, mime_type=unset, host=unset, url=unset
+head_len=24, payload=615, method=GET, code=unset, content_length=unset, mime_type=unset, host=unset, url=/content/widgets/exp
+head_len=24, payload=615, method=unset, code=301, content_length=unset, mime_type=unset, host=unset, url=unset
+head_len=24, payload=705, method=GET, code=unset, content_length=unset, mime_type=unset, host=unset, url=/com/bazarchic-box/m
+head_len=24, payload=603, method=unset, code=301, content_length=unset, mime_type=unset, host=unset, url=unset

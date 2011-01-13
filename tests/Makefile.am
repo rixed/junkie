@@ -13,7 +13,7 @@ check_PROGRAMS = \
 	tcp_reorder_check streambuf_check \
 	postgres_check oracle_check endianness_check
 
-dist_check_SCRIPTS = postgres.test mysql.test oracle.test
+dist_check_SCRIPTS = postgres.test mysql.test oracle.test http-truncation.test
 
 TESTS = $(check_PROGRAMS) $(dist_check_SCRIPTS)
 
@@ -87,5 +87,5 @@ endianness_check_LDADD = ../src/tools/libtools.la
 clean-local:
 	rm -f *.log vgcore.* core.* core
 
-EXTRA_DIST = foreach.txt
+EXTRA_DIST = foreach.txt http-truncation.out mysql.out oracle.out postgres.out
 
