@@ -19,7 +19,7 @@
  */
 #include <string.h>
 #include <assert.h>
-#include <junkie/ext.h>
+#include <junkie/tools/ext.h>
 #include <junkie/tools/log.h>
 #include <junkie/tools/redim_array.h>
 #include <junkie/tools/mallocer.h>

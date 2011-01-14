@@ -29,7 +29,7 @@
 #include <junkie/cpp.h>
 #include <junkie/tools/miscmacs.h>
 #include <junkie/tools/log.h>
-#include <junkie/ext.h>
+#include <junkie/tools/ext.h>
 
 static char const Id[] = "$Id: 95a67137f8731eff13f99892ff17970aa6f224b8 $";
 

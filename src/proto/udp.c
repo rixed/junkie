@@ -22,7 +22,7 @@
 #include <stdio.h>
 #include <inttypes.h>
 #include <junkie/cpp.h>
-#include <junkie/ext.h>
+#include <junkie/tools/ext.h>
 #include <junkie/tools/tempstr.h>
 #include <junkie/tools/log.h>
 #include <junkie/proto/ip.h>

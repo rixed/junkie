@@ -31,7 +31,7 @@
 #include <junkie/tools/log.h>
 #include <junkie/tools/files.h>
 #include <junkie/tools/mutex.h>
-#include <junkie/ext.h>
+#include <junkie/tools/ext.h>
 #include <junkie/cpp.h>
 // For initers/finiters
 #include <junkie/tools/redim_array.h>

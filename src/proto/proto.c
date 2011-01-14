@@ -22,7 +22,7 @@
 #include <assert.h>
 #include <string.h>
 #include <junkie/cpp.h>
-#include <junkie/ext.h>
+#include <junkie/tools/ext.h>
 #include <junkie/tools/mallocer.h>
 #include <junkie/tools/tempstr.h>
 #include <junkie/tools/hash.h>

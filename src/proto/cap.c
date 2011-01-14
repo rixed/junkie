@@ -29,7 +29,7 @@
 #include <junkie/proto/proto.h>
 #include <junkie/proto/eth.h>
 #include <junkie/proto/cap.h>
-#include <junkie/ext.h>
+#include <junkie/tools/ext.h>
 #include "pkt_source.h"
 
 static char const Id[] = "$Id: 51a18a0ad76ab10ef1fcc9cee870304e884cdc44 $";

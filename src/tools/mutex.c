@@ -26,7 +26,7 @@
 #include <junkie/tools/mutex.h>
 #include <junkie/tools/log.h>
 #include <junkie/tools/tempstr.h>
-#include <junkie/ext.h>
+#include <junkie/tools/ext.h>
 
 static char const *mutex_name(struct mutex const *mutex)
 {

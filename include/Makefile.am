@@ -1,6 +1,5 @@
 pkginclude_HEADERS = \
 	junkie/config.h \
-	junkie/ext.h \
 	junkie/cpp.h \
 	junkie/proto/ftp.h \
 	junkie/proto/http.h \
@@ -27,6 +26,7 @@ pkginclude_HEADERS = \
 	junkie/proto/pkt_wait_list.h \
 	junkie/proto/streambuf.h \
 	junkie/proto/cursor.h \
+	junkie/tools/ext.h \
 	junkie/tools/mutex.h \
 	junkie/tools/files.h \
 	junkie/tools/mallocer.h \

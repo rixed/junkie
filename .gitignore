@@ -60,3 +60,4 @@ tests/tcp_reorder_check
 tests/streambuf_check
 tests/postgres_check
 tests/oracle_check
+tests/endianness_check

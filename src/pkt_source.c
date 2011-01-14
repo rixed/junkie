@@ -33,7 +33,7 @@
 #include <junkie/tools/queue.h>
 #include <junkie/proto/cap.h>
 #include <junkie/proto/proto.h>
-#include <junkie/ext.h>
+#include <junkie/tools/ext.h>
 #include "plugins.h"
 #include "digest_queue.h"
 

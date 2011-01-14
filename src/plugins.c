@@ -23,7 +23,7 @@
 #include <ltdl.h>
 #include <junkie/tools/log.h>
 #include <junkie/tools/mallocer.h>
-#include <junkie/ext.h>
+#include <junkie/tools/ext.h>
 #include "plugins.h"
 
 static char const Id[] = "$Id: f64d604a02d098feec7f6f1ad4a7f3a641107ac4 $";

@@ -24,7 +24,7 @@
 #ifdef HAVE_MALLOC_H
 #   include <malloc.h>
 #endif
-#include <junkie/ext.h>
+#include <junkie/tools/ext.h>
 #include <junkie/tools/mallocer.h>
 #include <junkie/tools/mutex.h>
 

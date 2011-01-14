@@ -22,7 +22,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
-#include <junkie/ext.h>
+#include <junkie/tools/ext.h>
 #include <junkie/tools/mallocer.h>
 #include <junkie/tools/log.h>
 #include <junkie/tools/miscmacs.h>

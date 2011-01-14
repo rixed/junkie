@@ -3,6 +3,7 @@
 #ifndef MISC_H_100406
 #define MISC_H_100406
 #include <stdlib.h>
+#include <junkie/config.h>
 
 /** @file
  * @brief Various usefull MACROs
@@ -64,16 +65,23 @@
 #endif
 
 /// MACROs to fetch from a possibly not aligned address variously sized and byte ordered values
-#define BYTE(p, off) (((uint8_t const *)(p))[off])
+#define BYTE(p, off) ((uint_least64_t)((uint8_t const *)(p))[off])
 #define BYTE_D(p, off, dec) (BYTE(p, off) << (dec))
-#define READ_U8(p)   BYTE(p, 0)
-#define READ_U16(p)  (BYTE(p, 0) | BYTE_D(p, 1, 8U))
-#define READ_U16N(p) (BYTE_D(p, 0, 8U) | BYTE(p, 1))
-#define READ_U24(p)  (BYTE(p, 0) | BYTE_D(p, 1, 8U) | BYTE_D(p, 2, 16U))
-#define READ_U24N(p) (BYTE_D(p, 0, 16U) | BYTE_D(p, 1, 8U) | BYTE(p, 2))
-#define READ_U32(p)  (BYTE(p, 0) | BYTE_D(p, 1, 8U) | BYTE_D(p, 2, 16U) | BYTE_D(p, 3, 24U))
-#define READ_U32N(p) (BYTE_D(p, 0, 24U) | BYTE_D(p, 1, 16U) | BYTE_D(p, 2, 8U) | BYTE(p, 3))
-#define READ_U64(p)  (BYTE(p, 0) | BYTE_D(p, 1, 8ULL) | BYTE_D(p, 2, 16ULL) | BYTE_D(p, 3, 24ULL) | BYTE_D(p, 4, 32ULL) | BYTE_D(p, 5, 40ULL) | BYTE_D(p, 6, 48ULL) | BYTE_D(p, 7, 56ULL))
-#define READ_U64N(p) (BYTE_D(p, 0, 56ULL) | BYTE_D(p, 1, 48ULL) | BYTE_D(p, 2, 40ULL) | BYTE_D(p, 3, 32ULL) | BYTE_D(p, 4, 24ULL) | BYTE_D(p, 5, 16ULL) | BYTE_D(p, 6, 8ULL) | BYTE(p, 7))
+#define READ_U8(p)   ((uint8_t)BYTE(p, 0))
+#define READ_U16(p)  ((uint16_t)(BYTE(p, 0) | BYTE_D(p, 1, 8U)))
+#define READ_U24(p)  ((uint32_t)(BYTE(p, 0) | BYTE_D(p, 1, 8U) | BYTE_D(p, 2, 16U)))
+#define READ_U32(p)  ((uint32_t)(BYTE(p, 0) | BYTE_D(p, 1, 8U) | BYTE_D(p, 2, 16U) | BYTE_D(p, 3, 24U)))
+#define READ_U64(p)  ((uint64_t)(BYTE(p, 0) | BYTE_D(p, 1, 8ULL) | BYTE_D(p, 2, 16ULL) | BYTE_D(p, 3, 24ULL) | BYTE_D(p, 4, 32ULL) | BYTE_D(p, 5, 40ULL) | BYTE_D(p, 6, 48ULL) | BYTE_D(p, 7, 56ULL)))
+#ifdef WORDS_BIGENDIAN
+#   define READ_U16N(p) READ_U16(p)
+#   define READ_U24N(p) READ_U24(p)
+#   define READ_U32N(p) READ_U32(p)
+#   define READ_U64N(p) READ_U64(p)
+#else
+#   define READ_U16N(p) ((uint16_t)(BYTE_D(p, 0, 8U) | BYTE(p, 1)))
+#   define READ_U24N(p) ((uint32_t)(BYTE_D(p, 0, 16U) | BYTE_D(p, 1, 8U) | BYTE(p, 2)))
+#   define READ_U32N(p) ((uint32_t)(BYTE_D(p, 0, 24U) | BYTE_D(p, 1, 16U) | BYTE_D(p, 2, 8U) | BYTE(p, 3)))
+#   define READ_U64N(p) ((uint64_t)(BYTE_D(p, 0, 56ULL) | BYTE_D(p, 1, 48ULL) | BYTE_D(p, 2, 40ULL) | BYTE_D(p, 3, 32ULL) | BYTE_D(p, 4, 24ULL) | BYTE_D(p, 5, 16ULL) | BYTE_D(p, 6, 8ULL) | BYTE(p, 7)))
+#endif
 
 #endif

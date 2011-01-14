@@ -32,7 +32,7 @@
 #include <junkie/proto/ip.h>
 #include <junkie/proto/arp.h>
 #include <junkie/proto/eth.h>
-#include <junkie/ext.h>
+#include <junkie/tools/ext.h>
 
 static char const Id[] = "$Id: 70c2033b6d5c020b1a0f8c367cf57c2cfb996c84 $";
 
