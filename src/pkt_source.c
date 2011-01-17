@@ -264,14 +264,16 @@ static int pkt_source_ctor(struct pkt_source *pkt_source, char const *name, pcap
         if (0 == strcmp(name, other->name) && other->instance >= pkt_source->instance) pkt_source->instance = other->instance+1;
     }
 
+    pkt_source->dev_id = dev_id_seq++;
+    LIST_INSERT_HEAD(&pkt_sources, pkt_source, entry);
+
     if (0 != pthread_create(&pkt_source->sniffer, NULL, sniffer, pkt_source)) {
         SLOG(LOG_ERR, "Cannot start sniffer thread on pkt_source %s[?]@%p", pkt_source->name, pkt_source);  // Notice that pkt_source->instance is not inited yet
+        LIST_REMOVE(pkt_source, entry);
         ret = -1;
         goto unlock_quit;
     }
 
-    pkt_source->dev_id = dev_id_seq++;
-    LIST_INSERT_HEAD(&pkt_sources, pkt_source, entry);
 unlock_quit:
     mutex_unlock(&pkt_sources_lock);
     return ret;
