@@ -36,6 +36,9 @@ struct http_proto_info {
     char url[HTTP_URL_SIZE];        ///< The URL, for methods that have one
 };
 
+/// @return the name of an HTTP method
+char const *http_method_2_str(enum http_method);
+
 /// Helper to build a host/url string from host, url and server ip.
 /** @return a tempstr or a pointer to url, none of which ought to be freed. */
 char const *http_build_url(struct ip_addr const *server, char const *host, char const *url);

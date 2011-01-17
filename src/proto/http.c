@@ -44,7 +44,7 @@ LOG_CATEGORY_DEF(proto_http);
  * Misc
  */
 
-static char const *http_method_2_str(enum http_method method)
+char const *http_method_2_str(enum http_method method)
 {
     switch (method) {
         case HTTP_METHOD_GET:     return "GET";
