@@ -313,7 +313,7 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
         tcp_sub->fin[1] ? tcp_sub->fin_seqnum[1] : 0,
         tcp_sub->ack[1] ? tcp_sub->max_acknum[1] : 0);
 
-    int err;
+    enum proto_parse_status err;
     if (wire_len > tcphdr_len) {    // Use the wait_list to parse this packet
         if (tcp_sub->syn[way]) {
             unsigned const offset = info.seq_num - tcp_sub->isn[way]-1;   // The SYN is not part of the payload
@@ -331,7 +331,7 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
         tcp_subparser_del(subparser);
     }
 
-    if (err) goto fallback;
+    if (err != PROTO_OK) goto fallback;
     return PROTO_OK;
 
 fallback:

@@ -224,6 +224,20 @@ static int offset_compare(unsigned o1, unsigned n1, unsigned o2, unsigned n2)
 
 enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned offset, unsigned next_offset, bool can_parse, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t packet_len, struct timeval const *now, proto_okfn_t *okfn)
 {
+    if (pkt_wl->nb_pkts_max && pkt_wl->nb_pkts >= pkt_wl->nb_pkts_max) {
+        SLOG(LOG_DEBUG, "Waiting list too long, disbanding");
+        // We don't need the parser anymore, and must not call its parse method
+        pkt_wl->parser = parser_unref(pkt_wl->parser);
+    }
+    if (! pkt_wl->parser) {
+        // Empty the list and ack this packet
+        struct pkt_wait *pkt;
+        while (NULL != (pkt = LIST_FIRST(&pkt_wl->pkts))) {
+            (void)pkt_wait_finalize(pkt, pkt_wl, now);
+        }
+        return proto_parse(NULL, parent, way, NULL, 0, 0, now, okfn);
+    }
+
     SLOG(LOG_DEBUG, "Add a packet of %zu bytes at offset %u to waiting list @%p", packet_len, offset, pkt_wl);
 
     // Find its location and the previous pkt

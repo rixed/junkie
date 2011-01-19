@@ -137,8 +137,10 @@ static int frame_mirror_drop(struct frame *frame, struct digest_queue *q)
 static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, const u_char *packet)
 {
     struct pkt_source *pkt_source = (struct pkt_source *)pkt_source_;
-    SLOG(LOG_DEBUG, "Received a new packet from packet source %s", pkt_source_name(pkt_source));
+    SLOG(LOG_DEBUG, "Received a new packet from packet source %s, wire-len: %u", pkt_source_name(pkt_source), header->len);
 
+    if (header->len == 0) return;   // should not happen, but does occur sometime
+ 
     mutex_lock(&cap_parser_lock);
 
     if (! cap_parser) {

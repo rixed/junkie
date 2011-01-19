@@ -17,7 +17,7 @@ extern struct proto *proto_cap;
 
 /// Description of the captured packet
 struct cap_proto_info {
-    struct proto_info info; ///< Header size is the size of our struct frame while payload corresponds to the capture size
+    struct proto_info info; ///< Header size is the size of our struct frame while payload corresponds to the total wire size
     unsigned dev_id;        ///< Incomming device id
     struct timeval tv;      ///< Date of arrival
 };
