@@ -8,6 +8,7 @@
 #include <sys/time.h>
 #include <junkie/cpp.h>
 #include <junkie/tools/tempstr.h>
+#include <junkie/tools/mallocer.h>
 #include "tools/hash.c"
 
 struct h_value {
@@ -120,6 +121,7 @@ static void rehash_check(void)
 int main(void)
 {
     log_init();
+    mallocer_init();
     hash_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("hash_check.log");
@@ -129,6 +131,7 @@ int main(void)
     rehash_check();
 
     hash_fini();
+    mallocer_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

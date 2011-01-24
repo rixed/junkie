@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <time.h>
 #include <junkie/cpp.h>
+#include <junkie/tools/mallocer.h>
 #include <junkie/proto/eth.h>
 #include <junkie/proto/ip.h>
 #include <junkie/proto/tcp.h>
@@ -244,7 +245,7 @@ static void teardown(void)
     parser_unref(eth_parser);
 }
 
-static int okfn(struct proto_info const *last)
+static int okfn(struct proto_info const *last, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
     nb_okfn_calls ++;
     SLOG(LOG_INFO, "Last info [%s]: %s", last->parser->proto->name, last->parser->proto->ops->info_2_str(last));
@@ -273,7 +274,7 @@ static void simple_check(void)
     setup();
 
     for (unsigned p = 0 ; p < NB_ELEMS(pkts); p++) {
-        assert(PROTO_OK == proto_parse(eth_parser, NULL, 0, pkts[p].payload, pkts[p].size, pkts[p].size, &now, okfn));
+        assert(PROTO_OK == proto_parse(eth_parser, NULL, 0, pkts[p].payload, pkts[p].size, pkts[p].size, &now, okfn, pkts[p].size, pkts[p].payload));
     }
     assert(nb_okfn_calls == NB_ELEMS(pkts));
     assert(nb_gets == 2);
@@ -295,7 +296,7 @@ static void random_check(void)
         while (sent[p]) p = (p+1) % NB_ELEMS(pkts);
         sent[p] = true;
         SLOG(LOG_DEBUG, "Sending Packet %u", p);
-        assert(PROTO_OK == proto_parse(eth_parser, NULL, 0, pkts[p].payload, pkts[p].size, pkts[p].size, &now, okfn));
+        assert(PROTO_OK == proto_parse(eth_parser, NULL, 0, pkts[p].payload, pkts[p].size, pkts[p].size, &now, okfn, pkts[p].size, pkts[p].payload));
     }
     assert(nb_okfn_calls == NB_ELEMS(pkts));
     assert(nb_gets == 2);
@@ -307,6 +308,7 @@ static void random_check(void)
 int main(void)
 {
     log_init();
+    mallocer_init();
     eth_init();
     ip_init();
     tcp_init();
@@ -321,6 +323,7 @@ int main(void)
     tcp_fini();
     ip_fini();
     eth_fini();
+    mallocer_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

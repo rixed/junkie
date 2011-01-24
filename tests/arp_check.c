@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <time.h>
 #include <junkie/cpp.h>
+#include <junkie/tools/mallocer.h>
 #include "lib.h"
 #include "proto/arp.c"
 
@@ -61,7 +62,7 @@ static struct parse_test {
 
 static unsigned cur_test;
 
-static int arp_info_check(struct proto_info const *info_)
+static int arp_info_check(struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
     struct arp_proto_info const *const info = DOWNCAST(info_, info, arp_proto_info);
     struct expected const *const exp = &parse_tests[cur_test].expected;
@@ -91,7 +92,7 @@ static void parse_check(void)
 
     for (cur_test = 0; cur_test < NB_ELEMS(parse_tests); cur_test++) {
         struct parse_test const *const test = parse_tests + cur_test;
-        enum proto_parse_status status = arp_parse(arp_parser, NULL, 0, test->packet, test->cap_len, test->wire_len, &now, arp_info_check);
+        enum proto_parse_status status = arp_parse(arp_parser, NULL, 0, test->packet, test->cap_len, test->wire_len, &now, arp_info_check, test->cap_len, test->packet);
         assert(status == test->status);
     }
 
@@ -101,6 +102,7 @@ static void parse_check(void)
 int main(void)
 {
     log_init();
+    mallocer_init();
     eth_init();
     arp_init();
     log_set_level(LOG_DEBUG, NULL);
@@ -111,6 +113,7 @@ int main(void)
 
     arp_fini();
     eth_fini();
+    mallocer_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

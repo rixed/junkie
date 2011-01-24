@@ -102,14 +102,14 @@ static enum proto_parse_status streambuf_append(struct streambuf *sbuf, unsigned
 // FIXME: This is stupid to buffer the first packet since many times the parse will not require buffering.
 //        So add a flag 'buffer_is_malloced' if it's malloced (false when buffer points to the packet directly),
 //        and handle it accordingly when sbuf->parse returns OK with a restart_offset < buffer_size.
-enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     assert(way < 2);
     enum proto_parse_status status = streambuf_append(sbuf, way, packet, cap_len, wire_len);
     if (status != PROTO_OK) return status;
 
     if (sbuf->dir[way].restart_offset == sbuf->dir[way].buffer_size) {    // emptiness is not interresting
-        return proto_parse(NULL, parent, way, packet, cap_len, wire_len, now, okfn);
+        return proto_parse(NULL, parent, way, packet, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
     }
 
     assert(sbuf->dir[way].buffer_size >= sbuf->dir[way].restart_offset);
@@ -119,6 +119,6 @@ enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *par
     // If the user do not call streambuf_restart_offset() then this means there is no restart
     size_t const offset = sbuf->dir[way].restart_offset;
     sbuf->dir[way].restart_offset = sbuf->dir[way].buffer_size;
-    return sbuf->parse(parser, parent, way, sbuf->dir[way].buffer + offset, len, len, now, okfn);
+    return sbuf->parse(parser, parent, way, sbuf->dir[way].buffer + offset, len, len, now, okfn, tot_cap_len, tot_packet);
 }
 

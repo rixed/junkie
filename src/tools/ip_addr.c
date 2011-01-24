@@ -70,14 +70,29 @@ int ip_addr_ctor_from_str(struct ip_addr *ip, char const *str, size_t len, int v
     }
 
     if (err == -1) {
-        SLOG(LOG_WARNING, "Cannot convert string to IPv4 : %s", strerror(errno));
+        SLOG(LOG_WARNING, "Cannot convert string to IP address : %s", strerror(errno));
         return -1;
     } else if (err == 0) {
-        SLOG(LOG_WARNING, "Cannot convert string to IPv4 : Invalid string '%.*s'", (int)len, str);
+        SLOG(LOG_WARNING, "Cannot convert string to IP address : Invalid string '%.*s'", (int)len, str);
         return -1;
     }
 
     return 0;
+}
+
+int ip_addr_ctor_from_str_any(struct ip_addr *ip, char const *str)
+{
+    if (1 == inet_pton(AF_INET, str, &ip->u.v4)) {
+        ip->family = AF_INET;
+        return 0;
+    }
+    if (1 == inet_pton(AF_INET6, str, &ip->u.v6)) {
+        ip->family = AF_INET6;
+        return 0;
+    }
+    
+    SLOG(LOG_WARNING, "Cannot convert string to IP address : %s", strerror(errno));
+    return -1;
 }
 
 static int saturate(int v)
@@ -161,5 +176,24 @@ bool ip_addr_is_broadcast(struct ip_addr const *addr)
     if (ip_addr_is_v6(addr)) return false;  // TODO
     uint32_t netmask = netmask_of_address(addr->u.v4);
     return (netmask | ntohl(addr->u.v4.s_addr)) == 0xffffffffU;
+}
+
+static bool match_mask_byte(uint8_t const *host, uint8_t const *net, uint8_t const *mask, unsigned nb_bytes)
+{
+    if (nb_bytes == 0) return true;
+    if ((*net & *mask) != (*host & *mask)) return false;
+    return match_mask_byte(host+1, net+1, mask+1, nb_bytes-1);
+}
+
+bool ip_addr_match_mask(struct ip_addr const *host, struct ip_addr const *net, struct ip_addr const *mask)
+{
+    assert(net->family == mask->family);
+    if (host->family != net->family) return false;
+
+    if (host->family == AF_INET) {
+        return match_mask_byte((uint8_t *)&host->u.v4.s_addr, (uint8_t *)&net->u.v4.s_addr, (uint8_t *)&mask->u.v4.s_addr, 4);
+    } else {
+        return match_mask_byte(host->u.v6.s6_addr, net->u.v6.s6_addr, mask->u.v6.s6_addr, 16);
+    }
 }
 

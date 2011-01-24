@@ -70,7 +70,7 @@ void pkt_wait_del(struct pkt_wait *pkt, struct pkt_wait_list *pkt_wl)
     FREE(pkt);
 }
 
-static enum proto_parse_status pkt_wait_parse(struct pkt_wait *pkt, struct pkt_wait_list *pkt_wl, struct timeval const *now)
+static enum proto_parse_status pkt_wait_parse(struct pkt_wait *pkt, struct pkt_wait_list *pkt_wl, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     if (
         ! pkt_wl->parser ||                         // if we have no parser,
@@ -78,7 +78,7 @@ static enum proto_parse_status pkt_wait_parse(struct pkt_wait *pkt, struct pkt_w
         pkt->offset > pkt_wl->next_offset           // or the pkt was supposed to come later,
     ) {
         // then do not parse it
-        return proto_parse(NULL, pkt->parent, pkt->way, NULL, 0, 0, now, pkt->okfn);
+        return proto_parse(NULL, pkt->parent, pkt->way, NULL, 0, 0, now, pkt->okfn, tot_cap_len, tot_packet);
     }
 
     // So we must parse from pkt_wl->next_offset to pkt->next_offset
@@ -86,15 +86,15 @@ static enum proto_parse_status pkt_wait_parse(struct pkt_wait *pkt, struct pkt_w
     unsigned trim = pkt_wl->next_offset - pkt->offset;
     enum proto_parse_status const status =
         trim < pkt->cap_len ?
-            proto_parse(pkt_wl->parser, pkt->parent, pkt->way, pkt->packet + trim, pkt->cap_len - trim, pkt->packet_len - trim, now, pkt->okfn) :
-            proto_parse(pkt_wl->parser, pkt->parent, pkt->way, NULL, 0, trim < pkt->packet_len ? pkt->packet_len - trim : 0, now, pkt->okfn);
+            proto_parse(pkt_wl->parser, pkt->parent, pkt->way, pkt->packet + trim, pkt->cap_len - trim, pkt->packet_len - trim, now, pkt->okfn, tot_cap_len, tot_packet) :
+            proto_parse(pkt_wl->parser, pkt->parent, pkt->way, NULL, 0, trim < pkt->packet_len ? pkt->packet_len - trim : 0, now, pkt->okfn, tot_cap_len, tot_packet);
     pkt_wl->next_offset = pkt->next_offset;
     return status;
 }
 
 static enum proto_parse_status pkt_wait_finalize(struct pkt_wait *pkt, struct pkt_wait_list *pkt_wl, struct timeval const *now)
 {
-    enum proto_parse_status status = pkt_wait_parse(pkt, pkt_wl, now);
+    enum proto_parse_status status = pkt_wait_parse(pkt, pkt_wl, now, pkt->cap_len, pkt->packet);
     pkt_wait_del(pkt, pkt_wl);
     return status;
 }
@@ -222,7 +222,7 @@ static int offset_compare(unsigned o1, unsigned n1, unsigned o2, unsigned n2)
     return 0;
 }
 
-enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned offset, unsigned next_offset, bool can_parse, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t packet_len, struct timeval const *now, proto_okfn_t *okfn)
+enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned offset, unsigned next_offset, bool can_parse, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t packet_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     if (pkt_wl->nb_pkts_max && pkt_wl->nb_pkts >= pkt_wl->nb_pkts_max) {
         SLOG(LOG_DEBUG, "Waiting list too long, disbanding");
@@ -235,7 +235,7 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
         while (NULL != (pkt = LIST_FIRST(&pkt_wl->pkts))) {
             (void)pkt_wait_finalize(pkt, pkt_wl, now);
         }
-        return proto_parse(NULL, parent, way, NULL, 0, 0, now, okfn);
+        return proto_parse(NULL, parent, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
     }
 
     SLOG(LOG_DEBUG, "Add a packet of %zu bytes at offset %u to waiting list @%p", packet_len, offset, pkt_wl);
@@ -252,7 +252,7 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
 
     // if previous == NULL and pkt_wl->next_offset == offset, call proto_parse directly, then advance next_offset.
     if (! prev && pkt_wl->next_offset == offset && can_parse) {
-        enum proto_parse_status status = proto_parse(pkt_wl->parser, parent, way, packet, cap_len, packet_len, now, okfn);
+        enum proto_parse_status status = proto_parse(pkt_wl->parser, parent, way, packet, cap_len, packet_len, now, okfn, tot_cap_len, tot_packet);
 
         // Now parse as much as we can while advancing next_offset, returning the first error we obtain
         pkt_wl->next_offset = next_offset;
@@ -272,12 +272,12 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
         (pkt_wl->acceptable_gap > 0 && (int)(offset - prev_offset) > (int)pkt_wl->acceptable_gap) ||
         (int)(next_offset - prev_offset) <= 0
     ) {
-        return proto_parse(NULL, parent, way, packet, cap_len, packet_len, now, okfn);
+        return proto_parse(NULL, parent, way, packet, cap_len, packet_len, now, okfn, tot_cap_len, tot_packet);
     }
 
     // else insert the packet and wait
     struct pkt_wait *pkt = pkt_wait_new(offset, next_offset, parent, way, packet, cap_len, packet_len, okfn);
-    if (! pkt) return proto_parse(NULL, parent, way, NULL, 0, 0, now, okfn); // silently discard
+    if (! pkt) return proto_parse(NULL, parent, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet); // silently discard
 
     if (prev) {
         LIST_INSERT_AFTER(prev, pkt, entry);

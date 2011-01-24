@@ -76,7 +76,7 @@ void ip6_subproto_dtor(struct ip_subproto *ip_subproto)
  * Parse
  */
 
-static enum proto_parse_status ip6_parse(struct parser *parser, struct proto_info *parent, unsigned unused_ way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status ip6_parse(struct parser *parser, struct proto_info *parent, unsigned unused_ way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct ipv6_hdr const *iphdr = (struct ipv6_hdr *)packet;
@@ -132,11 +132,11 @@ static enum proto_parse_status ip6_parse(struct parser *parser, struct proto_inf
         goto fallback;
     }
 
-    if (0 != proto_parse(subparser->parser, &info.info, way2, packet + iphdr_len, cap_len - iphdr_len, wire_len - iphdr_len, now, okfn)) goto fallback;
+    if (0 != proto_parse(subparser->parser, &info.info, way2, packet + iphdr_len, cap_len - iphdr_len, wire_len - iphdr_len, now, okfn, tot_cap_len, tot_packet)) goto fallback;
     return PROTO_OK;
 
 fallback:
-    (void)proto_parse(NULL, &info.info, way2, packet + iphdr_len, cap_len - iphdr_len, wire_len - iphdr_len, now, okfn);
+    (void)proto_parse(NULL, &info.info, way2, packet + iphdr_len, cap_len - iphdr_len, wire_len - iphdr_len, now, okfn, tot_cap_len, tot_packet);
     return PROTO_OK;
 }
 

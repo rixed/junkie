@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <string.h>
 #include <junkie/tools/miscmacs.h>
+#include <junkie/tools/mallocer.h>
 #include <junkie/cpp.h>
 #include <junkie/proto/eth.h>
 #include <junkie/proto/ip.h>
@@ -146,7 +147,7 @@ static struct test {
 
 static unsigned current_test = 0;
 
-static int check_last_proto(struct proto_info const *last)
+static int check_last_proto(struct proto_info const *last, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
     assert(0 == strcmp(last->parser->proto->name, tests[current_test].last_proto_name));
     return 0;
@@ -161,7 +162,7 @@ static void cnxtrack_check(void)
     for (current_test = 0; current_test < NB_ELEMS(tests); current_test ++) {
         struct test const *test = tests + current_test;
         printf("Testing packet %u...", current_test);
-        int ret = proto_parse(eth_parser, NULL, 0, test->packet, test->packet_len, test->packet_len, &now, check_last_proto);
+        int ret = proto_parse(eth_parser, NULL, 0, test->packet, test->packet_len, test->packet_len, &now, check_last_proto, test->packet_len, test->packet);
         assert(ret == 0);
         printf("Ok\n");
     }
@@ -172,6 +173,7 @@ static void cnxtrack_check(void)
 int main(void)
 {
     log_init();
+    mallocer_init();
     proto_init();
     eth_init();
     ip_init();
@@ -189,6 +191,7 @@ int main(void)
     ip_fini();
     eth_fini();
     proto_fini();
+    mallocer_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

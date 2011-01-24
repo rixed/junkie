@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <junkie/cpp.h>
 #include <junkie/proto/tcp.h>
+#include <junkie/tools/mallocer.h>
 #include "lib.h"
 #include "proto/http.c"
 
@@ -137,7 +138,7 @@ static struct parse_test {
 
 static unsigned current_test;
 
-static int http_info_check(struct proto_info const *info_)
+static int http_info_check(struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
     // Check info against parse_tests[current_test].expected
     struct http_proto_info const *const info = DOWNCAST(info_, info, http_proto_info);
@@ -165,7 +166,7 @@ static void parse_check(void)
     for (current_test = 0; current_test < NB_ELEMS(parse_tests); current_test++) {
         printf("Testing packet %u... ", current_test);
         size_t const len = strlen(parse_tests[current_test].packet);
-        int ret = http_parse(http_parser, NULL, 0, (uint8_t *)parse_tests[current_test].packet, len, len, &now, http_info_check);
+        int ret = http_parse(http_parser, NULL, 0, (uint8_t *)parse_tests[current_test].packet, len, len, &now, http_info_check, len, (uint8_t *)parse_tests[current_test].packet);
         assert(ret == parse_tests[current_test].ret);
         printf("Ok\n");
     }
@@ -202,7 +203,7 @@ void build_url_check(void)
 }
 
 static bool caplen_reported;
-static int caplen_info_check(struct proto_info const unused_ *info)
+static int caplen_info_check(struct proto_info const unused_ *info, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
     caplen_reported = true;
     return 0;
@@ -222,7 +223,7 @@ static void caplen_check(void)
 
     for (size_t cap_len = 9; cap_len < strlen(msg); cap_len++) {
         caplen_reported = false;
-        int ret = http_parse(http_parser, NULL, 0, (uint8_t *)msg, cap_len, strlen(msg), &now, caplen_info_check);
+        int ret = http_parse(http_parser, NULL, 0, (uint8_t *)msg, cap_len, strlen(msg), &now, caplen_info_check, cap_len, (uint8_t *)msg);
         assert(ret == PROTO_OK);
         assert(caplen_reported);
     }
@@ -231,6 +232,7 @@ static void caplen_check(void)
 int main(void)
 {
     log_init();
+    mallocer_init();
     proto_init();
     tcp_init();
     http_init();
@@ -245,6 +247,7 @@ int main(void)
     http_fini();
     tcp_fini();
     proto_fini();
+    mallocer_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

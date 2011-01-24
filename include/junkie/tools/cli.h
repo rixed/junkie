@@ -12,6 +12,13 @@
  * that newly loaded plugins can have command line options too.
  */
 
+/** @file
+ * @brief Simple replacement for getopt
+ *
+ * We want to be able to add dynamically new option blocs available from command line so
+ * that newly loaded plugins can have command line options too.
+ */
+
 struct cli_opt {
     char const *arg[2];
     bool need_argument;

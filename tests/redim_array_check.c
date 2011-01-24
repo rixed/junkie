@@ -2,6 +2,7 @@
 // vim:sw=4 ts=4 sts=4 expandtab
 #include <stdlib.h>
 #include <assert.h>
+#include <junkie/tools/mallocer.h>
 #include "tools/redim_array.c"
 
 static void check_empty(void)
@@ -51,12 +52,14 @@ static void check_stress(unsigned nb_entries)
 int main(void)
 {
     log_init();
+    mallocer_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("redim_array_check.log");
 
     check_empty();
     check_stress(10);
 
+    mallocer_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

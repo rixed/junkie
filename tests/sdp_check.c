@@ -5,6 +5,7 @@
 #include <time.h>
 #include <junkie/cpp.h>
 #include <junkie/proto/ip.h>
+#include <junkie/tools/mallocer.h>
 #include "lib.h"
 #include "proto/sdp.c"
 
@@ -61,7 +62,7 @@ static struct parse_test {
 
 static unsigned cur_test;
 
-static int sdp_info_check(struct proto_info const *info_)
+static int sdp_info_check(struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
     // Check info against parse_tests[cur_test].expected
     struct sdp_proto_info const *const info = DOWNCAST(info_, info, sdp_proto_info);
@@ -89,7 +90,7 @@ static void parse_check(void)
 
     for (cur_test = 0; cur_test < NB_ELEMS(parse_tests); cur_test++) {
         size_t const len = strlen((char *)parse_tests[cur_test].packet);
-        enum proto_parse_status ret = sdp_parse(sdp_parser, NULL, 0, parse_tests[cur_test].packet, len, len, &now, sdp_info_check);
+        enum proto_parse_status ret = sdp_parse(sdp_parser, NULL, 0, parse_tests[cur_test].packet, len, len, &now, sdp_info_check, len, parse_tests[cur_test].packet);
         assert(parse_tests[cur_test].ret == ret);
     }
 
@@ -99,6 +100,7 @@ static void parse_check(void)
 int main(void)
 {
     log_init();
+    mallocer_init();
     sdp_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("sdp_check.log");
@@ -107,6 +109,7 @@ int main(void)
     stress_check(proto_sdp);
 
     sdp_fini();
+    mallocer_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

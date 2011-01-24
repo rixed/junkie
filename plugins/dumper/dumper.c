@@ -29,7 +29,7 @@ static void dump_frame_rec(struct proto_info const *info)
     printf("%s@%p: %s\n", info->parser->proto->name, info->parser, info->parser->proto->ops->info_2_str(info));
 }
 
-int parse_callback(struct proto_info const *last)
+int parse_callback(struct proto_info const *last, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
     dump_frame_rec(last);
     printf("\n");
@@ -39,10 +39,10 @@ int parse_callback(struct proto_info const *last)
 
 void on_load(void)
 {
-    SLOG(LOG_INFO, "Dumper loaded\n");
+    SLOG(LOG_INFO, "Dumper loaded");
 }
 
 void on_unload(void)
 {
-    SLOG(LOG_INFO, "Dumper unloading\n");
+    SLOG(LOG_INFO, "Dumper unloading");
 }

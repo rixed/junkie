@@ -37,9 +37,9 @@
 
 static char const Id[] = "$Id: 52f0ab48ebbc1c5ea1bfbb807f830aeda7b80275 $";
 
-bool in_background = false;
+bool use_syslog = false;
 
-struct log_categories log_categories = SLIST_HEAD_INITIALIZER(&log_categories);
+struct log_categories log_categories = SLIST_HEAD_INITIALIZER(log_categories);
 
 LOG_CATEGORY_DEF(global)
 
@@ -48,7 +48,7 @@ static char log_filename[PATH_MAX];
 
 static void vsystem_log(int priority, char const *fmt, va_list ap)
 {
-    if (in_background) {
+    if (use_syslog) {
         vsyslog(priority, fmt, ap);
     } else {
         vfprintf(stderr, fmt, ap);

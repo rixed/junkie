@@ -147,12 +147,12 @@ struct proto *proto_of_name(char const *name)
     return NULL;
 }
 
-enum proto_parse_status proto_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+enum proto_parse_status proto_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     assert(cap_len <= wire_len);
 
     if (! parser) {
-        if (okfn) (void)okfn(parent);
+        if (okfn) (void)okfn(parent, tot_cap_len, tot_packet);
         return PROTO_OK;   // This is not a parse error if okfn fails.
     }
 
@@ -176,11 +176,11 @@ enum proto_parse_status proto_parse(struct parser *parser, struct proto_info *pa
 
     if (unlikely_(nb_fuzzed_bits > 0)) fuzz(parser, packet, cap_len, nb_fuzzed_bits);
 
-    enum proto_parse_status ret = parser->proto->ops->parse(parser, parent, way, packet, cap_len, wire_len, now, okfn);
+    enum proto_parse_status ret = parser->proto->ops->parse(parser, parent, way, packet, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
     if (ret == PROTO_TOO_SHORT) {
         SLOG(LOG_DEBUG, "Too short for parser %s", parser_name(parser));
         // We are missing some informations but we've done as much as possible.
-        if (okfn) (void)okfn(parent);
+        if (okfn) (void)okfn(parent, tot_cap_len, tot_packet);
         return PROTO_OK;   // This is not a parse error if okfn fails.
     }
     return ret;
@@ -303,9 +303,9 @@ struct parser *parser_unref(struct parser *parser)
  * Dummy proto
  */
 
-static enum proto_parse_status dummy_parse(struct parser unused_ *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status dummy_parse(struct parser unused_ *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
 {
-    return proto_parse(NULL, parent, way, packet, cap_len, wire_len, now, okfn);
+    return proto_parse(NULL, parent, way, packet, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
 }
 
 static struct proto static_proto_dummy;
@@ -333,7 +333,7 @@ static void dummy_fini(void)
  */
 
 // List of all mux_protos used to configure them from Guile
-static LIST_HEAD(mux_protos, mux_proto) mux_protos = LIST_HEAD_INITIALIZER(&mux_protos);
+static LIST_HEAD(mux_protos, mux_proto) mux_protos = LIST_HEAD_INITIALIZER(mux_protos);
 
 void mux_subparser_dtor(struct mux_subparser *subparser)
 {
@@ -344,12 +344,8 @@ void mux_subparser_dtor(struct mux_subparser *subparser)
     subparser->requestor = subparser->requestor != subparser->parser ?
         parser_unref(subparser->requestor) : NULL;
 
-    LIST_REMOVE(subparser, h_entry);
-
-    if (subparser->doomed) {
-        LIST_REMOVE(subparser, doom_entry);
-        subparser->doomed = false;
-    }
+    LIST_REMOVE(subparser, entry);
+    subparser->doomed = false;
 
     subparser->mux_parser->nb_children --;
 }
@@ -372,11 +368,12 @@ static LIST_HEAD(doomed_subparsers, mux_subparser) doomed_subparsers;
 
 void mux_subparser_doom(struct mux_subparser *subparser)
 {
-    if (subparser->doomed) return;
+    assert(! subparser->doomed);
 
     mutex_lock(&doomed_mutex);
 
-    LIST_INSERT_HEAD(&doomed_subparsers, subparser, doom_entry);
+    LIST_REMOVE(subparser, entry);
+    LIST_INSERT_HEAD(&doomed_subparsers, subparser, entry);
     subparser->doomed = true;
 
     mutex_unlock(&doomed_mutex);
@@ -432,7 +429,7 @@ int mux_subparser_ctor(struct mux_subparser *subparser, struct mux_parser *mux_p
 
     struct mux_proto *mux_proto = DOWNCAST(mux_parser->parser.proto, proto, mux_proto);
     unsigned h = hash_key(key, mux_proto->key_size, mux_parser->hash_size);
-    LIST_INSERT_HEAD(mux_parser->subparsers+h, subparser, h_entry);
+    LIST_INSERT_HEAD(mux_parser->subparsers+h, subparser, entry);
     mux_parser->nb_children ++;
     memcpy(subparser->key, key, mux_proto->key_size);
     return 0;
@@ -483,7 +480,7 @@ struct mux_subparser *mux_subparser_lookup(struct mux_parser *mux_parser, struct
 
     unsigned nb_colls = 0;
     struct mux_subparser *subparser, *tmp;
-    LIST_FOREACH_SAFE(subparser, mux_parser->subparsers+h, h_entry, tmp) {
+    LIST_FOREACH_SAFE(subparser, mux_parser->subparsers+h, entry, tmp) {
         if (! subparser->parser->alive) {
             mux_subparser_doom(subparser);
             continue;
@@ -497,10 +494,12 @@ struct mux_subparser *mux_subparser_lookup(struct mux_parser *mux_parser, struct
         nb_colls ++;
     }
 
+    assert(!subparser || !subparser->doomed);
+
     if (subparser && nb_colls > 2) {
         // Promote this children to the head of the list to retrieve it faster next time
-        LIST_REMOVE(subparser, h_entry);
-        LIST_INSERT_HEAD(mux_parser->subparsers+h, subparser, h_entry);
+        LIST_REMOVE(subparser, entry);
+        LIST_INSERT_HEAD(mux_parser->subparsers+h, subparser, entry);
     }
 
     if (nb_colls > 8) {
@@ -509,7 +508,7 @@ struct mux_subparser *mux_subparser_lookup(struct mux_parser *mux_parser, struct
             SLOG(LOG_NOTICE, "Dump of first keys for h = %u :", h);
             struct mux_subparser *s;
             unsigned limit = 5;
-            LIST_FOREACH(s, mux_parser->subparsers+h, h_entry) {
+            LIST_FOREACH(s, mux_parser->subparsers+h, entry) {
                 SLOG_HEX(LOG_NOTICE, s->key, mux_proto->key_size);
                 if (limit-- == 0) break;
             }
@@ -527,16 +526,18 @@ struct mux_subparser *mux_subparser_lookup(struct mux_parser *mux_parser, struct
 
 void mux_subparser_change_key(struct mux_subparser *subparser, struct mux_parser *mux_parser, void const *key)
 {
+    if (subparser->doomed) return;
+
     SLOG(LOG_DEBUG, "changing key for subparser @%p", subparser);
 
     // Remove
-    LIST_REMOVE(subparser, h_entry);
+    LIST_REMOVE(subparser, entry);
     // Change key
     struct mux_proto *mux_proto = DOWNCAST(mux_parser->parser.proto, proto, mux_proto);
     memcpy(subparser->key, key, mux_proto->key_size);
     // Re-insert
     unsigned h = hash_key(key, mux_proto->key_size, mux_parser->hash_size);
-    LIST_INSERT_HEAD(mux_parser->subparsers+h, subparser, h_entry);
+    LIST_INSERT_HEAD(mux_parser->subparsers+h, subparser, entry);
 }
 
 int mux_parser_ctor(struct mux_parser *mux_parser, struct mux_proto *mux_proto, struct timeval const *now)

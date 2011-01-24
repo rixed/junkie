@@ -58,11 +58,16 @@ static void realloc_check(void)
 
 int main(void)
 {
+    log_init();
+    mallocer_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("mallocer_check.log");
 
     malloc_check();
     realloc_check();
+
+    mallocer_fini();
+    log_fini();
 
     return EXIT_SUCCESS;
 }

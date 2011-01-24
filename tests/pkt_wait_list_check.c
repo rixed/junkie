@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <junkie/tools/miscmacs.h>
+#include <junkie/tools/mallocer.h>
 #include "pkt_wait_list.c"
 
 /*
@@ -46,7 +47,7 @@ static struct timeval now;
 static struct pkt_wait_list wl;
 static unsigned next_msg;
 
-static enum proto_parse_status test_parse(struct parser *parser, struct proto_info unused_ *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status test_parse(struct parser *parser, struct proto_info unused_ *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     SLOG(LOG_DEBUG, "got payload '%.*s'", (int)cap_len, packet);
     assert(parser == test_parser);
@@ -56,7 +57,7 @@ static enum proto_parse_status test_parse(struct parser *parser, struct proto_in
     assert(seqnum == next_msg);
     assert(packet[cap_len-1] == '\0');
     next_msg ++;
-    return proto_parse(NULL, NULL, way, NULL, 0, 0, now, okfn);
+    return proto_parse(NULL, NULL, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
 }
 
 static void wl_check_setup(void)
@@ -100,7 +101,7 @@ static void simple_check(void)
     for (unsigned p = 0; p < NB_ELEMS(packets); p++) {
         assert(wl.next_offset == offset);
         int len = strlen(packets[p]) + 1;
-        assert(PROTO_OK == pkt_wait_list_add(&wl, offset, offset+len, true, NULL, 0, (uint8_t *)packets[p], len, len, &now, NULL));
+        assert(PROTO_OK == pkt_wait_list_add(&wl, offset, offset+len, true, NULL, 0, (uint8_t *)packets[p], len, len, &now, NULL, len, (uint8_t *)packets[p]));
         offset += len;
         assert(LIST_EMPTY(&wl.pkts));
     }
@@ -127,7 +128,7 @@ static void reorder_check(void)
         unsigned offset = 0;
         for (unsigned pp = 0; pp < p; pp++) offset += strlen(packets[pp]) + 1;
         int len = strlen(packets[p]) + 1;
-        assert(PROTO_OK == pkt_wait_list_add(&wl, offset, offset+len, true, NULL, 0, (uint8_t *)packets[p], len, len, &now, NULL));
+        assert(PROTO_OK == pkt_wait_list_add(&wl, offset, offset+len, true, NULL, 0, (uint8_t *)packets[p], len, len, &now, NULL, len, (uint8_t *)packets[p]));
     }
 
     // Check we parsed everything
@@ -142,11 +143,11 @@ static void gap_check(void)
 {
     wl_check_setup();
 
-    assert(PROTO_OK == pkt_wait_list_add(&wl, 999998, 999999, true, NULL, 0, (uint8_t *)"X", 1, 1, &now, NULL));
-    assert(PROTO_OK == pkt_wait_list_add(&wl, 999997, 999998, true, NULL, 0, (uint8_t *)"X", 1, 1, &now, NULL));
+    assert(PROTO_OK == pkt_wait_list_add(&wl, 999998, 999999, true, NULL, 0, (uint8_t *)"X", 1, 1, &now, NULL, 1, (uint8_t *)"X"));
+    assert(PROTO_OK == pkt_wait_list_add(&wl, 999997, 999998, true, NULL, 0, (uint8_t *)"X", 1, 1, &now, NULL, 1, (uint8_t *)"X"));
     char packet[] = "0. Maitre corbeau sur un arbre perche tenait en son bec un fromage";
     int const len = strlen(packet) + 1;
-    assert(PROTO_OK == pkt_wait_list_add(&wl, 0, 0+len, true, NULL, 0, (uint8_t *)packet, len, len, &now, NULL));
+    assert(PROTO_OK == pkt_wait_list_add(&wl, 0, 0+len, true, NULL, 0, (uint8_t *)packet, len, len, &now, NULL, len, (uint8_t *)packet));
     assert(LIST_EMPTY(&wl.pkts));
     assert(next_msg == 1);
 
@@ -160,6 +161,7 @@ static void gap_check(void)
 int main(void)
 {
     log_init();
+    mallocer_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("pkt_wait_list_check.log");
     proto_init();
@@ -171,6 +173,7 @@ int main(void)
     gap_check();
 
     proto_fini();
+    mallocer_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

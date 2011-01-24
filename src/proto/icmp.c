@@ -217,7 +217,7 @@ static bool icmp_is_err(uint8_t type)
     return true;
 }
 
-static enum proto_parse_status icmp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status icmp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct icmp_hdr *icmphdr = (struct icmp_hdr *)packet;
 
@@ -235,7 +235,7 @@ static enum proto_parse_status icmp_parse(struct parser *parser, struct proto_in
         }
     }
 
-    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn);
+    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
 }
 
 /*

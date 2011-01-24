@@ -132,7 +132,7 @@ static int look_for_delim(size_t *tok_len, size_t *delim_len, char const *start,
 static void liner_skip_delimiters(struct liner *liner)
 {
     if (! liner->delims->collapse) return;
-    
+
     size_t const rem = liner->rem_size - liner->tok_size - liner->delim_size;
     char const *const after = liner->start + liner->tok_size + liner->delim_size;
 

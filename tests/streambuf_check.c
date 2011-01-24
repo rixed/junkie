@@ -17,7 +17,7 @@ static struct streambuf sbuf;
 static unsigned nb_calls = 0;
 static unsigned nb_chunks = 0;
 
-enum proto_parse_status parse(struct parser *parser, struct proto_info unused_ *info, unsigned way, uint8_t const *packet, size_t cap_len, size_t unused_ wire_len, struct timeval const unused_ *now, proto_okfn_t unused_ *okfn)
+enum proto_parse_status parse(struct parser *parser, struct proto_info unused_ *info, unsigned way, uint8_t const *packet, size_t cap_len, size_t unused_ wire_len, struct timeval const unused_ *now, proto_okfn_t unused_ *okfn, size_t unused_ tot_cap_len, uint8_t const unused_ *tot_packet)
 {
     struct streambuf *sbuf = (struct streambuf *)parser;
 
@@ -61,7 +61,7 @@ static void check_simple(void)
 
     for (unsigned p = 0; p < NB_ELEMS(payloads); p++) {
         size_t len = strlen(payloads[p]);
-        enum proto_parse_status status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0, (uint8_t *)payloads[p], len, len, NULL, NULL);   // in actual situations the streambuf will be a member of the overloaded parser
+        enum proto_parse_status status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0, (uint8_t *)payloads[p], len, len, NULL, NULL, len, (uint8_t *)payloads[p]);   // in actual situations the streambuf will be a member of the overloaded parser
         assert(status == PROTO_OK);
     }
 
@@ -79,7 +79,7 @@ static void check_vicious(void)
     for (unsigned p = 0; p < NB_ELEMS(payloads); p++) {
         size_t len = strlen(payloads[p]);
         for (unsigned c = 0; c < len; c++) {
-            enum proto_parse_status status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0, (uint8_t *)(payloads[p]+c), 1, 1, NULL, NULL);
+            enum proto_parse_status status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0, (uint8_t *)(payloads[p]+c), 1, 1, NULL, NULL, 1, (uint8_t *)(payloads[p]+c));
             assert(status == PROTO_OK);
         }
     }
@@ -98,9 +98,9 @@ static void check_drop(void)
     assert(len > 80);
 
     enum proto_parse_status status;
-    status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0, (uint8_t *)"A", 1, 1, NULL, NULL);   // A first packet for triggering the buffering
+    status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0, (uint8_t *)"A", 1, 1, NULL, NULL, 1, (uint8_t *)"A");   // A first packet for triggering the buffering
     assert(status == PROTO_OK);
-    status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0, (uint8_t *)payload, len, len, NULL, NULL);   // then a long one
+    status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0, (uint8_t *)payload, len, len, NULL, NULL, len, (uint8_t *)payload);   // then a long one
     assert(status == PROTO_PARSE_ERR);
 
     teardown();

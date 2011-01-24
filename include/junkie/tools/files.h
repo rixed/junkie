@@ -2,6 +2,9 @@
 #define FILE_H_100412
 #include <stdbool.h>
 #include <stdarg.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 /** @file
  * @brief Some utilities to access the file system, with common errors handled or logged.
@@ -29,13 +32,24 @@ int file_open(char const *file_name, int flags);
 /// Close a file, logging on error.
 void file_close(int fd);
 
+/// Unlink a file
+int file_unlink(char const *file_name);
+
 /// Returns the file size, logging on error.
 ssize_t file_size(char const *file_name);
+
+/** Writing onto a file, logging on error and retrying on EINTR.
+ * @return 0 on success, -1 on error.
+ */
+int file_write(int fd, void const *buf, size_t len);
 
 /** Reading a file, logging on error and retrying on EINTR.
  * @return the number of read bytes on success, -1 on error.
  */
-ssize_t file_read(int fd, char *buf, size_t len);
+ssize_t file_read(int fd, void *buf, size_t len);
+
+/// Seek into a file, logging on error.
+ssize_t file_seek(int fd, off_t offset, int whence);
 
 /// Return the whole content of a file (malloced).
 void *file_load(char const *file_name, size_t *len_);

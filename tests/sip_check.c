@@ -86,7 +86,7 @@ static struct parse_test {
 
 static unsigned cur_test;
 
-static int sip_info_check(struct proto_info const *info_)
+static int sip_info_check(struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
     // Check info against parse_tests[cur_test].expected
     struct sip_proto_info const *const info = DOWNCAST(info_, info, sip_proto_info);
@@ -120,7 +120,7 @@ static void parse_check(void)
 
     for (cur_test = 0; cur_test < NB_ELEMS(parse_tests); cur_test++) {
         size_t const len = strlen((char *)parse_tests[cur_test].packet);
-        enum proto_parse_status ret = sip_parse(sip_parser, NULL, 0, parse_tests[cur_test].packet, len, len, &now, sip_info_check);
+        enum proto_parse_status ret = sip_parse(sip_parser, NULL, 0, parse_tests[cur_test].packet, len, len, &now, sip_info_check, len, parse_tests[cur_test].packet);
         assert(ret == parse_tests[cur_test].ret);
     }
 
@@ -132,6 +132,7 @@ struct proto *proto_sdp;
 int main(void)
 {
     log_init();
+    mallocer_init();
     proto_init();
     udp_init();
     tcp_init();
@@ -148,6 +149,7 @@ int main(void)
     tcp_fini();
     udp_fini();
     proto_fini();
+    mallocer_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

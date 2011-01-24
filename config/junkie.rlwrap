@@ -2,6 +2,7 @@ array-names
 array-stats
 hash-names
 hash-stats
+capfile-names
 check-license
 close-iface
 csv-variables

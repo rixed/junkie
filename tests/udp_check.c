@@ -5,6 +5,7 @@
 #include <time.h>
 #include <junkie/cpp.h>
 #include <junkie/tools/timeval.h>
+#include <junkie/tools/mallocer.h>
 #include "lib.h"
 #include "proto/udp.c"
 
@@ -31,7 +32,7 @@ static struct parse_test {
 
 static unsigned current_test;
 
-static int udp_info_check(struct proto_info const *info_)
+static int udp_info_check(struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
     // Check info against parse_tests[current_test].expected
     struct udp_proto_info const *const info = DOWNCAST(info_, info, udp_proto_info);
@@ -52,7 +53,7 @@ static void parse_check(void)
     assert(udp_parser);
 
     for (current_test = 0; current_test < NB_ELEMS(parse_tests); current_test++) {
-        int ret = udp_parse(udp_parser, NULL, 0, parse_tests[current_test].packet, parse_tests[current_test].size, parse_tests[current_test].size, &now, udp_info_check);
+        int ret = udp_parse(udp_parser, NULL, 0, parse_tests[current_test].packet, parse_tests[current_test].size, parse_tests[current_test].size, &now, udp_info_check, parse_tests[current_test].size, parse_tests[current_test].packet);
         assert(0 == ret);
     }
 
@@ -62,6 +63,7 @@ static void parse_check(void)
 int main(void)
 {
     log_init();
+    mallocer_init();
     udp_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("udp_check.log");
@@ -70,6 +72,7 @@ int main(void)
     stress_check(proto_udp);
 
     udp_fini();
+    mallocer_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

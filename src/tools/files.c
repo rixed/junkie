@@ -120,7 +120,7 @@ int chusergroup(const char * const path, const char * const user, const char * c
 
 int file_open(char const *file_name, int flags)
 {
-    int fd = open(file_name, flags);
+    int fd = open(file_name, flags, 0644);
     SLOG(LOG_DEBUG, "Opening file %s into fd %d", file_name, fd);
     if (fd < 0) {
         SLOG(LOG_ERR, "Cannot open file '%s' : %s", file_name, strerror(errno));
@@ -138,22 +138,59 @@ void file_close(int fd)
     }
 }
 
+int file_unlink(char const *file_name)
+{
+    SLOG(LOG_DEBUG, "Unlinking file '%s'", file_name);
+
+    if (0 != unlink(file_name)) {
+        SLOG(LOG_ERR, "Cannot unlink %s: %s", file_name, strerror(errno));
+        return -1;
+    }
+    
+    return 0;
+}
+
+ssize_t file_seek(int fd, off_t offset, int whence)
+{
+    off_t sz = lseek(fd, offset, whence);
+    if (sz == (off_t)-1) {
+        SLOG(LOG_ERR, "Cannot lseek in fd %d: %s", fd, strerror(errno));
+        return -1;
+    }
+    return sz;
+}
+
 ssize_t file_size(char const *file_name)
 {
     int fd = file_open(file_name, O_RDONLY);
     if (fd < 0) return -1;
 
-    off_t sz = lseek(fd, 0, SEEK_END);
-    if (sz == (off_t)-1) {
-        SLOG(LOG_ERR, "Cannot lseek at end of '%s' : %s", file_name, strerror(errno));
-        return -1;
-    }
+    off_t sz = file_seek(fd, 0, SEEK_END);
+    if (sz == (off_t)-1) return -1;
 
     file_close(fd);
     return sz;
 }
 
-ssize_t file_read(int fd, char *buf, size_t len)
+int file_write(int fd, void const *buf, size_t len)
+{
+    SLOG(LOG_DEBUG, "Writing %zu bytes onto fd %d", len, fd);
+    size_t r = 0;
+
+    while (r < len) {
+        ssize_t ret = write(fd, buf+r, len-r);
+        if (ret >= 0) {
+            r += ret;
+        } else if (errno != EINTR) {
+            SLOG(LOG_ERR, "Cannot read %zu bytes on fd %d : %s", len, fd, strerror(errno));
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+ssize_t file_read(int fd, void *buf, size_t len)
 {
     SLOG(LOG_DEBUG, "Reading %zu bytes from fd %d", len, fd);
     size_t r = 0;

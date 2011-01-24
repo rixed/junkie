@@ -100,7 +100,7 @@ static void check_for_passv(struct ip_proto_info const *ip, struct parser *reque
     }
 }
 
-static enum proto_parse_status ftp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status ftp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     // Sanity Checks
     ASSIGN_INFO_CHK(tcp, parent, -1);
@@ -116,7 +116,7 @@ static enum proto_parse_status ftp_parse(struct parser *parser, struct proto_inf
 
     check_for_passv(ip, parser, packet, cap_len, now);
 
-    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn);
+    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
 }
 
 /*

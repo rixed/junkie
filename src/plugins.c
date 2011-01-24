@@ -30,7 +30,7 @@ static char const Id[] = "$Id: f64d604a02d098feec7f6f1ad4a7f3a641107ac4 $";
 
 struct mutex plugins_mutex;
 
-struct plugins plugins = LIST_HEAD_INITIALIZER(&plugins);
+struct plugins plugins = LIST_HEAD_INITIALIZER(plugins);
 
 static bool really_unload_plugins = true;
 EXT_PARAM_RW(really_unload_plugins, "really-unload-plugins", bool, "Should we go as far as calling dlclose when unloading a plugin ? If so, then some debug symbols may be missing.")

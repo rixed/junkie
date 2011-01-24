@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <time.h>
 #include <junkie/cpp.h>
+#include <junkie/tools/mallocer.h>
 #include "lib.h"
 #include "proto/tcp.c"
 
@@ -65,7 +66,7 @@ static struct parse_test {
 
 static unsigned current_test;
 
-static int tcp_info_check(struct proto_info const *info_)
+static int tcp_info_check(struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
     // Check info against parse_tests[current_test].expected
     struct tcp_proto_info const *const info = DOWNCAST(info_, info, tcp_proto_info);
@@ -87,7 +88,7 @@ static void parse_check(void)
 
     for (current_test = 0; current_test < NB_ELEMS(parse_tests); current_test++) {
         size_t const len = parse_tests[current_test].size;
-        int ret = tcp_parse(tcp_parser, NULL, 0, parse_tests[current_test].packet, len, len, &now, tcp_info_check);
+        int ret = tcp_parse(tcp_parser, NULL, 0, parse_tests[current_test].packet, len, len, &now, tcp_info_check, len, parse_tests[current_test].packet);
         assert(0 == ret);
     }
 
@@ -120,7 +121,7 @@ static void term_check(void)
         assert(first || mux_parser->nb_children == 1);
         first = false;
 
-        int ret = tcp_parser->proto->ops->parse(tcp_parser, NULL, way, stream.packet + 20 /* skip ip */, sz - 20, sz - 20, &now, NULL);
+        int ret = tcp_parser->proto->ops->parse(tcp_parser, NULL, way, stream.packet + 20 /* skip ip */, sz - 20, sz - 20, &now, NULL, sz, stream.packet);
         assert(0 == ret);
     }
     assert(sz == 0);
@@ -135,6 +136,7 @@ static void term_check(void)
 int main(void)
 {
     log_init();
+    mallocer_init();
     hash_init();
     ext_init();
     proto_init();
@@ -153,6 +155,7 @@ int main(void)
     proto_fini();
     hash_fini();
     ext_fini();
+    mallocer_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

@@ -35,7 +35,7 @@ static char const Id[] = "$Id: 95a67137f8731eff13f99892ff17970aa6f224b8 $";
 
 char version_string[1024];
 
-struct ext_functions ext_functions = SLIST_HEAD_INITIALIZER(&ext_functions);
+struct ext_functions ext_functions = SLIST_HEAD_INITIALIZER(ext_functions);
 
 void ext_function_ctor(struct ext_function *ef, char const *name, int req, int opt, int rest, SCM (*impl)(), char const *doc)
 {
@@ -110,7 +110,7 @@ SCM g_get_parameter_value(SCM name_)
  * Init
  */
 
-void ext_rebind(void)
+static void *ext_rebind_from_guile(void unused_ *dummy)
 {
     // All defined functions
     struct ext_function *ef;
@@ -138,6 +138,8 @@ void ext_rebind(void)
         }
         param->bound = true;
     }
+
+    return SUCCESS;
 }
 
 static void *init_scm_extensions(void unused_ *dummy)
@@ -153,7 +155,7 @@ static void *init_scm_extensions(void unused_ *dummy)
     scm_c_export("junkie-version", NULL);
 
     // bind all ext functions and parameters
-    ext_rebind();
+    (void)ext_rebind_from_guile(NULL);
 
     return SUCCESS;
 }
@@ -162,6 +164,12 @@ static void *eval_string(void *str)
 {
     (void)scm_c_eval_string(str);
     return SUCCESS;
+}
+
+int ext_rebind(void)
+{
+    if (SUCCESS != scm_with_guile(ext_rebind_from_guile, NULL)) return -1;
+    return 0;
 }
 
 int ext_eval(char const *expression)

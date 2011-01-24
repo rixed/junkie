@@ -32,6 +32,7 @@
 #include <junkie/tools/mutex.h>
 #include <junkie/tools/ext.h>
 #include <junkie/cpp.h>
+#include <junkie/capfile.h>
 // For initers/finiters
 #include <junkie/tools/redim_array.h>
 #include <junkie/tools/mallocer.h>
@@ -84,7 +85,7 @@ static struct {
     I(dns),         I(rtcp),        I(dns_tcp),
     I(ftp),         I(mgcp),        I(sdp),
     I(postgres),    I(mysql),       I(tns),
-    I(pkt_source),  I(cli),
+    I(pkt_source),  I(cli),         I(capfile),
 #   undef I
 };
 
@@ -191,14 +192,14 @@ int main(int nb_args, char **args)
 
     // Default command line arguments
     static struct cli_opt main_opts[] = {
-        { { "version", "v" }, false, "display version",         CLI_CALL,     { .call = opt_version } },
-        { { "config", "c" },  true,  "load configuration file", CLI_CALL,     { .call = opt_config } },
-        { { "daemon", "b" },  false, "daemonize junkie",        CLI_SET_BOOL, { .boolean = &in_background } },
-        { { "exec", "e" },    true,  "execute given command",   CLI_CALL,     { .call = ext_eval } },
-        { { "log", "l" },     true,  "log into this file",      CLI_CALL,     { .call = opt_logfile } },
-        { { "load", "p" },    true,  "load this plugin",        CLI_CALL,     { .call = opt_plugin } },
-        { { "iface", "i" },   true,  "listen this interface",   CLI_CALL,     { .call = opt_iface } },
-        { { "read", "r" },    true,  "read this pcap file",     CLI_CALL,     { .call = opt_read } },
+        { { "version", "v" }, false, "display version",               CLI_CALL,     { .call = opt_version } },
+        { { "config", "c" },  true,  "load configuration file",       CLI_CALL,     { .call = opt_config } },
+        { { "syslog", NULL }, false, "use syslog for critical msgs",  CLI_SET_BOOL, { .boolean = &use_syslog } },
+        { { "exec", "e" },    true,  "execute given command",         CLI_CALL,     { .call = ext_eval } },
+        { { "log", "l" },     true,  "log into this file",            CLI_CALL,     { .call = opt_logfile } },
+        { { "load", "p" },    true,  "load this plugin",              CLI_CALL,     { .call = opt_plugin } },
+        { { "iface", "i" },   true,  "listen this interface",         CLI_CALL,     { .call = opt_iface } },
+        { { "read", "r" },    true,  "read this pcap file",           CLI_CALL,     { .call = opt_read } },
     };
 
     cli_register(NULL, main_opts, NB_ELEMS(main_opts));
@@ -207,27 +208,6 @@ int main(int nb_args, char **args)
 
     set_thread_name("J-main");
     openlog("junkie", LOG_CONS | LOG_NOWAIT | LOG_PID, LOG_USER);
-
-    if (in_background) {
-        pid_t pid, sid;
-        pid = fork();
-
-        if (pid < 0) {
-            DIE("fork() failed.");
-        }
-
-        if (pid != 0) {
-            /* parent process */
-            return EXIT_SUCCESS;
-        } else {
-            /* child process */
-            umask(0);
-            sid = setsid();
-            if (sid < 0) {
-                DIE("setsid() failed child process couldn't detach from its parent");
-            }
-        }
-    }
 
     // The log file is easier to read if distinct sessions are clearly separated :
     SLOG(LOG_INFO, "-----  Starting  -----");

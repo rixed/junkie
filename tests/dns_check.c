@@ -5,6 +5,7 @@
 #include <time.h>
 #include <junkie/cpp.h>
 #include <junkie/tools/miscmacs.h>
+#include <junkie/tools/mallocer.h>
 #include <junkie/proto/udp.h>
 #include <junkie/proto/tcp.h>
 #include "lib.h"
@@ -71,7 +72,7 @@ static struct parse_test {
 
 static unsigned current_test;
 
-static int dns_info_check(struct proto_info const *info_)
+static int dns_info_check(struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
 	struct dns_proto_info const *const info = DOWNCAST(info_, info, dns_proto_info);
 	struct dns_proto_info const *const expected = &parse_tests[current_test].expected;
@@ -99,7 +100,7 @@ static void parse_check(void)
     for (current_test = 0; current_test < NB_ELEMS(parse_tests); current_test++) {
         struct parse_test const *test = parse_tests + current_test;
         printf("Testing packet %u...", current_test);
-        int ret = dns_parse(dns_parser, NULL, 0, test->packet, test->size, test->size, &now, dns_info_check);
+        int ret = dns_parse(dns_parser, NULL, 0, test->packet, test->size, test->size, &now, dns_info_check, test->size, test->packet);
         assert(0 == ret);
 		printf("Ok\n");
     }
@@ -169,6 +170,7 @@ static void qname_check(void)
 int main(void)
 {
     log_init();
+    mallocer_init();
     udp_init();
     tcp_init();
     dns_init();
@@ -182,6 +184,7 @@ int main(void)
     dns_fini();
     tcp_fini();
     udp_fini();
+    mallocer_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

@@ -51,6 +51,13 @@ int64_t timeval_sub(struct timeval const *a, struct timeval const *b)
     return a_ms - b_ms;
 }
 
+int64_t timeval_age(struct timeval const *tv)
+{
+    struct timeval now;
+    timeval_set_now(&now);
+    return timeval_sub(&now, tv);
+}
+
 int timeval_cmp(struct timeval const *a, struct timeval const *b)
 {
     if (a->tv_sec < b->tv_sec) return -1;

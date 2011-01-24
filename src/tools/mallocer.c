@@ -30,7 +30,8 @@
 
 static char const Id[] = "$Id: ad2fe95c8bace3f7f278f0b1bcfde0f0639cf1ba $";
 
-struct mallocers mallocers = SLIST_HEAD_INITIALIZER(&mallocers);
+struct mallocers mallocers = SLIST_HEAD_INITIALIZER(mallocers);
+struct mutex mallocers_lock;
 
 /*
  * Tools
@@ -209,6 +210,8 @@ static SCM g_mallocer_blocks(SCM name_)
 
 void mallocer_init(void)
 {
+    mutex_ctor(&mallocers_lock, "mallocers");
+
     ext_function_ctor(&sg_malloc_stats,
         "libc-mem-stats", 0, 0, 0, g_malloc_stats,
         "(libc-mem-stats) : display the equivalent of mallinfo.\n"
@@ -232,4 +235,5 @@ void mallocer_init(void)
 
 void mallocer_fini(void)
 {
+    mutex_dtor(&mallocers_lock);
 }

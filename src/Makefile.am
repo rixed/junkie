@@ -13,7 +13,8 @@ junkie_SOURCES = \
 	pkt_source.c \
 	pkt_source.h \
 	plugins.c \
-	plugins.h
+	plugins.h \
+	capfile.c
 
 junkie_LDADD = proto/libproto.la tools/libtools.la
 junkie_LDFLAGS = -export-dynamic

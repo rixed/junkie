@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <junkie/cpp.h>
+#include <junkie/tools/mallocer.h>
 #include "lib.h"
 #include "proto/icmp.c"
 #include "proto/icmpv6.c"
@@ -91,7 +92,7 @@ static struct parse_test {
 
 static unsigned current_test;
 
-static int icmp_info_check(struct proto_info const *info_)
+static int icmp_info_check(struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
     struct icmp_proto_info const *const info = DOWNCAST(info_, info, icmp_proto_info);
     struct icmp_proto_info const *const expected = &parse_tests[current_test].expected;
@@ -129,8 +130,8 @@ static void parse_check(void)
         struct parse_test const *const test = parse_tests + current_test;
         printf("Test packet %u... ", current_test);
         int ret = test->version == 4 ?
-            icmp_parse(icmp_parser, NULL, 0, test->packet, test->size, test->size, &now, icmp_info_check) :
-            icmpv6_parse(icmpv6_parser, NULL, 0, test->packet, test->size, test->size, &now, icmp_info_check);
+            icmp_parse(icmp_parser, NULL, 0, test->packet, test->size, test->size, &now, icmp_info_check, test->size, test->packet) :
+            icmpv6_parse(icmpv6_parser, NULL, 0, test->packet, test->size, test->size, &now, icmp_info_check, test->size, test->packet);
         assert(0 == ret);
         printf("Ok\n");
     }
@@ -142,6 +143,7 @@ static void parse_check(void)
 int main(void)
 {
     log_init();
+    mallocer_init();
     icmp_init();
     icmpv6_init();
     log_set_level(LOG_DEBUG, NULL);
@@ -153,6 +155,7 @@ int main(void)
 
     icmpv6_fini();
     icmp_fini();
+    mallocer_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

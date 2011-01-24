@@ -53,8 +53,9 @@ extern char version_string[1024];
 int ext_eval(char const *);
 
 /// Bind all defined ext_functions and ext_parameters in the extension language.
-/** Might be called several times to bind new extensions loaded dynamically. */
-void ext_rebind(void);
+/** Might be called several times to bind new extensions loaded dynamically.
+ * @return -1 on error, 0 on success. */
+int ext_rebind(void);
 
 /// Utility to convert from guile to a tempstr (@see tempstr.h).
 char *scm_to_tempstr(SCM value);

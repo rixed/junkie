@@ -270,13 +270,13 @@ struct mux_subparser *ip_subparser_lookup(struct parser *parser, struct proto *p
  * But we also want to acknoledge the several IP fragments that were received (but the
  * first one that count for the whole payload), so we also must call okfn for each IP info.
  * The pkt_wait_list_dtor will do this for us. */
-static void reassemble(struct ip_reassembly *reassembly, struct proto_info *parent, unsigned way, struct timeval const *now, proto_okfn_t *okfn)
+static void reassemble(struct ip_reassembly *reassembly, struct proto_info *parent, unsigned way, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     SLOG(LOG_DEBUG, "Reassembling ip_reassembly@%p", reassembly);
 
     uint8_t *payload = pkt_wait_list_reassemble(&reassembly->wl, 0, reassembly->end_offset);
     if (payload) {  // an obvious reason for !payload this would be that cap_len was not big enough
-        if (PROTO_OK == proto_parse(reassembly->wl.parser, parent, way, payload, reassembly->end_offset, reassembly->end_offset, now, okfn)) {
+        if (PROTO_OK == proto_parse(reassembly->wl.parser, parent, way, payload, reassembly->end_offset, reassembly->end_offset, now, okfn, tot_cap_len, tot_packet)) {
             // Remove the last fragment so that proto_parse() is not called for it
             struct pkt_wait *const pkt = LIST_FIRST(&reassembly->wl.pkts);
             if (pkt) pkt_wait_del(pkt, &reassembly->wl);
@@ -286,7 +286,7 @@ static void reassemble(struct ip_reassembly *reassembly, struct proto_info *pare
     ip_reassembly_dtor(reassembly, now);
 }
 
-static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct ip_hdr const *iphdr = (struct ip_hdr *)packet;
@@ -357,21 +357,21 @@ static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info
             reassembly->got_last = 1;
             reassembly->end_offset = offset + frag_len;
         }
-        if (PROTO_OK != pkt_wait_list_add(&reassembly->wl, offset, offset + frag_len, false, &info.info, info.way, packet + iphdr_len, cap_len - iphdr_len, frag_len, now, okfn)) {
+        if (PROTO_OK != pkt_wait_list_add(&reassembly->wl, offset, offset + frag_len, false, &info.info, info.way, packet + iphdr_len, cap_len - iphdr_len, frag_len, now, okfn, tot_cap_len, tot_packet)) {
             goto fallback;  // should not happen
         }
         if (reassembly->got_last && pkt_wait_list_is_complete(&reassembly->wl, 0, reassembly->end_offset)) {
-            reassemble(reassembly, parent, way, now, okfn);
+            reassemble(reassembly, parent, way, now, okfn, tot_cap_len, tot_packet);
         }
         return PROTO_OK;
     }
 
     // Parse it at once
-    if (PROTO_OK != proto_parse(subparser->parser, &info.info, info.way, packet + iphdr_len, cap_len - iphdr_len, wire_len - iphdr_len, now, okfn)) goto fallback;
+    if (PROTO_OK != proto_parse(subparser->parser, &info.info, info.way, packet + iphdr_len, cap_len - iphdr_len, wire_len - iphdr_len, now, okfn, tot_cap_len, tot_packet)) goto fallback;
     return PROTO_OK;
 
 fallback:
-    (void)proto_parse(NULL, &info.info, info.way, packet + iphdr_len, cap_len - iphdr_len, wire_len - iphdr_len, now, okfn);
+    (void)proto_parse(NULL, &info.info, info.way, packet + iphdr_len, cap_len - iphdr_len, wire_len - iphdr_len, now, okfn, tot_cap_len, tot_packet);
     return PROTO_OK;
 }
 

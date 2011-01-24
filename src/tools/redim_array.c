@@ -26,7 +26,7 @@
 
 static char const Id[] = "$Id: 0107bc35f6c8628d004562fe85a4299e95b58648 $";
 
-struct redim_arrays redim_arrays = LIST_HEAD_INITIALIZER(&redim_arrays);
+struct redim_arrays redim_arrays = LIST_HEAD_INITIALIZER(redim_arrays);
 
 /*
  * Array chunks

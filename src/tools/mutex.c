@@ -42,7 +42,9 @@ void mutex_lock(struct mutex *mutex)
     assert(mutex->name);
     SLOG(LOG_DEBUG, "Locking %s", mutex_name(mutex));
     int err = pthread_mutex_lock(&mutex->mutex);
-    if (err) {
+    if (! err) {
+        SLOG(LOG_DEBUG, "Locked %s", mutex_name(mutex));
+    } else {
         SLOG(LOG_ERR, "Cannot lock %s : %s", mutex_name(mutex), strerror(err));
         // so be it
     }
@@ -53,7 +55,9 @@ void mutex_unlock(struct mutex *mutex)
     assert(mutex->name);
     SLOG(LOG_DEBUG, "Unlocking %s", mutex_name(mutex));
     int err = pthread_mutex_unlock(&mutex->mutex);
-    if (err) {
+    if (! err) {
+        SLOG(LOG_DEBUG, "Unlocked %s", mutex_name(mutex));
+    } else {
         SLOG(LOG_ERR, "Cannot unlock %s : %s", mutex_name(mutex), strerror(err));
     }
 }

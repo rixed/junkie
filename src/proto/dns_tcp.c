@@ -38,7 +38,7 @@ static char const Id[] = "$Id: da1898e810e979d6a571be386ad1ac6163b7af5f $";
  * Parse
  */
 
-static enum proto_parse_status dns_tcp_parse(struct parser unused_ *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status dns_tcp_parse(struct parser unused_ *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     size_t const hlen = 2;
     size_t offset = 0;
@@ -53,7 +53,7 @@ static enum proto_parse_status dns_tcp_parse(struct parser unused_ *parser, stru
         struct parser *subparser = proto_dns->ops->parser_new(proto_dns, now);
         if (! subparser) break;
 
-        int err = proto_parse(subparser, parent, way, packet+offset, cap_len-offset, wire_len-offset, now, okfn);
+        int err = proto_parse(subparser, parent, way, packet+offset, cap_len-offset, wire_len-offset, now, okfn, tot_cap_len, tot_packet);
         parser_unref(subparser);
         if (err) break;
 

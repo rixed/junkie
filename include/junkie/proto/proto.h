@@ -85,7 +85,7 @@ struct proto_info;
 /// The type for the continuation function
 /** This continuation function will actually call the parse_callback()
  * function of every loaded plugin. */
-typedef int proto_okfn_t(struct proto_info const *);
+typedef int proto_okfn_t(struct proto_info const *, size_t tot_cap_len, uint8_t const *tot_packet);
 
 /// The various possible exit codes of the parse functions
 enum proto_parse_status {
@@ -106,7 +106,9 @@ typedef enum proto_parse_status parse_fun(
     size_t cap_len,             ///< How many bytes are present in packet
     size_t wire_len,            ///< How many bytes were present on the wire
     struct timeval const *now,  ///< The current time
-    proto_okfn_t *okfn          ///< The "continuation"
+    proto_okfn_t *okfn,         ///< The "continuation"
+    size_t tot_cap_len,         ///< The capture length of the total packet (to be passed to okfn)
+    uint8_t const *tot_packet   ///< The total packet (to be passed to okfn)
 );
 
 /// A protocol implementation.
@@ -415,8 +417,7 @@ struct mux_subparser {
     struct parser *parser;                  ///< The actual parser
     struct parser *requestor;               ///< The parser that requested its creation
     struct mux_parser *mux_parser;          ///< Backlink to the mux_parser in order to access nb_children
-    LIST_ENTRY(mux_subparser) h_entry;      ///< Its entry in the hash
-    LIST_ENTRY(mux_subparser) doom_entry;   ///< Entry in the list of doomed mux_subparsers
+    LIST_ENTRY(mux_subparser) entry;        ///< Its entry either in the hash or in the doomed mux_subparsers entry (depending on the doomed flag)
     bool doomed;                            ///< If this mux_subparser is tagged for deletion
     char key[];                             ///< The key used to identify it (beware of the variable size)
 };

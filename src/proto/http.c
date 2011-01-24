@@ -141,7 +141,7 @@ static int http_extract_host(unsigned unused_ field, struct liner *liner, void *
     return 0;
 }
 
-static enum proto_parse_status http_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn)
+static enum proto_parse_status http_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     // Sanity checks + Parse
     static struct httper_command const commands[] = {
@@ -181,7 +181,7 @@ static enum proto_parse_status http_parse(struct parser *parser, struct proto_in
 
     // TODO: use content type to choose a subparser ?
 
-    return proto_parse(NULL, &info.info, way, packet + httphdr_len, cap_len - httphdr_len, wire_len - httphdr_len, now, okfn);
+    return proto_parse(NULL, &info.info, way, packet + httphdr_len, cap_len - httphdr_len, wire_len - httphdr_len, now, okfn, tot_cap_len, tot_packet);
 }
 
 /*

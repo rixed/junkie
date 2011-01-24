@@ -39,7 +39,7 @@
 
 static char const Id[] = "$Id: 39b7df38bd54e40f37c33511c3ab617d6b719437 $";
 
-static LIST_HEAD(pkt_sources, pkt_source) pkt_sources = LIST_HEAD_INITIALIZER(&pkt_sources);
+static LIST_HEAD(pkt_sources, pkt_source) pkt_sources = LIST_HEAD_INITIALIZER(pkt_sources);
 static struct mutex pkt_sources_lock;
 static volatile sig_atomic_t terminating = 0;
 
@@ -95,12 +95,12 @@ static char const *pkt_source_guile_name(struct pkt_source *pkt_source)
  * For now both iface anf files are treated the same.
  */
 
-static int parser_callbacks(struct proto_info const *last)
+static int parser_callbacks(struct proto_info const *last, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct plugin *plugin;
     mutex_lock(&plugins_mutex);
     LIST_FOREACH(plugin, &plugins, entry) {
-        if (plugin->parse_callback) plugin->parse_callback(last);
+        if (plugin->parse_callback) plugin->parse_callback(last, tot_cap_len, tot_packet);
     }
     mutex_unlock(&plugins_mutex);
     return 0;
@@ -140,7 +140,7 @@ static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, 
     SLOG(LOG_DEBUG, "Received a new packet from packet source %s, wire-len: %u", pkt_source_name(pkt_source), header->len);
 
     if (header->len == 0) return;   // should not happen, but does occur sometime
- 
+
     mutex_lock(&cap_parser_lock);
 
     if (! cap_parser) {
@@ -173,10 +173,11 @@ static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, 
     }
 
     // due to the frame structure, cap parser does not need cap_len nor wire_len
-    (void)proto_parse(cap_parser, NULL, 0, (uint8_t *)&frame, 0, 0, &header->ts, parser_callbacks);
-    mutex_unlock(&cap_parser_lock);
+    (void)proto_parse(cap_parser, NULL, 0, (uint8_t *)&frame, 0, 0, &header->ts, parser_callbacks, frame.cap_len, frame.data);
 
     mux_subparser_kill_doomed();
+
+    mutex_unlock(&cap_parser_lock);
 }
 
 static void pkt_source_del(struct pkt_source *);
@@ -243,6 +244,7 @@ static void *sniffer_rt(struct pkt_source *pkt_source, pcap_handler callback)
             return NULL;
         }
         assert(res == 1);   // 0 should not happen
+        if (pkt_hdr->ts.tv_sec == 0) continue;   // should not happen, but does occur sometime (same goes for all other pcap header fields)
         pkt_source->nb_packets ++;
         if (! timeval_is_set(&file_start)) file_start = pkt_hdr->ts;
         sync_times(&file_start, &replay_start, &pkt_hdr->ts);
@@ -320,6 +322,7 @@ static int pkt_source_ctor(struct pkt_source *pkt_source, char const *name, pcap
     pkt_source->dev_id = dev_id_seq++;
     LIST_INSERT_HEAD(&pkt_sources, pkt_source, entry);
 
+    // FIXME: someone should care to pthread_join it at the end in order to release the few bytes storing the status (problem is the pkt_source is deleted in the spawned thread)
     if (0 != pthread_create(&pkt_source->sniffer, NULL, sniffer, pkt_source)) {
         SLOG(LOG_ERR, "Cannot start sniffer thread on pkt_source %s[?]@%p", pkt_source->name, pkt_source);  // Notice that pkt_source->instance is not inited yet
         LIST_REMOVE(pkt_source, entry);
@@ -381,11 +384,16 @@ static struct pkt_source *pkt_source_new_file(char const *filename, char const *
 
 static void quit_if_nothing_opened(void)
 {
+    bool do_exit = false;
+    mutex_lock(&pkt_sources_lock);
     if (LIST_EMPTY(&pkt_sources)) {
         EXT_LOCK(quit_when_done);
-        if (quit_when_done) exit(0);
+        do_exit = quit_when_done;
         EXT_UNLOCK(quit_when_done);
     }
+    mutex_unlock(&pkt_sources_lock);
+
+    if (do_exit) exit(0);
 }
 
 static struct pkt_source *pkt_source_new_if(char const *ifname, bool promisc, char const *filter, int buffer_size)
@@ -448,12 +456,13 @@ static void pkt_source_dtor(struct pkt_source *pkt_source)
 {
     SLOG(LOG_DEBUG, "Closing packet source %s (parsed %"PRIu64" packets)", pkt_source_name(pkt_source), pkt_source->nb_packets);
 
-    if (pkt_source->pcap_handle) pcap_close(pkt_source->pcap_handle);
-
+    mutex_lock(&pkt_sources_lock);
     LIST_REMOVE(pkt_source, entry);
+    mutex_unlock(&pkt_sources_lock);
+
+    if (pkt_source->pcap_handle) pcap_close(pkt_source->pcap_handle);
 }
 
-// Caller must own pkt_sources_lock
 static void pkt_source_del(struct pkt_source *pkt_source)
 {
     pkt_source_dtor(pkt_source);
@@ -662,7 +671,7 @@ void pkt_source_fini(void)
 
     // Waiting for the dispatcher threads to terminate
     // We don't wait forever since the thread executing this code might be the sniffer thread itself. (FIXME) (or change specs (junkie should perhaps not quit ?))
-    for (unsigned nb_try = 0; nb_try < 5; nb_try ++) {
+    for (unsigned nb_try = 0; nb_try < 3; nb_try ++) {
         mutex_lock(&pkt_sources_lock);
         bool is_empty = LIST_EMPTY(&pkt_sources);
         if (! is_empty) SLOG(LOG_DEBUG, "Waiting for termination of packet source '%s'", pkt_source_name(LIST_FIRST(&pkt_sources)));

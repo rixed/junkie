@@ -336,7 +336,7 @@ static void try_create_dual(struct sip_parser *sip_parser, struct sip_proto_info
     sip_parser->dual = DOWNCAST(DOWNCAST(dual_parser, parser, mux_parser), mux_parser, sip_parser);
 }
 
-static enum proto_parse_status sip_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t unused_ *okfn)
+static enum proto_parse_status sip_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t unused_ *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct sip_parser *sip_parser = DOWNCAST(mux_parser, mux_parser, sip_parser);
@@ -410,11 +410,11 @@ static enum proto_parse_status sip_parse(struct parser *parser, struct proto_inf
 
     if (! subparser) goto fallback;
 
-    if (0 != proto_parse(subparser->parser, &info.info, way, packet + siphdr_len, cap_len - siphdr_len, wire_len - siphdr_len, now, okfn)) goto fallback;
+    if (0 != proto_parse(subparser->parser, &info.info, way, packet + siphdr_len, cap_len - siphdr_len, wire_len - siphdr_len, now, okfn, tot_cap_len, tot_packet)) goto fallback;
     return PROTO_OK;
 
 fallback:
-    (void)proto_parse(NULL, &info.info, way, packet + siphdr_len, cap_len - siphdr_len, wire_len - siphdr_len, now, okfn);
+    (void)proto_parse(NULL, &info.info, way, packet + siphdr_len, cap_len - siphdr_len, wire_len - siphdr_len, now, okfn, tot_cap_len, tot_packet);
     return PROTO_OK;
 }
 

@@ -44,8 +44,10 @@ struct mallocer {
 #define MALLOCER_INIT(name_) \
     if (! mallocer_##name_.inited) { \
         mutex_ctor(&mallocer_##name_.mutex, "mallocer "#name_); \
+        mutex_lock(&mallocers_lock); \
         SLIST_INSERT_HEAD(&mallocers, &mallocer_##name_, entry); \
         mallocer_##name_.inited = true; \
+        mutex_unlock(&mallocers_lock); \
     }
 
 #define MALLOCER(name_) \
@@ -53,6 +55,7 @@ struct mallocer {
     MALLOCER_INIT(name_)
 
 extern SLIST_HEAD(mallocers, mallocer) mallocers;
+extern struct mutex mallocers_lock; ///< Lock to protect access to the above list of mallocers
 
 void *mallocer_alloc(struct mallocer *, size_t);
 void *mallocer_realloc(struct mallocer *, void *, size_t);

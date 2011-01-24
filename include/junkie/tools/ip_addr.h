@@ -23,6 +23,7 @@ struct ip_addr {
 #define IP4(a, b, c, d) { .family = AF_INET, .u.v4.s_addr = (a)|(b<<8)|(c<<16)|(d<<24) }
 
 int ip_addr_ctor_from_str(struct ip_addr *, char const *, size_t, int);
+int ip_addr_ctor_from_str_any(struct ip_addr *, char const *);
 void ip_addr_ctor_from_ip4(struct ip_addr *, uint32_t);
 void ip_addr_ctor_from_ip6(struct ip_addr *, struct in6_addr const *);
 int ip_addr_cmp(struct ip_addr const *, struct ip_addr const *);
@@ -35,5 +36,7 @@ bool ip_addr_is_routable(struct ip_addr const *);
 /* @note We can't tell if this is a subnet broadcast since we never know the subnet mask.
  */
 bool ip_addr_is_broadcast(struct ip_addr const *);
+
+bool ip_addr_match_mask(struct ip_addr const *host, struct ip_addr const *net, struct ip_addr const *mask);
 
 #endif

@@ -137,7 +137,9 @@ enum proto_parse_status pkt_wait_list_add(
     size_t cap_len,                 ///< It's length
     size_t packet_len,              ///< It's actual length on the wire
     struct timeval const *now,      ///< The current time
-    proto_okfn_t *okfn              ///< The "continuation"
+    proto_okfn_t *okfn,             ///< The "continuation"
+    size_t tot_cap_len,             ///< The capture length of the whole packet
+    uint8_t const *tot_packet       ///< The whole packet (as given to okfn)
 );
 
 /// Tells if the wait list is complete between these two offsets.

@@ -1,6 +1,7 @@
 pkginclude_HEADERS = \
 	junkie/config.h \
 	junkie/cpp.h \
+	junkie/capfile.h \
 	junkie/proto/ftp.h \
 	junkie/proto/http.h \
 	junkie/proto/cap.h \

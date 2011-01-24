@@ -16,6 +16,8 @@
 /// @return microseconds
 int64_t timeval_sub(struct timeval const *, struct timeval const *);
 
+int64_t timeval_age(struct timeval const *);
+
 static inline bool timeval_is_set(struct timeval const *tv)
 {
     return tv->tv_sec != 0;

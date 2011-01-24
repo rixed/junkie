@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <time.h>
 #include <junkie/cpp.h>
+#include <junkie/tools/mallocer.h>
 #include "lib.h"
 #include "proto/mgcp.c"
 
@@ -87,7 +88,7 @@ static struct parse_test {
 
 static unsigned cur_test, cur_msg;
 
-static int mgcp_info_check(struct proto_info const *info_)
+static int mgcp_info_check(struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
     // Check info against parse_tests[cur_test].expected
     struct mgcp_proto_info const *const info = DOWNCAST(info_, info, mgcp_proto_info);
@@ -129,7 +130,7 @@ static void parse_check(void)
         cur_msg = 0;
         struct parse_test const *test = parse_tests+cur_test;
         size_t const len = strlen((char *)test->packet);
-        int ret = mgcp_parse(mgcp_parser, NULL, 0, test->packet, len, len, &now, mgcp_info_check);
+        int ret = mgcp_parse(mgcp_parser, NULL, 0, test->packet, len, len, &now, mgcp_info_check, len, test->packet);
         assert(ret == test->ret);
     }
 
@@ -141,6 +142,7 @@ struct proto *proto_sdp;
 int main(void)
 {
     log_init();
+    mallocer_init();
     mutex_init();
     udp_init();
     mgcp_init();
@@ -154,6 +156,7 @@ int main(void)
     mgcp_fini();
     mutex_fini();
     udp_fini();
+    mallocer_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

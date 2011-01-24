@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <junkie/cpp.h>
+#include <junkie/tools/mallocer.h>
 #include "lib.h"
 #include "proto/ip.c"
 #define Id Idv6
@@ -73,7 +74,7 @@ static struct parse_test {
 
 static unsigned current_test;
 
-static int ip_info_check(struct proto_info const *info_)
+static int ip_info_check(struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *paclet)
 {
     // Check info against parse_tests[current_test].expected
     struct ip_proto_info const *const info = DOWNCAST(info_, info, ip_proto_info);
@@ -89,7 +90,7 @@ static int ip_info_check(struct proto_info const *info_)
     return 0;
 }
 
-static void parse_check(size_t cap_len)
+static void parse_check(size_t cap_len_)
 {
     struct timeval now;
     timeval_set_now(&now);
@@ -101,8 +102,9 @@ static void parse_check(size_t cap_len)
     for (current_test = 0; current_test < NB_ELEMS(parse_tests); current_test++) {
         struct parse_test const *const test = parse_tests + current_test;
         size_t const len = test->size;
+        size_t const cap_len = len < cap_len_ ? len : cap_len_;
         int ret =
-            (test->expected.version == 4 ? ip_parse : ip6_parse)(ip_parser, NULL, 0, parse_tests[current_test].packet, len < cap_len ? len : cap_len, len, &now, ip_info_check);
+            (test->expected.version == 4 ? ip_parse : ip6_parse)(ip_parser, NULL, 0, parse_tests[current_test].packet, cap_len, len, &now, ip_info_check, cap_len, parse_tests[current_test].packet);
         assert(0 == ret);
     }
 
@@ -113,6 +115,7 @@ static void parse_check(size_t cap_len)
 int main(void)
 {
     log_init();
+    mallocer_init();
     ip_init();
     ip6_init();
     log_set_level(LOG_DEBUG, NULL);
@@ -126,6 +129,7 @@ int main(void)
 
     ip6_fini();
     ip_fini();
+    mallocer_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <time.h>
 #include <junkie/cpp.h>
+#include <junkie/tools/mallocer.h>
 #include <junkie/proto/ip.h>
 #include "lib.h"
 #include "proto/rtcp.c"
@@ -72,7 +73,7 @@ static struct parse_test {
 
 static unsigned cur_test;
 
-static int rtcp_info_check(struct proto_info const *info_)
+static int rtcp_info_check(struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
     struct rtcp_proto_info const *const info = DOWNCAST(info_, info, rtcp_proto_info);
     struct expected const *const exp = &parse_tests[cur_test].exp;
@@ -98,7 +99,7 @@ static void parse_check(void)
     assert(rtcp_parser);
 
     for (cur_test = 0; cur_test < NB_ELEMS(parse_tests); cur_test++) {
-        (void)rtcp_parse(rtcp_parser, NULL, 0, parse_tests[cur_test].packet, parse_tests[cur_test].size, parse_tests[cur_test].size, &now, rtcp_info_check);
+        (void)rtcp_parse(rtcp_parser, NULL, 0, parse_tests[cur_test].packet, parse_tests[cur_test].size, parse_tests[cur_test].size, &now, rtcp_info_check, parse_tests[cur_test].size, parse_tests[cur_test].packet);
     }
 
     parser_unref(rtcp_parser);
@@ -112,6 +113,7 @@ struct proto *proto_udp;
 int main(void)
 {
     log_init();
+    mallocer_init();
     rtcp_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("rtcp_check.log");
@@ -125,6 +127,7 @@ int main(void)
     stress_check(proto_rtcp);
 
     rtcp_fini();
+    mallocer_fini();
     log_fini();
     return EXIT_SUCCESS;
 }
