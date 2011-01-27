@@ -28,6 +28,10 @@
 #include <junkie/tools/tempstr.h>
 #include <junkie/tools/ext.h>
 
+LOG_CATEGORY_DEF(mutex)
+#undef LOG_CAT
+#define LOG_CAT mutex_log_category
+
 static char const *mutex_name(struct mutex const *mutex)
 {
     return tempstr_printf("%s@%p", mutex->name, mutex);
@@ -121,6 +125,8 @@ static SCM g_set_thread_name(SCM name_)
 
 void mutex_init(void)
 {
+    log_category_mutex_init();
+
     ext_function_ctor(&sg_set_thread_name,
         "set-thread-name", 1, 0, 0, g_set_thread_name,
         "(set-thread-name \"thing\") : set current thread name.\n");
@@ -128,4 +134,5 @@ void mutex_init(void)
 
 void mutex_fini(void)
 {
+    log_category_mutex_fini();
 }
