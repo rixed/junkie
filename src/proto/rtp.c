@@ -50,6 +50,23 @@ struct rtp_hdr {
  * Proto infos
  */
 
+char const *rtp_payload_type_2_str(uint8_t type)
+{
+    static char const *strs[] = {
+        "PCMU", "reserved", "reserved", "GSM", "G723", "DVI4/8k", "DVI4/16k", "LPC",
+        "PCMA", "G722", "L16/2chan", "L16/mono", "QCELP", "CN", "MPA", "G728",
+        "DVI4/11k", "DVI4/22k", "G729", "reserved", "unassigned", "unassigned", "unassigned", "unassigned",
+        "unasigned", "CelB", "JPEG", "unassigned", "nv", "unassigned", "unassigned", "H261",
+        "MPV", "MP2T", "H263"
+    };
+    if (type < NB_ELEMS(strs)) return strs[type];
+    else if (type >= 35 && type <= 71) return "unasigned";
+    else if (type >= 72 && type <= 76) return "reserved";
+    else if (type >= 77 && type <= 95) return "unassigned";
+    else if (type >= 96 && type <= 127) return "dynamic";
+    return "invalid";
+}
+
 static void const *rtp_info_addr(struct proto_info const *info_, size_t *size)
 {
     struct rtp_proto_info const *info = DOWNCAST(info_, info, rtp_proto_info);
@@ -62,8 +79,8 @@ static char const *rtp_info_2_str(struct proto_info const *info_)
     struct rtp_proto_info const *info = DOWNCAST(info_, info, rtp_proto_info);
     char *str = tempstr();
 
-    snprintf(str, TEMPSTR_SIZE, "%s, payload_type=%"PRIu8", SSRC=%"PRIu32", seqnum=%"PRIu16", timestamp=%"PRIu32,
-        proto_info_2_str(info_), info->payload_type, info->sync_src, info->seq_num, info->timestamp);
+    snprintf(str, TEMPSTR_SIZE, "%s, payload_type=%s, SSRC=%"PRIu32", seqnum=%"PRIu16", timestamp=%"PRIu32,
+        proto_info_2_str(info_), rtp_payload_type_2_str(info->payload_type), info->sync_src, info->seq_num, info->timestamp);
 
     return str;
 }
@@ -71,7 +88,7 @@ static char const *rtp_info_2_str(struct proto_info const *info_)
 static void rtp_proto_info_ctor(struct rtp_proto_info *info, struct parser *parser, struct proto_info *parent, struct rtp_hdr const *rtph, size_t head_len, size_t payload)
 {
     proto_info_ctor(&info->info, parser, parent, head_len, payload);
-    info->payload_type = READ_U8(&rtph->flags1) && F1_PLD_TYPE_MASK;
+    info->payload_type = READ_U8(&rtph->flags1) & F1_PLD_TYPE_MASK;
     info->sync_src = READ_U32N(&rtph->ssrc);
     info->seq_num = READ_U16N(&rtph->seq_num);
     info->timestamp = READ_U32N(&rtph->timestamp);

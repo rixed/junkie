@@ -18,6 +18,8 @@ struct rtp_proto_info {
     uint32_t timestamp;
 };
 
+char const *rtp_payload_type_2_str(uint8_t type);
+
 void rtp_init(void);
 void rtp_fini(void);
 
