@@ -1,4 +1,6 @@
-SECURACTIVE-MIB DEFINITIONS ::= BEGIN
+-- vim:syntax=mib formatoptions=
+
+SACT-ROOT-MIB DEFINITIONS ::= BEGIN
 
 -- Check with :
 -- MIBS=ALL snmptranslate -Tp -IR securactive

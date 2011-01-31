@@ -1,7 +1,7 @@
 pkgsysconfdir=@CONFDIR@
 dist_pkgsysconf_DATA = \
-	SECURACTIVE-MIB.txt \
-	JUNKIE-MIB.txt \
+	SACT-ROOT-MIB \
+	SACT-JUNKIE-MIB \
 	instvars.scm \
 	defs.scm \
 	snmp-subagt.scm \

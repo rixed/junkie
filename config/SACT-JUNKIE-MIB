@@ -1,24 +1,26 @@
 -- vim:syntax=mib formatoptions=
 
-JUNKIE-MIB DEFINITIONS ::= BEGIN
+SACT-JUNKIE-MIB DEFINITIONS ::= BEGIN
 
 IMPORTS
-	securactive FROM SECURACTIVE-MIB
+	securactive FROM SACT-ROOT-MIB
 	OBJECT-TYPE, MODULE-IDENTITY, Counter64, Gauge32 FROM SNMPv2-SMI
 	TruthValue FROM SNMPv2-TC;
 
-junkieMIB MODULE-IDENTITY
-	LAST-UPDATED "201011040000Z"
+sactJunkieModule MODULE-IDENTITY
+	LAST-UPDATED "201101310000Z"
 	ORGANIZATION "SecurActive SA"
 	CONTACT-INFO "info@securactive.net"
 	DESCRIPTION  "Junkie MIB"
+	REVISION     "201101310000Z"
+	DESCRIPTION  "Rename a few files and objects in order to respect established conventions"
 	REVISION     "201011040000Z"
 	DESCRIPTION  "Initial version"
 	::= { securactive 1 }
 
-junkieSystem  OBJECT IDENTIFIER ::= { junkieMIB 1 }
-junkieSniffer OBJECT IDENTIFIER ::= { junkieMIB 2 }
-junkieParser  OBJECT IDENTIFIER ::= { junkieMIB 3 }
+junkieSystem  OBJECT IDENTIFIER ::= { sactJunkieModule 1 }
+junkieSniffer OBJECT IDENTIFIER ::= { sactJunkieModule 2 }
+junkieParser  OBJECT IDENTIFIER ::= { sactJunkieModule 3 }
 
 junkieVersion OBJECT-TYPE
 	SYNTAX OCTET STRING
@@ -27,23 +29,23 @@ junkieVersion OBJECT-TYPE
 	DESCRIPTION "The version of the sniffer currently installed"
 	::= { junkieSystem 1 }
 
-sources OBJECT-TYPE
-	SYNTAX SEQUENCE OF source
+sourceTable OBJECT-TYPE
+	SYNTAX SEQUENCE OF sourceEntry
 	MAX-ACCESS not-accessible
 	STATUS current
 	DESCRIPTION
 		"This table displays all available statistics per packet source."
 	::= { junkieSniffer 1 }
 
-source OBJECT-TYPE
-	SYNTAX Source
+sourceEntry OBJECT-TYPE
+	SYNTAX SourceEntry
 	MAX-ACCESS not-accessible
 	STATUS current
 	DESCRIPTION "A source of network packets."
 	INDEX { sourceName }
-	::= { sources 1 }
+	::= { sourceTable 1 }
 
-Source ::= SEQUENCE {
+SourceEntry ::= SEQUENCE {
 	sourceName OCTET STRING,
 	receivedCount Counter64,
 	droppedCount Counter64,
@@ -56,7 +58,7 @@ sourceName OBJECT-TYPE
 	MAX-ACCESS read-only
 	STATUS current
 	DESCRIPTION "the name of the packet source."
-	::= { source 1 }
+	::= { sourceEntry 1 }
 
 receivedCount OBJECT-TYPE
 	SYNTAX Counter64
@@ -65,7 +67,7 @@ receivedCount OBJECT-TYPE
 	DESCRIPTION
 		"How many packets were received by the kernel for this source
 		 (as reported by libpcap)."
-	::= { source 2 }
+	::= { sourceEntry 2 }
 
 droppedCount OBJECT-TYPE
 	SYNTAX Counter64
@@ -76,7 +78,7 @@ droppedCount OBJECT-TYPE
 		 (as reported by libpcap). If you experience a lot of dropped
 		 packets you may want to try to increased receive buffer sizes
 		 (sysctl net.core.rmem_max)"
-	::= { source 3 }
+	::= { sourceEntry 3 }
 
 processedCount OBJECT-TYPE
 	SYNTAX Counter64
@@ -86,7 +88,7 @@ processedCount OBJECT-TYPE
 		"How many packets were handled to the parsing process
 		 (this may be less than receivedCount because some received
 		 packets may still be waiting in receive buffer)."
-	::= { source 4 }
+	::= { sourceEntry 4 }
 
 duplicateCount OBJECT-TYPE
 	SYNTAX Counter64
@@ -96,7 +98,7 @@ duplicateCount OBJECT-TYPE
 		"Amongst all processed packets, how many were rejected because
 		 considered duplicates.
 		 If you have a high ratio of duplicates you may want to check your mirroring."
-	::= { source 5 }
+	::= { sourceEntry 5 }
 
 dupDetectionDelay OBJECT-TYPE
 	SYNTAX Integer32
@@ -109,23 +111,23 @@ dupDetectionDelay OBJECT-TYPE
 
 -- Stats table for parsers
 
-parsers OBJECT-TYPE
-	SYNTAX SEQUENCE OF parser
+parserTable OBJECT-TYPE
+	SYNTAX SEQUENCE OF parserEntry
 	MAX-ACCESS not-accessible
 	STATUS current
 	DESCRIPTION
 		"This table displays all available statistics per protocolar parser."
 	::= { junkieParser 1 }
 
-parser OBJECT-TYPE
-	SYNTAX Parser
+parserEntry OBJECT-TYPE
+	SYNTAX ParserEntry
 	MAX-ACCESS not-accessible
 	STATUS current
 	DESCRIPTION "A row describing a parser."
 	INDEX { protoName }
-	::= { parsers 1 }
+	::= { parserTable 1 }
 
-Parser ::= SEQUENCE {
+ParserEntry ::= SEQUENCE {
 	protoName OCTET STRING,
 	frameCount Counter64,
 	byteCount Counter64,
@@ -137,7 +139,7 @@ protoName OBJECT-TYPE
 	MAX-ACCESS read-only
 	STATUS current
 	DESCRIPTION "The name of the parsed protocol."
-	::= { parser 1 }
+	::= { parserEntry 1 }
 
 frameCount OBJECT-TYPE
 	SYNTAX Counter64
@@ -146,7 +148,7 @@ frameCount OBJECT-TYPE
 	DESCRIPTION
 		"How many frames (or, in some rare occasions, frame fragments) 
 		 were handled by this parser."
-	::= { parser 2 }
+	::= { parserEntry 2 }
 
 byteCount OBJECT-TYPE
 	SYNTAX Counter64
@@ -155,7 +157,7 @@ byteCount OBJECT-TYPE
 	STATUS current
 	DESCRIPTION
 		"How many bytes were handled by this parser."
-	::= { parser 3 }
+	::= { parserEntry 3 }
 
 nbInstances OBJECT-TYPE
 	SYNTAX Gauge32
@@ -163,12 +165,12 @@ nbInstances OBJECT-TYPE
 	STATUS current
 	DESCRIPTION
 		"How many instances of this parser are currently running simultaneously."
-	::= { parser 4 }
+	::= { parserEntry 4 }
 
 -- More specific stats for parsers that are also multiplexers
 
-muxers OBJECT-TYPE
-	SYNTAX SEQUENCE OF muxer
+muxerTable OBJECT-TYPE
+	SYNTAX SEQUENCE OF muxerEntry
 	MAX-ACCESS not-accessible
 	STATUS current
 	DESCRIPTION
@@ -179,15 +181,15 @@ muxers OBJECT-TYPE
 		 to the source and dest ports)."
 	::= { junkieParser 2 }
 
-muxer OBJECT-TYPE
-	SYNTAX Muxer
+muxerEntry OBJECT-TYPE
+	SYNTAX MuxerEntry
 	MAX-ACCESS not-accessible
 	STATUS current
 	DESCRIPTION "A row giving statistics on a given multiplexer."
 	INDEX { muxName }
-	::= { muxers 1 }
+	::= { muxerTable 1 }
 
-Muxer ::= SEQUENCE {
+MuxerEntry ::= SEQUENCE {
 	muxerName OCTET STRING,
 	muxerHashSize Gauge32,
 	muxerMaxChildren Gauge32,
@@ -201,14 +203,14 @@ muxerName OBJECT-TYPE
 	MAX-ACCESS read-only
 	STATUS current
 	DESCRIPTION "The name of the multiplexed protocol."
-	::= { muxer 1 }
+	::= { muxerEntry 1 }
 
 muxerHashSize OBJECT-TYPE
 	SYNTAX Gauge32
 	MAX-ACCESS read-only
 	STATUS current
 	DESCRIPTION "The current hash size (in entries) for each instance of this multiplexer."
-	::= { muxer 2 }
+	::= { muxerEntry 2 }
 
 muxerMaxChildren OBJECT-TYPE
 	SYNTAX Gauge32
@@ -217,7 +219,7 @@ muxerMaxChildren OBJECT-TYPE
 	DESCRIPTION
 		"The max number of children allowed for each instance of this multiplexer
 		 (0 for no limit)."
-	::= { muxer 3 }
+	::= { muxerEntry 3 }
 
 muxerInfanticide OBJECT-TYPE
 	SYNTAX Counter32
@@ -226,14 +228,14 @@ muxerInfanticide OBJECT-TYPE
 	DESCRIPTION
 		"How many children of this multiplexer were killed due to the max number of
 		 child limitation."
-	::= { muxer 4 }
+	::= { muxerEntry 4 }
 
 muxerCollisions OBJECT-TYPE
 	SYNTAX Counter64
 	MAX-ACCESS read-only
 	STATUS current
 	DESCRIPTION "Number of collisions while performing children lookups."
-	::= { muxer 5 }
+	::= { muxerEntry 5 }
 
 muxerLookups OBJECT-TYPE
 	SYNTAX Counter64
@@ -244,6 +246,6 @@ muxerLookups OBJECT-TYPE
 		 The ratio between number of collisions and number of lookups
 		 gives a good idea of the performance of this hash and weither it is
 		 sized correctly."
-	::= { muxer 6 }
+	::= { muxerEntry 6 }
 
 END
