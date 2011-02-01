@@ -32,6 +32,9 @@ struct mutex plugins_mutex;
 
 struct plugins plugins = LIST_HEAD_INITIALIZER(&plugins);
 
+static bool really_unload_plugins = true;
+EXT_PARAM_RW(really_unload_plugins, "really-unload-plugins", bool, "Should we go as far as calling dlclose when unloading a plugin ? If so, then some debug symbols may be missing.")
+
 static int plugin_ctor(struct plugin *plugin, char const *libname)
 {
     mutex_lock(&plugins_mutex);
@@ -76,8 +79,10 @@ static void plugin_dtor(struct plugin *plugin)
     void (*on_unload)(void) = lt_dlsym(plugin->handle, "on_unload");
     if (on_unload) on_unload();
 
-    int err = lt_dlclose(plugin->handle);
-    if (err) SLOG(LOG_ERR, "Cannot unload plugin %s : %s", plugin->libname, lt_dlerror());
+    if (really_unload_plugins) {
+        int err = lt_dlclose(plugin->handle);
+        if (err) SLOG(LOG_ERR, "Cannot unload plugin %s : %s", plugin->libname, lt_dlerror());
+    }
 }
 
 static void plugin_del(struct plugin *plugin)
@@ -142,6 +147,7 @@ void plugins_init(void)
     if (0 != lt_dlinit()) {
         DIE("Cannot init ltdl: %s", lt_dlerror());
     }
+    ext_param_really_unload_plugins_init();
     mutex_ctor(&plugins_mutex, "plugins");
 
     ext_function_ctor(&sg_load_plugin,
@@ -161,5 +167,7 @@ void plugins_init(void)
 
 void plugins_fini(void)
 {
+    mutex_dtor(&plugins_mutex);
+    ext_param_really_unload_plugins_fini();
     lt_dlexit();
 }
