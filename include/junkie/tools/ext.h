@@ -45,14 +45,12 @@
  * via the global binding 'junkie-version' */
 extern char version_string[1024];
 
-/// Initialize the extension language, and evaluates a set of expressions.
+/// Evaluates an expression.
 /** These expressions come from the command line arguments, which are all
  * translated into basic scheme expressions (except for the -e command line
  * parameter which directly takes a scheme expression).
- * @param nb_expressions size of add_expressions array
- * @param add_expressions optional expression to evaluate after the startup file was loaded
  * @return -1 on error, 0 on success. */
-int ext_eval(unsigned nb_expressions, char const *add_expressions[]);
+int ext_eval(char const *);
 
 /// Bind all defined ext_functions and ext_parameters in the extension language.
 /** Might be called several times to bind new extensions loaded dynamically. */

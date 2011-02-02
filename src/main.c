@@ -24,7 +24,6 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <sys/types.h>
-#include <getopt.h>     /* command line parsing */
 #include <libgen.h>     /* basename */
 #include <sys/stat.h>       /* umask needed to fork */
 #include <junkie/config.h>
@@ -38,6 +37,7 @@
 #include <junkie/tools/mallocer.h>
 #include <junkie/tools/mutex.h>
 #include <junkie/tools/hash.h>
+#include <junkie/tools/cli.h>
 #include <junkie/proto/proto.h>
 #include <junkie/proto/cap.h>
 #include <junkie/proto/eth.h>
@@ -84,7 +84,7 @@ static struct {
     I(dns),         I(rtcp),        I(dns_tcp),
     I(ftp),         I(mgcp),        I(sdp),
     I(postgres),    I(mysql),       I(tns),
-    I(pkt_source),
+    I(pkt_source),  I(cli),
 #   undef I
 };
 
@@ -93,6 +93,8 @@ static void all_init(void)
     for (unsigned i = 0; i < NB_ELEMS(initers); i++) {
         initers[i].init();
     }
+
+    ext_rebind();
 }
 
 static void all_fini(void)
@@ -149,149 +151,59 @@ static void loop(void)
  * Command line handling
  */
 
-static void usage(char *bin)
+static int opt_version(char const unused_ *opt)
 {
-    fprintf(stdout,
-        "Junkie %s\n"
-        "Copyright 2010 SecurActive\n"
-        "Junkie may be distributed under the terms of the GNU Affero General Public Licence;\n"
-        "certain other uses are permitted as well.  For details, see the file\n"
-        "`COPYING', which is included in the Junkie distribution.\n"
-        "There is no warranty, to the extent permitted by law.\n"
-        "\n"
-        "Usage: %s [OPTIONS]\n"
-        "\n  OPTIONS:\n"
-        "\t-V, --version\n"
-        "\t\tprint version information and exits\n"
-        "\t-c, --config <filename>\n"
-        "\t\tLoad this configuration file\n"
-        "\t-e <expr>\n"
-        "\t\texecute the given scheme expression after scheme startup file is loaded\n"
-        "\t-b, --background\n"
-        "\t\tlaunch in background\n"
-        "\t-l, --logfile\n"
-        "\t\tlog into this file (shortcut for -e (set-log-file XXX))\n"
-        "\t-p, --plugin\n"
-        "\t\tload this plugin (shortcut for -e (load-plugin XXX))\n"
-        "\t-i, --ifaces\n"
-        "\t\tsniff packets from this interface (shortcut for -e (open-iface XXX))\n"
-        "\t-r, --read\n"
-        "\t\tread packets from this pcap file (shortcut for -e (open-pcap XXX))\n"
-        "\n", version_string, basename(bin));
+    printf("Junkie %s\n\n", version_string);
+    exit(EXIT_SUCCESS);
 }
 
-static unsigned nb_expressions = 0;
-static char const *scm_expressions[32];
-static void add_expression(char const *expression)
+static int opt_config(char const *opt)
 {
-    if (nb_expressions > NB_ELEMS(scm_expressions)) {
-        fprintf(stderr, "Too many expressions (max is %u).\n", (unsigned)NB_ELEMS(scm_expressions));
-        exit(EXIT_FAILURE);
-    }
-    scm_expressions[nb_expressions++] = expression;
+    return ext_eval(tempstr_printf("(load \"%s\")", opt));
 }
 
-int main(int ac, char **av)
+static int opt_logfile(char const *opt)
 {
-    /* Check command line arguments */
+    return ext_eval(tempstr_printf("(set-log-file \"%s\")", opt));
+}
 
-    int c;          /* option character */
-    int errflg = 0;     /* error counter */
-    int option_index = 0;
-    char *expr;
+static int opt_plugin(char const *opt)
+{
+    return ext_eval(tempstr_printf("(load-plugin \"%s\")", opt));
+}
 
-    // First by building the version string that's used in usage and --version option
+static int opt_iface(char const *opt)
+{
+    return ext_eval(tempstr_printf("(open-iface \"%s\")", opt));
+}
+
+static int opt_read(char const *opt)
+{
+    return ext_eval(tempstr_printf("(open-pcap \"%s\")", opt));
+}
+
+int main(int nb_args, char **args)
+{
+    // Start by building the version string that's used in usage and --version option
     snprintf(version_string, sizeof(version_string), STRIZE(TAGNAME) " / " STRIZE(BRANCHNAME) ", compiled on " STRIZE(COMP_HOST) " @ %s", __DATE__);
-
-    static struct option long_options[] = {
-        {"version", no_argument, 0, 'v'},
-        {"help", no_argument, 0, 'h'},
-        {"config", required_argument, 0, 'c'},
-        {"background", no_argument, 0, 'b'},
-        {"execute", required_argument, 0, 'e'},
-        {"logfile", required_argument, 0, 'l'},
-        {"plugin", required_argument, 0, 'p'},
-        {"ifaces", required_argument, 0, 'i'},
-        {"read", required_argument, 0, 'r'},
-        {0, 0, 0, 0}
-    };
-
-    while ((c = getopt_long(ac, av, "vhc:be:l:p:i:r:T",
-                long_options, &option_index)) != -1) {
-        switch (c) {
-
-        case 0:
-            break;
-
-        case 'c':
-            expr = strdup(tempstr_printf("(load \"%s\")", optarg));
-            add_expression(expr);
-            break;
-
-        case 'h':
-            usage(av[0]);
-            exit(EXIT_SUCCESS);
-            break;
-
-        case 'b':
-            in_background = true;
-            break;
-
-        case 'v':
-            printf("Junkie %s\n\n", version_string);
-            return EXIT_SUCCESS;
-
-        case 'e':
-            add_expression(optarg);
-            break;
-
-        case 'l':
-            expr = strdup(tempstr_printf("(set-log-file \"%s\")", optarg));
-            add_expression(expr);
-            break;
-
-        case 'p':
-            expr = strdup(tempstr_printf("(load-plugin \"%s\")", optarg));
-            add_expression(expr);
-            break;
-
-        case 'i':
-            expr = strdup(tempstr_printf("(open-iface \"%s\")", optarg));
-            add_expression(expr);
-            break;
-
-        case 'r':
-            expr = strdup(tempstr_printf("(open-pcap \"%s\")", optarg));
-            add_expression(expr);
-            break;
-
-        case ':':   /* -c without operand */
-            fprintf(stderr, "Option -%c requires an operand\n", optopt);
-            errflg++;
-            break;
-
-        case '?':
-            errflg++;
-            break;
-
-        default:
-            printf("[-] ?? getopt returned character code 0%o ?\n", c);
-            break;
-        }
-    }
-
-    if (errflg) {
-        usage(av[0]);
-        return EXIT_FAILURE;
-    }
-
-    if (0 == nb_expressions) {
-        usage(av[0]);
-        return EXIT_SUCCESS;
-    }
-
     all_init();
     atexit(all_fini);
+
+    // Default command line arguments
+    static struct cli_opt main_opts[] = {
+        { { "version", "v" }, false, "display version",         CLI_CALL,     { .call = opt_version } },
+        { { "config", "c" },  true,  "load configuration file", CLI_CALL,     { .call = opt_config } },
+        { { "daemon", "b" },  false, "daemonize junkie",        CLI_SET_BOOL, { .boolean = &in_background } },
+        { { "exec", "e" },    true,  "execute given command",   CLI_CALL,     { .call = ext_eval } },
+        { { "log", "l" },     true,  "log into this file",      CLI_CALL,     { .call = opt_logfile } },
+        { { "load", "p" },    true,  "load this plugin",        CLI_CALL,     { .call = opt_plugin } },
+        { { "iface", "i" },   true,  "listen this interface",   CLI_CALL,     { .call = opt_iface } },
+        { { "read", "r" },    true,  "read this pcap file",     CLI_CALL,     { .call = opt_read } },
+    };
+
+    cli_register(NULL, main_opts, NB_ELEMS(main_opts));
+
+    if (0 != cli_parse(nb_args-1, args+1)) return EXIT_FAILURE;
 
     set_thread_name("J-main");
     openlog("junkie", LOG_CONS | LOG_NOWAIT | LOG_PID, LOG_USER);
@@ -315,10 +227,6 @@ int main(int ac, char **av)
                 DIE("setsid() failed child process couldn't detach from its parent");
             }
         }
-    }
-
-    if (0 != ext_eval(nb_expressions, scm_expressions)) {
-        return EXIT_FAILURE;
     }
 
     // The log file is easier to read if distinct sessions are clearly separated :

@@ -38,4 +38,5 @@ pkginclude_HEADERS = \
 	junkie/tools/jhash.h \
 	junkie/tools/queue.h \
 	junkie/tools/log.h \
-	junkie/tools/redim_array.h
+	junkie/tools/redim_array.h \
+	junkie/tools/cli.h

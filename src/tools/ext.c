@@ -164,14 +164,9 @@ static void *eval_string(void *str)
     return SUCCESS;
 }
 
-int ext_eval(unsigned nb_expressions, char const *add_expressions[])
+int ext_eval(char const *expression)
 {
-    // We must define extensions before loading the startup file that may use them
-    if (SUCCESS != scm_with_guile(init_scm_extensions, NULL)) return -1;
-
-    for (unsigned e = 0; e < nb_expressions; e++) {
-        if (SUCCESS != scm_with_guile(eval_string, (void *)add_expressions[e])) return -1;
-    }
+    if (SUCCESS != scm_with_guile(eval_string, (void *)expression)) return -1;
     return 0;
 }
 
@@ -231,6 +226,8 @@ static SCM g_help(SCM topic)
 
 void ext_init(void)
 {
+    if (SUCCESS != scm_with_guile(init_scm_extensions, NULL)) exit(EXIT_FAILURE);
+
     ext_function_ctor(&sg_parameter_names,
         "parameter-names", 0, 0, 0, g_parameter_names,
         "(parameter-names) : returns the list of junkie configuration parameters.\n");
