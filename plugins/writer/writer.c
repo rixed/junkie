@@ -62,6 +62,8 @@ static void init_capture(void)
         return;
     }
 
+    if (! opt_file) return;
+
     switch (e) {
         case 0: // PCAP
             capfile = capfile_new_pcap(opt_file, opt_max_pkts, opt_max_size, opt_max_secs, opt_cap_len, opt_rotation);
@@ -90,7 +92,6 @@ int parse_callback(struct proto_info const *info, size_t cap_len, uint8_t const 
 
     // write it ?
     if (capfile && info_match(info)) {
-        ASSIGN_INFO_CHK(cap, info, 0);
         (void)capfile->ops->write(capfile, info, cap_len, packet);
     }
 
@@ -125,5 +126,9 @@ void on_unload(void)
     if (capfile) {
         capfile->ops->del(capfile);
         capfile = NULL;
+    }
+    if (opt_file) {
+        free(opt_file);
+        opt_file = NULL;
     }
 }
