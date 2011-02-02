@@ -31,21 +31,42 @@
 
 static char const Id[] = "$Id$";
 
-void digest_queue_ctor(struct digest_queue *q, size_t size)
-{
-    MALLOCER(digest_queues);
-    assert(q);
+MALLOCER_DEF(digest_queues);
 
+static int digest_queue_ctor(struct digest_queue *q, unsigned size)
+{
     q->idx = 0;
     q->size = size;
     q->digests = MALLOC(digest_queues, q->size * sizeof *q->digests);
+    if (! q->digests) return -1;
     memset(q->digests, 0, q->size * sizeof q->digests);
+
+    return 0;
 }
 
-void digest_queue_dtor(struct digest_queue *q)
+struct digest_queue *digest_queue_new(unsigned size)
+{
+    MALLOCER_INIT(digest_queues);
+    struct digest_queue *q = MALLOC(digest_queues, sizeof(*q));
+    if (! q) return NULL;
+
+    if (0 != digest_queue_ctor(q, size)) {
+        FREE(q);
+        return NULL;
+    }
+
+    return q;
+}
+
+static void digest_queue_dtor(struct digest_queue *q)
 {
     FREE(q->digests);
-    memset(q, 0, sizeof q);
+}
+
+void digest_queue_del(struct digest_queue *q)
+{
+    digest_queue_dtor(q);
+    FREE(q);
 }
 
 void digest_queue_push(struct digest_queue *q, uint8_t digest[DIGEST_SIZE], const struct frame *frm)

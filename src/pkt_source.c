@@ -56,10 +56,36 @@ EXT_PARAM_RW(dup_detection_delay, "dup-detection-delay", int, "Number of microse
 static uint64_t nb_duplicates = 0;
 EXT_PARAM_RW(nb_duplicates, "nb-duplicates", uint64, "Number of duplicate frames since the beginning")
 
+static struct digest_queue *digests;
+
+static unsigned nb_digests = 100;
+// The seter is a little special as it rebuild the digest queue
+static struct ext_param ext_param_nb_digests;
+static SCM g_ext_param_set_nb_digests(SCM v)
+{
+    SCM ret = SCM_BOOL_F;
+    SLOG(LOG_DEBUG, "Setting value for nb_digests");
+    assert(&ext_param_nb_digests.bound);
+    scm_dynwind_begin(0);
+    pthread_mutex_lock(&ext_param_nb_digests.mutex);
+    scm_dynwind_unwind_handler(pthread_mutex_unlock_, &ext_param_nb_digests.mutex, SCM_F_WIND_EXPLICITLY);
+    unsigned new_nb_digests = scm_to_uint(v);
+    struct digest_queue *new_digests = digest_queue_new(new_nb_digests);
+    if (new_digests) {
+        if (digests) digest_queue_del(digests);
+        nb_digests = new_nb_digests;
+        digests = new_digests;
+        ret = SCM_BOOL_T;
+    }
+    scm_dynwind_end();
+    return ret;
+}
+EXT_PARAM_GET(nb_digests, uint)
+EXT_PARAM_STRUCT_RW(nb_digests, "nb-digests", "How many digests do we keep for deduplication")
+EXT_PARAM_CTORDTOR(nb_digests)
+
 static bool quit_when_done = true;
 EXT_PARAM_RW(quit_when_done, "quit-when-done", bool, "Should junkie exits when the last packet source is closed ?")
-
-static struct digest_queue digests;
 
 LOG_CATEGORY_DEF(pkt_sources);
 #undef LOG_CAT
@@ -165,7 +191,7 @@ static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, 
         .data = (uint8_t *)packet,
     };
 
-    if (frame_mirror_drop(&frame, &digests)) {
+    if (digests && frame_mirror_drop(&frame, digests)) {
         SLOG(LOG_DEBUG, "Drop dupplicated packet");
         pkt_source->nb_duplicates ++;
         mutex_unlock(&cap_parser_lock);
@@ -611,11 +637,15 @@ void pkt_source_init(void)
 {
     mutex_ctor(&cap_parser_lock, "parsers lock");
     mutex_ctor(&pkt_sources_lock, "pkt_sources");
-    digest_queue_ctor(&digests, DIGEST_BUFSIZE);
+    EXT_LOCK(nb_digests);
+    digests = digest_queue_new(nb_digests);
+    if (! digests) nb_digests = 0;
+    EXT_UNLOCK(nb_digests);
 
     ext_param_dup_detection_delay_init();
     ext_param_nb_duplicates_init();
     ext_param_quit_when_done_init();
+    ext_param_nb_digests_init();
     log_category_pkt_sources_init();
 
     ext_function_ctor(&sg_list_ifaces,
@@ -685,9 +715,13 @@ void pkt_source_fini(void)
     mutex_unlock(&cap_parser_lock);
     mutex_dtor(&cap_parser_lock);
     mutex_dtor(&pkt_sources_lock);
-    digest_queue_dtor(&digests);
+    if (digests) {
+        digest_queue_del(digests);
+        digests = NULL;
+    }
 
     log_category_pkt_sources_fini();
+    ext_param_nb_digests_fini();
     ext_param_dup_detection_delay_fini();
     ext_param_nb_duplicates_fini();
     ext_param_quit_when_done_fini();

@@ -13,7 +13,9 @@ check_PROGRAMS = \
 	tcp_reorder_check streambuf_check cli_check \
 	postgres_check oracle_check endianness_check
 
-dist_check_SCRIPTS = postgres.test mysql.test oracle.test http-truncation.test
+dist_check_SCRIPTS = \
+	postgres.test mysql.test oracle.test \
+	http-truncation.test digest_queue.scm
 
 TESTS = $(check_PROGRAMS) $(dist_check_SCRIPTS)
 
