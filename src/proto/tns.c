@@ -123,6 +123,9 @@ static enum proto_parse_status cursor_read_tns_hdr(struct cursor *cursor, size_t
     cursor_drop(cursor, 3);
     if (type > TNS_TYPE_MAX) return PROTO_PARSE_ERR;
 
+    // Check we have the msg payload
+    CHECK_LEN(cursor, len, 8);
+
     if (len_) *len_ = len;
     if (type_) *type_ = type;
     return PROTO_OK;
