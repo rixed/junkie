@@ -167,6 +167,10 @@ static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, 
 
     if (header->len == 0) return;   // should not happen, but does occur sometime
 
+    pkt_source->nb_packets ++;
+    pkt_source->nb_cap_bytes += header->caplen;
+    pkt_source->nb_wire_bytes += header->len;
+
     mutex_lock(&cap_parser_lock);
 
     if (! cap_parser) {
@@ -208,6 +212,7 @@ static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, 
 
 static void pkt_source_del(struct pkt_source *);
 
+// Callback is responsible for updating pkt_source stats.
 static void *sniffer(struct pkt_source *pkt_source, pcap_handler callback)
 {
     SLOG(LOG_INFO, "Dispatching packets from packet source %s", pkt_source_name(pkt_source));
@@ -227,8 +232,6 @@ static void *sniffer(struct pkt_source *pkt_source, pcap_handler callback)
                 pkt_source_del(pkt_source);
                 return NULL;
             }
-        } else {    // nb_packets > 0
-            pkt_source->nb_packets += nb_packets;
         }
     } while (1);
 
@@ -271,7 +274,6 @@ static void *sniffer_rt(struct pkt_source *pkt_source, pcap_handler callback)
         }
         assert(res == 1);   // 0 should not happen
         if (pkt_hdr->ts.tv_sec == 0) continue;   // should not happen, but does occur sometime (same goes for all other pcap header fields)
-        pkt_source->nb_packets ++;
         if (! timeval_is_set(&file_start)) file_start = pkt_hdr->ts;
         sync_times(&file_start, &replay_start, &pkt_hdr->ts);
         callback((void *)pkt_source, pkt_hdr, packet);
@@ -332,6 +334,8 @@ static int pkt_source_ctor(struct pkt_source *pkt_source, char const *name, pcap
     pkt_source->pcap_handle = pcap_handle;
     pkt_source->nb_packets = 0;
     pkt_source->nb_duplicates = 0;
+    pkt_source->nb_cap_bytes = 0;
+    pkt_source->nb_wire_bytes = 0;
     pkt_source->is_file = is_file;
 
     mutex_lock(&pkt_sources_lock);
@@ -614,18 +618,21 @@ static SCM g_iface_stats(SCM ifname_)
     if (! pkt_source) goto err;
 
     struct pcap_stat stats;
-    if (0 == pcap_stats(pkt_source->pcap_handle, &stats)) {
-        ret = scm_list_n(
-            scm_cons(scm_from_locale_symbol("id"),            scm_from_uint8(pkt_source->dev_id)),
-            scm_cons(scm_from_locale_symbol("nb-packets"),    scm_from_uint64(pkt_source->nb_packets)),
-            scm_cons(scm_from_locale_symbol("nb-duplicates"), scm_from_uint64(pkt_source->nb_duplicates)),
-            scm_cons(scm_from_locale_symbol("tot-received"),  scm_from_uint(stats.ps_recv)),
-            scm_cons(scm_from_locale_symbol("tot-dropped"),   scm_from_uint(stats.ps_drop)),
-            scm_cons(scm_from_locale_symbol("file?"),         scm_from_bool(pkt_source->is_file)),
-            SCM_UNDEFINED);
-    } else {
-        SLOG(LOG_ERR, "Cannot read stats for packet source %s: %s\n", pkt_source_name(pkt_source), pcap_geterr(pkt_source->pcap_handle));
+    bool have_stats = 0 == pcap_stats(pkt_source->pcap_handle, &stats);
+    if (! have_stats) {
+        SLOG(LOG_WARNING, "Cannot read stats for packet source %s: %s\n", pkt_source_name(pkt_source), pcap_geterr(pkt_source->pcap_handle));
     }
+
+    ret = scm_list_n(
+        scm_cons(scm_from_locale_symbol("id"),            scm_from_uint8(pkt_source->dev_id)),
+        scm_cons(scm_from_locale_symbol("nb-packets"),    scm_from_uint64(pkt_source->nb_packets)),
+        scm_cons(scm_from_locale_symbol("nb-duplicates"), scm_from_uint64(pkt_source->nb_duplicates)),
+        scm_cons(scm_from_locale_symbol("tot-received"),  have_stats ? scm_from_uint(stats.ps_recv) : SCM_UNSPECIFIED),
+        scm_cons(scm_from_locale_symbol("tot-dropped"),   have_stats ? scm_from_uint(stats.ps_drop) : SCM_UNSPECIFIED),
+        scm_cons(scm_from_locale_symbol("nb-cap-bytes"),  scm_from_uint64(pkt_source->nb_cap_bytes)),
+        scm_cons(scm_from_locale_symbol("nb-wire-bytes"), scm_from_uint64(pkt_source->nb_wire_bytes)),
+        scm_cons(scm_from_locale_symbol("file?"),         scm_from_bool(pkt_source->is_file)),
+        SCM_UNDEFINED);
 
 err:
     mutex_unlock(&pkt_sources_lock);

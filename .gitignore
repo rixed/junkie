@@ -62,3 +62,4 @@ tests/postgres_check
 tests/oracle_check
 tests/endianness_check
 tests/cli_check
+config/.index

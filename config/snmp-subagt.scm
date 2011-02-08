@@ -55,7 +55,9 @@
                                              (cons (append junkie-mib (list 2 1 1 2 idx)) (lambda () (cons 'counter64 (assq-ref stats 'tot-received))))
                                              (cons (append junkie-mib (list 2 1 1 3 idx)) (lambda () (cons 'counter64 (assq-ref stats 'tot-dropped))))
                                              (cons (append junkie-mib (list 2 1 1 4 idx)) (lambda () (cons 'counter64 (assq-ref stats 'nb-packets))))
-                                             (cons (append junkie-mib (list 2 1 1 5 idx)) (lambda () (cons 'counter64 (assq-ref stats 'nb-duplicates)))))))
+                                             (cons (append junkie-mib (list 2 1 1 5 idx)) (lambda () (cons 'counter64 (assq-ref stats 'nb-duplicates))))
+                                             (cons (append junkie-mib (list 2 1 1 6 idx)) (lambda () (cons 'counter64 (assq-ref stats 'nb-cap-bytes))))
+                                             (cons (append junkie-mib (list 2 1 1 7 idx)) (lambda () (cons 'counter64 (assq-ref stats 'nb-wire-bytes)))))))
                    (source-getters
                      (append! prevs source-getter)
                      (1+ idx)

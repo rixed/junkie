@@ -23,6 +23,8 @@ struct pkt_source {
     uint64_t nb_packets;            ///< Number of packets received from PCAP
     uint64_t nb_duplicates;         ///< Number of which that were duplicates
     uint8_t dev_id;                 ///< A numerical id which meaning is obscure
+    uint64_t nb_cap_bytes;          ///< Number of captured bytes from this source
+    uint64_t nb_wire_bytes;         ///< Number of bytes on the wire for this source
     bool is_file;                   ///< A flag to distinguish between files and ifaces
 };
 

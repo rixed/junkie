@@ -4,9 +4,13 @@
 
 (display "Testing digest queue interface\n")
 
-(define (assert x)
-  (if (not x) (begin (throw 'Assertion-failed x)
-                     (exit 1))))
+(use-syntax (ice-9 syncase))
+(define-syntax assert
+  (syntax-rules ()
+                ((assert x)
+                 (if (not x) (begin
+                               (simple-format #t "Assertion-failed: ~a\n" 'x)
+                               (raise SIGABRT))))))
 
 ; ... and on the 325988272th day, god created the initial digest buffer.
 (assert (>= 100 (get-nb-digests)))

@@ -50,7 +50,9 @@ SourceEntry ::= SEQUENCE {
 	receivedCount Counter64,
 	droppedCount Counter64,
 	processedCount Counter64,
-	duplicateCount Counter64
+	duplicateCount Counter64,
+	capBytesCount Counter64,
+	wireBytesCount Counter64
 }
 
 sourceName OBJECT-TYPE
@@ -77,7 +79,7 @@ droppedCount OBJECT-TYPE
 		"How many packets were dropped by the kernel for this source
 		 (as reported by libpcap). If you experience a lot of dropped
 		 packets you may want to try to increased receive buffer sizes
-		 (sysctl net.core.rmem_max)"
+		 (sysctl net.core.rmem_max)."
 	::= { sourceEntry 3 }
 
 processedCount OBJECT-TYPE
@@ -99,6 +101,23 @@ duplicateCount OBJECT-TYPE
 		 considered duplicates.
 		 If you have a high ratio of duplicates you may want to check your mirroring."
 	::= { sourceEntry 5 }
+
+capBytesCount OBJECT-TYPE
+	SYNTAX Counter64
+	MAX-ACCESS read-only
+	STATUS current
+	DESCRIPTION "Number of bytes captured on this source."
+	::= { sourceEntry 6 }
+
+wireBytesCount OBJECT-TYPE
+	SYNTAX Counter64
+	MAX-ACCESS read-only
+	STATUS current
+	DESCRIPTION
+		"Number of bytes on wire for this source. If you do not truncate
+		 packets when reading the packet source then this is equal to capBytesCount."
+	::= { sourceEntry 7 }
+
 
 dupDetectionDelay OBJECT-TYPE
 	SYNTAX Integer32

@@ -15,7 +15,8 @@ check_PROGRAMS = \
 
 dist_check_SCRIPTS = \
 	postgres.test mysql.test oracle.test \
-	http-truncation.test digest_queue.scm
+	http-truncation.test digest_queue.scm \
+	pkt_source_stats.scm
 
 TESTS = $(check_PROGRAMS) $(dist_check_SCRIPTS)
 
