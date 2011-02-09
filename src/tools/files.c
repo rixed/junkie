@@ -148,7 +148,7 @@ int file_unlink(char const *file_name)
         SLOG(LOG_ERR, "Cannot unlink %s: %s", file_name, strerror(errno));
         return -1;
     }
-    
+
     return 0;
 }
 

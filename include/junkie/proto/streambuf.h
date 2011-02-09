@@ -35,15 +35,20 @@ struct streambuf {
     size_t max_size;        ///< The max buffered size
     /// We want actually one buffer for each direction
     struct streambuf_unidir {
-        size_t buffer_size;     ///< The size of the buffer
-        uint8_t *buffer;        ///< The buffer itself
-        size_t restart_offset;  ///< The offset where to start parsing from (don't store a pointer to buffer since buffer will be reallocated)
+        uint8_t const *buffer;      ///< The buffer itself.
+        size_t buffer_size;         ///< The size of the buffer. unset if !buffer.
+        size_t restart_offset;      ///< The offset where to start parsing from (don't store a pointer to buffer since buffer will be reallocated).
+        bool buffer_is_malloced;    ///< True if the buffer was malloced, false if it references the original packet. unset if !buffer.
+        bool wait;                  ///< Wait for more data before restarting.
     } dir[2];
 };
 
 int streambuf_ctor(struct streambuf *, parse_fun *parse, size_t max_size);
 void streambuf_dtor(struct streambuf *);
-void streambuf_set_restart(struct streambuf *, unsigned way, uint8_t const *);
+
+/// When a parser want to be called later with (part of) current data
+/** @param wait wait for reception of more data before restarting */
+void streambuf_set_restart(struct streambuf *, unsigned way, uint8_t const *, bool wait);
 
 /// Add the new payload to the buffered payload, then call the parse callback
 enum proto_parse_status streambuf_add(struct streambuf *, struct parser *, struct proto_info *, unsigned, uint8_t const *, size_t, size_t, struct timeval const *, proto_okfn_t *, size_t tot_cap_len, uint8_t const *tot_packet);

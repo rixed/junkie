@@ -90,7 +90,7 @@ int ip_addr_ctor_from_str_any(struct ip_addr *ip, char const *str)
         ip->family = AF_INET6;
         return 0;
     }
-    
+
     SLOG(LOG_WARNING, "Cannot convert string to IP address : %s", strerror(errno));
     return -1;
 }

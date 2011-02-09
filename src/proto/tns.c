@@ -371,7 +371,7 @@ static enum proto_parse_status tns_sbuf_parse(struct parser *parser, struct prot
         if (status == PROTO_PARSE_ERR) return PROTO_PARSE_ERR;
         if (status == PROTO_TOO_SHORT) {
             SLOG(LOG_DEBUG, "Payload too short for parsing message, will restart");
-            streambuf_set_restart(&tns_parser->sbuf, way, msg_start);
+            streambuf_set_restart(&tns_parser->sbuf, way, msg_start, true);
             break;  // will ack what we had so far
         }
         assert(cursor.cap_len >= pdu_len);  // We have the whole msg ready to be read

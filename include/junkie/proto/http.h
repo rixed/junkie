@@ -17,12 +17,13 @@ extern struct proto *proto_http;
 /// HTTP message
 struct http_proto_info {
     struct proto_info info;         ///< Header and payload sizes
-#   define HTTP_METHOD_SET   0x1
-#   define HTTP_CODE_SET     0x2
-#   define HTTP_LENGTH_SET   0x4
-#   define HTTP_MIME_SET     0x8
-#   define HTTP_HOST_SET     0x10
-#   define HTTP_URL_SET      0x20
+#   define HTTP_METHOD_SET             0x1
+#   define HTTP_CODE_SET               0x2
+#   define HTTP_LENGTH_SET             0x4
+#   define HTTP_MIME_SET               0x8
+#   define HTTP_HOST_SET               0x10
+#   define HTTP_URL_SET                0x20
+#   define HTTP_TRANSFERT_ENCODING_SET 0x40
     uint32_t set_values;            ///< Mask of the fields that are actually set in this struct
     enum http_method {
         HTTP_METHOD_GET, HTTP_METHOD_HEAD, HTTP_METHOD_POST, HTTP_METHOD_CONNECT,

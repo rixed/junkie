@@ -376,7 +376,8 @@ static enum proto_parse_status sip_parse(struct parser *parser, struct proto_inf
     info.set_values = 0;
 
     size_t siphdr_len;
-    if (0 != httper_parse(&httper, &siphdr_len, packet, cap_len, &info)) return PROTO_PARSE_ERR;
+    enum proto_parse_status status = httper_parse(&httper, &siphdr_len, packet, cap_len, &info);
+    if (status != PROTO_OK) return PROTO_PARSE_ERR; // TODO: handle short packets with the help of a streambuf ?
 
     assert(siphdr_len <= cap_len);
     sip_proto_info_ctor(&info, parser, parent, siphdr_len, wire_len - siphdr_len);

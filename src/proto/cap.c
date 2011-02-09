@@ -67,9 +67,6 @@ static char const *cap_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-// FIXME: c'est tout pourris. Il faut filler aux parseurs les deux longueurs : cap_len et packet_len, pour pouvoir faire
-// des checks sur datalen (et stocker datalen dans les payload), mais quand même savoir la taille de la capture à ne pas dépasser
-
 // See note below about packet_len
 static void cap_proto_info_ctor(struct cap_proto_info *info, struct parser *parser, struct proto_info *parent, struct frame const *frame)
 {

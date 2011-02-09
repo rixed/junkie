@@ -37,7 +37,7 @@ enum proto_parse_status parse(struct parser *parser, struct proto_info unused_ *
     }
 
     // we are probably in the middle of a chunk. Remember up to last_punct seen
-    streambuf_set_restart(sbuf, way, packet + (last_punct+1));
+    streambuf_set_restart(sbuf, way, packet + (last_punct+1), true);
 
     return PROTO_OK;
 }

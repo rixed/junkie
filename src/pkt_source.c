@@ -235,7 +235,7 @@ static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, 
     }
 
     // due to the frame structure, cap parser does not need cap_len nor wire_len
-    (void)proto_parse(cap_parser, NULL, 0, (uint8_t *)&frame, 0, 0, &header->ts, parser_callbacks, frame.cap_len, frame.data);
+    (void)proto_parse(cap_parser, NULL, 0, (uint8_t *)&frame, frame.cap_len, frame.wire_len, &header->ts, parser_callbacks, frame.cap_len, frame.data);
 
     mux_subparser_kill_doomed();
 
@@ -427,7 +427,7 @@ static struct pkt_source *pkt_source_new_file(char const *filename, char const *
 
     pcap_t *handle = pcap_open_offline(filename, errbuf);
     if (! handle) {
-        SLOG(LOG_ERR, "Cannot open pcap file '%s' : %s", filename, errbuf);
+        SLOG(LOG_CRIT, "Cannot open pcap file '%s' : %s", filename, errbuf);
         return NULL;
     }
     if (errbuf[0] != '\0') {

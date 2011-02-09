@@ -24,7 +24,7 @@
 
 (define (wait-packets n)
   (let ((packets (assoc-ref (iface-stats pcap-file) 'nb-packets)))
-    (if (< packets 2)
+    (if (< packets n)
         (begin
           (usleep 10000)
           (wait-packets n)))))

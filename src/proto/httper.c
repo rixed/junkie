@@ -34,7 +34,7 @@ static char const Id[] = "$Id: 54219ace954440929240814509fbfe7977403a52 $";
  * Parse Command
  */
 
-int httper_parse(struct httper const *httper, size_t *head_sz, uint8_t const *packet, size_t packet_len, void *user_data)
+enum proto_parse_status httper_parse(struct httper const *httper, size_t *head_sz, uint8_t const *packet, size_t packet_len, void *user_data)
 {
     struct liner liner, tokenizer;
     bool found = false;
@@ -49,15 +49,15 @@ int httper_parse(struct httper const *httper, size_t *head_sz, uint8_t const *pa
         liner_init(&liner, &delim_lines, (char const *)packet, packet_len);
         liner_init(&tokenizer, &delim_blanks, liner.start, liner_tok_length(&liner));
 
-        if (liner_tok_length(&tokenizer) != httper->commands[c].len) {
+        if (liner_tok_length(&tokenizer) != cmd->len) {
 no_command:
             SLOG(LOG_DEBUG, "Cannot find command");
-            return -1;
+            return PROTO_PARSE_ERR;
         }
         SLOG(LOG_DEBUG, "Found command %s", cmd->name);
         liner_next(&tokenizer);
         int ret = cmd->cb(c, &tokenizer, user_data);
-        if (ret) return ret;
+        if (ret) return PROTO_PARSE_ERR;
 
         found = true;
         break;
@@ -66,10 +66,16 @@ no_command:
     if (! found) goto no_command;
 
     // Parse header fields
+    unsigned nb_hdr_lines = 0;
     while (true) {
         // Next line
         liner_next(&liner);
-        if (liner_eof(&liner)) break;
+        if (liner_eof(&liner)) {
+            // As an accommodation to old HTTP implementations, we allow a single line command
+            // FIXME: check line termination with "*/x.y" ?
+            if (nb_hdr_lines == 0) break;
+            return PROTO_TOO_SHORT;
+        }
 
         // If empty line we reached the end of the headers
         if (liner_tok_length(&liner) == 0) break;
@@ -88,12 +94,14 @@ no_command:
             // Absorb all remaining of line onto this token
             liner_expand(&tokenizer);
             int ret = field->cb(f, &tokenizer, user_data);
-            if (ret) return ret;
+            if (ret) return PROTO_PARSE_ERR;
             break;
         }
+
+        nb_hdr_lines ++;
     }
 
     if (head_sz) *head_sz = liner_parsed(&liner);
-    return 0;
+    return PROTO_OK;
 }
 
