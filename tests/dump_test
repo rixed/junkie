@@ -16,7 +16,7 @@ if ! test -r "$OUTPUT" ; then
 	exit 1
 fi
 
-output=`tempfile`
+output=`mktemp tmp.XXXXXXXXXX`
 
 for pcap in $PCAPS ; do
 	echo "-- $pcap --" | tee -a $output
