@@ -166,10 +166,14 @@ ssize_t file_size(char const *file_name)
     if (fd < 0) return -1;
 
     off_t sz = file_seek(fd, 0, SEEK_END);
-    if (sz == (off_t)-1) return -1;
+    if (sz == (off_t)-1) goto err1;
 
     file_close(fd);
     return sz;
+
+err1:
+    file_close(fd);
+    return -1;
 }
 
 int file_write(int fd, void const *buf, size_t len)
@@ -232,13 +236,14 @@ void *file_load(char const *file_name, size_t *len_)
     int fd = file_open(file_name, O_RDONLY);
     if (fd < 0) goto err1;
 
-    if (len != file_read(fd, buf, len)) goto err1;
+    if (len != file_read(fd, buf, len)) goto err2;
     buf[len] = '\0';
 
     file_close(fd);
-
     return buf;
 
+err2:
+    file_close(fd);
 err1:
     FREE(buf);
     return NULL;
@@ -286,6 +291,7 @@ int file_foreach_line(char const *filename, int (*cb)(char *line, size_t len, va
         skip = skip_next;
     } while (1);
 
+    file_close(fd);
 quit:
     va_end(ap);
     return ret;
