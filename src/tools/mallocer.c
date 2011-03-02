@@ -168,7 +168,7 @@ static struct mallocer *mallocer_of_scm_name(SCM name_)
     char *name = scm_to_tempstr(name_);
     struct mallocer *mallocer;
     SLIST_FOREACH(mallocer, &mallocers, entry) {
-        if (0 == strncasecmp(name, mallocer->name, sizeof(name))) return mallocer;
+        if (0 == strcasecmp(name, mallocer->name)) return mallocer;
     }
     return NULL;
 }
@@ -215,7 +215,8 @@ void mallocer_init(void)
     ext_function_ctor(&sg_malloc_stats,
         "libc-mem-stats", 0, 0, 0, g_malloc_stats,
         "(libc-mem-stats) : display the equivalent of mallinfo.\n"
-        "Note : malloced-bytes + free-bytes details the sbrked bytes. mmaped chunks are alloced and freed individually.\n");
+        "Note : malloced-bytes + free-bytes details the sbrked bytes. mmaped chunks are alloced and freed individually.\n"
+        "       Note also that these values are signed 32bits, so might wrap around on pathological cases.\n");
 
     ext_function_ctor(&sg_mallocer_names,
         "mallocer-names", 0, 0, 0, g_mallocer_names,

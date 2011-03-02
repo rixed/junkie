@@ -101,7 +101,7 @@
 
 ; Display malloc statistics
 (define (mallocer-mem-stats)
-  (let* ((size (lambda (name) (cdr (assoc 'tot-size (mallocer-stats name)))))
+  (let* ((size     (lambda (name) (cdr (assoc 'tot-size (mallocer-stats name)))))
          (tot-size (apply + (map size (mallocer-names))))
          (stat-one (lambda (name) (cons name (size name)))))
     (append!
