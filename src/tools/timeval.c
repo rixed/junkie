@@ -77,6 +77,11 @@ void timeval_add_sec(struct timeval *tv, int32_t sec)
     tv->tv_sec += sec;
 }
 
+void timeval_sub_sec(struct timeval *tv, int32_t sec)
+{
+    tv->tv_sec -= sec;
+}
+
 char const *timeval_2_str(struct timeval const *tv)
 {
     char *str = tempstr();

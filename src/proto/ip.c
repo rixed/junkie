@@ -28,6 +28,7 @@
 #include <junkie/tools/miscmacs.h>
 #include <junkie/tools/tempstr.h>
 #include <junkie/tools/mallocer.h>
+#include <junkie/tools/ext.h>
 #include <junkie/proto/proto.h>
 #include <junkie/proto/eth.h>
 #include <junkie/proto/ip.h>
@@ -43,6 +44,9 @@ LOG_CATEGORY_DEF(proto_ip);
 
 #define IP_TIMEOUT (60*60)
 #define IP_HASH_SIZE 10000
+
+static bool reassembly_enabled = true;
+EXT_PARAM_RW(reassembly_enabled, "ip-reassembly", bool, "Whether IP fragments reassembly is enabled or not.")
 
 /*
  * Proto Infos
@@ -196,17 +200,21 @@ static void ip_subparser_del(struct mux_subparser *mux_subparser)
     FREE(ip_subparser);
 }
 
+static struct pkt_wait_lists ip_reassembly_lists;
+
 // Really construct the waiting list
-static int ip_reassembly_ctor(struct ip_reassembly *reassembly, struct parser *parser, uint16_t id)
+static int ip_reassembly_ctor(struct ip_reassembly *reassembly, struct parser *parser, uint16_t id, struct timeval const *now)
 {
     SLOG(LOG_DEBUG, "Constructing ip_reassembly@%p for parser %s", reassembly, parser_name(parser));
     assert(! reassembly->constructed);
 
-    reassembly->constructed = 1;
-    reassembly->in_use = 1;
+    pkt_wait_list_timeout(&ip_reassembly_lists, 5 /* FRAGMENTATION TIMEOUT (second) */, now);
+
+    if (0 != pkt_wait_list_ctor(&reassembly->wl, 0, &ip_reassembly_lists, 65536, 100, 65536, parser, now)) return -1;
     reassembly->id = id;
     reassembly->got_last = 0;
-    if (0 != pkt_wait_list_ctor(&reassembly->wl, 0, 5, 65536, 100, 65536, parser)) return -1;
+    reassembly->constructed = 1;
+    reassembly->in_use = 1;
 
     return 0;
 }
@@ -222,7 +230,7 @@ static struct ip_reassembly *ip_reassembly_lookup(struct ip_subparser *ip_subpar
             if (reassembly->id != id) continue;
             SLOG(LOG_DEBUG, "Found id at index %u in ip_reassembly@%p", r, reassembly);
             if (! reassembly->constructed) {
-                ip_reassembly_ctor(reassembly, parser, id);
+                if (0 != ip_reassembly_ctor(reassembly, parser, id, now)) return NULL;
             }
             return reassembly;
         } else {
@@ -240,7 +248,7 @@ static struct ip_reassembly *ip_reassembly_lookup(struct ip_subparser *ip_subpar
 
     struct ip_reassembly *const reassembly = ip_subparser->reassembly + last_unused;
     assert(! reassembly->in_use);
-    if (0 != ip_reassembly_ctor(reassembly, parser, id)) return NULL;
+    if (0 != ip_reassembly_ctor(reassembly, parser, id, now)) return NULL;
     return reassembly;
 }
 
@@ -344,7 +352,7 @@ static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info
     }
 
     // If we have a fragment, maybe we can't parse payload right now
-    if (is_fragment(iphdr)) {
+    if (is_fragment(iphdr) && reassembly_enabled) {
         struct ip_subparser *ip_subparser = DOWNCAST(subparser, mux_subparser, ip_subparser);
         unsigned const offset = fragment_offset(iphdr);
         uint16_t id = READ_U16N(&iphdr->id);
@@ -386,6 +394,8 @@ static struct eth_subproto eth_subproto;
 void ip_init(void)
 {
     log_category_proto_ip_init();
+    ext_param_reassembly_enabled_init();
+    pkt_wait_lists_ctor(&ip_reassembly_lists);
 
     static struct proto_ops const ops = {
         .parse = ip_parse,
@@ -408,5 +418,7 @@ void ip_fini(void)
     assert(LIST_EMPTY(&ip_subprotos));
     eth_subproto_dtor(&eth_subproto);
     mux_proto_dtor(&mux_proto_ip);
+    pkt_wait_lists_dtor(&ip_reassembly_lists);
+    ext_param_reassembly_enabled_fini();
     log_category_proto_ip_fini();
 }

@@ -55,14 +55,17 @@ struct pkt_wait {
     /// Where in the "stream" this packet is located. When offset = list->next_offset, then the packet is parsable.
     unsigned offset;
     /// Next expected offset following this packet
-    /// (this in not necessarily offset+packet_len for instance if we have message sequence numbers instead of bytes sequence numbers)
+    /// (this in not necessarily offset+wire_len for instance if we have message sequence numbers instead of bytes sequence numbers)
     unsigned next_offset;
-    /// The copy of the packet
-    uint8_t *packet;
-    /// How many bytes were copied
+    /// How many bytes were captured on original packet (ie size of the packet field)
+    size_t tot_cap_len;
+    /// How many bytes of the saved total packet were already parsed
+    size_t start;
+    /// How many bytes available
     size_t cap_len;
-    /// How many bytes were present on the wire
-    size_t packet_len;
+    /// How many bytes were available on the wire
+    size_t wire_len;
+    /// Where do we need to start parsing into the original packet
     /** The callback must not be called when the packet is put on hold, until :
      * - the head of the packet list is complete and the first packets are dequeued;
      * - the list is deleted, for instance when timeouted. */
@@ -72,7 +75,17 @@ struct pkt_wait {
     unsigned way;
     /// Current okfn at the time when the packet was put on hold
     proto_okfn_t *okfn;
+    /// The copy of the total captured packet
+    uint8_t packet[];
 };
+
+struct pkt_wait_lists {
+    TAILQ_HEAD(pkt_wait_list_list, pkt_wait_list) list;
+    bool timeouting;    // to prevent reentry
+};
+
+void pkt_wait_lists_ctor(struct pkt_wait_lists *);
+void pkt_wait_lists_dtor(struct pkt_wait_lists *);
 
 /// A List of Waiting Packets
 /** This structure is used to store packets of a same stream that are out of
@@ -85,6 +98,10 @@ struct pkt_wait {
 struct pkt_wait_list {
     /// The list of pkt_wait
     LIST_HEAD(pkt_waits, pkt_wait) pkts;
+    /// The list where this pkt_wait_list is stored (sorted according to LRU)
+    struct pkt_wait_lists *list;
+    /// And the entry in this list
+    TAILQ_ENTRY(pkt_wait_list) entry;
     /// Current number of pending packets
     unsigned nb_pkts;
     /// Current pending payload
@@ -98,9 +115,7 @@ struct pkt_wait_list {
     /// Max pending payload
     size_t payload_max;
     /// Last time we added a packet to the list
-    struct timeval last_insert;
-    /// Timeout of this list (in seconds)
-    unsigned timeout;
+    struct timeval last_used;
     /// A Ref to the parser this packet is intended to
     struct parser *parser;
 };
@@ -109,11 +124,12 @@ struct pkt_wait_list {
 int pkt_wait_list_ctor(
     struct pkt_wait_list *pkt_wl,   ///< The waiting list to construct
     unsigned next_offset,           ///< The initial offset we are waiting for
-    unsigned timeout,               ///< If no packet is added after this number of seconds, destruct the whole list
+    struct pkt_wait_lists *list,    ///< Where we store the pkt_wait_list created with these parameters (useful for timeouting)
     unsigned acceptable_gap,        ///< Accept to enqueue a packet only if its not further away from previous one (0 for no check)
     unsigned nb_pkts_max,           ///< Max number of pending packets (0 for unlimited)
     size_t payload_max,             ///< Max pending payload (0 for unlimited)
-    struct parser *parser           ///< The parser that's supposed to parse this packet whenever possible
+    struct parser *parser,          ///< The parser that's supposed to parse this packet whenever possible
+    struct timeval const *now       ///< To set the last used time
 );
 
 /// Destruct a pkt_wait_list, calling the okfn for every pending packets.
@@ -135,7 +151,7 @@ enum proto_parse_status pkt_wait_list_add(
     unsigned way,                   ///< Direction identifier (see proto_parse())
     uint8_t const *packet,          ///< The origin packet
     size_t cap_len,                 ///< It's length
-    size_t packet_len,              ///< It's actual length on the wire
+    size_t wire_len,                ///< It's actual length on the wire
     struct timeval const *now,      ///< The current time
     proto_okfn_t *okfn,             ///< The "continuation"
     size_t tot_cap_len,             ///< The capture length of the whole packet
@@ -155,5 +171,12 @@ uint8_t *pkt_wait_list_reassemble(struct pkt_wait_list *, unsigned start_offset,
 
 /// Removes a packet from a list, without calling the subparser.
 void pkt_wait_del(struct pkt_wait *, struct pkt_wait_list *);
+
+/// Call this from time to time to timeout the packets pending for too long.
+/** @note the lists are cleared but not deleted */
+unsigned pkt_wait_list_timeout(struct pkt_wait_lists *list, unsigned timeout, struct timeval const *now);
+
+void pkt_wait_list_init(void);
+void pkt_wait_list_fini(void);
 
 #endif

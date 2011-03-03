@@ -501,6 +501,7 @@ void mux_subparser_dtor(
  * parsers may kept references on mux_subparsers upper in the call stack. So when
  * we want to delete a mux_subparser during the parse we merely add it to a list of
  * mux_subparsers doomed for destruction, later deleted out of the parse functions.
+ * TODO: extend this concept, via a 'doomable' object, to the struct parser themselves?
  * @see mux_subparser_kill_doomed()
  */
 void mux_subparser_doom(struct mux_subparser *);

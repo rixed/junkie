@@ -292,7 +292,7 @@ struct parser *parser_unref(struct parser *parser)
     }
 
     if (parser->ref_count == 1 && parser->alive) {  // Don't wait until timeout
-        remove_alive(parser);
+        remove_alive(parser);   // will reenter unref_parser
         return NULL;
     }
 

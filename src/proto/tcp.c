@@ -44,6 +44,9 @@ LOG_CATEGORY_DEF(proto_tcp);
 #define TCP_TIMEOUT 120
 #define TCP_HASH_SIZE 64
 
+static size_t tcp_max_waiting_payload = 100000;
+EXT_PARAM_RW(tcp_max_waiting_payload, "tcp-max-waiting-payload", size_t, "Max payload that we keep (in each direction) for TCP reordering.")
+
 /*
  * Proto Infos
  */
@@ -115,6 +118,8 @@ static SCM g_tcp_del_port(SCM name, SCM port_min, SCM port_max)
  * Parse
  */
 
+static struct pkt_wait_lists tcp_wait_lists;
+
 // We overload the mux_subparser in order to store cnx state.
 struct tcp_subparser {
     bool fin[2], ack[2], syn[2];
@@ -141,6 +146,8 @@ static bool tcp_subparser_term(struct tcp_subparser const *tcp_sub)
 
 static int tcp_subparser_ctor(struct tcp_subparser *tcp_subparser, struct mux_parser *mux_parser, struct parser *child, struct parser *requestor, void const *key)
 {
+    SLOG(LOG_DEBUG, "Constructing TCP subparser @%p", tcp_subparser);
+
     struct timeval now;
     timeval_set_now(&now);
 
@@ -150,11 +157,13 @@ static int tcp_subparser_ctor(struct tcp_subparser *tcp_subparser, struct mux_pa
     tcp_subparser->ack[0] = tcp_subparser->ack[1] = false;
     tcp_subparser->syn[0] = tcp_subparser->syn[1] = false;
 
-    if (0 != pkt_wait_list_ctor(tcp_subparser->wl+0, 0 /* relative to the ISN */, 0, 100000, 50, 100000, child)) {
+    pkt_wait_list_timeout(&tcp_wait_lists, 10 /* REORDERING TIMEOUT (second) */, &now);
+
+    if (0 != pkt_wait_list_ctor(tcp_subparser->wl+0, 0 /* relative to the ISN */, &tcp_wait_lists, 100000, 100, tcp_max_waiting_payload, child, &now)) {
         return -1;
     }
 
-    if (0 != pkt_wait_list_ctor(tcp_subparser->wl+1, 0 /* relative to the ISN */, 0, 100000, 50, 100000, child)) {
+    if (0 != pkt_wait_list_ctor(tcp_subparser->wl+1, 0 /* relative to the ISN */, &tcp_wait_lists, 100000, 100, tcp_max_waiting_payload, child, &now)) {
         pkt_wait_list_dtor(tcp_subparser->wl+0, &now);
         return -1;
     }
@@ -190,9 +199,9 @@ struct mux_subparser *tcp_subparser_and_parser_new(struct parser *parser, struct
     return mux_subparser_and_parser_new(mux_parser, proto, requestor, &key, now);
 }
 
-static void tcp_subparser_del(struct mux_subparser *mux_subparser)
+static void tcp_subparser_dtor(struct tcp_subparser *tcp_subparser)
 {
-    struct tcp_subparser *tcp_subparser = DOWNCAST(mux_subparser, mux_subparser, tcp_subparser);
+    SLOG(LOG_DEBUG, "Destructing TCP subparser @%p", tcp_subparser);
 
     struct timeval now;
     timeval_set_now(&now);
@@ -200,7 +209,12 @@ static void tcp_subparser_del(struct mux_subparser *mux_subparser)
     pkt_wait_list_dtor(tcp_subparser->wl+1, &now);
 
     mux_subparser_dtor(&tcp_subparser->mux_subparser);
+}
 
+static void tcp_subparser_del(struct mux_subparser *mux_subparser)
+{
+    struct tcp_subparser *tcp_subparser = DOWNCAST(mux_subparser, mux_subparser, tcp_subparser);
+    tcp_subparser_dtor(tcp_subparser);
     FREE(tcp_subparser);
 }
 
@@ -350,6 +364,8 @@ static struct ip_subproto ip_subproto, ip6_subproto;
 void tcp_init(void)
 {
     log_category_proto_tcp_init();
+    ext_param_tcp_max_waiting_payload_init();
+    pkt_wait_lists_ctor(&tcp_wait_lists);
 
     static struct proto_ops const ops = {
         .parse      = tcp_parse,
@@ -389,5 +405,7 @@ void tcp_fini(void)
     ip_subproto_dtor(&ip_subproto);
     ip6_subproto_dtor(&ip6_subproto);
     mux_proto_dtor(&mux_proto_tcp);
+    pkt_wait_lists_dtor(&tcp_wait_lists);
+    ext_param_tcp_max_waiting_payload_fini();
     log_category_proto_tcp_fini();
 }

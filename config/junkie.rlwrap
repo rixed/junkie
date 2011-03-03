@@ -18,6 +18,7 @@ get-dump-user
 get-dup-detection-delay
 get-dynports-file
 get-icmp-metric-enabled
+get-ip-reassembly
 get-limit-date
 get-limit-packets
 get-limit-seconds
@@ -66,9 +67,10 @@ set-dump-period
 set-dump-user
 set-dup-detection-delay
 set-dynports-file
-set-iface-filter
 set-ifaces
+set-ifaces-multiple
 set-icmp-metric-enabled
+get-ip-reassembly
 set-limit-date
 set-limit-packets
 set-limit-seconds

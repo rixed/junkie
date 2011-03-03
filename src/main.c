@@ -40,6 +40,7 @@
 #include <junkie/tools/hash.h>
 #include <junkie/tools/cli.h>
 #include <junkie/proto/proto.h>
+#include <junkie/proto/pkt_wait_list.h>
 #include <junkie/proto/cap.h>
 #include <junkie/proto/eth.h>
 #include <junkie/proto/ip.h>
@@ -74,18 +75,19 @@ static struct {
     void (*fini)(void);
 } initers[] = {
 #   define I(x) { x##_init, x##_fini }
-    I(log),         I(ext),         I(redim_array),
-    I(mallocer),    I(mutex),       I(plugins),
-    I(hash),        I(proto),       I(fuzzing),
-    I(cap),         I(eth),         I(ip6),
-    I(arp),         I(ip),          I(udp),
-    I(icmpv6),      I(tcp),         I(icmp),
-    I(sip),         I(bittorrent),  I(http),
-    I(rtp),         I(netbios),     I(ssl),
-    I(dns),         I(rtcp),        I(dns_tcp),
-    I(ftp),         I(mgcp),        I(sdp),
-    I(postgres),    I(mysql),       I(tns),
-    I(pkt_source),  I(cli),         I(capfile),
+    I(log),           I(ext),         I(redim_array),
+    I(mallocer),      I(mutex),       I(plugins),
+    I(hash),          I(proto),       I(fuzzing),
+    I(pkt_wait_list),
+    I(cap),           I(eth),         I(ip6),
+    I(arp),           I(ip),          I(udp),
+    I(icmpv6),        I(tcp),         I(icmp),
+    I(sip),           I(bittorrent),  I(http),
+    I(rtp),           I(netbios),     I(ssl),
+    I(dns),           I(rtcp),        I(dns_tcp),
+    I(ftp),           I(mgcp),        I(sdp),
+    I(postgres),      I(mysql),       I(tns),
+    I(pkt_source),    I(cli),         I(capfile),
 #   undef I
 };
 
