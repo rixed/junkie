@@ -55,11 +55,25 @@ static void check_for_passv(struct ip_proto_info const *ip, struct parser *reque
     char const *passv = memmem(packet, packet_len, PASSV, passv_len);
     if (! passv) return;  // It may be FTP anyway
     passv += strlen(PASSV);
+    size_t rem_len = packet_len - (passv - (char *)packet);
 
     // Get advertised address for future cnx destination
-    if (*passv == '.') passv++;
+    if (rem_len >= 1 && *passv == '.') {
+        passv ++;
+        rem_len --;
+    }
+
+    // Don't bother if the remaining length is too short
+    if (rem_len < 14) return;
+
+    // Copy a reasonable amount so that we can null terminate it for sscanf
+    char str[64];
+    size_t copy_len = MIN(rem_len, sizeof(str)-1);
+    memcpy(str, passv, copy_len);
+    str[copy_len] = '\0';
+
     unsigned brok_ip[4], brok_port[2];
-    int const nb_matches = sscanf(passv, " (%u,%u,%u,%u,%u,%u)",
+    int const nb_matches = sscanf(str, " (%u,%u,%u,%u,%u,%u)",
         brok_ip+0, brok_ip+1, brok_ip+2, brok_ip+3,
         brok_port+0, brok_port+1);
     if (nb_matches != 6) return;
