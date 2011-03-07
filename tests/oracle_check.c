@@ -12,9 +12,9 @@ static void net8_string_check(void)
         char *str;
         size_t len;
     } tests[] = {
-        { "\4glop", 4 },
-        { "\376\4pas \4glop", 8 },
-        { "\376\4pas \4glop\4pas \4glop", 16 },
+        { "\012glop glop", 9 },
+        { "\376\004pas \004glop", 8 },
+        { "\376\004pas \004glop\004pas \004glop", 16 },
     };
 
     for (unsigned t = 0; t < NB_ELEMS(tests); t++) {
@@ -23,7 +23,8 @@ static void net8_string_check(void)
         struct cursor cursor;
         size_t len = strlen(test->str);
         cursor_ctor(&cursor, (uint8_t *)test->str, len+1);
-        net8_copy_sql(&info, &cursor, 0, len);
+        memset(&info, 0, sizeof(info));
+        net8_copy_sql(&info, &cursor, 0);
         assert(info.set_values & SQL_SQL);
         assert(strlen(info.u.query.sql) == test->len);
     }

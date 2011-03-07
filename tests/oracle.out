@@ -2,10 +2,10 @@
 head_len=213, payload=0, Clt->Srv, version=3.13, startup, No SSL, user=guest, dbname=XE
 head_len=8, payload=0, Srv->Clt, unknown
 head_len=213, payload=0, Clt->Srv, version=3.13, startup, No SSL, user=guest, dbname=XE
-head_len=32, payload=0, Srv->Clt, version=3.13, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=32, payload=0, Srv->Clt, version=3.13, startup, No SSL, AuthStatus=0
 head_len=156, payload=0, Clt->Srv, query
 head_len=127, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
-head_len=38, payload=0, Clt->Srv, query, query=''
+head_len=38, payload=0, Clt->Srv, query
 head_len=239, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
 head_len=1080, payload=0, Clt->Srv, query
 head_len=975, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
@@ -25,9 +25,9 @@ head_len=290, payload=0, Clt->Srv, query, query='SELECT ATTRIBUTE,SCOPE,NUMERIC_
 head_len=464, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
 head_len=313, payload=0, Clt->Srv, query, query='SELECT CHAR_VALUE FROM SYSTEM.PRODUCT_PRIVS WHERE   (UPPER('SQL*Plus') LIKE UPPER(PRODUCT)) AND   ((UPPER(USER) LIKE USERID) OR (USERID = 'PUBLIC')) AND   (UPPER(ATTRIBUTE) = 'ROLES')'
 head_len=243, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
-head_len=218, payload=0, Clt->Srv, query, query=''
+head_len=218, payload=0, Clt->Srv, query, query='BEGIN DBMS_APPLICATION_INFO.SET_MODULE(:1,NULL); END;'
 head_len=126, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
-head_len=194, payload=0, Clt->Srv, query, query=''
+head_len=194, payload=0, Clt->Srv, query, query='SELECT DECODE('A','A','1','2') FROM DUAL'
 head_len=277, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
 head_len=60, payload=0, Clt->Srv, query
 head_len=22, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
@@ -40,10 +40,10 @@ head_len=10, payload=0, Clt->Srv, exit
 head_len=213, payload=0, Clt->Srv, version=3.13, startup, No SSL, user=guest, dbname=XE
 head_len=8, payload=0, Srv->Clt, unknown
 head_len=213, payload=0, Clt->Srv, version=3.13, startup, No SSL, user=guest, dbname=XE
-head_len=32, payload=0, Srv->Clt, version=3.13, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=32, payload=0, Srv->Clt, version=3.13, startup, No SSL, AuthStatus=0
 head_len=156, payload=0, Clt->Srv, query
 head_len=127, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
-head_len=38, payload=0, Clt->Srv, query, query=''
+head_len=38, payload=0, Clt->Srv, query
 head_len=239, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
 head_len=1080, payload=0, Clt->Srv, query
 head_len=975, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
@@ -63,9 +63,9 @@ head_len=290, payload=0, Clt->Srv, query, query='SELECT ATTRIBUTE,SCOPE,NUMERIC_
 head_len=464, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
 head_len=313, payload=0, Clt->Srv, query, query='SELECT CHAR_VALUE FROM SYSTEM.PRODUCT_PRIVS WHERE   (UPPER('SQL*Plus') LIKE UPPER(PRODUCT)) AND   ((UPPER(USER) LIKE USERID) OR (USERID = 'PUBLIC')) AND   (UPPER(ATTRIBUTE) = 'ROLES')'
 head_len=243, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
-head_len=218, payload=0, Clt->Srv, query, query=''
+head_len=218, payload=0, Clt->Srv, query, query='BEGIN DBMS_APPLICATION_INFO.SET_MODULE(:1,NULL); END;'
 head_len=126, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
-head_len=194, payload=0, Clt->Srv, query, query=''
+head_len=194, payload=0, Clt->Srv, query, query='SELECT DECODE('A','A','1','2') FROM DUAL'
 head_len=277, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
 head_len=60, payload=0, Clt->Srv, query
 head_len=22, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
@@ -80,10 +80,10 @@ head_len=10, payload=0, Clt->Srv, exit
 head_len=213, payload=0, Clt->Srv, version=3.13, startup, No SSL, user=guest, dbname=XE
 head_len=8, payload=0, Srv->Clt, unknown
 head_len=213, payload=0, Clt->Srv, version=3.13, startup, No SSL, user=guest, dbname=XE
-head_len=32, payload=0, Srv->Clt, version=3.13, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=32, payload=0, Srv->Clt, version=3.13, startup, No SSL, AuthStatus=0
 head_len=156, payload=0, Clt->Srv, query
 head_len=127, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
-head_len=38, payload=0, Clt->Srv, query, query=''
+head_len=38, payload=0, Clt->Srv, query
 head_len=239, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
 head_len=1080, payload=0, Clt->Srv, query
 head_len=975, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
@@ -103,15 +103,15 @@ head_len=290, payload=0, Clt->Srv, query, query='SELECT ATTRIBUTE,SCOPE,NUMERIC_
 head_len=464, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
 head_len=313, payload=0, Clt->Srv, query, query='SELECT CHAR_VALUE FROM SYSTEM.PRODUCT_PRIVS WHERE   (UPPER('SQL*Plus') LIKE UPPER(PRODUCT)) AND   ((UPPER(USER) LIKE USERID) OR (USERID = 'PUBLIC')) AND   (UPPER(ATTRIBUTE) = 'ROLES')'
 head_len=243, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
-head_len=218, payload=0, Clt->Srv, query, query=''
+head_len=218, payload=0, Clt->Srv, query, query='BEGIN DBMS_APPLICATION_INFO.SET_MODULE(:1,NULL); END;'
 head_len=126, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
-head_len=194, payload=0, Clt->Srv, query, query=''
+head_len=194, payload=0, Clt->Srv, query, query='SELECT DECODE('A','A','1','2') FROM DUAL'
 head_len=277, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
 head_len=60, payload=0, Clt->Srv, query
 head_len=22, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
 head_len=48, payload=0, Clt->Srv, query
 head_len=22, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
-head_len=153, payload=0, Clt->Srv, query, query=''
+head_len=153, payload=0, Clt->Srv, query, query='delete from regions where region_id > 90'
 head_len=121, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
 head_len=13, payload=0, Clt->Srv, query
 head_len=17, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
@@ -120,10 +120,10 @@ head_len=10, payload=0, Clt->Srv, exit
 head_len=213, payload=0, Clt->Srv, version=3.13, startup, No SSL, user=guest, dbname=XE
 head_len=8, payload=0, Srv->Clt, unknown
 head_len=213, payload=0, Clt->Srv, version=3.13, startup, No SSL, user=guest, dbname=XE
-head_len=32, payload=0, Srv->Clt, version=3.13, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=32, payload=0, Srv->Clt, version=3.13, startup, No SSL, AuthStatus=0
 head_len=156, payload=0, Clt->Srv, query
 head_len=127, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
-head_len=38, payload=0, Clt->Srv, query, query=''
+head_len=38, payload=0, Clt->Srv, query
 head_len=239, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
 head_len=1080, payload=0, Clt->Srv, query
 head_len=975, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
@@ -143,9 +143,9 @@ head_len=290, payload=0, Clt->Srv, query, query='SELECT ATTRIBUTE,SCOPE,NUMERIC_
 head_len=464, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
 head_len=313, payload=0, Clt->Srv, query, query='SELECT CHAR_VALUE FROM SYSTEM.PRODUCT_PRIVS WHERE   (UPPER('SQL*Plus') LIKE UPPER(PRODUCT)) AND   ((UPPER(USER) LIKE USERID) OR (USERID = 'PUBLIC')) AND   (UPPER(ATTRIBUTE) = 'ROLES')'
 head_len=243, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
-head_len=218, payload=0, Clt->Srv, query, query=''
+head_len=218, payload=0, Clt->Srv, query, query='BEGIN DBMS_APPLICATION_INFO.SET_MODULE(:1,NULL); END;'
 head_len=126, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
-head_len=194, payload=0, Clt->Srv, query, query=''
+head_len=194, payload=0, Clt->Srv, query, query='SELECT DECODE('A','A','1','2') FROM DUAL'
 head_len=277, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
 head_len=60, payload=0, Clt->Srv, query
 head_len=22, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
@@ -160,10 +160,10 @@ head_len=10, payload=0, Clt->Srv, exit
 head_len=213, payload=0, Clt->Srv, version=3.13, startup, No SSL, user=guest, dbname=XE
 head_len=8, payload=0, Srv->Clt, unknown
 head_len=213, payload=0, Clt->Srv, version=3.13, startup, No SSL, user=guest, dbname=XE
-head_len=32, payload=0, Srv->Clt, version=3.13, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=32, payload=0, Srv->Clt, version=3.13, startup, No SSL, AuthStatus=0
 head_len=156, payload=0, Clt->Srv, query
 head_len=127, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
-head_len=38, payload=0, Clt->Srv, query, query=''
+head_len=38, payload=0, Clt->Srv, query
 head_len=239, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
 head_len=1080, payload=0, Clt->Srv, query
 head_len=975, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
@@ -183,9 +183,9 @@ head_len=290, payload=0, Clt->Srv, query, query='SELECT ATTRIBUTE,SCOPE,NUMERIC_
 head_len=464, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
 head_len=313, payload=0, Clt->Srv, query, query='SELECT CHAR_VALUE FROM SYSTEM.PRODUCT_PRIVS WHERE   (UPPER('SQL*Plus') LIKE UPPER(PRODUCT)) AND   ((UPPER(USER) LIKE USERID) OR (USERID = 'PUBLIC')) AND   (UPPER(ATTRIBUTE) = 'ROLES')'
 head_len=243, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
-head_len=218, payload=0, Clt->Srv, query, query=''
+head_len=218, payload=0, Clt->Srv, query, query='BEGIN DBMS_APPLICATION_INFO.SET_MODULE(:1,NULL); END;'
 head_len=126, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
-head_len=194, payload=0, Clt->Srv, query, query=''
+head_len=194, payload=0, Clt->Srv, query, query='SELECT DECODE('A','A','1','2') FROM DUAL'
 head_len=277, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
 head_len=60, payload=0, Clt->Srv, query
 head_len=22, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1

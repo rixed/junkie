@@ -146,10 +146,10 @@ static void copy_token(char *dst, size_t dst_len, char const *src, size_t src_le
     *dst = '\0';
 }
 
-static enum proto_parse_status tns_parse_connect(struct tns_parser unused_ *tns_parser, struct sql_proto_info *info, struct cursor *cursor, size_t pdu_len)
+static enum proto_parse_status tns_parse_connect(struct tns_parser unused_ *tns_parser, struct sql_proto_info *info, struct cursor *cursor)
 {
     if (! info->is_query) return PROTO_PARSE_ERR;
-    SLOG(LOG_DEBUG, "Parsing TNS connect PDU of size %zu", pdu_len);
+    SLOG(LOG_DEBUG, "Parsing TNS connect PDU of size %zu", cursor->cap_len);
 
     info->msg_type = SQL_STARTUP;
 
@@ -170,6 +170,7 @@ static enum proto_parse_status tns_parse_connect(struct tns_parser unused_ *tns_
      * - optionaly, 16 bytes for trace things
      * - padding until data offset
      * - then connect data */
+    size_t const pdu_len = cursor->cap_len;
     if (pdu_len < 26) return PROTO_PARSE_ERR;
     unsigned version = cursor_read_u16n(cursor);
     info->version_maj = version/100;
@@ -200,10 +201,10 @@ static enum proto_parse_status tns_parse_connect(struct tns_parser unused_ *tns_
     return PROTO_OK;
 }
 
-static enum proto_parse_status tns_parse_accept(struct tns_parser unused_ *tns_parser, struct sql_proto_info *info, struct cursor *cursor, size_t pdu_len)
+static enum proto_parse_status tns_parse_accept(struct tns_parser unused_ *tns_parser, struct sql_proto_info *info, struct cursor *cursor)
 {
     if (info->is_query) return PROTO_PARSE_ERR;
-    SLOG(LOG_DEBUG, "Parsing TNS accept PDU of size %zu", pdu_len);
+    SLOG(LOG_DEBUG, "Parsing TNS accept PDU of size %zu", cursor->cap_len);
 
     info->msg_type = SQL_STARTUP;
 
@@ -217,7 +218,7 @@ static enum proto_parse_status tns_parse_accept(struct tns_parser unused_ *tns_p
      * - 2 bytes data offset
      * - 1 byte connect flag 0
      * - 1 byte connect flag 1 */
-    if (pdu_len < 16) return PROTO_PARSE_ERR;
+    if (cursor->cap_len < 16) return PROTO_PARSE_ERR;
     unsigned version = cursor_read_u16n(cursor);
     info->version_maj = version/100;
     info->version_min = version%100;
@@ -227,60 +228,80 @@ static enum proto_parse_status tns_parse_accept(struct tns_parser unused_ *tns_p
     return PROTO_OK;
 }
 
-static void net8_copy_sql(struct sql_proto_info *info, struct cursor *cursor, size_t offset, size_t data_len)
+static int copy_printable(char *dst, size_t dst_size, unsigned src_len, char *src)
 {
-    assert(data_len > offset);
-    /* The strings are stored like this :
-     * - 1 byte length
-     * - if length != 0xfe, then follows the string, null terminated
-     * - if length = 0xfe, the string is segmented. Each segment is a length then the chars. */
-    info->msg_type = SQL_QUERY;
-    cursor_drop(cursor, offset);
-    data_len -= offset;
-    unsigned len = cursor_read_u8(cursor);
-    data_len --;
-    if (len != 0xfe) {
-        snprintf(info->u.query.sql, sizeof(info->u.query.sql), "%.*s", (int)MIN(data_len, len), (char *)cursor->head);
-    } else {
-        int sql_len = 0;
-        do {
-            if (data_len < 1) return;
-            len = cursor_read_u8(cursor);
-            data_len --;
-            if (len == 0) break;
-            if (len > data_len) return;
-            sql_len += snprintf(info->u.query.sql + sql_len, sizeof(info->u.query.sql) - sql_len, "%.*s", (int)MIN(data_len, len), (char *)cursor->head);
-            cursor_drop(cursor, len);
-        } while (1);
+    assert(dst_size > 0);
+    if (dst_size == 1 || src_len == 0) {
+        *dst = '\0';
+        return 0;
     }
-    // replace newlines by spaces
-    for (char *c = info->u.query.sql; *c != '\0'; c++) {
-        if (*c == '\n' || *c == '\r' || *c == '\t') *c = ' ';
-    }
-    info->set_values |= SQL_SQL;
+
+    char c = *src;
+    if (c == '\n' || c == '\r' || c == '\t') {  // replace newlines by spaces
+        c = ' ';
+    } else if (c == '\0' && src_len == 1) {
+        // allow for a nul terminator
+    } else if (! isprint(c)) return -1;
+
+    *dst = c;
+
+    return copy_printable(dst+1, dst_size-1, src_len-1, src+1);
 }
 
-static enum proto_parse_status tns_parse_data(struct tns_parser unused_ *tns_parser, struct sql_proto_info *info, struct cursor *cursor, size_t pdu_len)
+#define MIN_QUERY_SIZE 8
+
+// Returns -1 on error, 0 if the string looks alright
+static int net8_copy_sql(struct sql_proto_info *info, struct cursor *cursor, unsigned to_rewind)
 {
-    SLOG(LOG_DEBUG, "Parsing TNS data PDU of size %zu", pdu_len);
+    struct cursor curs;
+    cursor_ctor(&curs, cursor->head - to_rewind, cursor->cap_len + to_rewind); // avoid touching cursor if we fail
+    /* The strings are stored like this :
+     * - 1 byte length
+     * - if length != 0xfe, then follows the string, optionally null terminated
+     * - if length = 0xfe, the string is segmented. Each segment is a length then the chars, optionally nul terminated. */
+    unsigned len = cursor_read_u8(&curs);
+    if (len != 0xfe) {
+        if (len > curs.cap_len) return -1;
+        if (len < MIN_QUERY_SIZE) return -1;    // or we wouldn't be there in the first place
+        if (0 != copy_printable(info->u.query.sql, sizeof(info->u.query.sql), len, (char *)curs.head)) return -1;
+        cursor_drop(&curs, len);
+    } else {
+        unsigned sql_len = 0;
+        do {
+            len = cursor_read_u8(&curs);
+            if (len == 0) break;
+            if (len > curs.cap_len) return -1;
+            if (0 != copy_printable(info->u.query.sql + sql_len, sizeof(info->u.query.sql) - sql_len, len, (char *)curs.head)) return -1;
+            sql_len += len;
+            cursor_drop(&curs, len);
+        } while (sql_len < sizeof(info->u.query.sql));
+    }
+
+    info->msg_type = SQL_QUERY;
+    info->set_values |= SQL_SQL;
+    *cursor = curs;
+    return 0;
+}
+
+static enum proto_parse_status tns_parse_data(struct tns_parser unused_ *tns_parser, struct sql_proto_info *info, struct cursor *cursor)
+{
+    SLOG(LOG_DEBUG, "Parsing TNS data PDU of size %zu", cursor->cap_len);
 
     // First, read the data flags
-    CHECK_LEN(cursor, 2, 0);
+    if (cursor->cap_len < 2) return PROTO_PARSE_ERR;
     unsigned flags = cursor_read_u16n(cursor);
     SLOG(LOG_DEBUG, "Data flags = 0x%x", flags);
     if (flags & 0x40) { // End Of File
-        if (pdu_len != 2) return PROTO_PARSE_ERR;   // This may be wrong, maybe a command is allowed anyway
+        if (cursor->cap_len != 0) return PROTO_PARSE_ERR;   // This may be wrong, maybe a command is allowed anyway
         info->msg_type = SQL_EXIT;
         return PROTO_OK;
     }
-    pdu_len -= 2;
 
     // Else we try to locate the user's query or the server's response.
     info->msg_type = SQL_QUERY;
 
-    CHECK_LEN(cursor, 1, 1);
+    if (cursor->cap_len < 1) return PROTO_PARSE_ERR;
     unsigned const header_op = cursor_read_u8(cursor);
-    pdu_len --;
     SLOG(LOG_DEBUG, "Header Operation = %u", header_op);
 
     if (header_op == NET8_TYPE_ROWTRANSFER) {
@@ -291,7 +312,7 @@ static enum proto_parse_status tns_parse_data(struct tns_parser unused_ *tns_par
          * - 1 byte iter num (?)
          * - 2 bytes num iters this time (??)
          * - 2 bytes num rows */
-        CHECK_LEN(cursor, 7, 2);
+        if (cursor->cap_len < 7) return PROTO_PARSE_ERR;
         cursor_drop(cursor, 1); // skip the flags
         info->u.query.nb_fields = cursor_read_u16n(cursor);
         info->set_values |= SQL_NB_FIELDS;
@@ -300,16 +321,21 @@ static enum proto_parse_status tns_parse_data(struct tns_parser unused_ *tns_par
         info->set_values |= SQL_NB_ROWS;
     } else if (info->is_query) {
         // Try to locate the command string (ie. at least 8 printable chars)
-        unsigned nb_chars = 0;  // nb successive chars
-        for (unsigned c = 1; c < pdu_len; c++) {    // we skip one byte for the string length
-            if (isprint(cursor->head[c])) {
-                if (++nb_chars > 8) {
-                    net8_copy_sql(info, cursor, c - nb_chars, pdu_len);
+        unsigned dropped = 0, nb_chars = 0;  // nb successive chars
+        while (cursor->cap_len > nb_chars) {
+            if (isprint(cursor->head[nb_chars])) {
+                if (++nb_chars > MIN_QUERY_SIZE) {
+                    if (dropped >= 2 && 0 == net8_copy_sql(info, cursor, 2)) break;
+                    if (dropped >= 1 && 0 == net8_copy_sql(info, cursor, 1)) break;
+                    if (0 == net8_copy_sql(info, cursor, 0)) break;
+                    // TODO: Keep looking ?
                     break;
                 }
             } else {
+                cursor_drop(cursor, nb_chars+1);
                 nb_chars = 0;
             }
+            dropped ++;    // count how many bytes we droped
         }
     }
 
@@ -348,14 +374,19 @@ static enum proto_parse_status tns_sbuf_parse(struct parser *parser, struct prot
             streambuf_set_restart(&tns_parser->sbuf, way, msg_start);
             break;  // will ack what we had so far
         }
-        uint8_t const *const msg_end = cursor.head + pdu_len;
+        assert(cursor.cap_len >= pdu_len);  // We have the whole msg ready to be read
+        struct cursor msg;
+        cursor_ctor(&msg, cursor.head, pdu_len);
         switch (pdu_type) {
             case TNS_CONNECT:
-                status = tns_parse_connect(tns_parser, &info, &cursor, pdu_len);
+                status = tns_parse_connect(tns_parser, &info, &msg);
+                break;
             case TNS_ACCEPT:
-                status = tns_parse_accept(tns_parser, &info, &cursor, pdu_len);
+                status = tns_parse_accept(tns_parser, &info, &msg);
+                break;
             case TNS_DATA:
-                status = tns_parse_data(tns_parser, &info, &cursor, pdu_len);
+                status = tns_parse_data(tns_parser, &info, &msg);
+                break;
             case TNS_REFUSE:
             case TNS_REDIRECT:
             case TNS_ABORT:
@@ -366,7 +397,7 @@ static enum proto_parse_status tns_sbuf_parse(struct parser *parser, struct prot
                 break;
         }
 
-        cursor_drop(&cursor, msg_end - cursor.head);
+        cursor_drop(&cursor, pdu_len);
     }
 
     return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
