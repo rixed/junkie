@@ -146,21 +146,23 @@ static enum proto_parse_status cursor_read_le_string(struct cursor *cursor, char
     uint_least64_t len;
     enum proto_parse_status status = cursor_read_varlen(cursor, &len, max_len);
     if (status != PROTO_OK) return status;
+    // We are supposed to have the whole packet at disposal
+    if (cursor->cap_len < len) return PROTO_PARSE_ERR;
 
-    char *str = tempstr();
     unsigned const l = MIN(TEMPSTR_SIZE, len);
+    char *str = tempstr();
     memcpy(str, cursor->head, l);
     for (unsigned s = 0; s < l; s++) {
         if (! isprint(str[s])) str[s] = '.';
     }
     str[l] = '\0';
-    cursor_drop(cursor, l);
+    cursor_drop(cursor, len);
 
     if (str_) *str_ = str;
     return PROTO_OK;
 }
 
-/* Read a message header, return msg length and paclet number, and advance the cursor to the msg payload.
+/* Read a message header, return msg length and packet number, and advance the cursor to the msg payload.
  * return PROTO_TOO_SHORT if the msg content is not available. */
 static enum proto_parse_status cursor_read_msg(struct cursor *cursor, unsigned *packet_num_, size_t *len_)
 {
@@ -194,7 +196,9 @@ static enum proto_parse_status mysql_parse_init(struct mysql_parser *mysql_parse
     size_t packet_len;
     enum proto_parse_status status = cursor_read_msg(&cursor, &packet_num, &packet_len);
     if (status != PROTO_OK) return status;
+    assert(cursor.cap_len >= packet_len);
     if (packet_num != 0) return PROTO_PARSE_ERR;
+    if (packet_len < 1) return PROTO_PARSE_ERR;    // should have at least the version number
 
     info->version_maj = cursor_read_u8(&cursor);
     info->version_min = 0;
@@ -218,6 +222,7 @@ static enum proto_parse_status mysql_parse_startup(struct mysql_parser *mysql_pa
     size_t packet_len;
     enum proto_parse_status status = cursor_read_msg(&cursor, &packet_num, &packet_len);
     if (status != PROTO_OK) return status;
+    assert(cursor.cap_len >= packet_len);
 
     if (info->is_query) {
         uint8_t const *msg_end = cursor.head + packet_len;
@@ -226,6 +231,7 @@ static enum proto_parse_status mysql_parse_startup(struct mysql_parser *mysql_pa
             return PROTO_PARSE_ERR;
         }
         // jump to interresting bits
+        if (packet_len < 32) return PROTO_PARSE_ERR;
         cursor_drop(&cursor, 32);
         char *str;
         status = cursor_read_string(&cursor, &str, msg_end - cursor.head);
@@ -245,6 +251,7 @@ static enum proto_parse_status mysql_parse_startup(struct mysql_parser *mysql_pa
             SLOG(LOG_DEBUG, "Wrong packet number");
             return PROTO_PARSE_ERR;
         }
+        if (packet_len-- < 1) return PROTO_PARSE_ERR;
         unsigned res = cursor_read_u8(&cursor);
         info->set_values |= SQL_AUTH_STATUS;
         if (res == 0) { // OK packet
@@ -252,6 +259,7 @@ static enum proto_parse_status mysql_parse_startup(struct mysql_parser *mysql_pa
             mysql_parser->phase = QUERY;
         } else { // Error packet
             if (res != 0xff) return PROTO_PARSE_ERR;
+            if (packet_len < 2) return PROTO_PARSE_ERR;
             info->u.startup.status = cursor_read_u16(&cursor);
         }
     }
@@ -386,7 +394,7 @@ static enum proto_parse_status mysql_parse_query(struct mysql_parser *mysql_pars
                 if (packet_len != 4) return PROTO_PARSE_ERR;
                 mysql_parser->nb_eof ++;
             } else {    // result set/field set/row data packet
-                // We must re-read the field count since its actualy a varleng binary
+                // We must re-read the field count since its actualy a varlen binary
                 cursor_rollback(&cursor, 1);
                 packet_len ++;
                 uint_least64_t field_count;
