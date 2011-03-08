@@ -94,10 +94,11 @@ static enum proto_parse_status ip6_parse(struct parser *parser, struct proto_inf
     unsigned const next = READ_U8(&iphdr->next);
     size_t const payload = READ_U16N(&iphdr->payload_len);
     size_t const ip_len = iphdr_len + payload;
+    size_t const cap_payload = MIN(cap_len - iphdr_len, payload);
     unsigned const version = IP6_VERSION(iphdr);
 
     SLOG(LOG_DEBUG, "New packet of %zu bytes, proto %u, %"PRINIPQUAD6"->%"PRINIPQUAD6,
-        wire_len, next, NIPQUAD6(&iphdr->src), NIPQUAD6(&iphdr->dst));
+        ip_len, next, NIPQUAD6(&iphdr->src), NIPQUAD6(&iphdr->dst));
 
     if (ip_len > wire_len) {
         SLOG(LOG_DEBUG, "Bogus IPv6 total length : %zu > %zu", ip_len, wire_len);
@@ -132,11 +133,11 @@ static enum proto_parse_status ip6_parse(struct parser *parser, struct proto_inf
         goto fallback;
     }
 
-    if (0 != proto_parse(subparser->parser, &info.info, way2, packet + iphdr_len, cap_len - iphdr_len, wire_len - iphdr_len, now, okfn, tot_cap_len, tot_packet)) goto fallback;
+    if (0 != proto_parse(subparser->parser, &info.info, way2, packet + iphdr_len, cap_payload, payload, now, okfn, tot_cap_len, tot_packet)) goto fallback;
     return PROTO_OK;
 
 fallback:
-    (void)proto_parse(NULL, &info.info, way2, packet + iphdr_len, cap_len - iphdr_len, wire_len - iphdr_len, now, okfn, tot_cap_len, tot_packet);
+    (void)proto_parse(NULL, &info.info, way2, packet + iphdr_len, cap_payload, payload, now, okfn, tot_cap_len, tot_packet);
     return PROTO_OK;
 }
 

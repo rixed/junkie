@@ -90,7 +90,7 @@ static int ip_info_check(struct proto_info const *info_, size_t unused_ cap_len,
     return 0;
 }
 
-static void parse_check(size_t cap_len_)
+static void parse_check(size_t cap_len_, size_t padding)
 {
     struct timeval now;
     timeval_set_now(&now);
@@ -104,7 +104,7 @@ static void parse_check(size_t cap_len_)
         size_t const len = test->size;
         size_t const cap_len = len < cap_len_ ? len : cap_len_;
         int ret =
-            (test->expected.version == 4 ? ip_parse : ip6_parse)(ip_parser, NULL, 0, parse_tests[current_test].packet, cap_len, len, &now, ip_info_check, cap_len, parse_tests[current_test].packet);
+            (test->expected.version == 4 ? ip_parse : ip6_parse)(ip_parser, NULL, 0, parse_tests[current_test].packet, cap_len, len+padding, &now, ip_info_check, cap_len, parse_tests[current_test].packet);
         assert(0 == ret);
     }
 
@@ -121,9 +121,11 @@ int main(void)
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("ip_check.log");
 
-    parse_check(65535);
+    parse_check(65535, 0);
+    parse_check(65535, 6);  // The same, with 6 additional bytes on wire (to mimick Ethernet padding)
     for (size_t cap_len = 40; cap_len < 50; cap_len++) {
-        parse_check(cap_len);
+        parse_check(cap_len, 0);
+        parse_check(cap_len, 6);
     }
     stress_check(proto_ip);
 

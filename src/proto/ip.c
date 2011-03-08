@@ -331,7 +331,10 @@ static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info
     // Parse
 
     struct ip_proto_info info;
-    ip_proto_info_ctor(&info, parser, parent, iphdr_len, ip_len - iphdr_len, iphdr);
+    // Take care that wire/cap_len can be greater than ip payload (padding)
+    size_t const payload = ip_len - iphdr_len;
+    size_t const cap_payload = MIN(cap_len - iphdr_len, payload);
+    ip_proto_info_ctor(&info, parser, parent, iphdr_len, payload, iphdr);
 
     // Find subparser
 
@@ -360,12 +363,11 @@ static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info
         struct ip_reassembly *reassembly = ip_reassembly_lookup(ip_subparser, id, subparser->parser, now);
         if (! reassembly) goto fallback;
         assert(reassembly->in_use && reassembly->constructed);
-        size_t frag_len = wire_len - iphdr_len;
         if (! (READ_U8(&iphdr->flags) & IP_MORE_FRAGS_MASK)) {
             reassembly->got_last = 1;
-            reassembly->end_offset = offset + frag_len;
+            reassembly->end_offset = offset + payload;
         }
-        if (PROTO_OK != pkt_wait_list_add(&reassembly->wl, offset, offset + frag_len, false, &info.info, info.way, packet + iphdr_len, cap_len - iphdr_len, frag_len, now, okfn, tot_cap_len, tot_packet)) {
+        if (PROTO_OK != pkt_wait_list_add(&reassembly->wl, offset, offset + payload, false, &info.info, info.way, packet + iphdr_len, cap_payload, payload, now, okfn, tot_cap_len, tot_packet)) {
             goto fallback;  // should not happen
         }
         if (reassembly->got_last && pkt_wait_list_is_complete(&reassembly->wl, 0, reassembly->end_offset)) {
@@ -375,11 +377,11 @@ static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info
     }
 
     // Parse it at once
-    if (PROTO_OK != proto_parse(subparser->parser, &info.info, info.way, packet + iphdr_len, cap_len - iphdr_len, wire_len - iphdr_len, now, okfn, tot_cap_len, tot_packet)) goto fallback;
+    if (PROTO_OK != proto_parse(subparser->parser, &info.info, info.way, packet + iphdr_len, cap_payload, payload, now, okfn, tot_cap_len, tot_packet)) goto fallback;
     return PROTO_OK;
 
 fallback:
-    (void)proto_parse(NULL, &info.info, info.way, packet + iphdr_len, cap_len - iphdr_len, wire_len - iphdr_len, now, okfn, tot_cap_len, tot_packet);
+    (void)proto_parse(NULL, &info.info, info.way, packet + iphdr_len, cap_payload, payload, now, okfn, tot_cap_len, tot_packet);
     return PROTO_OK;
 }
 

@@ -1,0 +1,10 @@
+#!/bin/sh
+# Check that TCP payload is 0 in the presence of ethernet padding
+NAME="Ethernet Padding"
+PCAPS="pcap/misc/eth_padding.pcap"
+filter() {
+	grep '^TCP' | cut -d' ' -f 2-
+}
+OUTPUT="eth_padding.out"
+
+. ./dump_test

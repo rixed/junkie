@@ -1,0 +1,2 @@
+-- pcap/misc/eth_padding.pcap --
+head_len=20, payload=0, ports=993->1979, flags=Ack, win=65535, ack=2440074829, seq=1633020171
