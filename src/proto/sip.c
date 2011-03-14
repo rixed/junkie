@@ -202,7 +202,7 @@ static int sip_extract_content_length(unsigned unused_ field, struct liner *line
 {
     struct sip_proto_info *info = info_;
     info->set_values |= SIP_LENGTH_SET;
-    info->content_length = strtoull(liner->start, NULL, 10);
+    info->content_length = liner_strtoull(liner, NULL, 10);
     return 0;
 }
 

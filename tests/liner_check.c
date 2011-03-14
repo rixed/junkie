@@ -111,6 +111,47 @@ static void check_termination(void)
     assert(liner.start == text && liner.tok_size == 4);
 }
 
+static void check_strtoull(void)
+{
+    struct {
+        char const *text;
+        int base;
+        unsigned long long expected;
+        unsigned end_offset;
+    } tests[] = {
+        // Simple conversions
+        { "", 10, 0, 0 }, { "", 16, 0, 0 },
+        { "6", 10, 6, 1 }, { "6", 16, 6, 1 },
+        { "b", 10, 0, 0 }, { "b", 16, 11, 1 },
+        { "12", 10, 12, 2 }, { "12", 16, 18, 2 },
+        { "12a", 10, 12, 2 }, { "12a", 16, 298, 3 },
+        // With sign
+        { "-14", 10, (unsigned long long)-14, 3 },
+        { "0", 10, 0, 1 }, { "+0", 10, 0, 2 }, { "-0", 10, 0, 2 },
+        // Initial white spaces
+        { "  \t3", 10, 3, 4 },
+        // Automatic base
+        { "0x10", 0, 16, 4 },
+        { "010", 0, 8, 3 },
+        // Mixing with end of line delimiter
+        { "\n123", 10, 0, 0 },
+        { "1\n23", 10, 1, 1 },
+        { "12\n3", 10, 12, 2 },
+        { "123\n", 10, 123, 3 },
+        // All of the above
+        { " \t +0x1\n6", 0, 1, 7 },
+    };
+
+    for (unsigned t = 0; t < NB_ELEMS(tests); t++) {
+        struct liner liner;
+        liner_init(&liner, &delim_lines, tests[t].text, strlen(tests[t].text));
+
+        char const *end;
+        unsigned long long res = liner_strtoull(&liner, &end, tests[t].base);
+        assert(res == tests[t].expected);
+        assert(end - tests[t].text == tests[t].end_offset);
+    }
+}
 
 int main(void)
 {
@@ -123,6 +164,7 @@ int main(void)
     check_longest_match();
     check_restart();
     check_termination();
+    check_strtoull();
 
     return EXIT_SUCCESS;
 }

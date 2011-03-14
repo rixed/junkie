@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <ctype.h>
 #include <junkie/tools/log.h>
 #include <junkie/tools/miscmacs.h>
 #include <junkie/proto/proto.h>
@@ -50,19 +51,53 @@ static void liner_skip(struct liner *liner, size_t len)
 
 unsigned long long liner_strtoull(struct liner *liner, char const **end, int base)
 {
-    assert(base > 1);
+    assert(base >= 0);
     unsigned long long ret = 0;
+    unsigned o = 0;
+    bool neg = false;
 
-    unsigned o;
-    for (o = 0; o < liner->tok_size; o++) {
+    // The string may begin with an arbitrary amount of white space (as determined by isspace(3)) ...
+    while (o < liner->tok_size && isspace(liner->start[o])) o ++;
+
+    // ... followed by a single optional '+' or '-' sign.
+    if (o < liner->tok_size) {
+        if (liner->start[o] == '+') {
+            o ++;
+        } else if (liner->start[o] == '-') {
+            o ++;
+            neg = true;
+        }
+    }
+
+    // If base is zero or 16, the string may then include a "0x" prefix, and the number will be read in base 16;
+    if (
+        (base == 0 || base == 16) &&
+        o + 1 < liner->tok_size &&
+        liner->start[o] == '0' &&
+        liner->start[o+1] == 'x'
+    ) {
+        base = 16;
+        o += 2;
+    }
+
+    // otherwise, a zero base is taken as 10 (decimal) unless the next character is '0', in which case it is taken as 8 (octal).
+    if (base == 0) {
+        if (o < liner->tok_size && liner->start[o] == '0') {
+            base = 8;
+        } else {
+            base = 10;
+        }
+    }
+
+    for (; o < liner->tok_size; o++) {
         char c = liner->start[o];
         unsigned digit = 0;
         if (c >= '0' && c <= (base < 10 ? '0'+base-1 : '9')) {
             digit = c - '0';
         } else if (base > 10 && c >= 'a' && c <= 'a' + (base-10)) {
-            digit = c - 'a';
+            digit = (c - 'a') + 10;
         } else if (base > 10 && c >= 'A' && c <= 'A' + (base-10)) {
-            digit = c - 'A';
+            digit = (c - 'A') + 10;
         } else {
             break;
         }
@@ -70,7 +105,7 @@ unsigned long long liner_strtoull(struct liner *liner, char const **end, int bas
     }
     if (end) *end = liner->start + o;
 
-    return ret;
+    return neg ? -ret : ret;
 }
 
 /*
