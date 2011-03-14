@@ -80,7 +80,7 @@ static uid_t get_uid(const char * const user)
         uid = u->pw_uid;
     } else {
         SLOG(LOG_ERR, "getpwnam: can't get the uid of '%s' : %s", user, strerror(errno));
-       uid = getuid(); // default one
+        uid = getuid(); // default one
     }
 
     return uid;
@@ -89,22 +89,24 @@ static uid_t get_uid(const char * const user)
 static gid_t get_gid(const char * const group)
 {
     assert(group);
+    gid_t gid;
 
-    gid_t gid = getgid(); // default one
-
+    errno = 0;
     struct group *g = getgrnam(group);
-    if (NULL == g)
-        SLOG(LOG_ERR, "getgrnam: can't get the uid of '%s'", group);
-    else
+    if (g) {
         gid = g->gr_gid;
+    } else {
+        SLOG(LOG_ERR, "getgrnam: can't get the uid of '%s' : %s", group, strerror(errno));
+        gid = getgid(); // default one
+    }
 
     return gid;
 }
 
 int chusergroup(const char * const path, const char * const user, const char * const group)
 {
-    uid_t uid = user ? get_uid(user) : (uid_t)-1;
-    gid_t gid = group ? get_gid(group) : (gid_t)-1;
+    uid_t uid = user && user[0] != '\0' ? get_uid(user) : (uid_t)-1;
+    gid_t gid = group && group[0] != '\0' ? get_gid(group) : (gid_t)-1;
 
     if (-1 == chown(path, uid, gid)) {
         SLOG(LOG_ERR, "chown: %s (path=%s, user=%s, group=%s)", strerror(errno), path, user, group);
