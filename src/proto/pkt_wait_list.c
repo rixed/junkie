@@ -372,14 +372,15 @@ uint8_t *pkt_wait_list_reassemble(struct pkt_wait_list *pkt_wl, unsigned start_o
     unsigned end = start_offset;   // we filled payload up to there
     struct pkt_wait *pkt;
     LIST_FOREACH(pkt, &pkt_wl->pkts, entry) {
+        if (end == end_offset) break;
         if (pkt->next_offset <= end) continue;
         if (pkt->offset > end) break;
-        unsigned const trim_left = pkt->offset - end;
+        unsigned const trim_left = end - pkt->offset;
         if (trim_left >= pkt->cap_len) break;
         unsigned next_end = pkt->offset + pkt->cap_len;
         if (next_end > end_offset) next_end = end_offset;
         SLOG(LOG_DEBUG, "  Copy from pkt@%p from offset %u (%u) %u bytes at location %u", pkt, trim_left, pkt->offset + trim_left, next_end - end, end-start_offset);
-        assert(end-start_offset < end_offset-start_offset); // no buffer overrun
+        assert(next_end <= end_offset); // no buffer overrun
         assert(trim_left + (next_end-end) <= pkt->cap_len); // don't read out of pkt->packet
         memcpy(payload + (end-start_offset), pkt->packet + trim_left, next_end - end);
         end = next_end;

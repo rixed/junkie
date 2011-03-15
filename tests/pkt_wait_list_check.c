@@ -3,9 +3,13 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <stdio.h>
+#include <time.h>
 #include <junkie/tools/miscmacs.h>
 #include <junkie/tools/mallocer.h>
 #include "pkt_wait_list.c"
+
+#undef LOG_CAT
+#define LOG_CAT global_log_category
 
 /*
  * Check offset_compare()
@@ -100,10 +104,10 @@ static void simple_check(void)
 {
     wl_check_setup();
     char *packets[] = {
-        "0. une poule sur un mur",
-        "1. qui picore du pain dur",
-        "2. picoti, picota,",
-        "3. leve la queue et puis s'en va."
+        "0. Deux mulets cheminaient, l'un d'avoine chargé,",
+        "1. L'autre portant l'argent de la gabelle",
+        "2. Celui-ci, glorieux d'une charge si belle,",
+        "3. N'eût voulu pour beaucoup en être soulagé."
     };
     unsigned offset = 0;
     for (unsigned p = 0; p < NB_ELEMS(packets); p++) {
@@ -125,10 +129,10 @@ static void reorder_check(void)
 {
     wl_check_setup();
     char *packets[] = {
-        "0. Vive le vent, vive le vent,",
-        "1. vive le vendalisme !",
-        "2. Faut peter toutes les vitrines",
-        "3. avec nos barres a mines !"
+        "0. Un astrologue un jour se laissa choir",
+        "1. Au fond d'un puits. On lui dit : \" Pauvre bête,",
+        "2. Tandis qu'à peine à tes pieds tu peux voir,",
+        "3. Penses-tu lire au-dessus de ta tête ? \""
     };
     unsigned order[NB_ELEMS(packets)] = { 2, 1, 3, 0 };
     for (unsigned o = 0; o < NB_ELEMS(order); o++) {
@@ -163,6 +167,86 @@ static void gap_check(void)
 }
 
 /*
+ * Reassembly checks
+ */
+
+static char msg[] =
+    "Pendant qu'un philosophe assure\n"
+    "Que toujours par leurs sens les hommes sont dupés,\n"
+    "       Un autre philosophe jure\n"
+    "       Qu'ils ne nous ont jamais trompés.\n"
+    "Tous les deux ont raison; et la philosophie\n"
+    "Dit vrai, quand elle dit que les sens tromperont,\n"
+    "Mais que sur leur rapport les hommes jugeront;\n"
+    "       Mais aussi, si l'on rectifie\n"
+    "L'image de l'objet sur son éloignement,\n"
+    "       Sur le milieu qui l'environne,\n"
+    "       Sur l'organe et sur l'instrument,\n"
+    "       Les sens ne tromperont personne.\n";
+
+static bool sent_mask[NB_ELEMS(msg)] = { false, };
+static unsigned prev_unsent;
+
+static bool all_sent(void)
+{
+    for (unsigned c = prev_unsent; c < NB_ELEMS(sent_mask); c++) {
+        if (! sent_mask[c]) {
+            prev_unsent = c;
+            return false;
+        }
+    }
+    return true;
+}
+
+static void mark_sent(unsigned start, unsigned len)
+{
+    while (len--) sent_mask[start+len] = true;
+}
+
+static void reset_sent(void)
+{
+    prev_unsent = 0;
+    for (unsigned c = 0; c < NB_ELEMS(sent_mask); c++) {
+        sent_mask[c] = false;
+    }
+}
+
+static void reassembly_check(void)
+{
+    wl_check_setup();
+    reset_sent();
+
+    // We sent the message one random piece at a time, using less pieces thant the wait_list defined limit.
+    unsigned nb_pieces = 0;
+    while (! all_sent()) {
+        unsigned start, len;
+        if (nb_pieces < 900) {
+            start = rand() % NB_ELEMS(msg);
+            len = rand() % 16;
+        } else {    // sent everything!
+            SLOG(LOG_WARNING, "Too many small pieces, must send everything now!");
+            start = 0;
+            len = NB_ELEMS(msg);
+        }
+        unsigned const len_ = MIN(len, NB_ELEMS(msg)-start);
+        assert(PROTO_OK == pkt_wait_list_add(&wl, start, start+len_, false, NULL, 0, (uint8_t *)msg+start, len_, len_, &now, NULL, len_, (uint8_t *)msg+start));
+        mark_sent(start, len_);
+        if (len != len_) {
+            len -= len_;
+            assert(PROTO_OK == pkt_wait_list_add(&wl, 0, len, false, NULL, 0, (uint8_t *)msg, len, len, &now, NULL, len, (uint8_t *)msg));
+            mark_sent(0, len);
+        }
+
+        nb_pieces ++;
+    }
+
+    // Now that we sent everyhting try reassembling :
+    uint8_t *msg2 = pkt_wait_list_reassemble(&wl, 0, NB_ELEMS(msg));
+    assert(msg2);
+    assert(0 == memcmp(msg, msg2, NB_ELEMS(msg)));
+}
+
+/*
  * Startup
  */
 
@@ -170,16 +254,22 @@ int main(void)
 {
     log_init();
     mallocer_init();
-    log_set_level(LOG_DEBUG, NULL);
-    log_set_file("pkt_wait_list_check.log");
     proto_init();
+    pkt_wait_list_init();
+    srand(time(NULL));
+    log_set_level(LOG_INFO, NULL);  // DEBUG make the test too slow
+    log_set_file("pkt_wait_list_check.log");
 
     offset_compare_check();
     ctor_dtor_check();
     simple_check();
     reorder_check();
     gap_check();
+    for (unsigned t = 0; t < 1000; t++) {
+        reassembly_check();
+    }
 
+    pkt_wait_list_fini();
     proto_fini();
     mallocer_fini();
     log_fini();
