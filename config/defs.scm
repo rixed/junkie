@@ -118,25 +118,37 @@
 ; get the percentage of duplicate frames over the total number (check out if the
 ; port mirroring is correctly set)
 (define (duplicate-percentage)
-  (let* ((dups         (get-nb-duplicates))
-         (total-frames (+ dups (assoc-ref (proto-stats "Ethernet") 'nb-frames))))
-    (if (eq? 0 total-frames)
-        0
-        (* 100.0 (/ dups total-frames)))))
-
+  (let* ((sums     (fold (lambda (iface prev)
+                           (let* ((stats     (iface-stats iface))
+                                  (packets   (assq-ref stats 'nb-packets))
+                                  (dups      (assq-ref stats 'nb-duplicates))
+                                  (prev-pkts (car prev))
+                                  (prev-dups (cdr prev)))
+                             (cons (+ prev-pkts packets) (+ prev-dups dups))))
+                         '(0 . 0) (iface-names)))
+         (tot-pkts (car sums))
+         (tot-dups (cdr sums)))
+    (if (> tot-pkts 0)
+        (exact->inexact (/ (* 100 tot-dups) tot-pkts))
+        -1)))
+    
 ; get the percentage of dropped packets
 (define (dropped-percentage)
-  (let* ((tot-drop (fold (lambda (stats prevs)
-                           (let ((received  (assq-ref stats 'tot-received))
-                                 (dropped   (assq-ref stats 'tot-dropped))
-                                 (prev-recv (car prevs))
-                                 (prev-drop (cdr prevs)))
-                             (cons (+ prev-recv received) (+ prev-drop dropped))))
-                         '(0 . 0)
-                         (map iface-stats (iface-names))))
+  (let* ((tot-drop (fold (lambda (iface prevs)
+                           (let* ((stats     (iface-stats iface))
+                                  (received  (assq-ref stats 'tot-received))
+                                  (dropped   (assq-ref stats 'tot-dropped))
+                                  (prev-recv (car prevs))
+                                  (prev-drop (cdr prevs)))
+                             (catch 'wrong-type-arg
+                                    (lambda () (cons (+ prev-recv received) (+ prev-drop dropped)))
+                                    (lambda (key . args) prevs))))
+                         '(0 . 0) (iface-names)))
          (total    (car tot-drop))
          (dropped  (cdr tot-drop)))
-    (exact->inexact (/ (* 100 dropped) total))))
+    (if (> total 0)
+        (exact->inexact (/ (* 100 dropped) total))
+        -1)))
 
 ; backward compatible function set-ifaces
 (use-modules (ice-9 regex))
@@ -205,4 +217,76 @@
 (define (get-mux-hash-size proto)
   (let ((stat (mux-stats proto)))
     (assq-ref stat 'hash-size)))
+
+
+; Functions to automatically calibrate the deduplication parameters
+
+(define (dichoto f is-good precision last-good last-bad)
+  (if (< (abs (- last-good last-bad)) precision)
+      last-good
+      (let ((middle (/ (+ last-good last-bad) 2)))
+        (if (is-good (f middle))
+            (dichoto f is-good precision middle last-bad)
+            (dichoto f is-good precision last-good middle)))))
+
+; A function to loop over all dup-detection-delays and report number of detected dups
+
+(define (best-dedup-delay run-t)
+  (let* ((get-dup-ratio     (lambda (how-long dedup-delay)
+                              (format #t "Measuring dup ratio for ~8,' dus: " dedup-delay)
+                              (set-dup-detection-delay dedup-delay)
+                              (reset-deduplication-stats)
+                              (sleep how-long)
+                              (let* ((stats  (deduplication-stats))
+                                     (dups   (assq-ref stats 'dup-found))
+                                     (nodups (assq-ref stats 'nodup-found))
+                                     (eols   (assq-ref stats 'end-of-list-found))
+                                     (sum    (+ dups nodups eols))
+                                     (ratio  (/ (* 100 dups) sum)))
+                                (format #t "~3,2f%\n" (exact->inexact ratio))
+                                ratio)))
+         (max-delay         500000)
+         (min-delay         1)
+         (actual-dups       (get-dup-ratio run-t max-delay))
+         (min-detected-dups (* 90/100 actual-dups))
+         (is-acceptable     (lambda (ratio) (> ratio min-detected-dups)))
+         (best              (dichoto (lambda (d) (get-dup-ratio run-t (round d)))
+                                     is-acceptable 500 max-delay min-delay)))
+    (round best)))
+
+; And another one to discover the required digests queue length for no more than eol-ratios
+; (note: an eol (end-of-list) occurs when the digest queue is too short to find out if a packet
+; is a dup)
+
+(define (best-nb-digests max-eol-ratio run-t)
+  (let* ((get-eol-ratio  (lambda (how-long nbd)
+                           (format #t "Measuring eol ratio for ~6d digests: " nbd)
+                           (set-nb-digests nbd)
+                           (reset-deduplication-stats)
+                           (sleep how-long)
+                           (let* ((stats  (deduplication-stats))
+                                  (dups   (assq-ref stats 'dup-found))
+                                  (nodups (assq-ref stats 'nodup-found))
+                                  (eols   (assq-ref stats 'end-of-list-found))
+                                  (sum    (+ dups nodups eols))
+                                  (ratio  (/ (* 100 eols) sum)))
+                             (format #t "~3,2f%\n" (exact->inexact ratio))
+                             ratio)))
+         (max-nb-digests 20000)  ; should be enought for any delay! (ie packet rate should be under max-nb-digests/dedup-delay)
+         (min-nb-digests 1)
+         (is-acceptable  (lambda (ratio) (< ratio max-eol-ratio)))
+         (best           (dichoto (lambda (nbd) (get-eol-ratio run-t (round nbd)))
+                                  is-acceptable 10 max-nb-digests min-nb-digests)))
+    (round best)))
+
+; And then, a function to calibrate deduplication automatically
+
+(define (dedup-calibration run-t)
+  (set-nb-digests 20000) ; see remark above concerning max-nb-digests
+  (let ((best-delay (best-dedup-delay run-t)))
+    (format #t "Best dedup delay: ~dus\n" best-delay)
+    (set-dup-detection-delay best-delay))
+  (let ((best-nbd (best-nb-digests 5 run-t)))  ; arround 5% of list limit hits is acceptable
+    (format #t "Best nb-digests: ~d\n" best-nbd)
+    (set-nb-digests best-nbd)))
 

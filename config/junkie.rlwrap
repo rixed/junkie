@@ -6,6 +6,7 @@ capfile-names
 check-license
 close-iface
 csv-variables
+deduplication-stats
 dropped-percentage
 duplicate-percentage
 get-dbus-enabled
@@ -24,7 +25,6 @@ get-limit-packets
 get-limit-seconds
 get-log-file
 get-log-level
-get-nb-duplicates
 get-nb-fuzzed-bits
 get-otherip-metric-enabled
 get-parameter-value
@@ -55,6 +55,7 @@ plugins
 proto-names
 proto-stats
 quit
+reset-deduplication-stats
 ring-buffer-names
 ring-buffer-reset-stats
 ring-buffer-stats
@@ -78,7 +79,6 @@ set-log-file
 set-log-level
 set-max-children
 set-mux-hash-size
-set-nb-duplicates
 set-nb-fuzzed-bits
 set-otherip-metric-enabled
 set-proto-timeout

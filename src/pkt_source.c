@@ -53,10 +53,17 @@ static unsigned dev_id_seq = 0;
 
 static int dup_detection_delay = 5000;  // microseconds
 EXT_PARAM_RW(dup_detection_delay, "dup-detection-delay", int, "Number of microseconds between two packets that can't be duplicates")
-static uint64_t nb_duplicates = 0;
-EXT_PARAM_RW(nb_duplicates, "nb-duplicates", uint64, "Number of duplicate frames since the beginning")
 
 static struct digest_queue *digests;
+
+// Som estats about the used of the digest queue. Protected with digest_stats_lock.
+static struct mutex digest_stats_lock;
+static uint_least64_t searched_digests, nb_dup_found, nb_nodup_found, nb_eol_found;
+
+static void reset_dedup_stats(void)
+{
+    searched_digests = nb_dup_found = nb_nodup_found = nb_eol_found = 0;
+}
 
 static unsigned nb_digests = 100;
 // The seter is a little special as it rebuild the digest queue
@@ -69,9 +76,13 @@ static SCM g_ext_param_set_nb_digests(SCM v)
     scm_dynwind_begin(0);
     pthread_mutex_lock(&ext_param_nb_digests.mutex);
     scm_dynwind_unwind_handler(pthread_mutex_unlock_, &ext_param_nb_digests.mutex, SCM_F_WIND_EXPLICITLY);
+
     unsigned new_nb_digests = scm_to_uint(v);
     struct digest_queue *new_digests = digest_queue_new(new_nb_digests);
     if (new_digests) {
+        // We must prevent anyone to use the digest queue!
+        mutex_lock(&cap_parser_lock);
+        scm_dynwind_unwind_handler(pthread_mutex_unlock_, &cap_parser_lock.mutex, SCM_F_WIND_EXPLICITLY);
         if (digests) digest_queue_del(digests);
         nb_digests = new_nb_digests;
         digests = new_digests;
@@ -132,7 +143,22 @@ static int parser_callbacks(struct proto_info const *last, size_t tot_cap_len, u
     return 0;
 }
 
-// drop the frame if we previously saw it in the last 50us.
+static void update_dedup_stats(unsigned nb_searched, unsigned dup_found, unsigned nodup_found, unsigned eol_found)
+{
+    mutex_lock(&digest_stats_lock);
+    uint_least64_t const prev = searched_digests;
+    searched_digests += nb_searched;
+    if (searched_digests < prev) {
+        reset_dedup_stats();
+    }
+    nb_dup_found += dup_found;
+    nb_nodup_found += nodup_found;
+    nb_eol_found += eol_found;
+    mutex_unlock(&digest_stats_lock);
+}
+
+// drop the frame if we previously saw it in the last 5ms.
+// owner must own cap_parser_lock
 static int frame_mirror_drop(struct frame *frame, struct digest_queue *q)
 {
     if (! dup_detection_delay) return 0;
@@ -140,7 +166,8 @@ static int frame_mirror_drop(struct frame *frame, struct digest_queue *q)
     uint8_t digest[DIGEST_SIZE];
     digest_frame(digest, frame);
 
-    for (size_t i = 0; i < q->size; i++) {
+    unsigned i;
+    for (i = 0; i < q->size; i++) {
         int j = (q->idx - i + q->size) % q->size;
 
         if (!timeval_is_set(&q->digests[j].tv) || timeval_sub(&frame->tv, &q->digests[j].tv) > dup_detection_delay)
@@ -149,12 +176,12 @@ static int frame_mirror_drop(struct frame *frame, struct digest_queue *q)
         if (0 == memcmp(q->digests[j].digest, digest, DIGEST_SIZE)) {
             q->digests[j].tv = frame->tv;
             SLOG(LOG_DEBUG, "@%d -- Identical frame, possible duplicate", j);
-            EXT_LOCK(nb_duplicates);
-            nb_duplicates++;
-            EXT_UNLOCK(nb_duplicates);
+            update_dedup_stats(i, 1, 0, 0);
             return 1;
         }
     }
+
+    update_dedup_stats(i, 0, i < q->size, i >= q->size);
 
     digest_queue_push(q, digest, frame);
     return 0;
@@ -639,18 +666,40 @@ err:
     return ret;
 }
 
+static struct ext_function sg_dedup_stats;
+static SCM g_dedup_stats(void)
+{
+    mutex_lock(&digest_stats_lock);
+    SCM ret = scm_list_n(
+        scm_cons(scm_from_locale_symbol("dup-found"),         scm_from_uint64(nb_dup_found)),
+        scm_cons(scm_from_locale_symbol("nodup-found"),       scm_from_uint64(nb_nodup_found)),
+        scm_cons(scm_from_locale_symbol("end-of-list-found"), scm_from_uint64(nb_eol_found)),
+        scm_cons(scm_from_locale_symbol("searched-digests"),  scm_from_uint64(searched_digests)),
+        SCM_UNDEFINED);
+    mutex_unlock(&digest_stats_lock);
+
+    return ret;
+}
+
+static struct ext_function sg_reset_dedup_stats;
+static SCM g_reset_dedup_stats(void)
+{
+    reset_dedup_stats();
+    return SCM_UNSPECIFIED;
+}
+
 // The first thing to do when quitting is to stop parsing traffic
 void pkt_source_init(void)
 {
     mutex_ctor(&cap_parser_lock, "parsers lock");
     mutex_ctor(&pkt_sources_lock, "pkt_sources");
+    mutex_ctor(&digest_stats_lock, "digest_stats");
     EXT_LOCK(nb_digests);
     digests = digest_queue_new(nb_digests);
     if (! digests) nb_digests = 0;
     EXT_UNLOCK(nb_digests);
 
     ext_param_dup_detection_delay_init();
-    ext_param_nb_duplicates_init();
     ext_param_quit_when_done_init();
     ext_param_nb_digests_init();
     log_category_pkt_sources_init();
@@ -697,6 +746,16 @@ void pkt_source_init(void)
         "iface-stats", 1, 0, 0, g_iface_stats,
         "(iface-stats \"iface-name\") : return detailed statistics about that packet source.\n"
         "See also (? 'get-ifaces).\n");
+
+    ext_function_ctor(&sg_dedup_stats,
+        "deduplication-stats", 0, 0, 0, g_dedup_stats,
+        "(deduplication-stats) : return some statistics about the deduplication mechanism.\n"
+        "See also (? 'reset-dedup-stats).\n");
+
+    ext_function_ctor(&sg_reset_dedup_stats,
+        "reset-deduplication-stats", 0, 0, 0, g_reset_dedup_stats,
+        "(reset-deduplication-stats) : does what the name suggest.\n"
+        "You probably already know (? 'deduplication-stats).\n");
 }
 
 void pkt_source_fini(void)
@@ -719,6 +778,7 @@ void pkt_source_fini(void)
 
     mutex_lock(&cap_parser_lock);
     if (cap_parser) cap_parser = parser_unref(cap_parser);
+    mutex_dtor(&digest_stats_lock);
     mutex_unlock(&cap_parser_lock);
     mutex_dtor(&cap_parser_lock);
     mutex_dtor(&pkt_sources_lock);
@@ -730,6 +790,5 @@ void pkt_source_fini(void)
     log_category_pkt_sources_fini();
     ext_param_nb_digests_fini();
     ext_param_dup_detection_delay_fini();
-    ext_param_nb_duplicates_fini();
     ext_param_quit_when_done_fini();
 }
