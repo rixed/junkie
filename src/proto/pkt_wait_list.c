@@ -23,6 +23,7 @@
 #include <junkie/proto/pkt_wait_list.h>
 #include <junkie/tools/log.h>
 #include <junkie/tools/mallocer.h>
+#include <junkie/tools/ext.h>
 
 static char const Id[] = "$Id$";
 
@@ -184,12 +185,17 @@ static struct pkt_wait *pkt_wait_new(unsigned offset, unsigned next_offset, stru
  * Waiting list management
  */
 
+static SLIST_HEAD(pkt_wl_configs, pkt_wl_config) pkt_wl_configs = SLIST_HEAD_INITIALIZER(pkt_wls_configs);
+static struct mutex pkt_wl_configs_lock;
+
 static void pkt_wait_list_touch(struct pkt_wait_list *pkt_wl, struct timeval const *now)
 {
     pkt_wl->last_used = *now;
-    if (pkt_wl->list) {
-        TAILQ_REMOVE(&pkt_wl->list->list, pkt_wl, entry);
-        TAILQ_INSERT_TAIL(&pkt_wl->list->list, pkt_wl, entry);
+    if (pkt_wl->config) {
+        mutex_lock(&pkt_wl_configs_lock);
+        TAILQ_REMOVE(&pkt_wl->config->list, pkt_wl, entry);
+        TAILQ_INSERT_TAIL(&pkt_wl->config->list, pkt_wl, entry);
+        mutex_unlock(&pkt_wl_configs_lock);
     }
 }
 
@@ -203,7 +209,7 @@ static void pkt_wait_list_empty(struct pkt_wait_list *pkt_wl, struct timeval con
     assert(pkt_wl->tot_payload == 0);
 }
 
-int pkt_wait_list_ctor(struct pkt_wait_list *pkt_wl, unsigned next_offset, struct pkt_wait_lists *list, unsigned acceptable_gap, unsigned nb_pkts_max, size_t payload_max, struct parser *parser, struct timeval const *now)
+int pkt_wait_list_ctor(struct pkt_wait_list *pkt_wl, unsigned next_offset, struct pkt_wl_config *config, struct parser *parser, struct timeval const *now)
 {
     SLOG(LOG_DEBUG, "Construct pkt_wait_list @%p", pkt_wl);
 
@@ -211,13 +217,15 @@ int pkt_wait_list_ctor(struct pkt_wait_list *pkt_wl, unsigned next_offset, struc
     pkt_wl->nb_pkts = 0;
     pkt_wl->tot_payload = 0;
     pkt_wl->next_offset = next_offset;
-    pkt_wl->acceptable_gap = acceptable_gap;
-    pkt_wl->nb_pkts_max = nb_pkts_max;
-    pkt_wl->payload_max = payload_max;
     pkt_wl->parser = parser_ref(parser);
-    pkt_wl->list = list;
+    pkt_wl->config = config;
     pkt_wl->last_used = *now;
-    if (list) TAILQ_INSERT_TAIL(&list->list, pkt_wl, entry);
+    if (config) {
+        mutex_lock(&pkt_wl_configs_lock);
+        TAILQ_INSERT_TAIL(&config->list, pkt_wl, entry);
+        config->length ++;
+        mutex_unlock(&pkt_wl_configs_lock);
+    }
 
     return 0;
 }
@@ -229,27 +237,39 @@ void pkt_wait_list_dtor(struct pkt_wait_list *pkt_wl, struct timeval const *now)
     // start by cleaning the parser so that the subparse method won't be called
     pkt_wl->parser = parser_unref(pkt_wl->parser);
 
-    if (pkt_wl->list) {
-        TAILQ_REMOVE(&pkt_wl->list->list, pkt_wl, entry);
-        pkt_wl->list = NULL;
+    if (pkt_wl->config) {
+        mutex_lock(&pkt_wl_configs_lock);
+        pkt_wl->config->length --;
+        TAILQ_REMOVE(&pkt_wl->config->list, pkt_wl, entry);
+        pkt_wl->config = NULL;
+        mutex_unlock(&pkt_wl_configs_lock);
     }
 
     // then call the callbacks for each pending packet
     pkt_wait_list_empty(pkt_wl, now);
 }
 
-void pkt_wait_lists_ctor(struct pkt_wait_lists *list)
+void pkt_wl_config_ctor(struct pkt_wl_config *config, char const *name, unsigned acceptable_gap, unsigned nb_pkts_max, size_t payload_max, unsigned timeout)
 {
-    TAILQ_INIT(&list->list);
-    list->timeouting = false;
+    TAILQ_INIT(&config->list);
+    SLIST_INSERT_HEAD(&pkt_wl_configs, config, entry);
+    config->name = name;
+    config->length = 0;
+    config->acceptable_gap = acceptable_gap;
+    config->nb_pkts_max = nb_pkts_max;
+    config->payload_max = payload_max;
+    config->timeout = timeout;
+    config->timeouting = false;
 }
 
-void pkt_wait_lists_dtor(struct pkt_wait_lists *list)
+void pkt_wl_config_dtor(struct pkt_wl_config *config)
 {
-    assert(! list->timeouting);
+    assert(! config->timeouting);
 
-    if (! TAILQ_EMPTY(&list->list)) {
-        SLOG(LOG_INFO, "Packet waiting list list@%p is not empty!", list);
+    SLIST_REMOVE(&pkt_wl_configs, config, pkt_wl_config, entry);
+
+    if (! TAILQ_EMPTY(&config->list)) {
+        SLOG(LOG_INFO, "Packet waiting list config@%p is not empty!", config);
     }
 
     /* We cannot destruct the pkt_wait_lists since this may trigger the deletion of the parser
@@ -270,12 +290,12 @@ static int offset_compare(unsigned o1, unsigned n1, unsigned o2, unsigned n2)
 
 enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned offset, unsigned next_offset, bool can_parse, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
 {
-    if (pkt_wl->nb_pkts_max && pkt_wl->nb_pkts >= pkt_wl->nb_pkts_max) {
+    if (pkt_wl->config->nb_pkts_max && pkt_wl->nb_pkts >= pkt_wl->config->nb_pkts_max) {
         SLOG(LOG_DEBUG, "Waiting list too long, disbanding");
         // We don't need the parser anymore, and must not call its parse method
         pkt_wl->parser = parser_unref(pkt_wl->parser);
     }
-    if (pkt_wl->payload_max && pkt_wl->tot_payload >= pkt_wl->payload_max) {
+    if (pkt_wl->config->payload_max && pkt_wl->tot_payload >= pkt_wl->config->payload_max) {
         SLOG(LOG_DEBUG, "Waiting list too big, disbanding");
         pkt_wl->parser = parser_unref(pkt_wl->parser);
     }
@@ -317,7 +337,7 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
     // then call okfn directly and we are done
     unsigned prev_offset = prev ? prev->offset : pkt_wl->next_offset;
     if (
-        (pkt_wl->acceptable_gap > 0 && (int)(offset - prev_offset) > (int)pkt_wl->acceptable_gap) ||
+        (pkt_wl->config->acceptable_gap > 0 && (int)(offset - prev_offset) > (int)pkt_wl->config->acceptable_gap) ||
         (int)(next_offset - prev_offset) <= 0
     ) {
         return proto_parse(NULL, parent, way, packet, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
@@ -394,22 +414,26 @@ uint8_t *pkt_wait_list_reassemble(struct pkt_wait_list *pkt_wl, unsigned start_o
     return payload;
 }
 
-unsigned pkt_wait_list_timeout(struct pkt_wait_lists *list, unsigned timeout, struct timeval const *now)
+unsigned pkt_wait_list_timeout(struct pkt_wl_config *config, struct timeval const *now)
 {
-    assert(timeout > 0);
+    unsigned count = 0;
+
+    mutex_lock(&pkt_wl_configs_lock);
+    if (config->timeout == 0) goto quit;
+
     /* Warning! Timeouting a list can trigger the parse of many packets, which in return
      * can lead to our caller calling us back for the same list, thus reentering the timeouting
      * endlessly.
-     * To prevent this the pkt_wait_lists come with a boolean. */
-    if (list->timeouting) return 0;
-    list->timeouting = true;
+     * To prevent this the pkt_wl_config come with a boolean. */
 
-    unsigned count = 0;
+    if (config->timeouting) goto quit;
+    config->timeouting = true;
+
     struct timeval oldest = *now;
-    timeval_sub_sec(&oldest, timeout);
+    timeval_sub_sec(&oldest, config->timeout);
 
     struct pkt_wait_list *pkt_wl;
-    while (NULL != (pkt_wl = TAILQ_FIRST(&list->list))) {
+    while (NULL != (pkt_wl = TAILQ_FIRST(&config->list))) {
         if (timeval_cmp(&pkt_wl->last_used, &oldest) >= 0) break; // pkt_wl is younger than oldest, stop timeouting
 
         pkt_wait_list_empty(pkt_wl, now);
@@ -417,16 +441,128 @@ unsigned pkt_wait_list_timeout(struct pkt_wait_lists *list, unsigned timeout, st
         count ++;
     }
 
-    list->timeouting = false;
+    config->timeouting = false;
+quit:
+    mutex_unlock(&pkt_wl_configs_lock);
     return count;
+}
+
+/*
+ * Extensions
+ */
+
+static struct ext_function sg_wait_list_names;
+static SCM g_wait_list_names(void)
+{
+    SCM ret = SCM_EOL;
+    mutex_lock(&pkt_wl_configs_lock);
+    struct pkt_wl_config *config;
+    SLIST_FOREACH(config, &pkt_wl_configs, entry) {
+        ret = scm_cons(scm_from_locale_string(config->name), ret);
+    }
+    mutex_unlock(&pkt_wl_configs_lock);
+    return ret;
+}
+
+static struct pkt_wl_config *pkt_wl_config_of_scm_name(SCM name_)
+{
+    char *name = scm_to_tempstr(name_);
+    mutex_lock(&pkt_wl_configs_lock);
+    struct pkt_wl_config *config;
+    SLIST_FOREACH(config, &pkt_wl_configs, entry) {
+        if (0 == strcasecmp(name, config->name)) break;
+    }
+    mutex_unlock(&pkt_wl_configs_lock);
+    return config;
+}
+
+static struct ext_function sg_wait_list_stats;
+static SCM g_wait_list_stats(SCM name_)
+{
+    struct pkt_wl_config *config = pkt_wl_config_of_scm_name(name_);
+    if (! config) return SCM_UNSPECIFIED;
+
+    return scm_list_n(
+        scm_cons(scm_from_locale_symbol("length"),         scm_from_uint(config->length)),
+        scm_cons(scm_from_locale_symbol("timeout"),        scm_from_uint(config->timeout)),
+        scm_cons(scm_from_locale_symbol("max-payload"),    scm_from_size_t(config->payload_max)),
+        scm_cons(scm_from_locale_symbol("max-packets"),    scm_from_uint(config->nb_pkts_max)),
+        scm_cons(scm_from_locale_symbol("acceptable-gap"), scm_from_uint(config->acceptable_gap)),
+        SCM_UNDEFINED);
+}
+
+static struct ext_function sg_wait_list_set_max_payload;
+static SCM g_wait_list_set_max_payload(SCM name_, SCM payload_max_)
+{
+    struct pkt_wl_config *config = pkt_wl_config_of_scm_name(name_);
+    if (! config) return SCM_BOOL_F;
+    config->payload_max = scm_to_size_t(payload_max_);
+    return SCM_BOOL_T;
+}
+
+static struct ext_function sg_wait_list_set_max_pkts;
+static SCM g_wait_list_set_max_pkts(SCM name_, SCM pkts_max_)
+{
+    struct pkt_wl_config *config = pkt_wl_config_of_scm_name(name_);
+    if (! config) return SCM_BOOL_F;
+    config->nb_pkts_max = scm_to_uint(pkts_max_);
+    return SCM_BOOL_T;
+}
+
+static struct ext_function sg_wait_list_set_max_gap;
+static SCM g_wait_list_set_max_gap(SCM name_, SCM gap_max_)
+{
+    struct pkt_wl_config *config = pkt_wl_config_of_scm_name(name_);
+    if (! config) return SCM_BOOL_F;
+    config->acceptable_gap = scm_to_uint(gap_max_);
+    return SCM_BOOL_T;
+}
+
+static struct ext_function sg_wait_list_set_timeout;
+static SCM g_wait_list_set_timeout(SCM name_, SCM timeout_)
+{
+    struct pkt_wl_config *config = pkt_wl_config_of_scm_name(name_);
+    if (! config) return SCM_BOOL_F;
+    config->timeout = scm_to_uint(timeout_);
+    return SCM_BOOL_T;
 }
 
 void pkt_wait_list_init(void)
 {
     log_category_pkt_wait_list_init();
+    mutex_ctor_with_type(&pkt_wl_configs_lock, "pkt_wls_list", PTHREAD_MUTEX_RECURSIVE /* because of the timeouting function */);
+
+    ext_function_ctor(&sg_wait_list_names,
+        "wait-list-names", 0, 0, 0, g_wait_list_names,
+        "(wait-list-names) : get the names of all existing waiting lists.\n"
+        "See also (? 'wait-list-stats).\n");
+
+    ext_function_ctor(&sg_wait_list_stats,
+        "wait-list-stats", 1, 0, 0, g_wait_list_stats,
+        "(wait-list-stats \"name\") : get stats about this waiting list.\n"
+        "See also (? 'wait-list-names).\n");
+
+    ext_function_ctor(&sg_wait_list_set_max_payload,
+        "wait-list-set-max-payload", 2, 0, 0, g_wait_list_set_max_payload,
+        "(wait-list-set-max-payload \"name\" bytes) : sets the maximum kept payload per waiting list (0 for no limit - not advised!).\n"
+        "See also (? 'wait-list-set-max-packets).\n");
+
+    ext_function_ctor(&sg_wait_list_set_max_pkts,
+        "wait-list-set-max-packets", 2, 0, 0, g_wait_list_set_max_pkts,
+        "(wait-list-set-max-packets \"name\" packets) : sets the maximum kept packets per waiting list (0 for no limit).\n"
+        "See also (? 'wait-list-set-max-payload).\n");
+
+    ext_function_ctor(&sg_wait_list_set_max_gap,
+        "wait-list-set-gap-max", 2, 0, 0, g_wait_list_set_max_gap,
+        "(wait-list-set-gap-max \"name\" bytes) : sets the maximum acceptable gap between two kept packets (0 for no limit).\n");
+
+    ext_function_ctor(&sg_wait_list_set_timeout,
+        "wait-list-set-timeout", 2, 0, 0, g_wait_list_set_timeout,
+        "(wait-list-set-timeout \"name\" seconds) : sets the delay after which kept packets are droped (0 for no limit - not advised!).\n");
 }
 
 void pkt_wait_list_fini(void)
 {
     log_category_pkt_wait_list_fini();
+    mutex_dtor(&pkt_wl_configs_lock);
 }

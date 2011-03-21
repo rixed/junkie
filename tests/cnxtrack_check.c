@@ -12,6 +12,7 @@
 #include <junkie/proto/tcp.h>
 #include <junkie/proto/ftp.h>
 #include <junkie/proto/http.h>
+#include <junkie/proto/pkt_wait_list.h>
 
 static struct test {
     uint8_t const *packet;
@@ -175,6 +176,7 @@ int main(void)
     log_init();
     mallocer_init();
     proto_init();
+    pkt_wait_list_init();
     eth_init();
     ip_init();
     tcp_init();
@@ -190,6 +192,7 @@ int main(void)
     tcp_fini();
     ip_fini();
     eth_fini();
+    pkt_wait_list_fini();
     proto_fini();
     mallocer_fini();
     log_fini();

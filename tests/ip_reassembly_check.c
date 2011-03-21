@@ -10,6 +10,7 @@
 #include <junkie/proto/eth.h>
 #include <junkie/proto/ip.h>
 #include <junkie/proto/udp.h>
+#include <junkie/proto/pkt_wait_list.h>
 #include "lib.h"
 
 /*
@@ -318,6 +319,7 @@ int main(void)
 {
     log_init();
     mallocer_init();
+    pkt_wait_list_init();
     eth_init();
     ip_init();
     udp_init();
@@ -332,6 +334,7 @@ int main(void)
     udp_fini();
     ip_fini();
     eth_fini();
+    pkt_wait_list_fini();
     mallocer_fini();
     log_fini();
     return EXIT_SUCCESS;

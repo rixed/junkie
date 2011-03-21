@@ -79,13 +79,36 @@ struct pkt_wait {
     uint8_t packet[];
 };
 
-struct pkt_wait_lists {
+struct pkt_wl_config {
+    /// The list of struct pkt_wait_list, in LRU-first order.
     TAILQ_HEAD(pkt_wait_list_list, pkt_wait_list) list;
-    bool timeouting;    // to prevent reentry
+    /// Size of the previous list
+    unsigned length;
+    /// Entry in the list of all pkt_wl_configs
+    SLIST_ENTRY(pkt_wl_config) entry;
+    /// A name to find it from guile
+    char const *name;
+    /// To prevent reentry
+    bool timeouting;
+    /// Acceptable gap between two successive packets
+    unsigned acceptable_gap;
+    /// Max number of pending packets
+    unsigned nb_pkts_max;
+    /// Max pending payload
+    size_t payload_max;
+    /// Timeout (s)
+    unsigned timeout;
 };
 
-void pkt_wait_lists_ctor(struct pkt_wait_lists *);
-void pkt_wait_lists_dtor(struct pkt_wait_lists *);
+void pkt_wl_config_ctor(
+    struct pkt_wl_config *,         ///< The pkt_wait_list global conf structure to initialize
+    char const *name,               ///< The name used to change this pkt_wait_list configurarion
+    unsigned acceptable_gap,        ///< Accept to enqueue a packet only if its not further away from previous one (0 for no check)
+    unsigned nb_pkts_max,           ///< Max number of pending packets (0 for unlimited)
+    size_t payload_max,             ///< Max pending payload (0 for unlimited)
+    unsigned timeout);              ///< Timeout these pkt_wait_lists after this number of seconds (0 for no timeout)
+
+void pkt_wl_config_dtor(struct pkt_wl_config *);
 
 /// A List of Waiting Packets
 /** This structure is used to store packets of a same stream that are out of
@@ -98,8 +121,8 @@ void pkt_wait_lists_dtor(struct pkt_wait_lists *);
 struct pkt_wait_list {
     /// The list of pkt_wait
     LIST_HEAD(pkt_waits, pkt_wait) pkts;
-    /// The list where this pkt_wait_list is stored (sorted according to LRU)
-    struct pkt_wait_lists *list;
+    /// The global configuration for this pkt_wait_list
+    struct pkt_wl_config *config;
     /// And the entry in this list
     TAILQ_ENTRY(pkt_wait_list) entry;
     /// Current number of pending packets
@@ -108,12 +131,6 @@ struct pkt_wait_list {
     size_t tot_payload;
     /// The offset we are currently waiting for to resume parsing
     unsigned next_offset;
-    /// Acceptable gap between two successive packets
-    unsigned acceptable_gap;
-    /// Max number of pending packets
-    unsigned nb_pkts_max;
-    /// Max pending payload
-    size_t payload_max;
     /// Last time we added a packet to the list
     struct timeval last_used;
     /// A Ref to the parser this packet is intended to
@@ -124,10 +141,7 @@ struct pkt_wait_list {
 int pkt_wait_list_ctor(
     struct pkt_wait_list *pkt_wl,   ///< The waiting list to construct
     unsigned next_offset,           ///< The initial offset we are waiting for
-    struct pkt_wait_lists *list,    ///< Where we store the pkt_wait_list created with these parameters (useful for timeouting)
-    unsigned acceptable_gap,        ///< Accept to enqueue a packet only if its not further away from previous one (0 for no check)
-    unsigned nb_pkts_max,           ///< Max number of pending packets (0 for unlimited)
-    size_t payload_max,             ///< Max pending payload (0 for unlimited)
+    struct pkt_wl_config *config,   ///< Where we store the pkt_wait_list created with these parameters (useful for timeouting) as well as global conf
     struct parser *parser,          ///< The parser that's supposed to parse this packet whenever possible
     struct timeval const *now       ///< To set the last used time
 );
@@ -174,7 +188,7 @@ void pkt_wait_del(struct pkt_wait *, struct pkt_wait_list *);
 
 /// Call this from time to time to timeout the packets pending for too long.
 /** @note the lists are cleared but not deleted */
-unsigned pkt_wait_list_timeout(struct pkt_wait_lists *list, unsigned timeout, struct timeval const *now);
+unsigned pkt_wait_list_timeout(struct pkt_wl_config *config, struct timeval const *now);
 
 void pkt_wait_list_init(void);
 void pkt_wait_list_fini(void);

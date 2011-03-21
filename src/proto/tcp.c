@@ -44,9 +44,6 @@ LOG_CATEGORY_DEF(proto_tcp);
 #define TCP_TIMEOUT 120
 #define TCP_HASH_SIZE 64
 
-static size_t tcp_max_waiting_payload = 100000;
-EXT_PARAM_RW(tcp_max_waiting_payload, "tcp-max-waiting-payload", size_t, "Max payload that we keep (in each direction) for TCP reordering.")
-
 /*
  * Proto Infos
  */
@@ -118,7 +115,7 @@ static SCM g_tcp_del_port(SCM name, SCM port_min, SCM port_max)
  * Parse
  */
 
-static struct pkt_wait_lists tcp_wait_lists;
+static struct pkt_wl_config tcp_wl_config;
 
 // We overload the mux_subparser in order to store cnx state.
 struct tcp_subparser {
@@ -157,13 +154,13 @@ static int tcp_subparser_ctor(struct tcp_subparser *tcp_subparser, struct mux_pa
     tcp_subparser->ack[0] = tcp_subparser->ack[1] = false;
     tcp_subparser->syn[0] = tcp_subparser->syn[1] = false;
 
-    pkt_wait_list_timeout(&tcp_wait_lists, 10 /* REORDERING TIMEOUT (second) */, &now);
+    pkt_wait_list_timeout(&tcp_wl_config, &now);
 
-    if (0 != pkt_wait_list_ctor(tcp_subparser->wl+0, 0 /* relative to the ISN */, &tcp_wait_lists, 100000, 100, tcp_max_waiting_payload, child, &now)) {
+    if (0 != pkt_wait_list_ctor(tcp_subparser->wl+0, 0 /* relative to the ISN */, &tcp_wl_config, child, &now)) {
         return -1;
     }
 
-    if (0 != pkt_wait_list_ctor(tcp_subparser->wl+1, 0 /* relative to the ISN */, &tcp_wait_lists, 100000, 100, tcp_max_waiting_payload, child, &now)) {
+    if (0 != pkt_wait_list_ctor(tcp_subparser->wl+1, 0 /* relative to the ISN */, &tcp_wl_config, child, &now)) {
         pkt_wait_list_dtor(tcp_subparser->wl+0, &now);
         return -1;
     }
@@ -364,8 +361,7 @@ static struct ip_subproto ip_subproto, ip6_subproto;
 void tcp_init(void)
 {
     log_category_proto_tcp_init();
-    ext_param_tcp_max_waiting_payload_init();
-    pkt_wait_lists_ctor(&tcp_wait_lists);
+    pkt_wl_config_ctor(&tcp_wl_config, "TCP-reordering", 100000, 100, 100000, 10 /* REORDERING TIMEOUT (second) */);
 
     static struct proto_ops const ops = {
         .parse      = tcp_parse,
@@ -405,7 +401,6 @@ void tcp_fini(void)
     ip_subproto_dtor(&ip_subproto);
     ip6_subproto_dtor(&ip6_subproto);
     mux_proto_dtor(&mux_proto_tcp);
-    pkt_wait_lists_dtor(&tcp_wait_lists);
-    ext_param_tcp_max_waiting_payload_fini();
+    pkt_wl_config_dtor(&tcp_wl_config);
     log_category_proto_tcp_fini();
 }

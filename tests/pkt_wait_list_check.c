@@ -29,8 +29,8 @@ static void offset_compare_check(void)
 
 static void ctor_dtor_check(void)
 {
-    struct pkt_wait_lists list;
-    pkt_wait_lists_ctor(&list);
+    struct pkt_wl_config config;
+    pkt_wl_config_ctor(&config, "test1", 0, 0, 0, 0);
 
     struct timeval now;
     timeval_set_now(&now);
@@ -38,11 +38,11 @@ static void ctor_dtor_check(void)
     assert(dummy);
     struct pkt_wait_list wl;
 
-    assert(0 == pkt_wait_list_ctor(&wl, 10, &list, 0, 0, 0, dummy, &now));
+    assert(0 == pkt_wait_list_ctor(&wl, 10, &config, dummy, &now));
     pkt_wait_list_dtor(&wl, &now);
 
     parser_unref(dummy);
-    pkt_wait_lists_dtor(&list);
+    pkt_wl_config_dtor(&config);
 }
 
 /*
@@ -54,7 +54,7 @@ static struct parser *test_parser;
 static struct timeval now;
 static struct pkt_wait_list wl;
 static unsigned next_msg;
-static struct pkt_wait_lists list;
+static struct pkt_wl_config config;
 
 static enum proto_parse_status test_parse(struct parser *parser, struct proto_info unused_ *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
 {
@@ -71,7 +71,7 @@ static enum proto_parse_status test_parse(struct parser *parser, struct proto_in
 
 static void wl_check_setup(void)
 {
-    pkt_wait_lists_ctor(&list);
+    pkt_wl_config_ctor(&config, "test", 1000, 0, 0, 0);
 
     static struct proto_ops const ops = {
         .parse      = test_parse,
@@ -85,7 +85,7 @@ static void wl_check_setup(void)
     test_parser = test_proto.proto.ops->parser_new(&test_proto.proto, &now);
     assert(test_parser);
 
-    assert(0 == pkt_wait_list_ctor(&wl, 0, &list, 1000, 0, 0, test_parser, &now));
+    assert(0 == pkt_wait_list_ctor(&wl, 0, &config, test_parser, &now));
 
     next_msg = 0;
 
@@ -96,7 +96,7 @@ static void wl_check_teardown(void)
 {
     parser_unref(test_parser);
     uniq_proto_dtor(&test_proto);
-    pkt_wait_lists_dtor(&list);
+    pkt_wl_config_dtor(&config);
 }
 
 // Simple case : when packets are receiving in the right order we call the parser function at once and nothing gets stored on the wl ever

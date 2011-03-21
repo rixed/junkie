@@ -200,7 +200,7 @@ static void ip_subparser_del(struct mux_subparser *mux_subparser)
     FREE(ip_subparser);
 }
 
-static struct pkt_wait_lists ip_reassembly_lists;
+static struct pkt_wl_config ip_reassembly_config;
 
 // Really construct the waiting list
 static int ip_reassembly_ctor(struct ip_reassembly *reassembly, struct parser *parser, uint16_t id, struct timeval const *now)
@@ -208,9 +208,9 @@ static int ip_reassembly_ctor(struct ip_reassembly *reassembly, struct parser *p
     SLOG(LOG_DEBUG, "Constructing ip_reassembly@%p for parser %s", reassembly, parser_name(parser));
     assert(! reassembly->constructed);
 
-    pkt_wait_list_timeout(&ip_reassembly_lists, 5 /* FRAGMENTATION TIMEOUT (second) */, now);
+    pkt_wait_list_timeout(&ip_reassembly_config, now);
 
-    if (0 != pkt_wait_list_ctor(&reassembly->wl, 0, &ip_reassembly_lists, 65536, 100, 65536, parser, now)) return -1;
+    if (0 != pkt_wait_list_ctor(&reassembly->wl, 0, &ip_reassembly_config, parser, now)) return -1;
     reassembly->id = id;
     reassembly->got_last = 0;
     reassembly->constructed = 1;
@@ -397,7 +397,7 @@ void ip_init(void)
 {
     log_category_proto_ip_init();
     ext_param_reassembly_enabled_init();
-    pkt_wait_lists_ctor(&ip_reassembly_lists);
+    pkt_wl_config_ctor(&ip_reassembly_config, "IP-reassembly", 65536, 100, 65536, 5 /* FRAGMENTATION TIMEOUT (second) */);
 
     static struct proto_ops const ops = {
         .parse = ip_parse,
@@ -420,7 +420,7 @@ void ip_fini(void)
     assert(LIST_EMPTY(&ip_subprotos));
     eth_subproto_dtor(&eth_subproto);
     mux_proto_dtor(&mux_proto_ip);
-    pkt_wait_lists_dtor(&ip_reassembly_lists);
+    pkt_wl_config_dtor(&ip_reassembly_config);
     ext_param_reassembly_enabled_fini();
     log_category_proto_ip_fini();
 }

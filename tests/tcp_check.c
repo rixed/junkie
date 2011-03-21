@@ -140,6 +140,7 @@ int main(void)
     hash_init();
     ext_init();
     proto_init();
+    pkt_wait_list_init();
     tcp_init();
     ssl_init();
     log_set_level(LOG_DEBUG, NULL);
@@ -152,6 +153,7 @@ int main(void)
 
     ssl_fini();
     tcp_fini();
+    pkt_wait_list_fini();
     proto_fini();
     hash_fini();
     ext_fini();

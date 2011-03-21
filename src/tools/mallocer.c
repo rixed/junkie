@@ -158,8 +158,10 @@ static struct ext_function sg_mallocer_names;
 static SCM g_mallocer_names(void)
 {
     SCM ret = SCM_EOL;
+    mutex_lock(&mallocers_lock);
     struct mallocer *mallocer;
     SLIST_FOREACH(mallocer, &mallocers, entry) ret = scm_cons(scm_from_locale_string(mallocer->name), ret);
+    mutex_unlock(&mallocers_lock);
     return ret;
 }
 
@@ -167,10 +169,12 @@ static struct mallocer *mallocer_of_scm_name(SCM name_)
 {
     char *name = scm_to_tempstr(name_);
     struct mallocer *mallocer;
+    mutex_lock(&mallocers_lock);
     SLIST_FOREACH(mallocer, &mallocers, entry) {
-        if (0 == strcasecmp(name, mallocer->name)) return mallocer;
+        if (0 == strcasecmp(name, mallocer->name)) break;
     }
-    return NULL;
+    mutex_unlock(&mallocers_lock);
+    return mallocer;
 }
 
 static struct ext_function sg_mallocer_stats;
@@ -231,6 +235,7 @@ void mallocer_init(void)
     ext_function_ctor(&sg_mallocer_blocks,
         "mallocer-blocks", 1, 0, 0, g_mallocer_blocks,
         "(mallocer-blocks \"name\") : return detailed information on every blocks allocated by this mallocer.\n"
+        "Note: You should check how many blocks will be returned before calling this function!\n"
         "See also (? 'mallocer-names).\n");
 }
 
