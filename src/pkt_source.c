@@ -260,7 +260,7 @@ static void *sniffer(struct pkt_source *pkt_source, pcap_handler callback)
                 return NULL;
             }
         }
-    } while (1);
+    } while (! terminating);
 
     return NULL;
 }
@@ -273,9 +273,16 @@ static void sync_times(struct timeval const *file_start, struct timeval const *r
     timeval_add_usec(&tv, pkt_age);
     // We must wait until tv
     struct timeval now;
-    timeval_set_now(&now);
-    int64_t wait_time = timeval_sub(&tv, &now);
-    if (wait_time > 10000 /* 10 msec */) usleep(wait_time);
+    do {
+        timeval_set_now(&now);
+        int64_t wait_time = timeval_sub(&tv, &now);
+#       define MIN_SLEEP 10000 /* microseconds */
+#       define MAX_SLEEP 400000
+        // Don't sleep less than 10ms since the sleep + parse would likely last more than that
+        if (wait_time < MIN_SLEEP) break;
+        // Don't sleep more than 400ms straight so that we can check for terminating flag from time to time
+        usleep(MIN(MIN_SLEEP, wait_time));
+    } while (! terminating);
     *pkt = tv; // Set ideal 'now' time in pkt
 }
 
@@ -295,17 +302,18 @@ static void *sniffer_rt(struct pkt_source *pkt_source, pcap_handler callback)
             if (res != -2) {
                 SLOG(LOG_ERR, "Cannot pcap_dispatch on pkt_source %s: %s", pkt_source_name(pkt_source), pcap_geterr(pkt_source->pcap_handle));
             }
-            SLOG(LOG_INFO, "Stop sniffing on packet source %s (%"PRIuLEAST64" packets recieved)", pkt_source_name(pkt_source), pkt_source->nb_packets);
-            pkt_source_del(pkt_source);
-            return NULL;
+            break;
         }
         assert(res == 1);   // 0 should not happen
         if (pkt_hdr->ts.tv_sec == 0) continue;   // should not happen, but does occur sometime (same goes for all other pcap header fields)
         if (! timeval_is_set(&file_start)) file_start = pkt_hdr->ts;
         sync_times(&file_start, &replay_start, &pkt_hdr->ts);
+        if (terminating) break;
         callback((void *)pkt_source, pkt_hdr, packet);
     } while (1);
 
+    SLOG(LOG_INFO, "Stop sniffing on packet source %s (%"PRIuLEAST64" packets recieved)", pkt_source_name(pkt_source), pkt_source->nb_packets);
+    pkt_source_del(pkt_source);
     return NULL;
 }
 
