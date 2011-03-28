@@ -120,11 +120,16 @@ static char const *pkt_source_name(struct pkt_source *pkt_source)
         pkt_source);
 }
 
+static void pkt_source_guile_name_2_buf(struct pkt_source *pkt_source, char *buf, size_t size)
+{
+    snprintf(buf, size, "%s%s", pkt_source->name, instance_to_str(pkt_source->instance));
+}
+
 static char const *pkt_source_guile_name(struct pkt_source *pkt_source)
 {
-    return tempstr_printf("%s%s",
-        pkt_source->name,
-        instance_to_str(pkt_source->instance));
+    char *tmp = tempstr();
+    pkt_source_guile_name_2_buf(pkt_source, tmp, TEMPSTR_SIZE);
+    return tmp;
 }
 
 /*
@@ -578,14 +583,13 @@ static SCM g_list_ifaces(void)
 // Caller must own pkt_sources_lock
 static struct pkt_source *pkt_source_of_scm(SCM ifname_)
 {
+    char name[PATH_MAX];
     char *ifname = scm_to_tempstr(ifname_);
 
     struct pkt_source *pkt_source;
     LIST_FOREACH(pkt_source, &pkt_sources, entry) {
-        char const *name = pkt_source_guile_name(pkt_source);
-        if (0 == strcmp(ifname, name)) {
-            break;
-        }
+        pkt_source_guile_name_2_buf(pkt_source, name, sizeof(name));
+        if (0 == strcmp(ifname, name)) break;
     }
     return pkt_source;
 }
@@ -632,12 +636,14 @@ static SCM g_close_iface(SCM ifname_)
 static struct ext_function sg_iface_names;
 static SCM g_iface_names(void)
 {
+    char name[PATH_MAX];
     SCM ret = SCM_EOL;
 
     struct pkt_source *pkt_source;
 
     LIST_FOREACH(pkt_source, &pkt_sources, entry) {
-        ret = scm_cons(scm_from_locale_string(pkt_source_guile_name(pkt_source)), ret);
+        pkt_source_guile_name_2_buf(pkt_source, name, sizeof(name));
+        ret = scm_cons(scm_from_locale_string(name), ret);
     }
 
     return ret;

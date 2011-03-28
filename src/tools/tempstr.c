@@ -29,7 +29,7 @@
 static char const Id[] = "$Id: c34949b73e614e0d0aea39bf9c02d70f06524abd $";
 
 static __thread unsigned next;
-static __thread char bufs[32][TEMPSTR_SIZE];
+static __thread char bufs[256][TEMPSTR_SIZE];
 
 char *tempstr(void)
 {

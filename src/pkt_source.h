@@ -16,7 +16,7 @@
  */
 struct pkt_source {
     LIST_ENTRY(pkt_source) entry;   ///< Entry in the list of all packet sources
-    char name[PATH_MAX];            ///< The name to identify this source (used for print only)
+    char name[PATH_MAX];            ///< The name to identify this source
     unsigned instance;              ///< If several pkt_source uses the same name (as is frequent), distinguish them with this
     pcap_t *pcap_handle;            ///< The handle for libpcap
     pthread_t sniffer;              ///< The thread sniffing this device or file
