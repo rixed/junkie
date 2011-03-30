@@ -70,9 +70,9 @@ static struct parse_test {
         .packet = (uint8_t const *)
         "NTFY 64441 aaln/1@[172.25.51.149] MGCP 1.0 NCS 1.0\n"
         "X: 3d33000\n"
-        "O: d/0,d/6,d/4,d/3,d/1,d/2,d/8,d/7,d/1,d/2\n",
+        "O: d/0,d/6,d/T,d/4,d/3,d/1,d/2,d/8,d/7,d/1,d/2\n",
         .expected[0] = {
-            .info = { .head_len = 105, .payload = 0 },
+            .info = { .head_len = 109, .payload = 0 },
             .response = false,
             .u.query = {
                 .command = MGCP_Notify,

@@ -238,8 +238,14 @@ static void parse_observed_event(struct mgcp_proto_info *info, struct liner *lin
         if (tokenizer.start[0] != 'D' && tokenizer.start[0] != 'd') continue;
         if (tokenizer.start[1] != '/') continue;
         // append dialed 'digit' into dialed info
-        len += snprintf(info->dialed+len, sizeof(info->dialed)-len, "%.*s", (int)liner_tok_length(&tokenizer)-2, tokenizer.start+2);
+        for (unsigned d = 2; d < liner_tok_length(&tokenizer); d++) {
+            if (len >= sizeof(info->dialed)-1) break;
+            char const c = tokenizer.start[d];
+            if (c != 'T' && c != 't') info->dialed[len++] = c;
+        }
     }
+    assert(len < sizeof(info->dialed));
+    info->dialed[len] = '\0';
 }
 
 static void parse_signal_request(struct mgcp_proto_info *info, struct liner *liner)

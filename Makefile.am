@@ -5,7 +5,7 @@ dist_doc_DATA = README COPYING LICENSE.AGPL LICENSE.BSD LICENSE.LGPL LICENSE.Ope
 
 SUBDIRS = include src config plugins/dumper plugins/writer plugins/rater tests
 
-.PHONY: cscope doc
+.PHONY: cscope doc clear
 
 cscope:
 	cd $(top_srcdir) && cscope -Rb $(CPPFLAGS)
