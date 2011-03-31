@@ -43,7 +43,7 @@ static void usec_2_timeval(struct timeval *tv, uint64_t usec)
 }
 
 // @returns micro-seconds
-int64_t timeval_sub(struct timeval const *a, struct timeval const *b)
+int64_t timeval_sub(struct timeval const *restrict a, struct timeval const *restrict b)
 {
     int64_t a_ms = timeval_2_usec(a);
     int64_t b_ms = timeval_2_usec(b);
@@ -58,7 +58,7 @@ int64_t timeval_age(struct timeval const *tv)
     return timeval_sub(&now, tv);
 }
 
-int timeval_cmp(struct timeval const *a, struct timeval const *b)
+int timeval_cmp(struct timeval const *restrict a, struct timeval const *restrict b)
 {
     if (a->tv_sec < b->tv_sec) return -1;
     else if (a->tv_sec > b->tv_sec) return 1;
@@ -102,4 +102,15 @@ void timeval_set_now(struct timeval *now)
 #   else
     gettimeofday(now, NULL);
 #   endif
+}
+
+
+void timeval_set_min(struct timeval *restrict a, struct timeval const *restrict b)
+{
+    if (timeval_cmp(a, b) > 0) *a = *b;
+}
+
+void timeval_set_max(struct timeval *restrict a, struct timeval const *restrict b)
+{
+    if (timeval_cmp(a, b) < 0) *a = *b;
 }

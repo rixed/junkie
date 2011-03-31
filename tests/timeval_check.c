@@ -104,6 +104,23 @@ static void timeval_add_sec_check(void)
     assert(0 == timeval_cmp(&tv1, &tv2));
 }
 
+static void timeval_min_max_check(void)
+{
+    struct timeval tv1 = { .tv_sec = 1, .tv_usec = 0 };
+    struct timeval tv2 = { .tv_sec = 2, .tv_usec = 0 };
+    struct timeval tv3 = { .tv_sec = 3, .tv_usec = 0 };
+
+    struct timeval tv = { .tv_sec = 2, .tv_usec = 0 };
+    timeval_set_max(&tv, &tv1); assert(tv.tv_sec == 2);
+    timeval_set_max(&tv, &tv2); assert(tv.tv_sec == 2);
+    timeval_set_max(&tv, &tv3); assert(tv.tv_sec == 3);
+
+    tv.tv_sec = 2; tv.tv_usec = 0;
+    timeval_set_min(&tv, &tv3); assert(tv.tv_sec == 2);
+    timeval_set_min(&tv, &tv2); assert(tv.tv_sec == 2);
+    timeval_set_min(&tv, &tv1); assert(tv.tv_sec == 1);
+}
+
 int main(void)
 {
     log_set_level(LOG_DEBUG, NULL);
@@ -114,6 +131,7 @@ int main(void)
     timeval_cmp_check();
     timeval_add_usec_check();
     timeval_add_sec_check();
+    timeval_min_max_check();
 
     return EXIT_SUCCESS;
 }
