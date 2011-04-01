@@ -213,11 +213,50 @@
 ; A simple function to check wether the agentx module is available or not
 (define have-snmp (false-if-exception (resolve-interface '(agentx tools))))
 
-; Helper function that comes handy when seting max-children
-(define (get-mux-hash-size proto)
-  (let ((stat (mux-stats proto)))
-    (assq-ref stat 'hash-size)))
+; Helper function handy for answering SNMP queries : cache a result of some expensive function for some time
+(define (cached timeout)
+  (let* ((hash      (make-hash-table 50)) ; hash from (func . args) into (timestamp . value)
+         (ts-of     car)
+         (value-of  cdr))
+    (lambda func-args
+      (let* ((hash-v (hash-ref hash func-args))
+             (now    (current-time)))
+        (if (and hash-v (<= now (+ timeout (ts-of hash-v))))
+            (value-of hash-v)
+            (let ((v (primitive-eval func-args)))
+              (hash-set! hash func-args (cons now v))
+              v))))))
 
+; Helper functions that comes handy when configuring muxer hashes
+(define (get-mux-hash-size proto)
+  (let ((stats (mux-stats proto)))
+    (assq-ref stats 'hash-size)))
+
+(define (nb-tot-parsers)
+  (let* ((stats      (map proto-stats (proto-names)))
+         (nb-parsers (map (lambda (s) (assq-ref s 'nb-parsers)) stats)))
+    (reduce + 0 nb-parsers)))
+
+(define (make-mux-hash-controller coll-avg-min coll-avg-max h-size-min h-size-max)
+  (lambda (proto)
+    (let* ((stats    (mux-stats proto))
+           (h-size   (assq-ref stats 'hash-size))
+           (colls    (assq-ref stats 'nb-collisions))
+           (lookups  (assq-ref stats 'nb-lookups))
+           (coll-avg (if (> lookups 0) (/ colls lookups) -1))
+           (resize   (lambda (new-h-size)
+                       (simple-format #t "Setting hash size of ~A to ~A\n" proto new-h-size)
+                       (set-mux-hash-size proto new-h-size)
+                       (if (equal? new-h-size h-size-max)
+                           (let ((max-children (* new-h-size coll-avg-max 2))) ; we won't grow any further so limit the number of children
+                             (set-max-children proto max-children)
+                             (simple-format #t "   and limiting number of children to ~A\n" max-children))))))
+      (if (< coll-avg coll-avg-min) ; then make future hashes smaller
+          (if (> h-size h-size-min)
+              (resize (max h-size-min (round (/ h-size 2))))))
+      (if (> coll-avg coll-avg-max) ; then make future hashes bigger
+          (if (< h-size h-size-max)
+              (resize (min h-size-max (* h-size 2))))))))
 
 ; Functions to automatically calibrate the deduplication parameters
 
@@ -242,7 +281,7 @@
                                      (nodups (assq-ref stats 'nodup-found))
                                      (eols   (assq-ref stats 'end-of-list-found))
                                      (sum    (+ dups nodups eols))
-                                     (ratio  (/ (* 100 dups) sum)))
+                                     (ratio  (if (> sum 0) (/ (* 100 dups) sum) 0)))
                                 (format #t "~3,2f%\n" (exact->inexact ratio))
                                 ratio)))
          (max-delay         500000)

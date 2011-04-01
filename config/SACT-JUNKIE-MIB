@@ -51,8 +51,8 @@ SourceEntry ::= SEQUENCE {
 	droppedCount Counter64,
 	processedCount Counter64,
 	duplicateCount Counter64,
-	capBytesCount Counter64,
-	wireBytesCount Counter64
+	capBytes Counter64,
+	wireBytes Counter64
 }
 
 sourceName OBJECT-TYPE
@@ -102,20 +102,20 @@ duplicateCount OBJECT-TYPE
 		 If you have a high ratio of duplicates you may want to check your mirroring."
 	::= { sourceEntry 5 }
 
-capBytesCount OBJECT-TYPE
+capBytes OBJECT-TYPE
 	SYNTAX Counter64
 	MAX-ACCESS read-only
 	STATUS current
 	DESCRIPTION "Number of bytes captured on this source."
 	::= { sourceEntry 6 }
 
-wireBytesCount OBJECT-TYPE
+wireBytes OBJECT-TYPE
 	SYNTAX Counter64
 	MAX-ACCESS read-only
 	STATUS current
 	DESCRIPTION
 		"Number of bytes on wire for this source. If you do not truncate
-		 packets when reading the packet source then this is equal to capBytesCount."
+		 packets when reading the packet source then this is equal to capBytes."
 	::= { sourceEntry 7 }
 
 
