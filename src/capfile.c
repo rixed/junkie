@@ -34,6 +34,11 @@
 
 static char const Id[] = "$Id$";
 
+#undef LOG_CAT
+#define LOG_CAT capfile_log_category
+
+LOG_CATEGORY_DEF(capfile);
+
 static unsigned capture_files = 0;
 static unsigned max_capture_files = 1000;
 EXT_PARAM_RW(max_capture_files, "max-capture-files", uint, "The max number of files opened for captures (0 for no limit)");
@@ -344,6 +349,7 @@ static SCM g_capfile_names(void)
 
 void capfile_init(void)
 {
+    log_category_capfile_init();
     ext_param_max_capture_files_init();
     mutex_ctor(&capfiles_lock, "capfiles");
 
@@ -356,7 +362,6 @@ void capfile_init(void)
 void capfile_fini(void)
 {
     mutex_lock(&capfiles_lock);
-    ext_param_max_capture_files_fini();
 
     if (! LIST_EMPTY(&capfiles)) {
         SLOG(LOG_WARNING, "Some capture files are still opened (first is '%s')", LIST_FIRST(&capfiles)->path);
@@ -364,4 +369,6 @@ void capfile_fini(void)
     mutex_unlock(&capfiles_lock);
 
     mutex_dtor(&capfiles_lock);
+    ext_param_max_capture_files_fini();
+    log_category_capfile_fini();
 }
