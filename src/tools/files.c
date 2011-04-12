@@ -50,7 +50,7 @@ int mkdir_all(char const *path, bool is_filename)
     for (c = filename+1; *c; c++) {
         if ('/' == *c) {
             *c = '\0';
-            if (-1 == mkdir(filename, 0744) && EEXIST != errno) {
+            if (-1 == mkdir(filename, 0755) && EEXIST != errno) {
 mkdir_err:
                 SLOG(LOG_ERR, "Cannot mkdir %s : %s", filename, strerror(errno));
                 return -1;
@@ -60,7 +60,7 @@ mkdir_err:
     }
 
     if (! is_filename) {
-        if (-1 == mkdir(filename, 0744) && EEXIST != errno) {
+        if (-1 == mkdir(filename, 0755) && EEXIST != errno) {
             goto mkdir_err;
         }
     }
