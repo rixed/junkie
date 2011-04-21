@@ -22,6 +22,7 @@
 #include <limits.h>
 #include <stdint.h>
 #include <inttypes.h>
+#include <ctype.h>
 #include <assert.h>
 #include <signal.h>
 #include <pcap.h>
@@ -48,8 +49,9 @@ static struct mutex cap_parser_lock;
 
 static struct parser *cap_parser = NULL;
 
-// A sequence to identifies indeterfaces with a numeric id (also protected with pkt_sources_lock
-static unsigned dev_id_seq = 0;
+// A sequence to uniquely identifies pcap files with a numeric id (also protected with pkt_sources_lock)
+// Starts at 100 so that id below 100 are available for actual interfaces.
+static unsigned pcap_id_seq = 100;
 
 static int dup_detection_delay = 5000;  // microseconds
 EXT_PARAM_RW(dup_detection_delay, "dup-detection-delay", int, "Number of microseconds between two packets that can't be duplicates")
@@ -365,8 +367,9 @@ static int set_filter(pcap_t *pcap_handle, char const *filter)
     return 0;
 }
 
-static int pkt_source_ctor(struct pkt_source *pkt_source, char const *name, pcap_t *pcap_handle, void *(*sniffer)(void *), bool is_file)
+static int pkt_source_ctor(struct pkt_source *pkt_source, char const *name, pcap_t *pcap_handle, void *(*sniffer)(void *), bool is_file, uint8_t dev_id)
 {
+    SLOG(LOG_DEBUG, "Construct pkt_source@%p of name %s and dev_id %"PRIu8, pkt_source, name, dev_id);
     int ret = 0;
 
     snprintf(pkt_source->name, sizeof(pkt_source->name), "%s", name);
@@ -389,7 +392,7 @@ static int pkt_source_ctor(struct pkt_source *pkt_source, char const *name, pcap
         if (0 == strcmp(name, other->name) && other->instance >= pkt_source->instance) pkt_source->instance = other->instance+1;
     }
 
-    pkt_source->dev_id = dev_id_seq++;
+    pkt_source->dev_id = dev_id;
     LIST_INSERT_HEAD(&pkt_sources, pkt_source, entry);
 
     // FIXME: someone should care to pthread_join it at the end in order to release the few bytes storing the status (problem is the pkt_source is deleted in the spawned thread)
@@ -405,13 +408,13 @@ unlock_quit:
     return ret;
 }
 
-static struct pkt_source *pkt_source_new(char const *name, pcap_t *pcap_handle, void *(*sniffer)(void *), bool is_file)
+static struct pkt_source *pkt_source_new(char const *name, pcap_t *pcap_handle, void *(*sniffer)(void *), bool is_file, uint8_t dev_id)
 {
     MALLOCER(pkt_source);
     struct pkt_source *pkt_source = mallocer_alloc(&mallocer_pkt_source, sizeof(*pkt_source));
     if (! pkt_source) return NULL;
 
-    if (0 != pkt_source_ctor(pkt_source, name, pcap_handle, sniffer, is_file)) {
+    if (0 != pkt_source_ctor(pkt_source, name, pcap_handle, sniffer, is_file, dev_id)) {
         mallocer_free(pkt_source);
         pkt_source = NULL;
     }
@@ -444,7 +447,7 @@ static struct pkt_source *pkt_source_new_file(char const *filename, char const *
         return NULL;
     }
 
-    struct pkt_source *pkt_source = pkt_source_new(basename, handle, rt ? file_sniffer_rt:file_sniffer, true);
+    struct pkt_source *pkt_source = pkt_source_new(basename, handle, rt ? file_sniffer_rt:file_sniffer, true, pcap_id_seq++);
     if (! pkt_source) {
         pcap_close(handle);
     }
@@ -464,6 +467,15 @@ static void quit_if_nothing_opened(void)
     mutex_unlock(&pkt_sources_lock);
 
     if (do_exit) exit(0);
+}
+
+// We use the number that folows ifname as a device_id. Should work as intended in most cases
+// (ie. as long as these are <100 and we don't listen simultaneously eth4 and dummy4, for instance)
+static uint8_t dev_id_of_ifname(char const *ifname)
+{
+    char const *c;
+    for (c = ifname; *c && !isdigit(*c); c++) ;
+    return strtoul(c, NULL, 10);
 }
 
 static struct pkt_source *pkt_source_new_if(char const *ifname, bool promisc, char const *filter, int buffer_size)
@@ -508,7 +520,8 @@ static struct pkt_source *pkt_source_new_if(char const *ifname, bool promisc, ch
         return NULL;
     }
 
-    struct pkt_source *pkt_source = pkt_source_new(ifname, handle, iface_sniffer, false);
+    uint8_t dev_id = dev_id_of_ifname(ifname);
+    struct pkt_source *pkt_source = pkt_source_new(ifname, handle, iface_sniffer, false, dev_id);
     if (! pkt_source) {
         pcap_close(handle);
     }
