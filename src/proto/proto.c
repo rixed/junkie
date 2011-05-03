@@ -820,7 +820,7 @@ void proto_init(void)
         "         (? 'mux-names) for a list of protocol names that are multiplexers.\n");
 
     ext_function_ctor(&sg_proto_set_timeout,
-        "set-proto-timeout", 1, 0, 0, g_proto_set_timeout,
+        "set-proto-timeout", 2, 0, 0, g_proto_set_timeout,
         "(set-proto-timeout \"proto-name\" n) : sets the number of seconds after which an unused parser for this proto is reclaimed.\n"
         "A value of 0 disable timeouting of these parsers.\n"
         "See also (? 'proto-names) for a list of availbale protocol names,\n"
