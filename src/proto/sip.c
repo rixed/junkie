@@ -29,6 +29,8 @@
 #include <junkie/tools/mallocer.h>
 #include <junkie/tools/log.h>
 #include <junkie/tools/tempstr.h>
+#include <junkie/tools/hash.h>
+#include <junkie/tools/mutex.h>
 #include <junkie/proto/ip.h>
 #include <junkie/proto/tcp.h>
 #include <junkie/proto/udp.h>
@@ -44,62 +46,88 @@ static char const Id[] = "$Id: de51c32f9992fe12b61752bf374468184b1a952d $";
 
 LOG_CATEGORY_DEF(proto_sip);
 
-#define SIP_TIMEOUT (60 * 5)
-#define SIP_HASH_SIZE (100)
 #define SIP_PORT 5060
+#define CALLID_TIMEOUT (1 * 60) // forget all about SDP messages for a callid after 1 minute (should be more than enough to receive infos for both directions)
 
-/*
- * SIP parser
- */
+/* Hash from SIP Call-id to SDP parser
+ * (in order not to depend upon the transport socket pair as would be the case if SIP parser was a mux) */
 
-static struct mux_proto mux_proto_sip;
-
-struct sip_parser {
-    struct sip_parser *dual;        // Our dual is the SIP parser that will handle the response (maybe ourself)
-    struct mux_parser mux_parser;   // variable sized
+struct callid_2_sdp {
+    LIST_ENTRY(callid_2_sdp) entry;     // entry in the hash
+    TAILQ_ENTRY(callid_2_sdp) used_entry;   // entry in the used list
+    char call_id[SIP_CALLID_LEN+1];
+    struct parser *sdp_parser;
+    struct timeval last_used;
 };
 
-static int sip_parser_ctor(struct sip_parser *sip_parser, struct proto *proto, struct timeval const *now)
+// The hash itself
+static HASH_TABLE(callids_2_sdps, callid_2_sdp) callids_2_sdps;
+// A list of all entries, in LRU order
+static TAILQ_HEAD(callids_2_sdps_tq, callid_2_sdp) callids_2_sdps_used = TAILQ_HEAD_INITIALIZER(callids_2_sdps_used);
+// A mutex to protect both the hash and the tailqueue
+static struct mutex callids_2_sdps_mutex;
+
+static void callid_2_sdp_dtor(struct callid_2_sdp *c2s)
 {
-    assert(proto == proto_sip);
-    if (0 != mux_parser_ctor(&sip_parser->mux_parser, &mux_proto_sip, now)) {
-        return -1;
+    SLOG(LOG_DEBUG, "Destruct callid_2_sdp@%p for callid '%s'", c2s, c2s->call_id);
+    HASH_REMOVE(&callids_2_sdps, c2s, entry);
+    TAILQ_REMOVE(&callids_2_sdps_used, c2s, used_entry);
+    parser_unref(c2s->sdp_parser);
+}
+
+static void callid_2_sdp_del(struct callid_2_sdp *c2s)
+{
+    callid_2_sdp_dtor(c2s);
+    FREE(c2s);
+}
+
+static void callids_2_sdps_timeout(struct timeval const *now)
+{
+    PTHREAD_ASSERT_LOCK(&callids_2_sdps_mutex.mutex);
+    struct callid_2_sdp *c2s;
+    while (NULL != (c2s = TAILQ_FIRST(&callids_2_sdps_used))) {
+        if (likely_(timeval_sub(now, &c2s->last_used) <= CALLID_TIMEOUT * 1000000LL)) break;
+
+        SLOG(LOG_DEBUG, "Timeouting callid_2_sdp@%p for callid '%s'", c2s, c2s->call_id);
+        callid_2_sdp_del(c2s);
     }
+}
 
-    sip_parser->dual = NULL;
-
+static int callid_2_sdp_ctor(struct callid_2_sdp *c2s, char const *call_id, struct timeval const *now)
+{
+    SLOG(LOG_DEBUG, "Construct callid_2_sdp@%p for callid '%s'", c2s, call_id);
+    c2s->sdp_parser = proto_sdp->ops->parser_new(proto_sdp, now);
+    if (! c2s->sdp_parser) return -1;
+    memset(c2s->call_id, 0, sizeof c2s->call_id); // because it's used as a hash key
+    snprintf(c2s->call_id, sizeof(c2s->call_id), "%s", call_id);
+    c2s->last_used = *now;
+    mutex_lock(&callids_2_sdps_mutex);
+    callids_2_sdps_timeout(now);
+    HASH_INSERT(&callids_2_sdps, c2s, &c2s->call_id, entry);
+    TAILQ_INSERT_TAIL(&callids_2_sdps_used, c2s, used_entry);
+    mutex_unlock(&callids_2_sdps_mutex);
     return 0;
 }
 
-static struct parser *sip_parser_new(struct proto *proto, struct timeval const *now)
+static struct callid_2_sdp *callid_2_sdp_new(char const *call_id, struct timeval const *now)
 {
-    MALLOCER(sip_parsers);
-    struct sip_parser *sip_parser = MALLOC(sip_parsers, sizeof(*sip_parser) - sizeof(sip_parser->mux_parser) + mux_parser_size(&mux_proto_sip));
-    if (! sip_parser) return NULL;
-
-    if (-1 == sip_parser_ctor(sip_parser, proto, now)) {
-        FREE(sip_parser);
+    MALLOCER(callids_2_sdps);
+    struct callid_2_sdp *c2s = MALLOC(callids_2_sdps, sizeof(*c2s));
+    if (! c2s) return NULL;
+    if (0 != callid_2_sdp_ctor(c2s, call_id, now)) {
+        FREE(c2s);
         return NULL;
     }
-
-    return &sip_parser->mux_parser.parser;
+    return c2s;
 }
 
-static void sip_parser_dtor(struct sip_parser *sip_parser)
+static void callid_2_sdp_touch(struct callid_2_sdp *c2s, struct timeval const *now)
 {
-    if (sip_parser->dual) {
-        if (sip_parser->dual != sip_parser) parser_unref(&sip_parser->dual->mux_parser.parser);
-        sip_parser->dual = NULL;
-    }
-    mux_parser_dtor(&sip_parser->mux_parser);
-}
-
-static void sip_parser_del(struct parser *parser)
-{
-    struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
-    struct sip_parser *sip_parser = DOWNCAST(mux_parser, mux_parser, sip_parser);
-    sip_parser_dtor(sip_parser);
-    FREE(sip_parser);
+    mutex_lock(&callids_2_sdps_mutex);
+    c2s->last_used = *now;
+    TAILQ_REMOVE(&callids_2_sdps_used, c2s, used_entry);
+    TAILQ_INSERT_TAIL(&callids_2_sdps_used, c2s, used_entry);
+    mutex_unlock(&callids_2_sdps_mutex);
 }
 
 /*
@@ -218,6 +246,7 @@ static int sip_extract_callid(unsigned unused_ field, struct liner *liner, void 
 {
     struct sip_proto_info *info = info_;
     info->set_values |= SIP_CALLID_SET;
+    memset(info->call_id, 0, sizeof info->call_id); // because it's used in HASH_LOOKUP
     copy_token(info->call_id, sizeof info->call_id, liner);
     return 0;
 }
@@ -296,51 +325,8 @@ static int sip_extract_via(unsigned unused_ field, struct liner *liner, void *in
     return 0;
 }
 
-static void try_create_dual(struct sip_parser *sip_parser, struct sip_proto_info const *info, struct proto_info *parent, unsigned way, struct timeval const *now)
-{
-    unsigned server_port = 0;
-    struct proto *proto_transp;
-    struct proto_info const *info_transp;
-    if (info->via.protocol == IPPROTO_UDP) {
-        ASSIGN_INFO_CHK(udp, parent, );
-        server_port = udp->key.port[!way];  // packet is going from client to server, so we want port[1] (dest), if not inversed
-        info_transp = &udp->info;
-        proto_transp = proto_udp;
-    } else {
-        ASSIGN_INFO_CHK(tcp, parent, );
-        server_port = tcp->key.port[!way];
-        info_transp = &tcp->info;
-        proto_transp = proto_tcp;
-    }
-    ASSIGN_INFO_CHK(ip, info_transp, );
-
-    // Look for a transp parser between the server (ip->addr[!way]:server_port), and
-    // the client address specified in Via field (info->via.addr:info->via.port)
-    unsigned way2;
-    struct mux_subparser *ip_subparser =
-        ip_subparser_lookup(ip->info.parser, proto_transp, NULL, info->via.protocol, ip->key.addr+!way, &info->via.addr, &way2, now);
-    // Then for the SIP parser, child of this transp (UDP|TCP) parser
-    if (! ip_subparser) return;
-    struct mux_subparser *transp_subparser =
-        (info->via.protocol == IPPROTO_UDP ? udp_subparser_lookup : tcp_subparser_lookup)
-        (ip_subparser->parser, proto_sip, NULL, server_port, info->via.port, way2, now);
-
-    if (! transp_subparser) return;
-    assert(transp_subparser->parser->proto == proto_sip);
-
-    // Store the returned ref
-    assert(! sip_parser->dual);
-    struct parser *const dual_parser = transp_subparser->parser;
-    if (transp_subparser->parser != &sip_parser->mux_parser.parser) parser_ref(transp_subparser->parser);   // avoid stupid loop
-
-    sip_parser->dual = DOWNCAST(DOWNCAST(dual_parser, parser, mux_parser), mux_parser, sip_parser);
-}
-
 static enum proto_parse_status sip_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t unused_ *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
 {
-    struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
-    struct sip_parser *sip_parser = DOWNCAST(mux_parser, mux_parser, sip_parser);
-
     static struct httper_command const commands[] = {
         [SIP_CMD_REGISTER] = { "REGISTER", 8, sip_set_command },
         [SIP_CMD_INVITE] =   { "INVITE",   6, sip_set_command },
@@ -382,36 +368,41 @@ static enum proto_parse_status sip_parse(struct parser *parser, struct proto_inf
     assert(siphdr_len <= cap_len);
     sip_proto_info_ctor(&info, parser, parent, siphdr_len, wire_len - siphdr_len);
 
-    // If we are a request (with a Via), without our dual, then create it
-    if (
-        (info.set_values & SIP_CMD_SET) &&
-        (info.set_values & SIP_VIA_SET) &&
-        !sip_parser->dual
-    ) {
-        try_create_dual(sip_parser, &info, parent, way, now);
-    }
-
-    struct mux_subparser *subparser = NULL;
+    struct parser *subparser = NULL;
 
 #define MIME_SDP "application/sdp"
     if (
+        (info.set_values & SIP_CALLID_SET) &&
         (info.set_values & SIP_LENGTH_SET) &&
         info.content_length > 0 &&
         (info.set_values & SIP_MIME_SET) &&
         0 == strncasecmp(MIME_SDP, info.mime_type, strlen(MIME_SDP))
     ) {
-        subparser = mux_subparser_lookup(mux_parser, proto_sdp, parser, &info.cseq, now);
-        if (sip_parser->dual && sip_parser->dual != sip_parser) {
-            SLOG(LOG_DEBUG, "Make our dual @%p use the same SDP parser for CSeq %lu", sip_parser->dual, info.cseq);
-            // Notice: Whenever sip subparsers are no longer mere mux_subparsers, retrieve the mux_proto.ops.subparser_new
-            mux_subparser_new(&sip_parser->dual->mux_parser, subparser->parser, parser, &info.cseq);
+        mutex_lock(&callids_2_sdps_mutex);
+        // Maybe rehash the hash?
+        static unsigned last_rehash = 0; // timestamp (seconds) of the last rehash
+        if (now->tv_sec > last_rehash) {
+            last_rehash = now->tv_sec;
+            HASH_TRY_REHASH(&callids_2_sdps, call_id, entry);
         }
+        // Retrieve the global SDP for this call-id
+        struct callid_2_sdp *c2s;
+        SLOG(LOG_DEBUG, "Look for a callid_2_sdp for callid '%s'", info.call_id);
+        HASH_LOOKUP(c2s, &callids_2_sdps, &info.call_id, call_id, entry);
+        mutex_unlock(&callids_2_sdps_mutex);
+        if (c2s) {
+            SLOG(LOG_DEBUG, "Found a previous callid_2_sdp@%p", c2s);
+            callid_2_sdp_touch(c2s, now);
+        } else {
+            c2s = callid_2_sdp_new(info.call_id, now);
+        }
+        if (c2s) subparser = c2s->sdp_parser;
     }
 #undef MIME_SDP
 
     if (! subparser) goto fallback;
 
-    if (0 != proto_parse(subparser->parser, &info.info, way, packet + siphdr_len, cap_len - siphdr_len, wire_len - siphdr_len, now, okfn, tot_cap_len, tot_packet)) goto fallback;
+    if (0 != proto_parse(subparser, &info.info, way, packet + siphdr_len, cap_len - siphdr_len, wire_len - siphdr_len, now, okfn, tot_cap_len, tot_packet)) goto fallback;
     return PROTO_OK;
 
 fallback:
@@ -423,30 +414,32 @@ fallback:
  * Init
  */
 
-struct proto *proto_sip = &mux_proto_sip.proto;
+static struct uniq_proto uniq_proto_sip;
+struct proto *proto_sip = &uniq_proto_sip.proto;
 static struct port_muxer udp_port_muxer;
 
 void sip_init(void)
 {
-    // check the variable size of struc sip_parser
-    CHECK_LAST_FIELD(sip_parser, mux_parser, struct mux_parser);
-
     log_category_proto_sip_init();
+    mutex_ctor(&callids_2_sdps_mutex, "callids_2_sdps");
+    HASH_INIT(&callids_2_sdps, 67, "SIP->SDP");
 
     static struct proto_ops const ops = {
         .parse      = sip_parse,
-        .parser_new = sip_parser_new,
-        .parser_del = sip_parser_del,
+        .parser_new = uniq_parser_new,
+        .parser_del = uniq_parser_del,
         .info_2_str = sip_info_2_str,
         .info_addr  = sip_info_addr,
     };
-    mux_proto_ctor(&mux_proto_sip, &ops, &mux_proto_ops, "SIP", SIP_TIMEOUT, sizeof (unsigned long), SIP_HASH_SIZE);
+    uniq_proto_ctor(&uniq_proto_sip, &ops, "SIP");
     port_muxer_ctor(&udp_port_muxer, &udp_port_muxers, SIP_PORT, SIP_PORT, proto_sip);
 }
 
 void sip_fini(void)
 {
     port_muxer_dtor(&udp_port_muxer, &udp_port_muxers);
-    mux_proto_dtor(&mux_proto_sip);
+    uniq_proto_dtor(&uniq_proto_sip);
     log_category_proto_sip_fini();
+    HASH_DEINIT(&callids_2_sdps);
+    mutex_dtor(&callids_2_sdps_mutex);
 }

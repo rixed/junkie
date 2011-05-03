@@ -133,6 +133,7 @@ int main(void)
 {
     log_init();
     mallocer_init();
+    hash_init();
     proto_init();
     udp_init();
     tcp_init();
@@ -149,6 +150,7 @@ int main(void)
     tcp_fini();
     udp_fini();
     proto_fini();
+    hash_fini();
     mallocer_fini();
     log_fini();
     return EXIT_SUCCESS;
