@@ -9,7 +9,6 @@ csv-variables
 deduplication-stats
 dropped-percentage
 duplicate-percentage
-get-dbus-enabled
 get-dns-metric-enabled
 get-dns-metric-timeout
 get-dump-dir
@@ -59,7 +58,6 @@ reset-deduplication-stats
 ring-buffer-names
 ring-buffer-reset-stats
 ring-buffer-stats
-set-dbus-enabled
 set-dns-metric-enabled
 set-dns-metric-timeout
 set-dump-dir
