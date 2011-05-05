@@ -48,21 +48,33 @@
 
 ; Start a server that executes anything (from localhost only)
 (define (start-repl-server port . rest)
-  (let* ((prompt (if (null? rest) (lambda () "junkie> ") (car rest)))
-         (repl (lambda ()
-                 (let ((reader  (lambda (port) (display (prompt)) (read port)))
-                       (evaler  (lambda (expr)
-                                  (catch #t
-                                         (lambda () (eval expr (interaction-environment)))
-                                         (lambda (key . args)
-                                           (if (eq? key 'quit) (apply throw 'quit args))
-                                           (simple-format #t "You slipped : ~A\r\n" key)))))
-                       (printer pp))
-                   (set-thread-name "J-guile-client")
-                   ; Use repl defined in ice-9 boot
-                   (repl reader evaler printer)))))
-    (set-thread-name "J-guile-server")
-    (start-server (inet-aton "127.0.0.1") port repl)))
+  (letrec ((consume-white-spaces (lambda (port)
+                                   (peek-char port)
+                                   (let ((c (peek-char port)))
+                                     (cond ((eqv? c #\eot) (begin
+                                                             (display "Bye!\r\n")
+                                                             (throw 'quit)))
+                                           ((char-whitespace? c) (begin
+                                                                   (read-char)
+                                                                   (consume-white-spaces port))))))))
+    (let* ((prompt (if (null? rest) (lambda () "junkie> ") (car rest)))
+           (repl   (lambda ()
+                     (let ((reader  (lambda (port)
+                                      (display (prompt))
+                                      (consume-white-spaces port)
+                                      (read port)))
+                           (evaler  (lambda (expr)
+                                      (catch #t
+                                             (lambda () (eval expr (interaction-environment)))
+                                             (lambda (key . args)
+                                               (if (eq? key 'quit) (apply throw 'quit args))
+                                               (simple-format #t "You slipped : ~A\r\n" key)))))
+                           (printer pp))
+                       (set-thread-name "J-guile-client")
+                       ; Use repl defined in ice-9 boot
+                       (repl reader evaler printer)))))
+      (set-thread-name "J-guile-server")
+      (start-server (inet-aton "127.0.0.1") port repl))))
 
 ; An equivalent of the old fashionned display command line option
 (define (display-parameters)
