@@ -312,17 +312,17 @@ static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info
 
     size_t ip_len = READ_U16N(&iphdr->tot_len);
     if (ip_len > wire_len) {
-        SLOG(LOG_DEBUG, "Bogus IPv4 total length : %zu > %zu", ip_len, wire_len);
+        SLOG(LOG_DEBUG, "Bogus IPv4 total length: %zu > %zu", ip_len, wire_len);
         return PROTO_PARSE_ERR;
     }
 
     if (version != 4) {
-        SLOG(LOG_DEBUG, "Bogus IPv4 version : %u instead of 4", version);
+        SLOG(LOG_DEBUG, "Bogus IPv4 version: %u instead of 4", version);
         return PROTO_PARSE_ERR;
     }
 
     if (iphdr_len > ip_len) {
-        SLOG(LOG_DEBUG, "Bogus IPv4 header length : %zu > %zu", iphdr_len, ip_len);
+        SLOG(LOG_DEBUG, "Bogus IPv4 header length: %zu > %zu", iphdr_len, ip_len);
         return PROTO_PARSE_ERR;
     }
 

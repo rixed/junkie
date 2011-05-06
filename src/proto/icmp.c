@@ -173,7 +173,7 @@ static int icmp_extract_err_infos(struct icmp_proto_info *info, uint8_t const *p
     struct icmp_err *err = &info->err;
 
     if (packet_len < 20 + 8) {
-        SLOG(LOG_DEBUG, "Bogus ICMP err : packet too short for IP header");
+        SLOG(LOG_DEBUG, "Bogus ICMP err: packet too short for IP header");
         return -1;
     }
     struct ip_hdr const *iphdr = (struct ip_hdr const *)packet;

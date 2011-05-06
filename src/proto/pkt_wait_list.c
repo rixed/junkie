@@ -534,31 +534,31 @@ void pkt_wait_list_init(void)
 
     ext_function_ctor(&sg_wait_list_names,
         "wait-list-names", 0, 0, 0, g_wait_list_names,
-        "(wait-list-names) : get the names of all existing waiting lists.\n"
+        "(wait-list-names): get the names of all existing waiting lists.\n"
         "See also (? 'wait-list-stats).\n");
 
     ext_function_ctor(&sg_wait_list_stats,
         "wait-list-stats", 1, 0, 0, g_wait_list_stats,
-        "(wait-list-stats \"name\") : get stats about this waiting list.\n"
+        "(wait-list-stats \"name\"): get stats about this waiting list.\n"
         "See also (? 'wait-list-names).\n");
 
     ext_function_ctor(&sg_wait_list_set_max_payload,
         "wait-list-set-max-payload", 2, 0, 0, g_wait_list_set_max_payload,
-        "(wait-list-set-max-payload \"name\" bytes) : sets the maximum kept payload per waiting list (0 for no limit - not advised!).\n"
+        "(wait-list-set-max-payload \"name\" bytes): sets the maximum kept payload per waiting list (0 for no limit - not advised!).\n"
         "See also (? 'wait-list-set-max-packets).\n");
 
     ext_function_ctor(&sg_wait_list_set_max_pkts,
         "wait-list-set-max-packets", 2, 0, 0, g_wait_list_set_max_pkts,
-        "(wait-list-set-max-packets \"name\" packets) : sets the maximum kept packets per waiting list (0 for no limit).\n"
+        "(wait-list-set-max-packets \"name\" packets): sets the maximum kept packets per waiting list (0 for no limit).\n"
         "See also (? 'wait-list-set-max-payload).\n");
 
     ext_function_ctor(&sg_wait_list_set_max_gap,
         "wait-list-set-gap-max", 2, 0, 0, g_wait_list_set_max_gap,
-        "(wait-list-set-gap-max \"name\" bytes) : sets the maximum acceptable gap between two kept packets (0 for no limit).\n");
+        "(wait-list-set-gap-max \"name\" bytes): sets the maximum acceptable gap between two kept packets (0 for no limit).\n");
 
     ext_function_ctor(&sg_wait_list_set_timeout,
         "wait-list-set-timeout", 2, 0, 0, g_wait_list_set_timeout,
-        "(wait-list-set-timeout \"name\" seconds) : sets the delay after which kept packets are droped (0 for no limit - not advised!).\n");
+        "(wait-list-set-timeout \"name\" seconds): sets the delay after which kept packets are droped (0 for no limit - not advised!).\n");
 }
 
 void pkt_wait_list_fini(void)

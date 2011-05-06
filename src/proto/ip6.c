@@ -85,7 +85,7 @@ static enum proto_parse_status ip6_parse(struct parser *parser, struct proto_inf
     // Sanity checks
 
     if (wire_len < iphdr_len) {
-        SLOG(LOG_DEBUG, "Bogus IPv6 packet : %zu < %zu", wire_len, iphdr_len);
+        SLOG(LOG_DEBUG, "Bogus IPv6 packet: %zu < %zu", wire_len, iphdr_len);
         return PROTO_PARSE_ERR;
     }
 
@@ -101,12 +101,12 @@ static enum proto_parse_status ip6_parse(struct parser *parser, struct proto_inf
         ip_len, next, NIPQUAD6(&iphdr->src), NIPQUAD6(&iphdr->dst));
 
     if (ip_len > wire_len) {
-        SLOG(LOG_DEBUG, "Bogus IPv6 total length : %zu > %zu", ip_len, wire_len);
+        SLOG(LOG_DEBUG, "Bogus IPv6 total length: %zu > %zu", ip_len, wire_len);
         return PROTO_PARSE_ERR;
     }
 
     if (version != 6) {
-        SLOG(LOG_DEBUG, "Bogus IPv6 version : %u instead of 6", version);
+        SLOG(LOG_DEBUG, "Bogus IPv6 version: %u instead of 6", version);
         return PROTO_PARSE_ERR;
     }
 

@@ -81,11 +81,11 @@ void hash_init(void)
 
     ext_function_ctor(&sg_hash_names,
         "hash-names", 0, 0, 0, g_hash_names,
-        "(hash-names) : returns the list of defined hashes.\n");
+        "(hash-names): returns the list of defined hashes.\n");
 
     ext_function_ctor(&sg_hash_stats,
         "hash-stats", 1, 0, 0, g_hash_stats,
-        "(hash-stats \"hash-name\") : returns some statistics about this hash, such as current number of elements.\n"
+        "(hash-stats \"hash-name\"): returns some statistics about this hash, such as current number of elements.\n"
         "See also (? 'hash-names) for a list of hash names.\n");
 }
 

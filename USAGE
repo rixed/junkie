@@ -1,16 +1,76 @@
 See Junkie --help for command line arguments.
 By itself, Junkie does nothing out of the parsed packets. In order to be
-usefull you thus have to load a plugin. For instance, the basic dumper
+useful you thus have to load a plugin. For instance, the basic dumper
 plugin included in junkie distribution will display all gathered informations:
 
-junkie -i eth0 -p dumper.so
+	$ junkie -i eth0 -p dumper.so
 
-Other plugins may be available to perform other less basic functionnalities,
-such as network related measurments of load, response times, security
-monitoring, etc... Or you can write those plugins yourself !
+Other plugins may be available to perform other less basic functionalities,
+such as network related measurements of load, response times, security
+monitoring, etc... Or you can write those plugins yourself!
 
 Out of the box, junkie can also be used as an SNMP subagent, provided the
 snmp-subagt.scm configuration file is loaded (and an agentX snmp daemon is
-accepting connections localy). The implemented MIBS are located in the
+accepting connections locally). The implemented MIBS are located in the
 config subdirectory.
+
+
+Scenario:
+
+1. start junkie
+2. stop listening on an interface
+3. change a filter for one of the interfaces
+
+1. Start Junkie
+===============
+
+start dumping the packets:
+
+	$ junkie -p dumper.so -i wlan0 -i lo -c config/start-repl.scm
+	[...]
+	Capture@0x919ac6c: head_len=24, payload=98, dev_id=0, tv=1293048126s 142119us
+	Ethernet@0x919accc: head_len=14, payload=84, vlan_id=0, source=00:00:00:00:00:00, dest=00:00:00:00:00:00, proto=2048
+	IPv4@0x919ad2c: head_len=20, payload=64, version=4, addr=127.0.0.1->127.0.0.1, proto=1, ttl=64
+	ICMP@0x9199594: head_len=64, payload=0, type=EchoRequest, err=NONE
+
+	Capture@0x919ac6c: head_len=24, payload=98, dev_id=0, tv=1293048126s 142194us
+	Ethernet@0x919accc: head_len=14, payload=84, vlan_id=0, source=00:00:00:00:00:00, dest=00:00:00:00:00:00, proto=2048
+	IPv4@0x919ad2c: head_len=20, payload=64, version=4, addr=127.0.0.1->127.0.0.1, proto=1, ttl=64
+	ICMP@0x9199594: head_len=64, payload=0, type=EchoReply, err=NONE
+
+	Capture@0x81c03d4: head_len=24, payload=344, dev_id=1, tv=1293047559s 260705us
+	Ethernet@0x81c0434: head_len=14, payload=330, vlan_id=0, source=00:07:cb:c7:fe:7e, dest=00:26:b6:4d:64:9e, proto=2048
+	IPv4@0x81d996c: head_len=20, payload=310, version=4, addr=209.85.146.17->192.168.0.42 (hashed the other way), proto=6, ttl=51
+	TCP@0x81b9724: head_len=32, payload=278, ports=443->46252, flags=Ack, win=283, ack=3881474258, seq=3704269289
+	SSL@0x8198f2c: head_len=3, payload=275, mode=TLS
+
+	Capture@0x81c03d4: head_len=24, payload=66, dev_id=1, tv=1293047559s 260843us
+	Ethernet@0x81c0434: head_len=14, payload=52, vlan_id=0, source=00:26:b6:4d:64:9e, dest=00:07:cb:c7:fe:7e, proto=2048
+	IPv4@0x81d996c: head_len=20, payload=32, version=4, addr=192.168.0.42->209.85.146.17, proto=6, ttl=64
+	TCP@0x81b9724: head_len=32, payload=0, ports=46252->443, flags=Ack, win=159, ack=3704269567, seq=3881474258
+	[...]
+
+As you can see, there is some traffic both on lo (MAC=00:00:00:00:00:00, dev_id=0) and wlan0 (MAC=00:07:cd:c7:fe:7e, dev_id=1).
+
+2. Stop listening to lo
+=======================
+
+Let's use the script (juncli) provided in the official distribution:
+
+	$ juncli
+	Trying 127.0.0.1...
+	Connected to localhost.
+	Escape character is '^]'.
+	junkie> (close-iface "lo")
+	#t
+	junkie> 
+
+3. Add a filter on wlan0
+========================
+
+We use the standard tcpdump-style filter:
+
+	junkie> (set-iface-filter "wlan0" "tcp and not host 192.168.10.1")
+	#t
+	junkie>
 

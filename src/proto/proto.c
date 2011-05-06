@@ -724,7 +724,7 @@ static SCM g_proto_stats(SCM name_)
     if (! proto) return SCM_UNSPECIFIED;
 
     return scm_list_n(
-        // We use scm_from_locale_symbol a lot : hopefully the symbol will always be the same.
+        // We use scm_from_locale_symbol a lot: hopefully the symbol will always be the same.
         // Maybe we could/should build the symbol once at init time, but I'm not sure symbols are not garbage collected.
         // So we should also declare a permanent ref on them ?
         scm_cons(scm_from_locale_symbol("nb-frames"),  scm_from_int64(proto->nb_frames)),
@@ -755,7 +755,7 @@ static SCM g_mux_proto_set_max_children(SCM name_, SCM nb_max_children_)
     struct mux_proto *mux_proto = mux_proto_of_scm_name(name_);
     if (! mux_proto) return SCM_UNSPECIFIED;
 
-    unsigned const nb_max_children = scm_to_uint(nb_max_children_); // beware : don't take the lock before scm_to_uint() which can raise an exception
+    unsigned const nb_max_children = scm_to_uint(nb_max_children_); // beware: don't take the lock before scm_to_uint() which can raise an exception
     mutex_lock(&mux_proto->proto.lock);
     mux_proto->nb_max_children = nb_max_children;
     mutex_unlock(&mux_proto->proto.lock);
@@ -788,40 +788,40 @@ void proto_init(void)
 
     ext_function_ctor(&sg_proto_stats,
         "proto-stats", 1, 0, 0, g_proto_stats,
-        "(proto-stats \"proto-name\") : returns some statistics about this protocolar parser, such as number of instances.\n"
+        "(proto-stats \"proto-name\"): returns some statistics about this protocolar parser, such as number of instances.\n"
         "See also (? 'proto-names) for a list of protocol names.\n");
 
     ext_function_ctor(&sg_proto_names,
         "proto-names", 0, 0, 0, g_proto_names,
-        "(proto-names) : returns the list of availbale protocol names.\n");
+        "(proto-names): returns the list of availbale protocol names.\n");
 
     ext_function_ctor(&sg_mux_proto_names,
         "mux-names", 0, 0, 0, g_mux_proto_names,
-        "(mux-names) : returns the list of availbale protocol names that are multiplexers.\n");
+        "(mux-names): returns the list of availbale protocol names that are multiplexers.\n");
 
     ext_function_ctor(&sg_mux_proto_stats,
         "mux-stats", 1, 0, 0, g_mux_proto_stats,
-        "(mux-stats \"proto-name\") : returns various stats about this multiplexer.\n"
+        "(mux-stats \"proto-name\"): returns various stats about this multiplexer.\n"
         "See also (? 'mux-names) for a list of protocol names that are multiplexers.\n"
         "         (? 'set-max-children) and (? 'set-mux-hash-size) for altering a multiplexer.\n");
 
     ext_function_ctor(&sg_mux_proto_set_max_children,
         "set-max-children", 2, 0, 0, g_mux_proto_set_max_children,
-        "(set-max-children \"proto-name\" n) : limits the number of children of each parser of this protocol to n.\n"
+        "(set-max-children \"proto-name\" n): limits the number of children of each parser of this protocol to n.\n"
         "Once n is reached, a child is killed at random.\n"
         "If n is 0, then there is no such limit.\n"
         "See also (? 'mux-names) for a list of protocol names that are multiplexers.\n");
 
     ext_function_ctor(&sg_mux_proto_set_hash_size,
         "set-mux-hash-size", 2, 0, 0, g_mux_proto_set_hash_size,
-        "(set-mux-hash-size \"proto-name\" n) : sets the hash size for newly created parsers of this protocol.\n"
+        "(set-mux-hash-size \"proto-name\" n): sets the hash size for newly created parsers of this protocol.\n"
         "Beware of max allowed childrens whenever you change this value.\n"
         "See also (? 'set-max-children) for setting the max number of allowed child for newly created parsers of a protocol.\n"
         "         (? 'mux-names) for a list of protocol names that are multiplexers.\n");
 
     ext_function_ctor(&sg_proto_set_timeout,
         "set-proto-timeout", 2, 0, 0, g_proto_set_timeout,
-        "(set-proto-timeout \"proto-name\" n) : sets the number of seconds after which an unused parser for this proto is reclaimed.\n"
+        "(set-proto-timeout \"proto-name\" n): sets the number of seconds after which an unused parser for this proto is reclaimed.\n"
         "A value of 0 disable timeouting of these parsers.\n"
         "See also (? 'proto-names) for a list of availbale protocol names,\n"
         "         (? 'proto-stats) for obtaining the current value.\n");

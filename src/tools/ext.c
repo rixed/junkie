@@ -69,7 +69,7 @@ void pthread_mutex_unlock_(void *mutex)
 {
     int err = pthread_mutex_unlock((pthread_mutex_t *)mutex);
     if (err) {
-        SLOG(LOG_ERR, "Cannot lock ext param mutex@%p : %s", mutex, strerror(err));
+        SLOG(LOG_ERR, "Cannot lock ext param mutex@%p: %s", mutex, strerror(err));
     }
 }
 
@@ -146,11 +146,11 @@ static void *init_scm_extensions(void unused_ *dummy)
 {
     SCM module = scm_c_resolve_module("guile-user");
 
-    // junkie-parameters : a list of parameter names
+    // junkie-parameters: a list of parameter names
     scm_c_module_define(module, "junkie-parameters", g_parameter_names());
     scm_c_export("junkie-parameters", NULL);
 
-    // junkie-version : a mere string to query the current junkie version
+    // junkie-version: a mere string to query the current junkie version
     scm_c_module_define(module, "junkie-version", scm_from_locale_string(version_string));
     scm_c_export("junkie-version", NULL);
 
@@ -238,19 +238,19 @@ void ext_init(void)
 
     ext_function_ctor(&sg_parameter_names,
         "parameter-names", 0, 0, 0, g_parameter_names,
-        "(parameter-names) : returns the list of junkie configuration parameters.\n");
+        "(parameter-names): returns the list of junkie configuration parameters.\n");
 
     ext_function_ctor(&sg_get_parameter_value,
         "get-parameter-value", 1, 0, 0, g_get_parameter_value,
-        "(get-parameter-value \"name\") : returns the value of the parameter named \"name\".\n"
-        "Note : parameters can also be accessed with (get-the_parameter_name).\n"
+        "(get-parameter-value \"name\"): returns the value of the parameter named \"name\".\n"
+        "Note: parameters can also be accessed with (get-the_parameter_name).\n"
         "See also (? 'parameter-names).\n");
 
     ext_function_ctor(&sg_help,
         "?", 0, 1, 0, g_help,
-        "(? 'topic) : get help about that topic.\n"
-        "(?)        : get all help pages.\n"
-        "(help)     : the same, prettified.\n");
+        "(? 'topic): get help about that topic.\n"
+        "(?): get all help pages.\n"
+        "(help): the same, prettified.\n");
 }
 
 void ext_fini(void)

@@ -52,7 +52,7 @@ int mkdir_all(char const *path, bool is_filename)
             *c = '\0';
             if (-1 == mkdir(filename, 0755) && EEXIST != errno) {
 mkdir_err:
-                SLOG(LOG_ERR, "Cannot mkdir %s : %s", filename, strerror(errno));
+                SLOG(LOG_ERR, "Cannot mkdir %s: %s", filename, strerror(errno));
                 return -1;
             }
             *c = '/';
@@ -79,7 +79,7 @@ static uid_t get_uid(const char * const user)
     if (u) {
         uid = u->pw_uid;
     } else {
-        SLOG(LOG_ERR, "getpwnam: can't get the uid of '%s' : %s", user, strerror(errno));
+        SLOG(LOG_ERR, "getpwnam: can't get the uid of '%s': %s", user, strerror(errno));
         uid = getuid(); // default one
     }
 
@@ -96,7 +96,7 @@ static gid_t get_gid(const char * const group)
     if (g) {
         gid = g->gr_gid;
     } else {
-        SLOG(LOG_ERR, "getgrnam: can't get the uid of '%s' : %s", group, strerror(errno));
+        SLOG(LOG_ERR, "getgrnam: can't get the uid of '%s': %s", group, strerror(errno));
         gid = getgid(); // default one
     }
 
@@ -125,7 +125,7 @@ int file_open(char const *file_name, int flags)
     int fd = open(file_name, flags, 0644);
     SLOG(LOG_DEBUG, "Opening file %s into fd %d", file_name, fd);
     if (fd < 0) {
-        SLOG(LOG_ERR, "Cannot open file '%s' : %s", file_name, strerror(errno));
+        SLOG(LOG_ERR, "Cannot open file '%s': %s", file_name, strerror(errno));
         return -1;
     }
     return fd;
@@ -135,7 +135,7 @@ void file_close(int fd)
 {
     SLOG(LOG_DEBUG, "Closing fd %d", fd);
     if (0 != close(fd)) {
-        SLOG(LOG_ERR, "Cannot close fd %d : %s", fd, strerror(errno));
+        SLOG(LOG_ERR, "Cannot close fd %d: %s", fd, strerror(errno));
         // keep going
     }
 }
@@ -188,7 +188,7 @@ int file_write(int fd, void const *buf, size_t len)
         if (ret >= 0) {
             r += ret;
         } else if (errno != EINTR) {
-            SLOG(LOG_ERR, "Cannot read %zu bytes on fd %d : %s", len, fd, strerror(errno));
+            SLOG(LOG_ERR, "Cannot read %zu bytes on fd %d: %s", len, fd, strerror(errno));
             return -1;
         }
     }
@@ -209,7 +209,7 @@ ssize_t file_read(int fd, void *buf, size_t len)
             SLOG(LOG_DEBUG, "EOF reached while reading %zu bytes on fd %d (%zu bytes missing)", len, fd, (len-r));
             break;
         } else if (errno != EINTR) {
-            SLOG(LOG_ERR, "Cannot read %zu bytes on fd %d : %s", len, fd, strerror(errno));
+            SLOG(LOG_ERR, "Cannot read %zu bytes on fd %d: %s", len, fd, strerror(errno));
             return -1;
         }
     }
@@ -315,7 +315,7 @@ int chdir_for_file(char const *dir, bool is_filename)
     if (redir[0] == '\0') return 0;
 
     if (0 != chdir(redir)) {
-        SLOG(LOG_ERR, "Cannot chdir(%s) : %s", redir, strerror(errno));
+        SLOG(LOG_ERR, "Cannot chdir(%s): %s", redir, strerror(errno));
         return -1;
     }
 

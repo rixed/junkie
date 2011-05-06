@@ -242,7 +242,7 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
 
     // Sanity checks
     if (wire_len < sizeof(*tcphdr)) {
-        SLOG(LOG_DEBUG, "Bogus TCP packet : too short (%zu < %zu)", wire_len, sizeof(*tcphdr));
+        SLOG(LOG_DEBUG, "Bogus TCP packet: too short (%zu < %zu)", wire_len, sizeof(*tcphdr));
         return PROTO_PARSE_ERR;
     }
 
@@ -250,7 +250,7 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
 
     size_t tcphdr_len = TCP_HDR_LENGTH(tcphdr);
     if (tcphdr_len > wire_len) {
-        SLOG(LOG_DEBUG, "Bogus TCP packet : wrong length %zu > %zu", tcphdr_len, wire_len);
+        SLOG(LOG_DEBUG, "Bogus TCP packet: wrong length %zu > %zu", tcphdr_len, wire_len);
         return -1;
     }
 
@@ -316,7 +316,7 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
         tcp_sub->isn[way] = info.seq_num;
     }
 
-    SLOG(LOG_DEBUG, "This subparser state : >ISN:%"PRIu32" Fin:%"PRIu32" Ack:%"PRIu32" <ISN:%"PRIu32" Fin:%"PRIu32" Ack:%"PRIu32,
+    SLOG(LOG_DEBUG, "This subparser state: >ISN:%"PRIu32" Fin:%"PRIu32" Ack:%"PRIu32" <ISN:%"PRIu32" Fin:%"PRIu32" Ack:%"PRIu32,
         tcp_sub->syn[0] ? tcp_sub->isn[0] : 0,
         tcp_sub->fin[0] ? tcp_sub->fin_seqnum[0] : 0,
         tcp_sub->ack[0] ? tcp_sub->max_acknum[0] : 0,
@@ -382,16 +382,16 @@ void tcp_init(void)
     // Extension functions to introspect (and modify) port_muxers
     ext_function_ctor(&sg_tcp_ports,
         "tcp-ports", 0, 0, 0, g_tcp_ports,
-        "(tcp-ports) : returns an assoc-list of all defined tcp subparsers with their port binding.\n");
+        "(tcp-ports): returns an assoc-list of all defined tcp subparsers with their port binding.\n");
 
     ext_function_ctor(&sg_tcp_add_port,
         "tcp-add-port", 2, 1, 0, g_tcp_add_port,
-        "(tcp-add-port \"proto\" port [port-max]) : ask TCP to try this proto for this port [range].\n"
+        "(tcp-add-port \"proto\" port [port-max]): ask TCP to try this proto for this port [range].\n"
         "See also (? 'tcp-del-port)\n");
 
     ext_function_ctor(&sg_tcp_del_port,
         "tcp-del-port", 2, 1, 0, g_tcp_del_port,
-        "(udp-del-port \"proto\" port [port-max]) : ask TCP to stop trying this proto for this port [range].\n"
+        "(udp-del-port \"proto\" port [port-max]): ask TCP to stop trying this proto for this port [range].\n"
         "See also (? 'tcp-add-port)");
 }
 

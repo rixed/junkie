@@ -216,23 +216,23 @@ void mallocer_init(void)
 
     ext_function_ctor(&sg_malloc_stats,
         "libc-mem-stats", 0, 0, 0, g_malloc_stats,
-        "(libc-mem-stats) : display the equivalent of mallinfo.\n"
-        "Note : malloced-bytes + free-bytes details the sbrked bytes. mmaped chunks are alloced and freed individually.\n"
-        "       Note also that these values are signed 32bits, so might wrap around on pathological cases.\n");
+        "(libc-mem-stats): display the equivalent of mallinfo.\n"
+        "Note: malloced-bytes + free-bytes details the sbrked bytes. mmaped chunks are alloced and freed individually.\n"
+        "      Note also that these values are signed 32bits, so might wrap around on pathological cases.\n");
 
     ext_function_ctor(&sg_mallocer_names,
         "mallocer-names", 0, 0, 0, g_mallocer_names,
-        "(mallocer-names) : get the list of mallocers.\n"
+        "(mallocer-names): get the list of mallocers.\n"
         "See also (? 'mallocer-stats).\n");
 
     ext_function_ctor(&sg_mallocer_stats,
         "mallocer-stats", 1, 0, 0, g_mallocer_stats,
-        "(mallocer-stats \"name\") : get stats about this mallocer.\n"
+        "(mallocer-stats \"name\"): get stats about this mallocer.\n"
         "See also (? 'mallocer-names).\n");
 
     ext_function_ctor(&sg_mallocer_blocks,
         "mallocer-blocks", 1, 0, 0, g_mallocer_blocks,
-        "(mallocer-blocks \"name\") : return detailed information on every blocks allocated by this mallocer.\n"
+        "(mallocer-blocks \"name\"): return detailed information on every blocks allocated by this mallocer.\n"
         "Note: You should check how many blocks will be returned before calling this function!\n"
         "See also (? 'mallocer-names).\n");
 }

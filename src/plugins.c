@@ -41,7 +41,7 @@ static int plugin_ctor(struct plugin *plugin, char const *libname)
     plugin->handle = lt_dlopen(libname);
     if (! plugin->handle) {
         mutex_unlock(&plugins_mutex);
-        SLOG(LOG_CRIT, "Cannot load plugin %s : %s", libname, lt_dlerror());
+        SLOG(LOG_CRIT, "Cannot load plugin %s: %s", libname, lt_dlerror());
         return -1;
     }
     snprintf(plugin->libname, sizeof(plugin->libname), "%s", libname);
@@ -81,7 +81,7 @@ static void plugin_dtor(struct plugin *plugin)
 
     if (really_unload_plugins) {
         int err = lt_dlclose(plugin->handle);
-        if (err) SLOG(LOG_ERR, "Cannot unload plugin %s : %s", plugin->libname, lt_dlerror());
+        if (err) SLOG(LOG_ERR, "Cannot unload plugin %s: %s", plugin->libname, lt_dlerror());
     }
 }
 
@@ -152,17 +152,17 @@ void plugins_init(void)
 
     ext_function_ctor(&sg_load_plugin,
         "load-plugin", 1, 0, 0, g_load_plugin,
-        "(load-plugin \"path/to/libplugin.so\") : load the given plugin into junkie\n"
+        "(load-plugin \"path/to/libplugin.so\"): load the given plugin into junkie\n"
         "Returns false if the load failed.");
 
     ext_function_ctor(&sg_unload_plugin,
         "unload-plugin", 1, 0, 0, g_unload_plugin,
-        "(unload-plugin \"path/to/libplugin.so\") : unload the give plugin from junkie\n"
+        "(unload-plugin \"path/to/libplugin.so\"): unload the give plugin from junkie\n"
         "Returns false if the unload failed.");
 
     ext_function_ctor(&sg_plugins,
         "plugins", 0, 0, 0, g_plugins,
-        "(plugins) : returns a list of loaded plugins");
+        "(plugins): returns a list of loaded plugins");
 }
 
 void plugins_fini(void)

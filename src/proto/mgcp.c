@@ -291,7 +291,7 @@ static enum proto_parse_status mgcp_parse(struct parser *parser, struct proto_in
         info.u.resp.code = liner_strtoull(&tokenizer, NULL, 10);
         liner_next(&tokenizer);
         if (liner_eof(&tokenizer)) {
-            SLOG(LOG_DEBUG, "Cannot parse MGCP response : missing TXID");
+            SLOG(LOG_DEBUG, "Cannot parse MGCP response: missing TXID");
             return PROTO_PARSE_ERR;
         }
         info.u.resp.txid = liner_strtoull(&tokenizer, NULL, 10);
@@ -302,13 +302,13 @@ static enum proto_parse_status mgcp_parse(struct parser *parser, struct proto_in
         if ((int)info.u.query.command == -1) return PROTO_PARSE_ERR;
         liner_next(&tokenizer);
         if (liner_eof(&tokenizer)) {
-            SLOG(LOG_DEBUG, "Cannot parse MGCP query : missing TXID");
+            SLOG(LOG_DEBUG, "Cannot parse MGCP query: missing TXID");
             return PROTO_PARSE_ERR;
         }
         info.u.resp.txid = liner_strtoull(&tokenizer, NULL, 10);
         liner_next(&tokenizer);
         if (liner_eof(&tokenizer)) {
-            SLOG(LOG_DEBUG, "Cannot parse MGCP query : missing endpoint");
+            SLOG(LOG_DEBUG, "Cannot parse MGCP query: missing endpoint");
             return PROTO_PARSE_ERR;
         }
         copy_token(info.u.query.endpoint, sizeof(info.u.query.endpoint), &tokenizer);
@@ -343,7 +343,7 @@ static enum proto_parse_status mgcp_parse(struct parser *parser, struct proto_in
             liner_expand(&tokenizer);
             SLOG(LOG_DEBUG, "parameter '%c'", p);
             switch (p) {
-                case 'O':   // ObservedEvents : we are looking for dialed numbers or other interresting events
+                case 'O':   // ObservedEvents: we are looking for dialed numbers or other interresting events
                     parse_observed_event(&info, &tokenizer);
                     break;
                 case 'S':

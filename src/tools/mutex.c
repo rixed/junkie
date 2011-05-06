@@ -45,7 +45,7 @@ void mutex_lock(struct mutex *mutex)
     if (! err) {
         SLOG(LOG_DEBUG, "Locked %s", mutex_name(mutex));
     } else {
-        SLOG(LOG_ERR, "Cannot lock %s : %s", mutex_name(mutex), strerror(err));
+        SLOG(LOG_ERR, "Cannot lock %s: %s", mutex_name(mutex), strerror(err));
         // so be it
     }
 }
@@ -58,7 +58,7 @@ void mutex_unlock(struct mutex *mutex)
     if (! err) {
         SLOG(LOG_DEBUG, "Unlocked %s", mutex_name(mutex));
     } else {
-        SLOG(LOG_ERR, "Cannot unlock %s : %s", mutex_name(mutex), strerror(err));
+        SLOG(LOG_ERR, "Cannot unlock %s: %s", mutex_name(mutex), strerror(err));
     }
 }
 
@@ -72,11 +72,11 @@ void mutex_ctor_with_type(struct mutex *mutex, char const *name, int type)
 
     pthread_mutexattr_t attr;
     err = pthread_mutexattr_init(&attr);
-    if (err) SLOG(LOG_ERR, "Cannot init attr for mutex %s@%p : %s", name, mutex, strerror(err));
+    if (err) SLOG(LOG_ERR, "Cannot init attr for mutex %s@%p: %s", name, mutex, strerror(err));
     err = pthread_mutexattr_settype(&attr, type);
-    if (err) SLOG(LOG_ERR, "Cannot set type %d attr of mutex %s@%p : %s", type, name, mutex, strerror(err));
+    if (err) SLOG(LOG_ERR, "Cannot set type %d attr of mutex %s@%p: %s", type, name, mutex, strerror(err));
     err = pthread_mutex_init(&mutex->mutex, &attr);
-    if (err) SLOG(LOG_ERR, "Cannot create mutex %s@%p : %s", name, mutex, strerror(err));
+    if (err) SLOG(LOG_ERR, "Cannot create mutex %s@%p: %s", name, mutex, strerror(err));
 }
 
 void mutex_ctor(struct mutex *mutex, char const *name)
@@ -133,7 +133,7 @@ void mutex_init(void)
 
     ext_function_ctor(&sg_set_thread_name,
         "set-thread-name", 1, 0, 0, g_set_thread_name,
-        "(set-thread-name \"thing\") : set current thread name.\n");
+        "(set-thread-name \"thing\"): set current thread name.\n");
 }
 
 void mutex_fini(void)

@@ -223,30 +223,30 @@ void log_init(void)
     log_category_global_init();
 
     ext_function_ctor(&sg_set_log_level, "set-log-level", 1, 1, 0, g_set_log_level,
-        "(set-log-level n)       : sets log level globally to n.\n"
-        "(set-log-level n \"cat\") : sets log level of this category to n.\n"
+        "(set-log-level n): sets log level globally to n.\n"
+        "(set-log-level n \"cat\"): sets log level of this category to n.\n"
         "Notice that the log level n range from 0 to 7, with the corresponding variables defined :\n"
         "log-emerg (0), log-alert, log-crit, log-err, log-warn, log-notice, log-info, log-debug (7).\n"
         "To get the list of available categories, see (? 'log-categories)\n");
 
     ext_function_ctor(&sg_get_log_level,
         "get-log-level", 1, 0, 0, g_get_log_level,
-        "(get-log-level \"cat\") : gets the current log level for this category.\n"
+        "(get-log-level \"cat\"): gets the current log level for this category.\n"
         "To get the list of available categories, see (? 'log-categories)\n");
 
     ext_function_ctor(&sg_log_categories,
         "log-categories", 0, 0, 0, g_log_categories,
-        "(log-categories) : returns a list of available log categories.\n");
+        "(log-categories): returns a list of available log categories.\n");
 
     ext_function_ctor(&sg_set_log_file,
         "set-log-file", 0, 1, 0, g_set_log_file,
-        "(set-log-file \"filename\") : now junkie will print logs into this file.\n"
-        "(set-log-file)            : now junkie will stop loging in a file.\n"
+        "(set-log-file \"filename\"): now junkie will print logs into this file.\n"
+        "(set-log-file): now junkie will stop loging in a file.\n"
         "See also (? 'get-log-file).\n");
 
     ext_function_ctor(&sg_get_log_file,
         "get-log-file", 0, 0, 0, g_get_log_file,
-        "(get-log-file) : returns the filename currently used by junkie to print its log, if any.\n"
+        "(get-log-file): returns the filename currently used by junkie to print its log, if any.\n"
         "See also (? 'set-log-file).\n");
 }
 

@@ -132,7 +132,7 @@ static enum proto_parse_status udp_parse(struct parser *parser, struct proto_inf
 
     // Sanity checks
     if (wire_len < sizeof(*udphdr)) {
-        SLOG(LOG_DEBUG, "Bogus UDP packet : too short (%zu < %zu)", wire_len, sizeof(*udphdr));
+        SLOG(LOG_DEBUG, "Bogus UDP packet: too short (%zu < %zu)", wire_len, sizeof(*udphdr));
         return PROTO_PARSE_ERR;
     }
 
@@ -140,13 +140,13 @@ static enum proto_parse_status udp_parse(struct parser *parser, struct proto_inf
 
     size_t tot_len = READ_U16N(&udphdr->len);
     if (tot_len < sizeof(*udphdr)) {
-        SLOG(LOG_DEBUG, "Bogus UDP packet : UDP tot len shorter than UDP header (%zu < %zu)", tot_len, sizeof(*udphdr));
+        SLOG(LOG_DEBUG, "Bogus UDP packet: UDP tot len shorter than UDP header (%zu < %zu)", tot_len, sizeof(*udphdr));
         return PROTO_PARSE_ERR;
     }
 
     size_t payload = tot_len - sizeof(*udphdr);
     if (payload > wire_len) {
-        SLOG(LOG_DEBUG, "Bogus UDP packet : wrong length %zu > %zu", payload, wire_len);
+        SLOG(LOG_DEBUG, "Bogus UDP packet: wrong length %zu > %zu", payload, wire_len);
         return PROTO_PARSE_ERR;
     }
 
@@ -219,16 +219,16 @@ void udp_init(void)
     // Extension functions to introspect (and modify) port_muxers
     ext_function_ctor(&sg_udp_ports,
         "udp-ports", 0, 0, 0, g_udp_ports,
-        "(udp-ports) : returns an assoc-list of all defined udp subparsers with their port binding.\n");
+        "(udp-ports): returns an assoc-list of all defined udp subparsers with their port binding.\n");
 
     ext_function_ctor(&sg_udp_add_port,
         "udp-add-port", 2, 1, 0, g_udp_add_port,
-        "(udp-add-port \"proto\" port [port-max]) : ask TCP to try this proto for this port [range].\n"
+        "(udp-add-port \"proto\" port [port-max]): ask TCP to try this proto for this port [range].\n"
         "See also (? 'udp-del-port)\n");
 
     ext_function_ctor(&sg_udp_del_port,
         "udp-del-port", 2, 1, 0, g_udp_del_port,
-        "(udp-del-port \"proto\" port [port-max]) : ask TCP to stop trying this proto for this port [range].\n"
+        "(udp-del-port \"proto\" port [port-max]): ask TCP to stop trying this proto for this port [range].\n"
         "See also (? 'udp-add-port)");
 }
 

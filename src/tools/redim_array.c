@@ -199,11 +199,11 @@ void redim_array_init(void)
 {
     ext_function_ctor(&sg_array_names,
         "array-names", 0, 0, 0, g_array_names,
-        "(array-names) : returns the list of availbale array names.\n");
+        "(array-names): returns the list of availbale array names.\n");
 
     ext_function_ctor(&sg_array_stats,
         "array-stats", 1, 0, 0, g_array_stats,
-        "(array-stats \"array-name\") : returns some statistics about this array, such as current number of elements.\n"
+        "(array-stats \"array-name\"): returns some statistics about this array, such as current number of elements.\n"
         "Note: Beware that alloc-size is given in entries, not bytes !\n"
         "See also (? 'array-names) for a list of array names.\n");
 }
