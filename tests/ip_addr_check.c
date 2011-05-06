@@ -72,24 +72,29 @@ static void ip_addr_routable_check(void)
 static void broadcast_check(void)
 {
     struct {
+        int version;
         char const *str;
         uint32_t netmask;
         bool is_broadcast;
     } tests[] = {
-        { "1.0.0.0",        0xff000000U, false },
-        { "127.0.0.1",      0xff000000U, false },
-        { "128.10.5.255",   0xffff0000U, false },
-        { "192.168.10.9",   0xffffff00U, false },
-        { "10.255.255.255", 0xff000000U, true  },
-        { "127.0.255.255",  0xff000000U, false },
-        { "128.0.255.255",  0xffff0000U, true  },
-        { "192.168.10.255", 0xffffff00U, true  },
+        { 4, "1.0.0.0",        0xff000000U, false },
+        { 4, "127.0.0.1",      0xff000000U, false },
+        { 4, "128.10.5.255",   0xffff0000U, false },
+        { 4, "192.168.10.9",   0xffffff00U, false },
+        { 4, "10.255.255.255", 0xff000000U, true  },
+        { 4, "127.0.255.255",  0xff000000U, false },
+        { 4, "128.0.255.255",  0xffff0000U, true  },
+        { 4, "192.168.10.255", 0xffffff00U, true  },
+        { 6, "ff02::1",        0,           true  },
+        { 6, "1:2:3:4::",      0,           false },
     };
 
     for (unsigned t = 0; t < NB_ELEMS(tests); t++) {
         struct ip_addr addr;
-        ip_addr_ctor_from_str(&addr, tests[t].str, strlen(tests[t].str), 4);
-        assert(netmask_of_address(addr.u.v4) == tests[t].netmask);
+        ip_addr_ctor_from_str(&addr, tests[t].str, strlen(tests[t].str), tests[t].version);
+        if (addr.family == AF_INET) {
+            assert(netmask_of_address(addr.u.v4) == tests[t].netmask);
+        }
         assert(ip_addr_is_broadcast(&addr) == tests[t].is_broadcast);
     }
 }

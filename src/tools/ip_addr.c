@@ -173,9 +173,17 @@ static uint32_t netmask_of_address(struct in_addr v4)
 
 bool ip_addr_is_broadcast(struct ip_addr const *addr)
 {
-    if (ip_addr_is_v6(addr)) return false;  // TODO
-    uint32_t netmask = netmask_of_address(addr->u.v4);
-    return (netmask | ntohl(addr->u.v4.s_addr)) == 0xffffffffU;
+    if (ip_addr_is_v6(addr)) {
+        static uint8_t all_nodes[16] = {
+            0xff, 0x02, 0, 0, 0, 0, 0, 0,
+               0,    0, 0, 0, 0, 0, 0, 1,
+        };
+        ASSERT_COMPILE(sizeof(all_nodes) == sizeof(addr->u.v6.s6_addr));
+        return 0 == memcmp(addr->u.v6.s6_addr, all_nodes, sizeof(all_nodes));
+    } else {
+        uint32_t netmask = netmask_of_address(addr->u.v4);
+        return (netmask | ntohl(addr->u.v4.s_addr)) == 0xffffffffU;
+    }
 }
 
 static bool match_mask_byte(uint8_t const *host, uint8_t const *net, uint8_t const *mask, unsigned nb_bytes)
