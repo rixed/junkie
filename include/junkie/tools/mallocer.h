@@ -12,13 +12,14 @@
  * @brief Wrappers around malloc/free/realloc.
  */
 
+/// This structure precedes all malloced blocks
 struct mallocer_block {
     LIST_ENTRY(mallocer_block) entry;
     struct mallocer *mallocer;
     size_t size;
-    time_t date;
 };
 
+/// Tied all malloced blocks of a given type together so that we can have per mallocer stats.
 struct mallocer {
     LIST_HEAD(mallocer_blocks, mallocer_block) blocks;
     SLIST_ENTRY(mallocer) entry;

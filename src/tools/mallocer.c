@@ -66,7 +66,6 @@ void *mallocer_alloc(struct mallocer *mallocer, size_t size)
     if (! block) return NULL;
     mutex_lock(&mallocer->mutex);
     block->size = size;
-    block->date = time(NULL);
     block->mallocer = mallocer;
     block->mallocer->nb_allocs ++;
     add_block(mallocer, block);
@@ -197,7 +196,6 @@ static SCM next_block(SCM list, struct mallocer_block *block)
     SCM alist = scm_list_n(
         scm_cons(scm_from_locale_symbol("start-address"), scm_from_size_t((size_t)block)),
         scm_cons(scm_from_locale_symbol("size"), scm_from_size_t(block->size)),
-        scm_cons(scm_from_locale_symbol("date"), scm_from_uint((unsigned int)block->date)),
         SCM_UNDEFINED);
 
     return next_block(scm_cons(alist, list), LIST_NEXT(block, entry));
