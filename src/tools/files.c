@@ -178,6 +178,14 @@ err1:
     return -1;
 }
 
+bool file_exists(char const *file_name)
+{
+    int fd = file_open(file_name, O_RDONLY);
+    if (fd < 0) return false;
+    file_close(fd);
+    return true;
+}
+
 int file_write(int fd, void const *buf, size_t len)
 {
     SLOG(LOG_DEBUG, "Writing %zu bytes onto fd %d", len, fd);

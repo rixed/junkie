@@ -38,6 +38,9 @@ int file_unlink(char const *file_name);
 /// Returns the file size, logging on error.
 ssize_t file_size(char const *file_name);
 
+/// Tells wether a file exists and is readable
+bool file_exists(char const *file_name);
+
 /** Writing onto a file, logging on error and retrying on EINTR.
  * @return 0 on success, -1 on error.
  */

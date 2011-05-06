@@ -154,6 +154,8 @@ static void loop(void)
  * Command line handling
  */
 
+static bool some_conffile_loaded = false;
+
 static int opt_version(char const unused_ *opt)
 {
     printf("Junkie %s\n\n", version_string);
@@ -162,6 +164,7 @@ static int opt_version(char const unused_ *opt)
 
 static int opt_config(char const *opt)
 {
+    some_conffile_loaded = true;
     return ext_eval(tempstr_printf("(load \"%s\")", opt));
 }
 
@@ -185,6 +188,16 @@ static int opt_read(char const *opt)
     return ext_eval(tempstr_printf("(open-pcap \"%s\")", opt));
 }
 
+static void load_if_exist(char const *fname)
+{
+    if (file_exists(fname)) {
+        SLOG(LOG_INFO, "Loading default configuration file '%s'", fname);
+        (void)ext_eval(tempstr_printf("(load \"%s\")", fname));
+    } else {
+        SLOG(LOG_INFO, "Default configuration file '%s' not present", fname);
+    }
+}
+
 int main(int nb_args, char **args)
 {
     // Start by building the version string that's used in usage and --version option
@@ -195,7 +208,8 @@ int main(int nb_args, char **args)
     // Default command line arguments
     static struct cli_opt main_opts[] = {
         { { "version", "v" }, false, "display version",               CLI_CALL,     { .call = opt_version } },
-        { { "config", "c" },  true,  "load configuration file",       CLI_CALL,     { .call = opt_config } },
+        { { "config", "c" },  true,  "load configuration file (will prevent default config file to be loaded)",
+                                                                      CLI_CALL,     { .call = opt_config } },
         { { "syslog", NULL }, false, "use syslog for critical msgs",  CLI_SET_BOOL, { .boolean = &use_syslog } },
         { { "exec", "e" },    true,  "execute given command",         CLI_CALL,     { .call = ext_eval } },
         { { "log", "l" },     true,  "log into this file",            CLI_CALL,     { .call = opt_logfile } },
@@ -213,6 +227,10 @@ int main(int nb_args, char **args)
 
     // The log file is easier to read if distinct sessions are clearly separated :
     SLOG(LOG_INFO, "-----  Starting  -----");
+
+    if (! some_conffile_loaded) {
+        load_if_exist(STRIZE(SYSCONFDIR) "/junkie.scm");
+    }
 
     loop();
 
