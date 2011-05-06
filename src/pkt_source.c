@@ -611,9 +611,9 @@ static struct ext_function sg_open_iface;
 static SCM g_open_iface(SCM ifname_, SCM promisc_, SCM filter_, SCM buffer_size_)
 {
     char *ifname = scm_to_tempstr(ifname_);
-    bool const promisc = promisc_ == SCM_UNDEFINED || scm_to_bool(promisc_);
-    char const *filter = filter_ == SCM_UNDEFINED ? NULL : scm_to_tempstr(filter_);
-    int const buffer_size = buffer_size_ == SCM_UNDEFINED ? 0 : scm_to_int(buffer_size_);
+    bool const promisc = SCM_UNBNDP(promisc_) || scm_to_bool(promisc_);
+    char const *filter = SCM_UNBNDP(filter_) ? NULL : scm_to_tempstr(filter_);
+    int const buffer_size = SCM_UNBNDP(buffer_size_) ? 0 : scm_to_int(buffer_size_);
 
     struct pkt_source *pkt_source = pkt_source_new_if(ifname, promisc, filter, buffer_size);
     return pkt_source ? scm_from_locale_string(pkt_source_guile_name(pkt_source)) : SCM_UNSPECIFIED;
@@ -623,8 +623,8 @@ static struct ext_function sg_open_pcap;
 static SCM g_open_pcap(SCM filename_, SCM rt_, SCM filter_)
 {
     char const *filename = scm_to_tempstr(filename_);
-    char const *filter = filter_ == SCM_UNDEFINED ? NULL : scm_to_tempstr(filter_);
-    bool const rt = rt_ == SCM_UNDEFINED ? false : scm_to_bool(rt_);
+    char const *filter = SCM_UNBNDP(filter_) ? NULL : scm_to_tempstr(filter_);
+    bool const rt = SCM_UNBNDP(rt_) ? false : scm_to_bool(rt_);
 
     struct pkt_source *pkt_source = pkt_source_new_file(filename, filter, rt);
     return pkt_source ? SCM_BOOL_T : SCM_BOOL_F;

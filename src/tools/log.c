@@ -175,7 +175,7 @@ int log_get_level(char const *cat_name)
 static struct ext_function sg_set_log_level;
 static SCM g_set_log_level(SCM log_level_, SCM cat_name_)
 {
-    char *cat_name = cat_name_ != SCM_UNDEFINED ? scm_to_tempstr(cat_name_) : NULL;
+    char *cat_name = SCM_UNBNDP(cat_name_) ? NULL : scm_to_tempstr(cat_name_);
     int log_level = scm_to_int(log_level_);
     log_set_level(log_level, cat_name);
     return SCM_UNSPECIFIED;
@@ -206,7 +206,7 @@ static SCM g_log_categories(void)
 static struct ext_function sg_set_log_file;
 static SCM g_set_log_file(SCM log_file_)
 {
-    char *log_file = log_file_ != SCM_UNDEFINED ? scm_to_tempstr(log_file_) : NULL;
+    char *log_file = SCM_UNBNDP(log_file_) ? NULL : scm_to_tempstr(log_file_);
     int ret = log_set_file(log_file);
     return ret == 0 ? SCM_BOOL_T : SCM_BOOL_F;
 }

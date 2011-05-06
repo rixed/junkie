@@ -132,7 +132,7 @@ SCM g_port_muxer_add(struct port_muxer_list *muxers, SCM name_, SCM port_min_, S
 {
     struct proto *proto = proto_of_scm_name(name_);
     uint16_t port_min = scm_to_uint16(port_min_);
-    uint16_t port_max = port_max_ == SCM_UNDEFINED ? port_min : scm_to_uint16(port_max_);
+    uint16_t port_max = SCM_UNBNDP(port_max_) ? port_min : scm_to_uint16(port_max_);
 
     struct port_muxer *muxer = port_muxer_new(muxers, port_min, port_max, proto);
     return muxer ? SCM_BOOL_T : SCM_BOOL_F;
@@ -142,7 +142,7 @@ SCM g_port_muxer_del(struct port_muxer_list *muxers, SCM name_, SCM port_min_, S
 {
     struct proto *proto = proto_of_scm_name(name_);
     uint16_t port_min = scm_to_uint16(port_min_);
-    uint16_t port_max = port_max_ == SCM_UNDEFINED ? port_min : scm_to_uint16(port_max_);
+    uint16_t port_max = SCM_UNBNDP(port_max_) ? port_min : scm_to_uint16(port_max_);
 
     struct port_muxer *muxer;
     mutex_lock(&muxers->mutex);
