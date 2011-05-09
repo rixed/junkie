@@ -72,8 +72,8 @@ uint_least32_t cursor_read_u32n(struct cursor *cursor)
 
 uint_least32_t cursor_read_u32(struct cursor *cursor)
 {
-    uint_least32_t a = cursor_read_u32(cursor);
-    uint_least32_t b = cursor_read_u32(cursor);
+    uint_least32_t a = cursor_read_u16(cursor);
+    uint_least32_t b = cursor_read_u16(cursor);
     return a | (b << 16);
 }
 
