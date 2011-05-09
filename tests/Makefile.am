@@ -11,7 +11,8 @@ check_PROGRAMS = \
 	icmp_check rtcp_check flood_check port_range_check \
 	arp_check pkt_wait_list_check ip_reassembly_check \
 	tcp_reorder_check streambuf_check cli_check \
-	postgres_check oracle_check endianness_check
+	postgres_check oracle_check endianness_check \
+	cursor_check
 
 dist_check_SCRIPTS = \
 	postgres.test mysql.test oracle.test \
@@ -89,6 +90,8 @@ oracle_check_SOURCES = oracle_check.c lib.c lib.h
 oracle_check_LDADD = ../src/tools/libtools.la ../src/proto/libproto.la
 endianness_check_SOURCES = endianness_check.c
 endianness_check_LDADD = ../src/tools/libtools.la
+cursor_check_SOURCES = cursor_check.c
+cursor_check_LDADD = ../src/tools/libtools.la
 
 clean-local:
 	rm -f *.log vgcore.* core.* core
