@@ -57,6 +57,7 @@ AC_CONFIG_FILES([
 	plugins/dumper/Makefile
 	plugins/writer/Makefile
 	plugins/rater/Makefile
+	plugins/arpgraph/Makefile
 	config/Makefile
 	tests/Makefile
 ])
