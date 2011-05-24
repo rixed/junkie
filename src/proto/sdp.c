@@ -154,14 +154,18 @@ static void spawn_subparsers(struct ip_addr const *this_host, uint16_t this_port
     SLOG(LOG_DEBUG, "Spawning RT(C)P parsers for %s:%"PRIu16"<->%s:%"PRIu16, ip_addr_2_str(this_host), this_port, ip_addr_2_str(other_host), other_port);
 
     unsigned way2;
-    struct mux_subparser *udp_parser =
+    struct mux_subparser *udp_subparser =
         ip_subparser_lookup(ip->info.parser, proto_udp, NULL, IPPROTO_UDP, this_host, other_host, &way2, now);
 
-    if (! udp_parser) return;
+    if (! udp_subparser) return;
 
     // Notice that we request RT(C)P on behalf of our parent
-    (void)udp_subparser_and_parser_new(udp_parser->parser, proto_rtp,  parent->parser, this_port,   other_port,   way2, now); // rtp conntrack
-    (void)udp_subparser_and_parser_new(udp_parser->parser, proto_rtcp, parent->parser, this_port+1, other_port+1, way2, now); // rtcp conntrack
+    struct mux_subparser *rtp = udp_subparser_and_parser_new(udp_subparser->parser, proto_rtp,  parent->parser->proto, this_port,   other_port,   way2, now); // rtp conntrack
+    mux_subparser_unref(rtp);
+    struct mux_subparser *rtcp = udp_subparser_and_parser_new(udp_subparser->parser, proto_rtcp, parent->parser->proto, this_port+1, other_port+1, way2, now); // rtcp conntrack
+    mux_subparser_unref(rtcp);
+
+    mux_subparser_unref(udp_subparser);
 }
 
 static enum proto_parse_status sdp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
@@ -242,10 +246,10 @@ static enum proto_parse_status sdp_parse(struct parser *parser, struct proto_inf
 static struct proto proto_sdp_;
 struct proto *proto_sdp = &proto_sdp_;
 
-static int sdp_parser_ctor(struct sdp_parser *sdp_parser, struct proto *proto, struct timeval const *now)
+static int sdp_parser_ctor(struct sdp_parser *sdp_parser, struct proto *proto)
 {
     assert(proto == proto_sdp);
-    if (0 != parser_ctor(&sdp_parser->parser, proto, now)) {
+    if (0 != parser_ctor(&sdp_parser->parser, proto)) {
         return -1;
     }
 
@@ -255,12 +259,12 @@ static int sdp_parser_ctor(struct sdp_parser *sdp_parser, struct proto *proto, s
     return 0;
 }
 
-static struct parser *sdp_parser_new(struct proto *proto, struct timeval const *now)
+static struct parser *sdp_parser_new(struct proto *proto)
 {
     MALLOCER(sdp_parsers);
     struct sdp_parser *sdp_parser = MALLOC(sdp_parsers, sizeof *sdp_parser);
 
-    if (-1 == sdp_parser_ctor(sdp_parser, proto, now)) {
+    if (-1 == sdp_parser_ctor(sdp_parser, proto)) {
         FREE(sdp_parser);
         return NULL;
     }

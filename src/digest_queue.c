@@ -23,57 +23,122 @@
 #include <assert.h>
 #include <inttypes.h>
 #include <openssl/md5.h>
+#include <junkie/config.h>
 #include <junkie/tools/log.h>
 #include <junkie/tools/miscmacs.h>
 #include <junkie/tools/mallocer.h>
+#include <junkie/tools/timeval.h>
 #include <junkie/cpp.h>
 #include "digest_queue.h"
 
 static char const Id[] = "$Id$";
 
+#define NB_QUEUES (CPU_MAX < 256 ? CPU_MAX : 256)   /* Must not be greater that 256 since we use only one byte from digest to hash */
+
+struct digest_queue {
+    struct queue {
+        struct digest_qcell {
+            uint8_t digest[DIGEST_SIZE];
+            struct timeval tv;
+        } *digests;
+        uint32_t idx;       // Index of the lastly added frame (more recent)
+        struct mutex mutex;
+        size_t length;      // Actually all queues have the same length, except during resizing
+    } queues[NB_QUEUES];    // The queue is chosen according to digest hash, so that several distinct threads can perform lookups simultaneously.
+};
+
 MALLOCER_DEF(digest_queues);
 
-static int digest_queue_ctor(struct digest_queue *q, unsigned size)
+static int digest_queue_ctor(struct digest_queue *digest, unsigned length)
 {
-    q->idx = 0;
-    q->size = size;
-    q->digests = MALLOC(digest_queues, q->size * sizeof *q->digests);
-    if (! q->digests) return -1;
-    memset(q->digests, 0, q->size * sizeof q->digests);
+    for (unsigned i = 0; i < NB_ELEMS(digest->queues); i++) {
+        struct queue *const q = digest->queues + i;
+        q->idx = 0;
+        q->length = length;
+        q->digests = MALLOC(digest_queues, q->length * sizeof *q->digests);
+        if (! q->digests) return -1;
+        memset(q->digests, 0, q->length * sizeof q->digests);
+        mutex_ctor(&q->mutex, "digest queue");
+    }
 
     return 0;
 }
 
-struct digest_queue *digest_queue_new(unsigned size)
+struct digest_queue *digest_queue_new(unsigned length)
 {
     MALLOCER_INIT(digest_queues);
-    struct digest_queue *q = MALLOC(digest_queues, sizeof(*q));
-    if (! q) return NULL;
+    struct digest_queue *digest = MALLOC(digest_queues, sizeof(*digest));
+    if (! digest) return NULL;
 
-    if (0 != digest_queue_ctor(q, size)) {
-        FREE(q);
+    if (0 != digest_queue_ctor(digest, length)) {
+        FREE(digest);
         return NULL;
     }
 
-    return q;
+    return digest;
 }
 
-static void digest_queue_dtor(struct digest_queue *q)
+static void digest_queue_dtor(struct digest_queue *digest)
 {
-    FREE(q->digests);
+    for (unsigned i = 0; i < NB_ELEMS(digest->queues); i++) {
+        FREE(digest->queues[i].digests);
+        mutex_dtor(&digest->queues[i].mutex);
+    }
 }
 
-void digest_queue_del(struct digest_queue *q)
+void digest_queue_del(struct digest_queue *digest)
 {
-    digest_queue_dtor(q);
-    FREE(q);
+    digest_queue_dtor(digest);
+    FREE(digest);
 }
 
-void digest_queue_push(struct digest_queue *q, uint8_t digest[DIGEST_SIZE], const struct frame *frm)
+int digest_queue_resize(struct digest_queue *digest, unsigned length)
 {
-    q->idx = (q->idx + 1) % q->size;
-    memcpy(q->digests[q->idx].digest, digest, DIGEST_SIZE);
-    q->digests[q->idx].tv   = frm->tv;
+    for (unsigned i = 0; i < NB_ELEMS(digest->queues); i++) {
+        struct queue *const q = digest->queues + i;
+
+        void *new = MALLOC(digest_queues, length * sizeof *q->digests);
+        if (! new) return -1;
+
+        mutex_lock(&q->mutex);
+        FREE(q->digests);
+        q->digests = new;
+        q->idx = 0;
+        q->length = length;
+        memset(q->digests, 0, q->length * sizeof q->digests);
+        mutex_unlock(&q->mutex);
+    }
+
+    return 0;
+}
+
+enum digest_status digest_queue_find(struct digest_queue *digest, uint8_t buf[DIGEST_SIZE], struct timeval const *frame_tv, unsigned delay_usec)
+{
+    struct timeval min_tv = *frame_tv;
+    timeval_sub_usec(&min_tv, delay_usec);
+    unsigned const h = buf[0] % NB_ELEMS(digest->queues);
+    struct queue *const q = digest->queues + h;
+
+    mutex_lock(&q->mutex);
+
+    unsigned i;
+    for (i = 0; i < q->length; i++) {
+        int j = (q->idx - i + q->length) % q->length;
+
+        if (!timeval_is_set(&q->digests[j].tv) || timeval_cmp(&q->digests[j].tv, &min_tv) < 0) break;
+
+        if (0 == memcmp(q->digests[j].digest, buf, DIGEST_SIZE)) {
+            mutex_unlock(&q->mutex);
+            return DIGEST_MATCH;
+        }
+    }
+
+    q->idx = (q->idx + 1) % q->length;
+    memcpy(q->digests[q->idx].digest, buf, DIGEST_SIZE);
+    q->digests[q->idx].tv = *frame_tv;
+
+    mutex_unlock(&q->mutex);
+    return i < q->length ? DIGEST_NOMATCH : DIGEST_UNKNOWN;
 }
 
 #define BUFSIZE_TO_HASH 64
@@ -94,52 +159,54 @@ void digest_queue_push(struct digest_queue *q, uint8_t digest[DIGEST_SIZE], cons
 #define IPV4_SRC_HOST_OFFSET    IPV4_CHECKSUM_OFFSET + 2
 #define IPV4_DST_HOST_OFFSET    IPV4_SRC_HOST_OFFSET + 4
 
-void digest_frame(uint8_t *buf, struct frame *frm)
+void digest_frame(uint8_t buf[DIGEST_SIZE], size_t size, uint8_t *restrict packet)
 {
     SLOG(LOG_DEBUG, "Compute the md5 digest of relevant data in the frame");
 
     size_t iphdr_offset = ETHER_HEADER_SIZE;
     size_t ethertype_offset = ETHER_ETHERTYPE_OFFSET;
 
-    if (frm->cap_len >= ethertype_offset && *(uint16_t *)&frm->data[ethertype_offset] == 0x0000) {  // Skip Linux Cooked Capture special header
+    if (size >= ethertype_offset && *(uint16_t *)&packet[ethertype_offset] == 0x0000) {  // Skip Linux Cooked Capture special header
         iphdr_offset += 2;
         ethertype_offset += 2;
     }
 
-    if (frm->cap_len >= ethertype_offset+1 && 0x81 == frm->data[ethertype_offset] && 0x00 == frm->data[ethertype_offset+1]) {
+    if (size >= ethertype_offset+1 && 0x81 == packet[ethertype_offset] && 0x00 == packet[ethertype_offset+1]) {
         iphdr_offset += 4;
     }
 
-    if (frm->cap_len < iphdr_offset + IPV4_CHECKSUM_OFFSET) {
-        SLOG(LOG_DEBUG, "Small frame (%zu bytes), compute the digest on the whole data", frm->cap_len);
-        (void) MD5((unsigned char *)frm->data, frm->cap_len, buf);
+    if (size < iphdr_offset + IPV4_CHECKSUM_OFFSET) {
+        SLOG(LOG_DEBUG, "Small frame (%zu bytes), compute the digest on the whole data", size);
+        (void) MD5((unsigned char *)packet, size, buf);
         return;
     }
 
-    size_t len = MIN(BUFSIZE_TO_HASH, frm->cap_len - iphdr_offset);
+    size_t len = MIN(BUFSIZE_TO_HASH, size - iphdr_offset);
 
-    assert(frm->cap_len >= iphdr_offset + IPV4_TOS_OFFSET);
-    assert(frm->cap_len >= iphdr_offset + IPV4_TTL_OFFSET);
-    uint8_t tos = frm->data[iphdr_offset + IPV4_TOS_OFFSET];
-    uint8_t ttl = frm->data[iphdr_offset + IPV4_TTL_OFFSET];
-    uint16_t checksum = *(uint16_t *)&frm->data[iphdr_offset + IPV4_CHECKSUM_OFFSET];
+    assert(size >= iphdr_offset + IPV4_TOS_OFFSET);
+    assert(size >= iphdr_offset + IPV4_TTL_OFFSET);
+    uint8_t tos = packet[iphdr_offset + IPV4_TOS_OFFSET];
+    uint8_t ttl = packet[iphdr_offset + IPV4_TTL_OFFSET];
+    uint16_t checksum = *(uint16_t *)&packet[iphdr_offset + IPV4_CHECKSUM_OFFSET];
 
-    uint8_t ipversion = (frm->data[iphdr_offset + IPV4_VERSION_OFFSET] & 0xf0) >> 4;
+    uint8_t ipversion = (packet[iphdr_offset + IPV4_VERSION_OFFSET] & 0xf0) >> 4;
     if (4 == ipversion) {
         // We must mask different fields which may be rewritten by
         // network equipment (routers, switches, etc), eg. TTL, Diffserv
         // or IP Header Checksum
-        frm->data[iphdr_offset + IPV4_TOS_OFFSET] = 0x00;
-        frm->data[iphdr_offset + IPV4_TTL_OFFSET] = 0x00;
-        memset(frm->data + iphdr_offset + IPV4_CHECKSUM_OFFSET, 0, sizeof(uint16_t));
+        packet[iphdr_offset + IPV4_TOS_OFFSET] = 0x00;
+        packet[iphdr_offset + IPV4_TTL_OFFSET] = 0x00;
+        memset(packet + iphdr_offset + IPV4_CHECKSUM_OFFSET, 0, sizeof(uint16_t));
     }
 
-    (void) MD5((unsigned char *)&frm->data[iphdr_offset], len, buf);
+    (void) MD5((unsigned char *)&packet[iphdr_offset], len, buf);
 
     if (4 == ipversion) {
         // Restore the dumped IP header fields
-        frm->data[iphdr_offset + IPV4_TOS_OFFSET] = tos;
-        frm->data[iphdr_offset + IPV4_TTL_OFFSET] = ttl;
-        memcpy(frm->data + iphdr_offset + IPV4_CHECKSUM_OFFSET, &checksum, sizeof checksum);
+        packet[iphdr_offset + IPV4_TOS_OFFSET] = tos;
+        packet[iphdr_offset + IPV4_TTL_OFFSET] = ttl;
+        memcpy(packet + iphdr_offset + IPV4_CHECKSUM_OFFSET, &checksum, sizeof checksum);
     }
 }
+
+

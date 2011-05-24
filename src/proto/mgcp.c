@@ -46,23 +46,23 @@ struct mgcp_parser {
     struct parser *sdp_parser;
 };
 
-static int mgcp_parser_ctor(struct mgcp_parser *mgcp_parser, struct proto *proto, struct timeval const *now)
+static int mgcp_parser_ctor(struct mgcp_parser *mgcp_parser, struct proto unused_ *proto)
 {
     assert(proto == proto_mgcp);
-    if (0 != parser_ctor(&mgcp_parser->parser, proto_mgcp, now)) {
+    if (0 != parser_ctor(&mgcp_parser->parser, proto_mgcp)) {
         return -1;
     }
     mgcp_parser->sdp_parser = NULL;
     return 0;
 }
 
-static struct parser *mgcp_parser_new(struct proto *proto, struct timeval const *now)
+static struct parser *mgcp_parser_new(struct proto *proto)
 {
     MALLOCER(mgcp_parsers);
     struct mgcp_parser *mgcp_parser = MALLOC(mgcp_parsers, sizeof(*mgcp_parser));
     if (! mgcp_parser) return NULL;
 
-    if (-1 == mgcp_parser_ctor(mgcp_parser, proto, now)) {
+    if (-1 == mgcp_parser_ctor(mgcp_parser, proto)) {
         FREE(mgcp_parser);
         return NULL;
     }
@@ -327,7 +327,7 @@ static enum proto_parse_status mgcp_parse(struct parser *parser, struct proto_in
         liner_next(&liner);
         if (liner_tok_length(&tokenizer) == 0) {    // we met an empty line, assume following msg is SDP
             if (! mgcp_parser->sdp_parser) {
-                mgcp_parser->sdp_parser = proto_sdp->ops->parser_new(proto_sdp, now);
+                mgcp_parser->sdp_parser = proto_sdp->ops->parser_new(proto_sdp);
             }
             child = mgcp_parser->sdp_parser;
             break;

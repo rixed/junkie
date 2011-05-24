@@ -1,6 +1,7 @@
 // -*- c-basic-offset: 4; c-backslash-column: 79; indent-tabs-mode: nil -*-
 // vim:sw=4 ts=4 sts=4 expandtab
 #include <stdlib.h>
+#undef NDEBUG
 #include <assert.h>
 #include <junkie/tools/mallocer.h>
 #include "tools/redim_array.c"

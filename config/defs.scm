@@ -296,7 +296,7 @@
                                      (ratio  (if (> sum 0) (/ (* 100 dups) sum) 0)))
                                 (format #t "~3,2f%\n" (exact->inexact ratio))
                                 ratio)))
-         (max-delay         500000)
+         (max-delay         100000)
          (min-delay         1)
          (actual-dups       (get-dup-ratio run-t max-delay))
          (min-detected-dups (* 90/100 actual-dups))
@@ -323,7 +323,7 @@
                                   (ratio  (/ (* 100 eols) sum)))
                              (format #t "~3,2f%\n" (exact->inexact ratio))
                              ratio)))
-         (max-nb-digests 20000)  ; should be enought for any delay! (ie packet rate should be under max-nb-digests/dedup-delay)
+         (max-nb-digests 5000) ; should be enought for any delay! (ie packet rate should be under max-nb-digests*NB_QUEUES/dedup-delay)
          (min-nb-digests 1)
          (is-acceptable  (lambda (ratio) (< ratio max-eol-ratio)))
          (best           (dichoto (lambda (nbd) (get-eol-ratio run-t (round nbd)))
@@ -333,7 +333,7 @@
 ; And then, a function to calibrate deduplication automatically
 
 (define (dedup-calibration run-t)
-  (set-nb-digests 20000) ; see remark above concerning max-nb-digests
+  (set-nb-digests 5000) ; see remark above concerning max-nb-digests
   (let ((best-delay (best-dedup-delay run-t)))
     (format #t "Best dedup delay: ~dus\n" best-delay)
     (set-dup-detection-delay best-delay))

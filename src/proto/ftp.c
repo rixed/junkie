@@ -46,7 +46,7 @@ static void ftp_proto_info_ctor(struct ftp_proto_info *info, struct parser *pars
  * Parse
  */
 
-static void check_for_passv(struct ip_proto_info const *ip, struct parser *requestor, uint8_t const *packet, size_t packet_len, struct timeval const *now)
+static void check_for_passv(struct ip_proto_info const *ip, struct proto *requestor, uint8_t const *packet, size_t packet_len, struct timeval const *now)
 {
 
     // Merely check for passive mode transition
@@ -110,7 +110,10 @@ static void check_for_passv(struct ip_proto_info const *ip, struct parser *reque
         // Notice that we must take into account the way that will be used by the IP parser.
         uint16_t const clt_port = 0;
         uint16_t const srv_port = new_port;
-        (void)tcp_subparser_and_parser_new(tcp_parser->parser, proto_ftp, requestor, way == 0 ? clt_port:srv_port, way == 0 ? srv_port:clt_port, now);
+        struct mux_subparser *ftp_parser = tcp_subparser_and_parser_new(tcp_parser->parser, proto_ftp, requestor, way == 0 ? clt_port:srv_port, way == 0 ? srv_port:clt_port, now);
+
+        mux_subparser_unref(ftp_parser);
+        mux_subparser_unref(tcp_parser);
     }
 }
 
@@ -128,7 +131,7 @@ static enum proto_parse_status ftp_parse(struct parser *parser, struct proto_inf
     struct ftp_proto_info info;
     ftp_proto_info_ctor(&info, parser, parent, 0, wire_len);
 
-    check_for_passv(ip, parser, packet, cap_len, now);
+    check_for_passv(ip, parser->proto, packet, cap_len, now);
 
     return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
 }

@@ -37,7 +37,7 @@ static char const udp_Id[] = "$Id: 0d4dcb20e67fb576b956de6ca7a66a15ccb9d583 $";
 LOG_CATEGORY_DEF(proto_udp);
 
 #define UDP_TIMEOUT 120
-#define UDP_HASH_SIZE 64
+#define UDP_HASH_SIZE 67
 
 /*
  * Proto Infos
@@ -107,7 +107,7 @@ static void udp_key_init(struct udp_key *key, uint16_t src, uint16_t dst, unsign
     }
 }
 
-struct mux_subparser *udp_subparser_and_parser_new(struct parser *parser, struct proto *proto, struct parser *requestor, uint16_t src, uint16_t dst, unsigned way, struct timeval const *now)
+struct mux_subparser *udp_subparser_and_parser_new(struct parser *parser, struct proto *proto, struct proto *requestor, uint16_t src, uint16_t dst, unsigned way, struct timeval const *now)
 {
     assert(parser->proto == proto_udp);
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
@@ -116,7 +116,7 @@ struct mux_subparser *udp_subparser_and_parser_new(struct parser *parser, struct
     return mux_subparser_and_parser_new(mux_parser, proto, requestor, &key, now);
 }
 
-struct mux_subparser *udp_subparser_lookup(struct parser *parser, struct proto *proto, struct parser *requestor, uint16_t src, uint16_t dst, unsigned way, struct timeval const *now)
+struct mux_subparser *udp_subparser_lookup(struct parser *parser, struct proto *proto, struct proto *requestor, uint16_t src, uint16_t dst, unsigned way, struct timeval const *now)
 {
     assert(parser->proto == proto_udp);
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
@@ -183,8 +183,9 @@ static enum proto_parse_status udp_parse(struct parser *parser, struct proto_inf
 
     if (! subparser) goto fallback;
 
-    if (0 != proto_parse(subparser->parser, &info.info, way, packet + sizeof(*udphdr), cap_len - sizeof(*udphdr), wire_len - sizeof(*udphdr), now, okfn, tot_cap_len, tot_packet)) goto fallback;
-    return PROTO_OK;
+    enum proto_parse_status status = proto_parse(subparser->parser, &info.info, way, packet + sizeof(*udphdr), cap_len - sizeof(*udphdr), wire_len - sizeof(*udphdr), now, okfn, tot_cap_len, tot_packet);
+    mux_subparser_unref(subparser);
+    if (status == PROTO_OK) return PROTO_OK;
 
 fallback:
     (void)proto_parse(NULL, &info.info, way, packet + sizeof(*udphdr), cap_len - sizeof(*udphdr), wire_len - sizeof(*udphdr), now, okfn, tot_cap_len, tot_packet);

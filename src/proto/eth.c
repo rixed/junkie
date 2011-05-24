@@ -106,26 +106,31 @@ static void eth_proto_info_ctor(struct eth_proto_info *info, struct parser *pars
  */
 
 static LIST_HEAD(eth_subprotos, eth_subproto) eth_subprotos;
+static struct mutex eth_subprotos_mutex;
 
 void eth_subproto_ctor(struct eth_subproto *eth_subproto, unsigned protocol, struct proto *proto)
 {
     SLOG(LOG_DEBUG, "Adding proto %s for protocol value %u", proto->name, protocol);
     eth_subproto->protocol = protocol;
     eth_subproto->proto = proto;
+    mutex_lock(&eth_subprotos_mutex);
     LIST_INSERT_HEAD(&eth_subprotos, eth_subproto, entry);
+    mutex_unlock(&eth_subprotos_mutex);
 }
 
 void eth_subproto_dtor(struct eth_subproto *eth_subproto)
 {
     SLOG(LOG_DEBUG, "Removing proto %s for protocol value %u", eth_subproto->proto->name, eth_subproto->protocol);
+    mutex_lock(&eth_subprotos_mutex);
     LIST_REMOVE(eth_subproto, entry);
+    mutex_unlock(&eth_subprotos_mutex);
 }
 
 /*
  * Parse
  */
 
-struct mux_subparser *eth_subparser_and_parser_new(struct parser *parser, struct proto *proto, struct parser *requestor, uint16_t vlan_id, struct timeval const *now)
+struct mux_subparser *eth_subparser_and_parser_new(struct parser *parser, struct proto *proto, struct proto *requestor, uint16_t vlan_id, struct timeval const *now)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     return mux_subparser_and_parser_new(mux_parser, proto, requestor, collapse_vlans ? &zero : &vlan_id, now);
@@ -171,6 +176,7 @@ static enum proto_parse_status eth_parse(struct parser *parser, struct proto_inf
     struct eth_proto_info info;
     eth_proto_info_ctor(&info, parser, parent, ethhdr_len, wire_len - ethhdr_len, h_proto, vlan_id, ethhdr);
 
+    mutex_lock(&eth_subprotos_mutex);
     struct proto *sub_proto = NULL;
     struct eth_subproto *subproto;
     LIST_FOREACH(subproto, &eth_subprotos, entry) {
@@ -179,13 +185,17 @@ static enum proto_parse_status eth_parse(struct parser *parser, struct proto_inf
             break;
         }
     }
+    mutex_unlock(&eth_subprotos_mutex);
     struct mux_subparser *subparser = mux_subparser_lookup(mux_parser, sub_proto, NULL, collapse_vlans ? &zero : &vlan_id, now);
 
     if (! subparser) goto fallback;
 
     assert(ethhdr_len <= cap_len);
-    if (0 != proto_parse(subparser->parser, &info.info, way, packet + ethhdr_len, cap_len - ethhdr_len, wire_len - ethhdr_len, now, okfn, tot_cap_len, tot_packet)) goto fallback;
-    return PROTO_OK;
+
+    enum proto_parse_status status = proto_parse(subparser->parser, &info.info, way, packet + ethhdr_len, cap_len - ethhdr_len, wire_len - ethhdr_len, now, okfn, tot_cap_len, tot_packet);
+    mux_subparser_unref(subparser);
+
+    if (status == PROTO_OK) return PROTO_OK;
 
 fallback:
     (void)proto_parse(NULL, &info.info, way, packet + ethhdr_len, cap_len - ethhdr_len, wire_len - ethhdr_len, now, okfn, tot_cap_len, tot_packet);
@@ -203,6 +213,7 @@ void eth_init(void)
 {
     log_category_proto_eth_init();
     ext_param_collapse_vlans_init();
+    mutex_ctor(&eth_subprotos_mutex, "Eth subprotocols");
 
     static struct proto_ops const ops = {
         .parse      = eth_parse,
@@ -219,6 +230,7 @@ void eth_fini(void)
 {
     assert(LIST_EMPTY(&eth_subprotos));
     mux_proto_dtor(&mux_proto_eth);
+    mutex_dtor(&eth_subprotos_mutex);
     ext_param_collapse_vlans_fini();
     log_category_proto_eth_fini();
 }

@@ -2,6 +2,7 @@
 // vim:sw=4 ts=4 sts=4 expandtab
 #include <stdlib.h>
 #include <stdio.h>
+#undef NDEBUG
 #include <assert.h>
 #include <junkie/cpp.h>
 #include <junkie/tools/mallocer.h>

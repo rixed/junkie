@@ -69,12 +69,17 @@ int timeval_cmp(struct timeval const *restrict a, struct timeval const *restrict
 
 void timeval_add_usec(struct timeval *tv, int64_t usec)
 {
-    usec_2_timeval(tv, usec + timeval_2_usec(tv));
+    usec_2_timeval(tv, timeval_2_usec(tv) + usec);
 }
 
 void timeval_add_sec(struct timeval *tv, int32_t sec)
 {
     tv->tv_sec += sec;
+}
+
+void timeval_sub_usec(struct timeval *tv, int64_t usec)
+{
+    usec_2_timeval(tv, timeval_2_usec(tv) - usec);
 }
 
 void timeval_sub_sec(struct timeval *tv, int32_t sec)

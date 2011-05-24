@@ -1,11 +1,16 @@
 // -*- c-basic-offset: 4; c-backslash-column: 79; indent-tabs-mode: nil -*-
 // vim:sw=4 ts=4 sts=4 expandtab
 #include <stdlib.h>
+#undef NDEBUG
 #include <assert.h>
 #include <time.h>
 #include <junkie/cpp.h>
 #include <junkie/tools/timeval.h>
 #include <junkie/tools/mallocer.h>
+#include <junkie/proto/pkt_wait_list.h>
+#include <junkie/proto/cap.h>
+#include <junkie/proto/eth.h>
+#include <junkie/proto/ip.h>
 #include "lib.h"
 #include "proto/udp.c"
 
@@ -49,7 +54,7 @@ static void parse_check(void)
 {
     struct timeval now;
     timeval_set_now(&now);
-    struct parser *udp_parser = proto_udp->ops->parser_new(proto_udp, &now);
+    struct parser *udp_parser = proto_udp->ops->parser_new(proto_udp);
     assert(udp_parser);
 
     for (current_test = 0; current_test < NB_ELEMS(parse_tests); current_test++) {
@@ -64,6 +69,12 @@ int main(void)
 {
     log_init();
     mallocer_init();
+    pkt_wait_list_init();
+    ref_init();
+    cap_init();
+    eth_init();
+    ip_init();
+    ip6_init();
     udp_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("udp_check.log");
@@ -72,6 +83,12 @@ int main(void)
     stress_check(proto_udp);
 
     udp_fini();
+    ip6_fini();
+    ip_fini();
+    eth_fini();
+    cap_fini();
+    ref_fini();
+    pkt_wait_list_fini();
     mallocer_fini();
     log_fini();
     return EXIT_SUCCESS;

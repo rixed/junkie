@@ -46,23 +46,23 @@ struct tns_parser {
 
 static parse_fun tns_sbuf_parse;
 
-static int tns_parser_ctor(struct tns_parser *tns_parser, struct proto *proto, struct timeval const *now)
+static int tns_parser_ctor(struct tns_parser *tns_parser, struct proto *proto)
 {
     assert(proto == proto_tns);
-    if (0 != parser_ctor(&tns_parser->parser, proto, now)) return -1;
+    if (0 != parser_ctor(&tns_parser->parser, proto)) return -1;
     tns_parser->c2s_way = ~0U;    // unset
     if (0 != streambuf_ctor(&tns_parser->sbuf, tns_sbuf_parse, 30000)) return -1;
 
     return 0;
 }
 
-static struct parser *tns_parser_new(struct proto *proto, struct timeval const *now)
+static struct parser *tns_parser_new(struct proto *proto)
 {
     MALLOCER(tns_parsers);
     struct tns_parser *tns_parser = MALLOC(tns_parsers, sizeof(*tns_parser));
     if (! tns_parser) return NULL;
 
-    if (-1 == tns_parser_ctor(tns_parser, proto, now)) {
+    if (-1 == tns_parser_ctor(tns_parser, proto)) {
         FREE(tns_parser);
         return NULL;
     }

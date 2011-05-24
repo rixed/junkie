@@ -76,14 +76,13 @@ static enum proto_parse_status netbios_parse(struct parser *parser, struct proto
     netbios_proto_info_ctor(&info, parser, parent, NETBIOS_HEADER_SIZE, wire_len - NETBIOS_HEADER_SIZE);
 
     uint8_t const *next_packet = packet + NETBIOS_HEADER_SIZE;
-    struct parser *subparser = proto_cifs->ops->parser_new(proto_cifs, now);
-    if (! subparser) goto fallback;
+    struct parser *parser_cifs = proto_cifs->ops->parser_new(proto_cifs);
+    if (! parser_cifs) goto fallback;
 
     /* List of protocols above NetBios: CIFS, SMB, ... */
-    int err = proto_parse(subparser, parent, way, next_packet, cap_len - NETBIOS_HEADER_SIZE, wire_len - NETBIOS_HEADER_SIZE, now, okfn, tot_cap_len, tot_packet);
-    parser_unref(subparser);
-    if (err) goto fallback;
-    return PROTO_OK;
+    enum proto_parse_status status = proto_parse(parser_cifs, parent, way, next_packet, cap_len - NETBIOS_HEADER_SIZE, wire_len - NETBIOS_HEADER_SIZE, now, okfn, tot_cap_len, tot_packet);
+    parser_unref(parser_cifs);
+    if (status == PROTO_OK) return PROTO_OK;
 
 fallback:
     (void)proto_parse(NULL, parent, way, next_packet, cap_len - NETBIOS_HEADER_SIZE, wire_len - NETBIOS_HEADER_SIZE, now, okfn, tot_cap_len, tot_packet);

@@ -50,10 +50,11 @@ struct mysql_parser {
 
 static parse_fun mysql_sbuf_parse;
 
-static int mysql_parser_ctor(struct mysql_parser *mysql_parser, struct proto *proto, struct timeval const *now)
+static int mysql_parser_ctor(struct mysql_parser *mysql_parser, struct proto *proto)
 {
+    SLOG(LOG_DEBUG, "Constructing mysql_parser@%p", mysql_parser);
     assert(proto == proto_mysql);
-    if (0 != parser_ctor(&mysql_parser->parser, proto, now)) return -1;
+    if (0 != parser_ctor(&mysql_parser->parser, proto)) return -1;
     mysql_parser->phase = NONE;
     mysql_parser->c2s_way = ~0U;    // unset
     if (0 != streambuf_ctor(&mysql_parser->sbuf, mysql_sbuf_parse, 30000)) return -1;
@@ -62,13 +63,13 @@ static int mysql_parser_ctor(struct mysql_parser *mysql_parser, struct proto *pr
     return 0;
 }
 
-static struct parser *mysql_parser_new(struct proto *proto, struct timeval const *now)
+static struct parser *mysql_parser_new(struct proto *proto)
 {
     MALLOCER(mysql_parsers);
     struct mysql_parser *mysql_parser = MALLOC(mysql_parsers, sizeof(*mysql_parser));
     if (! mysql_parser) return NULL;
 
-    if (-1 == mysql_parser_ctor(mysql_parser, proto, now)) {
+    if (-1 == mysql_parser_ctor(mysql_parser, proto)) {
         FREE(mysql_parser);
         return NULL;
     }
@@ -78,6 +79,7 @@ static struct parser *mysql_parser_new(struct proto *proto, struct timeval const
 
 static void mysql_parser_dtor(struct mysql_parser *mysql_parser)
 {
+    SLOG(LOG_DEBUG, "Destructing mysql_parser@%p", mysql_parser);
     parser_dtor(&mysql_parser->parser);
     streambuf_dtor(&mysql_parser->sbuf);
 }

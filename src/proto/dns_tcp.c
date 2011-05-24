@@ -50,12 +50,12 @@ static enum proto_parse_status dns_tcp_parse(struct parser unused_ *parser, stru
         // Sanity check
         if (offset + len > wire_len) return PROTO_PARSE_ERR;
 
-        struct parser *subparser = proto_dns->ops->parser_new(proto_dns, now);
-        if (! subparser) break;
+        struct parser *dns = proto_dns->ops->parser_new(proto_dns);
+        if (! dns) break;
 
-        int err = proto_parse(subparser, parent, way, packet+offset, cap_len-offset, wire_len-offset, now, okfn, tot_cap_len, tot_packet);
-        parser_unref(subparser);
-        if (err) break;
+        enum proto_parse_status status = proto_parse(dns, parent, way, packet+offset, cap_len-offset, wire_len-offset, now, okfn, tot_cap_len, tot_packet);
+        parser_unref(dns);
+        if (status != PROTO_OK) break;
 
         offset += len;
     }

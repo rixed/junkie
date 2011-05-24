@@ -1,6 +1,7 @@
 // -*- c-basic-offset: 4; c-backslash-column: 79; indent-tabs-mode: nil -*-
 // vim:sw=4 ts=4 sts=4 expandtab
 #include <stdlib.h>
+#undef NDEBUG
 #include <assert.h>
 #include <time.h>
 #include <junkie/cpp.h>
@@ -87,7 +88,7 @@ static void parse_check(void)
 {
     struct timeval now;
     timeval_set_now(&now);
-    struct parser *arp_parser = proto_arp->ops->parser_new(proto_arp, &now);
+    struct parser *arp_parser = proto_arp->ops->parser_new(proto_arp);
     assert(arp_parser);
 
     for (cur_test = 0; cur_test < NB_ELEMS(parse_tests); cur_test++) {
@@ -103,6 +104,7 @@ int main(void)
 {
     log_init();
     mallocer_init();
+    ref_init();
     eth_init();
     arp_init();
     log_set_level(LOG_DEBUG, NULL);
@@ -113,6 +115,7 @@ int main(void)
 
     arp_fini();
     eth_fini();
+    ref_fini();
     mallocer_fini();
     log_fini();
     return EXIT_SUCCESS;

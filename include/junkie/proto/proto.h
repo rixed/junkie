@@ -7,12 +7,14 @@
 #include <sys/time.h>
 #include <libguile.h>
 #include <pthread.h>
+#include <junkie/config.h>
 #include <junkie/cpp.h>
 #include <junkie/tools/log.h>
 #include <junkie/tools/miscmacs.h>
 #include <junkie/tools/queue.h>
 #include <junkie/tools/timeval.h>
 #include <junkie/tools/mutex.h>
+#include <junkie/tools/ref.h>
 
 /** @file
  * @brief Packet inspection
@@ -126,7 +128,7 @@ struct proto {
         parse_fun *parse;
         /// Create a new parser of this protocol
         /// (notice that if the parser is stateless there is actually only one instance of it, refcounted)
-        struct parser *(*parser_new)(struct proto *proto, struct timeval const *now);
+        struct parser *(*parser_new)(struct proto *proto);
         /// Delete a parser
         void (*parser_del)(struct parser *parser);
         /// Pretty-print an info structure into a string
@@ -137,11 +139,9 @@ struct proto {
     char const *name;       ///< Protocol name, used mainly for pretty-printing
     uint64_t nb_frames;     ///< How many times we called this parse (count frames only if this parser is never called more than once on a frame)
     uint64_t nb_bytes;      ///< How many bytes this proto had on wire
-    /// All parsers of this proto, ordered in least recently used first
-    TAILQ_HEAD(proto_parsers, parser) parsers;
-    /// Length of parsers list
+    /// How many parsers of this proto exists
     unsigned nb_parsers;
-    /// Timeout for parsers of this proto
+    /// Timeout for parsers of this proto (0 to disable timeouting)
     unsigned timeout;
     /// Entry in the list of all registered protos
     LIST_ENTRY(proto) entry;
@@ -162,7 +162,7 @@ void proto_ctor(
     struct proto *proto,            ///< The proto to construct
     struct proto_ops const *ops,    ///< The ops structure of this implementation
     char const *name,               ///< A name for the proto
-    unsigned timeout                ///< Any parser unused after that many seconds will be killed with no mercy (0 for no timeout)
+    unsigned timeout                ///< Any parser unused after that many seconds may be killed (0 for no timeout)
 );
 
 /// Destruct a proto (some parsers may still be present after this if referenced by other parsers)
@@ -170,10 +170,6 @@ void proto_dtor(struct proto *proto);
 
 /// Call this instead of accessing proto->ops->parse, so that counters are updated properly.
 parse_fun proto_parse;
-
-/// Timeout all parsers that lived for too long
-/** @returns the number of deleted parsers. */
-unsigned proto_timeout(struct timeval const *now);
 
 /// Lookup by name in the list of registered protos
 /** @returns NULL if not found. */
@@ -258,25 +254,17 @@ struct proto_info const *proto_info_get(
  * If you do not need internal state then you'd rather use a
  * uniq_proto/uniq_parser instead.
  *
- * Parsers are "alive" if they are on their proto->parsers list, which count
- * for a ref so that "alive" parsers are kept even when unused by other
- * parsers.  The other advantage of an "alive" parser is that it can be killed
- * by proto_timeout.
- *
  * @see mux_parser and uniq_parser */
 struct parser {
-    struct proto *proto;                ///< The proto owning this parser
-    bool alive;                         ///< Unset whenever the parser was removed from proto list of parsers
-    TAILQ_ENTRY(parser) proto_entry;    ///< Entry in the proto->parsers list
-    struct timeval last_used;           ///< Each time a parser is used we touch this value (and promote it in the proto->parsers list)
-    int ref_count;                      ///< Every function returning a parser will increment this with parser_ref()
+    struct ref ref;
+    struct proto *proto;    ///< The proto owning this parser
+    /// @note obvisouly, owner of the lock does not need a ref
 };
 
 /// Construct a new parser
 int parser_ctor(
-    struct parser *parser,      ///< The parser to initialize
-    struct proto  *proto,       ///< The proto implemented by this parser
-    struct timeval const *now   ///< The current time
+    struct parser *parser,  ///< The parser to initialize
+    struct proto  *proto    ///< The proto implemented by this parser
 );
 
 /// Destruct a parser
@@ -362,7 +350,7 @@ struct mux_proto {
     struct proto proto; ///< The mux_proto is a specialization of this proto
     /// If you do not overload mux_subparser just use &mux_proto_ops
     struct mux_proto_ops {
-        struct mux_subparser *(*subparser_new)(struct mux_parser *mux_parser, struct parser *child, struct parser *requestor, void const *key);
+        struct mux_subparser *(*subparser_new)(struct mux_parser *mux_parser, struct parser *child, struct proto *requestor, void const *key, struct timeval const *now);
         void (*subparser_del)(struct mux_subparser *mux_subparser);
     } ops;
     size_t key_size;                ///< The size of the key used to multiplex
@@ -370,9 +358,13 @@ struct mux_proto {
     LIST_ENTRY(mux_proto) entry;    ///< Entry in the list of mux protos
     unsigned hash_size;             ///< The required size for the hash used to store subparsers
     unsigned nb_max_children;       ///< The max number of subparsers (after which old ones are deleted)
-    unsigned nb_infanticide;        ///< Nb children that were deleted because of the previous limitation
+    uint64_t nb_infanticide;        ///< Nb children that were deleted because of the previous limitation
     uint64_t nb_collisions;         ///< Nb collisions in the hashes since last change of hash size
     uint64_t nb_lookups;            ///< Nb lookups in the hashes since last change of hash size
+    uint64_t nb_timeouts;           ///< Nb subparsers timeouted from the hashes (ie. not how many parsers of this proto were timeouted!)
+    /** A pool of mutexes so that we have enough for all the subparsers hash lines
+     * but not one per hash line (would be too much) */
+    struct mutex mutexes[CPU_MAX];
 };
 
 /// Generic new/del functions for struct mux_subparser, suitable iff you do not overload mux_subparser
@@ -408,17 +400,21 @@ struct proto *proto_of_scm_name(SCM name);
  * small structure that "boxes" the parser. In addition to the pointer to the
  * subparser we also store there the LIST_ENTRY for the hash, the key
  * identifying this child (so that mux_subparser_lookup() can be generic) and
- * an optional pointer called "requestor", linking to the parser that yield to
- * the creation of this parser (useful to associate a traffic from one location
+ * an optional pointer called "requestor", linking to the proto of the parser
+ * that created this parser (useful to associate a traffic from one location
  * to the parser's tree to another, in case of connection tracking).
  *
  * @note Remember to add the packed_ attribute to your keys ! */
 struct mux_subparser {
+    struct ref ref;
     struct parser *parser;                  ///< The actual parser
-    struct parser *requestor;               ///< The parser that requested its creation
-    struct mux_parser *mux_parser;          ///< Backlink to the mux_parser in order to access nb_children
-    LIST_ENTRY(mux_subparser) entry;        ///< Its entry either in the hash or in the doomed mux_subparsers entry (depending on the doomed flag)
-    bool doomed;                            ///< If this mux_subparser is tagged for deletion
+    struct timeval last_used;               ///< Last time we call it's parse method
+    struct proto *requestor;                ///< The proto that requested its creation
+    TAILQ_ENTRY(mux_subparser) entry;       ///< Its entry in the hash (sorted in least recently used first)
+    struct mux_parser *mux_parser;          ///< Backlink to our mux_parser
+    struct mux_proto *mux_proto;            ///< Backlink to our mux_proto, for when mux_parser cannot be used (see mux_subparser_del_as_ref())
+#   define NOT_HASHED (~0U)
+    unsigned h_idx;                         ///< Our hash index into mux_parser->subparsers (NO_HASHED if not queued in any list)
     char key[];                             ///< The key used to identify it (beware of the variable size)
 };
 
@@ -448,9 +444,14 @@ struct mux_subparser {
 struct mux_parser {
     struct parser parser;                                   ///< A mux_parser is a specialization of this parser
     unsigned hash_size;                                     ///< The hash size for this particular mux_parser (taken from mux_proto at creation time)
-    unsigned nb_children;                                   ///< How many children are already managed
     unsigned nb_max_children;                               ///< The max number of children allowed (0 if not limited)
-    LIST_HEAD(mux_subparsers, mux_subparser) subparsers[];  ///< the bundled hash of subparsers (Beware of the variable size)
+    unsigned max_timeout;                                   ///< The longest timeout we have for our subparsers
+    unsigned nb_children;                                   ///< Current number of children
+    /// The hash of subparsers (Beware of the variable size)
+    struct subparsers {
+        /// These two fields are protected by one of the mux_proto->mutexes
+        TAILQ_HEAD(mux_subparsers, mux_subparser) list;     ///< The list of all subparsers with same hash value
+    } subparsers[];
 };
 
 /// @returns the size to be allocated before creating the mux_parser
@@ -464,8 +465,9 @@ void *mux_subparser_alloc(struct mux_parser *mux_parser, size_t size_without_key
 struct mux_subparser *mux_subparser_new(
     struct mux_parser *mux_parser,  ///< The parent of the requested subparser
     struct parser *parser,          ///< The subparser itself
-    struct parser *requestor,       ///< Who required its creation
-    void const *key                 ///< The key used to identify it
+    struct proto *requestor,        ///< Who required its creation
+    void const *key,                ///< The key used to identify it
+    struct timeval const *now       ///< So that we don't timeout it at once
 );
 
 /// or if you'd rather overload it
@@ -473,15 +475,16 @@ int mux_subparser_ctor(
     struct mux_subparser *mux_subparser,    ///< The mux_subparser to construct
     struct mux_parser *mux_parser,          ///< The parent of the requested subparser
     struct parser *parser,                  ///< The parser we want to be our child
-    struct parser *requestor,               ///< Who required its creation
-    void const *key                         ///< The key used to identify it
+    struct proto *requestor,                ///< Who required its creation
+    void const *key,                        ///< The key used to identify it
+    struct timeval const *now               ///< So that we don't timeout it at once
 );
 
 /// Many time you want to create the child and the subparser in a single move :
 struct mux_subparser *mux_subparser_and_parser_new(
     struct mux_parser *mux_parser,  ///< The parent of the requested subparser
     struct proto *proto,            ///< The proto we want our subparser to implement
-    struct parser *requestor,       ///< The parser that required the creation of this subparser
+    struct proto *requestor,        ///< The parser that required the creation of this subparser
     void const *key,                ///< The key used to identify it
     struct timeval const *now       ///< The current time
 );
@@ -496,26 +499,15 @@ void mux_subparser_dtor(
     struct mux_subparser *mux_subparser ///< The mux_subparser to destruct
 );
 
-/// Mark a mux_subparser (and associated parser) for deletion
-/** It's unsafe to deletes assynchronously mux_subparsers during the parse, since
- * parsers may kept references on mux_subparsers upper in the call stack. So when
- * we want to delete a mux_subparser during the parse we merely add it to a list of
- * mux_subparsers doomed for destruction, later deleted out of the parse functions.
- * TODO: extend this concept, via a 'doomable' object, to the struct parser themselves?
- * @see mux_subparser_kill_doomed()
- */
-void mux_subparser_doom(struct mux_subparser *);
-
-/// Deletes all mux_subparsers that were marked for deletion
-void mux_subparser_kill_doomed(void);
-
 /// Search (and optionally create) a subparser
+/** @note if you don't take additional care then the returned subparser might be deleted
+ *        by the time you use it. */
 struct mux_subparser *mux_subparser_lookup(
     struct mux_parser *parser,  ///< Look for a subparser of this mux_parser
     struct proto *create_proto, ///< If not found, create a new one that implements this proto
-    struct parser *requestor,   ///< If creating, the parser that required its creation
+    struct proto *requestor,    ///< If creating, the proto that required its creation
     void const *key,            ///< The key to look for
-    struct timeval const *now   ///< The current time (required iff create_proto is set)
+    struct timeval const *now   ///< The current time (required if create_proto is set)
 );
 
 /// Update the key of a subparser
@@ -525,14 +517,23 @@ void mux_subparser_change_key(
     void const *key                     ///< The new key
 );
 
+/// Declare a new ref on a mux_subparser.
+struct mux_subparser *mux_subparser_ref(struct mux_subparser *);
+
+/// Declare that a ref to a mux_subparser is no more used
+struct mux_subparser *mux_subparser_unref(struct mux_subparser *);
+
+/// Remove a mux_subparser from it's mux_proto hash, thus probably killing the only left ref apart yours.
+void mux_subparser_deindex(struct mux_subparser *);
+
 /// Construct a mux_parser
-int mux_parser_ctor(struct mux_parser *mux_parser, struct mux_proto *mux_proto, struct timeval const *now);
+int mux_parser_ctor(struct mux_parser *mux_parser, struct mux_proto *mux_proto);
 
 /// Destruct a mux_parser
 void mux_parser_dtor(struct mux_parser *parser);
 
 /// In case you have no context, use these in your mux_proto ops :
-struct parser *mux_parser_new(struct proto *proto, struct timeval const *now);
+struct parser *mux_parser_new(struct proto *proto);
 void mux_parser_del(struct parser *parser);
 
 /// If you need only one instance of a parser, implement a uniq_proto :
@@ -541,7 +542,6 @@ void mux_parser_del(struct parser *parser);
  * For these a single instance of parser is enough. */
 struct uniq_proto {
     struct proto proto;
-    // TODO: protect this from simultaneous access ?
     // FIXME: Although unique, parser may want to have private fields (and thus inherit from struct parser)
     struct parser *parser;
 };
@@ -553,7 +553,7 @@ void uniq_proto_ctor(struct uniq_proto *uniq_proto, struct proto_ops const *ops,
 void uniq_proto_dtor(struct uniq_proto *uniq_proto);
 
 /// Create a new parser from a uniq_proto
-struct parser *uniq_parser_new(struct proto *, struct timeval const *now);
+struct parser *uniq_parser_new(struct proto *);
 
 /// Delete a parser of a uniq_proto
 void uniq_parser_del(struct parser *);

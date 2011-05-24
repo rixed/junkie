@@ -34,8 +34,8 @@ static char const Id[] = "$Id: c1c50fb3b93381abf716bfa300605c930e937160 $";
 #undef LOG_CAT
 #define LOG_CAT proto_ip_log_category
 
-#define IP6_TIMEOUT (60*60)
-#define IP6_HASH_SIZE 10000
+#define IP6_TIMEOUT (10*60)
+#define IP6_HASH_SIZE 30011 /* See ip.c */
 
 /*
  * Proto Infos (only the info ctor is different from ipv4
@@ -57,19 +57,24 @@ static void ip6_proto_info_ctor(struct ip_proto_info *info, struct parser *parse
  */
 
 static LIST_HEAD(ip6_subprotos, ip_subproto) ip6_subprotos;
+static struct mutex ip6_subprotos_mutex;
 
 void ip6_subproto_ctor(struct ip_subproto *ip_subproto, unsigned protocol, struct proto *proto)
 {
     SLOG(LOG_DEBUG, "Adding proto %s for protocol value %u", proto->name, protocol);
     ip_subproto->protocol = protocol;
     ip_subproto->proto = proto;
+    mutex_lock(&ip6_subprotos_mutex);
     LIST_INSERT_HEAD(&ip6_subprotos, ip_subproto, entry);
+    mutex_unlock(&ip6_subprotos_mutex);
 }
 
 void ip6_subproto_dtor(struct ip_subproto *ip_subproto)
 {
     SLOG(LOG_DEBUG, "Removing proto %s for protocol value %u", ip_subproto->proto->name, ip_subproto->protocol);
+    mutex_lock(&ip6_subprotos_mutex);
     LIST_REMOVE(ip_subproto, entry);
+    mutex_unlock(&ip6_subprotos_mutex);
 }
 
 /*
@@ -119,6 +124,8 @@ static enum proto_parse_status ip6_parse(struct parser *parser, struct proto_inf
 
     struct mux_subparser *subparser = NULL;
     unsigned way2 = 0;
+
+    mutex_lock(&ip6_subprotos_mutex);
     struct ip_subproto *subproto;
     LIST_FOREACH(subproto, &ip6_subprotos, entry) {
         if (subproto->protocol == info.key.protocol) {
@@ -128,13 +135,16 @@ static enum proto_parse_status ip6_parse(struct parser *parser, struct proto_inf
             break;
         }
     }
+    mutex_unlock(&ip6_subprotos_mutex);
+
     if (! subparser) {
         SLOG(LOG_DEBUG, "IPv6 protocol %u unknown", info.key.protocol);
         goto fallback;
     }
 
-    if (0 != proto_parse(subparser->parser, &info.info, way2, packet + iphdr_len, cap_payload, payload, now, okfn, tot_cap_len, tot_packet)) goto fallback;
-    return PROTO_OK;
+    enum proto_parse_status status = proto_parse(subparser->parser, &info.info, way2, packet + iphdr_len, cap_payload, payload, now, okfn, tot_cap_len, tot_packet);
+    mux_subparser_unref(subparser);
+    if (status == PROTO_OK) return PROTO_OK;
 
 fallback:
     (void)proto_parse(NULL, &info.info, way2, packet + iphdr_len, cap_payload, payload, now, okfn, tot_cap_len, tot_packet);
@@ -147,10 +157,12 @@ fallback:
 
 static struct mux_proto mux_proto_ip6;
 struct proto *proto_ip6 = &mux_proto_ip6.proto;
-static struct eth_subproto eth_subproto;
+static struct eth_subproto ip6_eth_subproto;
 
 void ip6_init(void)
 {
+    mutex_ctor(&ip6_subprotos_mutex, "IPv6 subprotocols");
+    LIST_INIT(&ip6_subprotos);
     static struct proto_ops const ops = {
         .parse      = ip6_parse,
         .parser_new = mux_parser_new,
@@ -159,13 +171,13 @@ void ip6_init(void)
         .info_addr  = ip_info_addr,
     };
     mux_proto_ctor(&mux_proto_ip6, &ops, &mux_proto_ops, "IPv6", IP6_TIMEOUT, sizeof(struct ip_key), IP6_HASH_SIZE);
-    eth_subproto_ctor(&eth_subproto, ETH_PROTO_IPv6, proto_ip6);
-    LIST_INIT(&ip6_subprotos);
+    eth_subproto_ctor(&ip6_eth_subproto, ETH_PROTO_IPv6, proto_ip6);
 }
 
 void ip6_fini(void)
 {
     assert(LIST_EMPTY(&ip6_subprotos));
-    eth_subproto_dtor(&eth_subproto);
+    eth_subproto_dtor(&ip6_eth_subproto);
+    mutex_dtor(&ip6_subprotos_mutex);
     mux_proto_dtor(&mux_proto_ip6);
 }

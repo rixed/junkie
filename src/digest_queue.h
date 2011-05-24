@@ -3,23 +3,19 @@
 #ifndef DIGEST_QUEUE_H_110202
 #define DIGEST_QUEUE_H_110202
 #include <stdint.h>
-#include "pkt_source.h"
+#include <junkie/tools/mutex.h>
 
 #define DIGEST_SIZE 16
 
-struct digest_queue {
-    struct digest_qcell {
-        uint8_t digest[DIGEST_SIZE];
-        struct timeval tv;
-    } *digests;
-    uint32_t idx;
-    size_t size;
-};
-
 struct digest_queue *digest_queue_new(unsigned size);
 void digest_queue_del(struct digest_queue *);
+int digest_queue_resize(struct digest_queue *, unsigned size);
 
-void digest_queue_push(struct digest_queue *, uint8_t digest[DIGEST_SIZE], const struct frame *);
-void digest_frame(uint8_t *buf, struct frame *);
+enum digest_status {
+    DIGEST_MATCH, DIGEST_NOMATCH, DIGEST_UNKNOWN
+};
+enum digest_status digest_queue_find(struct digest_queue *, uint8_t buf[DIGEST_SIZE], struct timeval const *frame_tv, unsigned delay_usec);
+
+void digest_frame(uint8_t buf[DIGEST_SIZE], size_t size, uint8_t *restrict packet);
 
 #endif

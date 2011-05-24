@@ -1,10 +1,16 @@
 // -*- c-basic-offset: 4; c-backslash-column: 79; indent-tabs-mode: nil -*-
 // vim:sw=4 ts=4 sts=4 expandtab
 #include <stdlib.h>
+#undef NDEBUG
 #include <assert.h>
 #include <time.h>
 #include <junkie/cpp.h>
 #include <junkie/tools/mallocer.h>
+#include <junkie/proto/pkt_wait_list.h>
+#include <junkie/proto/cap.h>
+#include <junkie/proto/eth.h>
+#include <junkie/proto/ip.h>
+#include <junkie/proto/udp.h>
 #include "lib.h"
 #include "proto/mgcp.c"
 
@@ -123,7 +129,7 @@ static void parse_check(void)
 {
     struct timeval now;
     timeval_set_now(&now);
-    struct parser *mgcp_parser = proto_mgcp->ops->parser_new(proto_mgcp, &now);
+    struct parser *mgcp_parser = proto_mgcp->ops->parser_new(proto_mgcp);
     assert(mgcp_parser);
 
     for (cur_test = 0; cur_test < NB_ELEMS(parse_tests); cur_test++) {
@@ -142,8 +148,14 @@ struct proto *proto_sdp;
 int main(void)
 {
     log_init();
-    mallocer_init();
     mutex_init();
+    mallocer_init();
+    pkt_wait_list_init();
+    ref_init();
+    cap_init();
+    eth_init();
+    ip_init();
+    ip6_init();
     udp_init();
     mgcp_init();
     log_set_level(LOG_DEBUG, NULL);
@@ -154,9 +166,15 @@ int main(void)
     stress_check(proto_mgcp);
 
     mgcp_fini();
-    mutex_fini();
     udp_fini();
+    ip6_fini();
+    ip_fini();
+    eth_fini();
+    cap_fini();
+    ref_fini();
+    pkt_wait_list_fini();
     mallocer_fini();
+    mutex_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

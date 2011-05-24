@@ -1,6 +1,7 @@
 // -*- c-basic-offset: 4; c-backslash-column: 79; indent-tabs-mode: nil -*-
 // vim:sw=4 ts=4 sts=4 expandtab
 #include <stdlib.h>
+#undef NDEBUG
 #include <assert.h>
 #include <stdio.h>
 #include <time.h>
@@ -34,7 +35,7 @@ static void ctor_dtor_check(void)
 
     struct timeval now;
     timeval_set_now(&now);
-    struct parser *dummy = proto_dummy->ops->parser_new(proto_dummy, &now);
+    struct parser *dummy = proto_dummy->ops->parser_new(proto_dummy);
     assert(dummy);
     struct pkt_wait_list wl;
 
@@ -82,7 +83,7 @@ static void wl_check_setup(void)
 
     timeval_set_now(&now);
 
-    test_parser = test_proto.proto.ops->parser_new(&test_proto.proto, &now);
+    test_parser = test_proto.proto.ops->parser_new(&test_proto.proto);
     assert(test_parser);
 
     assert(0 == pkt_wait_list_ctor(&wl, 0, &config, test_parser, &now));
@@ -256,6 +257,7 @@ int main(void)
     mallocer_init();
     proto_init();
     pkt_wait_list_init();
+    ref_init();
     srand(time(NULL));
     log_set_level(LOG_INFO, NULL);  // DEBUG make the test too slow
     log_set_file("pkt_wait_list_check.log");
@@ -269,6 +271,7 @@ int main(void)
         reassembly_check();
     }
 
+    ref_fini();
     pkt_wait_list_fini();
     proto_fini();
     mallocer_fini();

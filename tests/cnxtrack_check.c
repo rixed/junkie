@@ -2,17 +2,19 @@
 // vim:sw=4 ts=4 sts=4 expandtab
 #include <stdlib.h>
 #include <stdio.h>
+#undef NDEBUG
 #include <assert.h>
 #include <string.h>
 #include <junkie/tools/miscmacs.h>
 #include <junkie/tools/mallocer.h>
 #include <junkie/cpp.h>
+#include <junkie/proto/pkt_wait_list.h>
+#include <junkie/proto/cap.h>
 #include <junkie/proto/eth.h>
 #include <junkie/proto/ip.h>
 #include <junkie/proto/tcp.h>
 #include <junkie/proto/ftp.h>
 #include <junkie/proto/http.h>
-#include <junkie/proto/pkt_wait_list.h>
 
 static struct test {
     uint8_t const *packet;
@@ -158,7 +160,7 @@ static void cnxtrack_check(void)
 {
     struct timeval now;
     timeval_set_now(&now);
-    struct parser *eth_parser = proto_eth->ops->parser_new(proto_eth, &now);
+    struct parser *eth_parser = proto_eth->ops->parser_new(proto_eth);
 
     for (current_test = 0; current_test < NB_ELEMS(tests); current_test ++) {
         struct test const *test = tests + current_test;
@@ -177,8 +179,11 @@ int main(void)
     mallocer_init();
     proto_init();
     pkt_wait_list_init();
+    ref_init();
+    cap_init();
     eth_init();
     ip_init();
+    ip6_init();
     tcp_init();
     ftp_init();
     http_init();
@@ -190,8 +195,11 @@ int main(void)
     http_fini();
     ftp_fini();
     tcp_fini();
+    ip6_fini();
     ip_fini();
     eth_fini();
+    cap_fini();
+    ref_fini();
     pkt_wait_list_fini();
     proto_fini();
     mallocer_fini();

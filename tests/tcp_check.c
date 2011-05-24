@@ -1,10 +1,15 @@
 // -*- c-basic-offset: 4; c-backslash-column: 79; indent-tabs-mode: nil -*-
 // vim:sw=4 ts=4 sts=4 expandtab
 #include <stdlib.h>
+#undef NDEBUG
 #include <assert.h>
 #include <time.h>
 #include <junkie/cpp.h>
 #include <junkie/tools/mallocer.h>
+#include <junkie/proto/pkt_wait_list.h>
+#include <junkie/proto/cap.h>
+#include <junkie/proto/eth.h>
+#include <junkie/proto/ip.h>
 #include "lib.h"
 #include "proto/tcp.c"
 
@@ -83,7 +88,7 @@ static void parse_check(void)
 {
     struct timeval now;
     timeval_set_now(&now);
-    struct parser *tcp_parser = proto_tcp->ops->parser_new(proto_tcp, &now);
+    struct parser *tcp_parser = proto_tcp->ops->parser_new(proto_tcp);
     assert(tcp_parser);
 
     for (current_test = 0; current_test < NB_ELEMS(parse_tests); current_test++) {
@@ -109,7 +114,7 @@ static void term_check(void)
     struct tcp_stream stream;
     assert(0 == tcp_stream_ctor(&stream, 5000, 2000, 443));
 
-    struct parser *tcp_parser = proto_tcp->ops->parser_new(proto_tcp, &now);
+    struct parser *tcp_parser = proto_tcp->ops->parser_new(proto_tcp);
     assert(tcp_parser);
     struct mux_parser *mux_parser = DOWNCAST(tcp_parser, parser, mux_parser);
 
@@ -137,10 +142,15 @@ int main(void)
 {
     log_init();
     mallocer_init();
+    pkt_wait_list_init();
+    ref_init();
     hash_init();
     ext_init();
     proto_init();
-    pkt_wait_list_init();
+    cap_init();
+    eth_init();
+    ip_init();
+    ip6_init();
     tcp_init();
     ssl_init();
     log_set_level(LOG_DEBUG, NULL);
@@ -153,10 +163,15 @@ int main(void)
 
     ssl_fini();
     tcp_fini();
-    pkt_wait_list_fini();
+    ip6_fini();
+    ip_fini();
+    eth_fini();
+    cap_fini();
     proto_fini();
     hash_fini();
     ext_fini();
+    ref_fini();
+    pkt_wait_list_fini();
     mallocer_fini();
     log_fini();
     return EXIT_SUCCESS;

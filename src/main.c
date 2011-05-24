@@ -31,6 +31,7 @@
 #include <junkie/tools/files.h>
 #include <junkie/tools/mutex.h>
 #include <junkie/tools/ext.h>
+#include <junkie/tools/ref.h>
 #include <junkie/cpp.h>
 #include <junkie/capfile.h>
 // For initers/finiters
@@ -78,7 +79,7 @@ static struct {
     I(log),           I(ext),         I(redim_array),
     I(mallocer),      I(mutex),       I(plugins),
     I(hash),          I(proto),       I(fuzzing),
-    I(pkt_wait_list),
+    I(pkt_wait_list), I(ref),
     I(cap),           I(eth),         I(ip6),
     I(arp),           I(ip),          I(udp),
     I(icmpv6),        I(tcp),         I(icmp),

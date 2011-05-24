@@ -20,8 +20,8 @@ struct udp_proto_info {
 };
 
 // TODO: inline them ?
-struct mux_subparser *udp_subparser_and_parser_new(struct parser *parser, struct proto *proto, struct parser *requestor, uint16_t src, uint16_t dst, unsigned way, struct timeval const *now);
-struct mux_subparser *udp_subparser_lookup(struct parser *parser, struct proto *proto, struct parser *requestor, uint16_t src, uint16_t dst, unsigned way, struct timeval const *now);
+struct mux_subparser *udp_subparser_and_parser_new(struct parser *parser, struct proto *proto, struct proto *requestor, uint16_t src, uint16_t dst, unsigned way, struct timeval const *now);
+struct mux_subparser *udp_subparser_lookup(struct parser *parser, struct proto *proto, struct proto *requestor, uint16_t src, uint16_t dst, unsigned way, struct timeval const *now);
 
 extern struct port_muxer_list udp_port_muxers;
 

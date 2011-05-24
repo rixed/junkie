@@ -40,7 +40,7 @@ struct ip_proto_info {
 /// Look for the mux_subparser handling connections between IP addresses src and dst for given protocol
 /** if proto is given, then restrict the lookup to this proto, and creates a new one if not found.
  * @return NULL if not found and not asked to create a new one. */
-struct mux_subparser *ip_subparser_lookup(struct parser *parser, struct proto *proto, struct parser *requestor, unsigned protocol, struct ip_addr const *src, struct ip_addr const *dst, unsigned *way, struct timeval const *now);
+struct mux_subparser *ip_subparser_lookup(struct parser *parser, struct proto *proto, struct proto *requestor, unsigned protocol, struct ip_addr const *src, struct ip_addr const *dst, unsigned *way, struct timeval const *now);
 
 /// Only usefull for proto/ip6
 void const *ip_info_addr(struct proto_info const *, size_t *);

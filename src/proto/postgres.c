@@ -49,10 +49,10 @@ struct postgres_parser {
 
 static parse_fun pg_sbuf_parse;
 
-static int pg_parser_ctor(struct postgres_parser *pg_parser, struct proto *proto, struct timeval const *now)
+static int pg_parser_ctor(struct postgres_parser *pg_parser, struct proto *proto)
 {
     assert(proto == proto_postgres);
-    if (0 != parser_ctor(&pg_parser->parser, proto, now)) return -1;
+    if (0 != parser_ctor(&pg_parser->parser, proto)) return -1;
     pg_parser->phase = NONE;
     pg_parser->c2s_way = ~0U;    // unset
     if (0 != streambuf_ctor(&pg_parser->sbuf, pg_sbuf_parse, 30000)) return -1;
@@ -60,13 +60,13 @@ static int pg_parser_ctor(struct postgres_parser *pg_parser, struct proto *proto
     return 0;
 }
 
-static struct parser *pg_parser_new(struct proto *proto, struct timeval const *now)
+static struct parser *pg_parser_new(struct proto *proto)
 {
     MALLOCER(pg_parsers);
     struct postgres_parser *pg_parser = MALLOC(pg_parsers, sizeof(*pg_parser));
     if (! pg_parser) return NULL;
 
-    if (-1 == pg_parser_ctor(pg_parser, proto, now)) {
+    if (-1 == pg_parser_ctor(pg_parser, proto)) {
         FREE(pg_parser);
         return NULL;
     }

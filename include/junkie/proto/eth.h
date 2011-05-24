@@ -42,7 +42,7 @@ void eth_subproto_ctor(struct eth_subproto *eth_subproto, unsigned protocol, str
 void eth_subproto_dtor(struct eth_subproto *eth_subproto);
 
 /// Spawn a new eth parser for given vlan_id
-struct mux_subparser *eth_subparser_and_parser_new(struct parser *, struct proto *proto, struct parser *requestor, uint16_t vlan_id, struct timeval const *now);
+struct mux_subparser *eth_subparser_and_parser_new(struct parser *, struct proto *proto, struct proto *requestor, uint16_t vlan_id, struct timeval const *now);
 
 /// Convert an eth address into a displayable string
 char const *eth_addr_2_str(unsigned char const addr[ETH_ADDR_LEN]);

@@ -96,7 +96,7 @@ static void callids_2_sdps_timeout(struct timeval const *now)
 static int callid_2_sdp_ctor(struct callid_2_sdp *c2s, char const *call_id, struct timeval const *now)
 {
     SLOG(LOG_DEBUG, "Construct callid_2_sdp@%p for callid '%s'", c2s, call_id);
-    c2s->sdp_parser = proto_sdp->ops->parser_new(proto_sdp, now);
+    c2s->sdp_parser = proto_sdp->ops->parser_new(proto_sdp);
     if (! c2s->sdp_parser) return -1;
     memset(c2s->call_id, 0, sizeof c2s->call_id); // because it's used as a hash key
     snprintf(c2s->call_id, sizeof(c2s->call_id), "%s", call_id);
@@ -370,7 +370,7 @@ static enum proto_parse_status sip_parse(struct parser *parser, struct proto_inf
 
     struct parser *subparser = NULL;
 
-#define MIME_SDP "application/sdp"
+#   define MIME_SDP "application/sdp"
     if (
         (info.set_values & SIP_CALLID_SET) &&
         (info.set_values & SIP_LENGTH_SET) &&
@@ -398,7 +398,7 @@ static enum proto_parse_status sip_parse(struct parser *parser, struct proto_inf
         }
         if (c2s) subparser = c2s->sdp_parser;
     }
-#undef MIME_SDP
+#   undef MIME_SDP
 
     if (! subparser) goto fallback;
 

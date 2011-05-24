@@ -3,14 +3,16 @@
 #include <stdlib.h>
 #include <time.h>
 #include <stdbool.h>
+#undef NDEBUG
 #include <assert.h>
 #include <junkie/cpp.h>
 #include <junkie/tools/timeval.h>
 #include <junkie/tools/mallocer.h>
+#include <junkie/proto/pkt_wait_list.h>
+#include <junkie/proto/cap.h>
 #include <junkie/proto/eth.h>
 #include <junkie/proto/ip.h>
 #include <junkie/proto/udp.h>
-#include <junkie/proto/pkt_wait_list.h>
 #include "lib.h"
 
 /*
@@ -241,7 +243,7 @@ static unsigned nb_okfn_calls;
 static void setup(void)
 {
     timeval_set_now(&now);
-    eth_parser = proto_eth->ops->parser_new(proto_eth, &now);
+    eth_parser = proto_eth->ops->parser_new(proto_eth);
     assert(eth_parser);
     had_udp = false;
     nb_okfn_calls = 0;
@@ -320,8 +322,11 @@ int main(void)
     log_init();
     mallocer_init();
     pkt_wait_list_init();
+    ref_init();
+    cap_init();
     eth_init();
     ip_init();
+    ip6_init();
     udp_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("ip_reassembly_check.log");
@@ -332,8 +337,11 @@ int main(void)
     for (unsigned nb_rand = 0; nb_rand < 100; nb_rand++) random_check();
 
     udp_fini();
+    ip6_fini();
     ip_fini();
     eth_fini();
+    cap_fini();
+    ref_fini();
     pkt_wait_list_fini();
     mallocer_fini();
     log_fini();

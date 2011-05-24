@@ -7,6 +7,7 @@ dist_pkgsysconf_DATA = \
 	snmp-subagt.scm \
 	start-snmp.scm \
 	start-repl.scm \
+	start-resizer.scm \
 	junkie.rlwrap \
 	report-simult.scm
 

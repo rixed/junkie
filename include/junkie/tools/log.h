@@ -37,7 +37,7 @@ void slog(int priority, char const *filename, char const *funcname, char* fmt, .
 #define SLOG_HEX(prio, buf, size) do { \
     if (LOG_CAT.level >= prio) slog_hex(prio, __FILE__, __func__, buf, size); \
 } while (/*CONSTCOND*/0)
-void slog_hex(int priority, char *buf, char const *filename, char const *funcname, size_t size);
+void slog_hex(int priority, char const *filename, char const *funcname, char *buf, size_t size);
 
 #define DIE(fmt, ...) do { \
         slog(LOG_EMERG, NULL, NULL, fmt, ##__VA_ARGS__); \
@@ -45,7 +45,7 @@ void slog_hex(int priority, char *buf, char const *filename, char const *funcnam
     } while (/*CONSTCOND*/0)
 
 #define FAIL(fmt, ...) do {                               \
-        char *str = tempstr_printf(fmt, ##__VA_ARGS__);   \
+        char unused_ *str = tempstr_printf(fmt, ##__VA_ARGS__);   \
         assert(!str);                                     \
 } while (/*CONSTCOND*/0)
 

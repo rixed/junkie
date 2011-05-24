@@ -15,6 +15,9 @@ struct mutex {
 };
 
 void mutex_lock(struct mutex *);
+/// Grab the two mutexes, first the one with smaller address.
+/** Useful to avoid some deadlocks. */
+void mutex_lock2(struct mutex *restrict, struct mutex *restrict);
 void mutex_unlock(struct mutex *);
 void mutex_ctor(struct mutex *, char const *name);
 void mutex_ctor_with_type(struct mutex *, char const *, int);

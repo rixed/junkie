@@ -32,6 +32,7 @@
 #include <junkie/tools/tempstr.h>
 #include <junkie/tools/mutex.h>
 #include <junkie/tools/queue.h>
+#include <junkie/tools/ref.h>
 #include <junkie/proto/cap.h>
 #include <junkie/proto/proto.h>
 #include <junkie/tools/ext.h>
@@ -44,10 +45,7 @@ static LIST_HEAD(pkt_sources, pkt_source) pkt_sources = LIST_HEAD_INITIALIZER(pk
 static struct mutex pkt_sources_lock;
 static volatile sig_atomic_t terminating = 0;
 
-// Giant Lock to ensure only one parse is running simultaneously (TODO: finer grained lock)
-static struct mutex cap_parser_lock;
-
-static struct parser *cap_parser = NULL;
+static struct parser *cap_parser;
 
 // A sequence to uniquely identifies pcap files with a numeric id (also protected with pkt_sources_lock)
 // Starts at 100 so that id below 100 are available for actual interfaces.
@@ -58,18 +56,17 @@ EXT_PARAM_RW(dup_detection_delay, "dup-detection-delay", int, "Number of microse
 
 static struct digest_queue *digests;
 
-// Som estats about the used of the digest queue. Protected with digest_stats_lock.
-static struct mutex digest_stats_lock;
-static uint_least64_t searched_digests, nb_dup_found, nb_nodup_found, nb_eol_found;
+// Some stats about the use of the digest queue. Protected with nb_digests lock.
+static uint_least64_t nb_dup_found, nb_nodup_found, nb_eol_found;
 
 static void reset_dedup_stats(void)
 {
-    searched_digests = nb_dup_found = nb_nodup_found = nb_eol_found = 0;
+    nb_dup_found = nb_nodup_found = nb_eol_found = 0;
 }
 
 static unsigned nb_digests = 100;
 // The seter is a little special as it rebuild the digest queue
-static struct ext_param ext_param_nb_digests;
+static struct ext_param ext_param_nb_digests;   // This lock protects the deduplication process globally (see frame_mirror_drop)
 static SCM g_ext_param_set_nb_digests(SCM v)
 {
     SCM ret = SCM_BOOL_F;
@@ -80,14 +77,8 @@ static SCM g_ext_param_set_nb_digests(SCM v)
     scm_dynwind_unwind_handler(pthread_mutex_unlock_, &ext_param_nb_digests.mutex, SCM_F_WIND_EXPLICITLY);
 
     unsigned new_nb_digests = scm_to_uint(v);
-    struct digest_queue *new_digests = digest_queue_new(new_nb_digests);
-    if (new_digests) {
-        // We must prevent anyone to use the digest queue!
-        mutex_lock(&cap_parser_lock);
-        scm_dynwind_unwind_handler(pthread_mutex_unlock_, &cap_parser_lock.mutex, SCM_F_WIND_EXPLICITLY);
-        if (digests) digest_queue_del(digests);
+    if (0 == digest_queue_resize(digests, new_nb_digests)) {
         nb_digests = new_nb_digests;
-        digests = new_digests;
         ret = SCM_BOOL_T;
     }
     scm_dynwind_end();
@@ -136,7 +127,7 @@ static char const *pkt_source_guile_name(struct pkt_source *pkt_source)
 
 /*
  * The possible sniffer threads
- * For now both iface anf files are treated the same.
+ * For now both iface and files are treated the same.
  */
 
 static int parser_callbacks(struct proto_info const *last, size_t tot_cap_len, uint8_t const *tot_packet)
@@ -150,47 +141,35 @@ static int parser_callbacks(struct proto_info const *last, size_t tot_cap_len, u
     return 0;
 }
 
-static void update_dedup_stats(unsigned nb_searched, unsigned dup_found, unsigned nodup_found, unsigned eol_found)
+// caller must own nb_digests lock
+static void update_dedup_stats(unsigned dup_found, unsigned nodup_found, unsigned eol_found)
 {
-    mutex_lock(&digest_stats_lock);
-    uint_least64_t const prev = searched_digests;
-    searched_digests += nb_searched;
-    if (searched_digests < prev) {
-        reset_dedup_stats();
-    }
     nb_dup_found += dup_found;
     nb_nodup_found += nodup_found;
     nb_eol_found += eol_found;
-    mutex_unlock(&digest_stats_lock);
 }
 
 // drop the frame if we previously saw it in the last 5ms.
-// owner must own cap_parser_lock
-static int frame_mirror_drop(struct frame *frame, struct digest_queue *q)
+static int frame_mirror_drop(struct frame *frame)
 {
     if (! dup_detection_delay) return 0;
 
     uint8_t digest[DIGEST_SIZE];
-    digest_frame(digest, frame);
+    digest_frame(digest, frame->cap_len, frame->data);
 
-    unsigned i;
-    for (i = 0; i < q->size; i++) {
-        int j = (q->idx - i + q->size) % q->size;
-
-        if (!timeval_is_set(&q->digests[j].tv) || timeval_sub(&frame->tv, &q->digests[j].tv) > dup_detection_delay)
-            break;
-
-        if (0 == memcmp(q->digests[j].digest, digest, DIGEST_SIZE)) {
-            q->digests[j].tv = frame->tv;
-            SLOG(LOG_DEBUG, "@%d -- Identical frame, possible duplicate", j);
-            update_dedup_stats(i, 1, 0, 0);
+    switch (digest_queue_find(digests, digest, &frame->tv, dup_detection_delay)) {
+        case DIGEST_MATCH:
+            update_dedup_stats(1, 0, 0);
             return 1;
-        }
+        case DIGEST_NOMATCH:
+            update_dedup_stats(0, 1, 0);
+            return 0;
+        case DIGEST_UNKNOWN:
+            update_dedup_stats(0, 0, 1);
+            return 0;
     }
 
-    update_dedup_stats(i, 0, i < q->size, i >= q->size);
-
-    digest_queue_push(q, digest, frame);
+    assert(!"Bad return value from digest_queue_find");
     return 0;
 }
 
@@ -205,22 +184,6 @@ static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, 
     pkt_source->nb_cap_bytes += header->caplen;
     pkt_source->nb_wire_bytes += header->len;
 
-    mutex_lock(&cap_parser_lock);
-
-    if (! cap_parser) {
-        cap_parser = proto_cap->ops->parser_new(proto_cap, &header->ts);
-        if (! cap_parser) {
-            SLOG(LOG_ERR, "Cannot construct capture parser");
-            mutex_unlock(&cap_parser_lock);
-            return;
-        }
-    }
-
-    // must own cap_parser_lock since we are going to lock all protos
-    unsigned nb_victims = proto_timeout(&header->ts);
-
-    if (nb_victims) SLOG(LOG_DEBUG, "Timeouted %u parsers", nb_victims);
-
     struct frame frame = {
         .tv = header->ts,
         .cap_len = header->caplen,
@@ -229,19 +192,18 @@ static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, 
         .data = (uint8_t *)packet,
     };
 
-    if (digests && frame_mirror_drop(&frame, digests)) {
-        SLOG(LOG_DEBUG, "Drop dupplicated packet");
+    if (frame_mirror_drop(&frame)) {
+        SLOG(LOG_DEBUG, "Drop duplicated packet");
         pkt_source->nb_duplicates ++;
-        mutex_unlock(&cap_parser_lock);
         return;
     }
 
-    // due to the frame structure, cap parser does not need cap_len nor wire_len
-    (void)proto_parse(cap_parser, NULL, 0, (uint8_t *)&frame, frame.cap_len, frame.wire_len, &header->ts, parser_callbacks, frame.cap_len, frame.data);
+    enter_unsafe_region();
 
-    mux_subparser_kill_doomed();
+    assert(cap_parser);
+    (void)proto_parse(cap_parser, NULL, 0, (uint8_t *)&frame, frame.cap_len, frame.wire_len, &frame.tv, parser_callbacks, frame.cap_len, frame.data);
 
-    mutex_unlock(&cap_parser_lock);
+    enter_safe_region();
 }
 
 static void pkt_source_del(struct pkt_source *);
@@ -257,7 +219,7 @@ static void *sniffer(struct pkt_source *pkt_source, pcap_handler callback)
             if (nb_packets != -2) {
                 SLOG(LOG_ERR, "Cannot pcap_dispatch on pkt_source %s: %s", pkt_source_name(pkt_source), pcap_geterr(pkt_source->pcap_handle));
             }
-            SLOG(LOG_INFO, "Stop sniffing on packet source %s (%"PRIuLEAST64" packets recieved)", pkt_source_name(pkt_source), pkt_source->nb_packets);
+            SLOG(LOG_INFO, "Stop sniffing on packet source %s (%"PRIuLEAST64" packets received)", pkt_source_name(pkt_source), pkt_source->nb_packets);
             pkt_source_del(pkt_source);
             return NULL;
         } else if (nb_packets == 0) {
@@ -319,7 +281,7 @@ static void *sniffer_rt(struct pkt_source *pkt_source, pcap_handler callback)
         callback((void *)pkt_source, pkt_hdr, packet);
     } while (1);
 
-    SLOG(LOG_INFO, "Stop sniffing on packet source %s (%"PRIuLEAST64" packets recieved)", pkt_source_name(pkt_source), pkt_source->nb_packets);
+    SLOG(LOG_INFO, "Stop sniffing on packet source %s (%"PRIuLEAST64" packets received)", pkt_source_name(pkt_source), pkt_source->nb_packets);
     pkt_source_del(pkt_source);
     return NULL;
 }
@@ -395,13 +357,14 @@ static int pkt_source_ctor(struct pkt_source *pkt_source, char const *name, pcap
     pkt_source->dev_id = dev_id;
     LIST_INSERT_HEAD(&pkt_sources, pkt_source, entry);
 
-    // FIXME: someone should care to pthread_join it at the end in order to release the few bytes storing the status (problem is the pkt_source is deleted in the spawned thread)
-    if (0 != pthread_create(&pkt_source->sniffer, NULL, sniffer, pkt_source)) {
-        SLOG(LOG_ERR, "Cannot start sniffer thread on pkt_source %s[?]@%p", pkt_source->name, pkt_source);  // Notice that pkt_source->instance is not inited yet
+    int err = pthread_create(&pkt_source->sniffer, NULL, sniffer, pkt_source);
+    if (err) {
+        SLOG(LOG_ERR, "Cannot start sniffer thread on pkt_source %s[?]@%p: %s", pkt_source->name, pkt_source, strerror(err));  // Notice that pkt_source->instance is not inited yet
         LIST_REMOVE(pkt_source, entry);
         ret = -1;
         goto unlock_quit;
     }
+    pthread_detach(pkt_source->sniffer);
 
 unlock_quit:
     mutex_unlock(&pkt_sources_lock);
@@ -696,14 +659,13 @@ err:
 static struct ext_function sg_dedup_stats;
 static SCM g_dedup_stats(void)
 {
-    mutex_lock(&digest_stats_lock);
+    EXT_LOCK(nb_digests);
     SCM ret = scm_list_n(
         scm_cons(scm_from_locale_symbol("dup-found"),         scm_from_uint64(nb_dup_found)),
         scm_cons(scm_from_locale_symbol("nodup-found"),       scm_from_uint64(nb_nodup_found)),
         scm_cons(scm_from_locale_symbol("end-of-list-found"), scm_from_uint64(nb_eol_found)),
-        scm_cons(scm_from_locale_symbol("searched-digests"),  scm_from_uint64(searched_digests)),
         SCM_UNDEFINED);
-    mutex_unlock(&digest_stats_lock);
+    EXT_UNLOCK(nb_digests);
 
     return ret;
 }
@@ -718,9 +680,7 @@ static SCM g_reset_dedup_stats(void)
 // The first thing to do when quitting is to stop parsing traffic
 void pkt_source_init(void)
 {
-    mutex_ctor(&cap_parser_lock, "parsers lock");
     mutex_ctor(&pkt_sources_lock, "pkt_sources");
-    mutex_ctor(&digest_stats_lock, "digest_stats");
     EXT_LOCK(nb_digests);
     digests = digest_queue_new(nb_digests);
     if (! digests) nb_digests = 0;
@@ -730,6 +690,8 @@ void pkt_source_init(void)
     ext_param_quit_when_done_init();
     ext_param_nb_digests_init();
     log_category_pkt_sources_init();
+
+    cap_parser = proto_cap->ops->parser_new(proto_cap);
 
     ext_function_ctor(&sg_list_ifaces,
         "list-ifaces", 0, 0, 0, g_list_ifaces,
@@ -758,8 +720,8 @@ void pkt_source_init(void)
 
     ext_function_ctor(&sg_open_pcap,
         "open-pcap", 1, 2, 0, g_open_pcap,
-        "(open-pcap \"pcap-file\"): read the content of this pcap file, fullspeed.\n"
-        "(open-pcap \"pcap-file\" #t): read this pcap file using its packet rate rather than fullspeed.\n"
+        "(open-pcap \"pcap-file\"): read the content of this pcap file, full speed.\n"
+        "(open-pcap \"pcap-file\" #t): read this pcap file using its packet rate rather than full speed.\n"
         "(open-pcap \"pcap-file\" #f \"filter\"): same as above, applying given filter.\n"
         "Will return #t or #f according to the status of the operation.\n"
         "See also (? 'open-iface)\n");
@@ -803,11 +765,7 @@ void pkt_source_fini(void)
         sleep(1);
     }
 
-    mutex_lock(&cap_parser_lock);
     if (cap_parser) cap_parser = parser_unref(cap_parser);
-    mutex_dtor(&digest_stats_lock);
-    mutex_unlock(&cap_parser_lock);
-    mutex_dtor(&cap_parser_lock);
     mutex_dtor(&pkt_sources_lock);
     if (digests) {
         digest_queue_del(digests);

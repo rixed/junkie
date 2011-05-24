@@ -1,0 +1,110 @@
+{
+   Guile's own business
+   Memcheck:Cond
+   obj:/usr/local/lib/libguile.so*
+   ...
+   obj:/usr/local/lib/libguile.so*
+}
+
+{
+   Guile's own mess of size 8
+   Memcheck:Value8
+   obj:/usr/local/lib/libguile.so*
+   ...
+   obj:/usr/local/lib/libguile.so*
+}
+
+{
+   Guile's own mess of size 4
+   Memcheck:Value4
+   obj:/usr/local/lib/libguile.so*
+   ...
+   obj:/usr/local/lib/libguile.so*
+}
+
+{
+   Guile's own lock issues
+   Helgrind:LockOrder
+   fun:pthread_mutex_lock
+   obj:/usr/local/lib/libguile.so*
+   ...
+   obj:/usr/local/lib/libguile.so*
+}
+
+{
+   Guile's own races
+   Helgrind:Race
+   obj:/usr/local/lib/libguile.so*
+   ...
+   obj:/usr/local/lib/libguile.so*
+}
+
+{
+   PTHREAD_ASSERT_LOCK in add_block relock
+   Helgrind:Misc
+   fun:pthread_mutex_lock
+   fun:add_block
+}
+
+{
+   PTHREAD_ASSERT_LOCK in add_block error
+   Helgrind:PthAPIerror
+   fun:pthread_mutex_lock
+   fun:add_block
+}
+
+{
+   PTHREAD_ASSERT_LOCK in rem_block relock
+   Helgrind:Misc
+   fun:pthread_mutex_lock
+   fun:rem_block
+}
+
+{
+   PTHREAD_ASSERT_LOCK in rem_block error
+   Helgrind:PthAPIerror
+   fun:pthread_mutex_lock
+   fun:rem_block
+}
+
+{
+   MD5 own race
+   Helgrind:Race
+   fun:OPENSSL_cleanse
+   fun:MD5
+   fun:digest_frame
+   fun:frame_mirror_drop
+}
+
+{
+   Building filter into uninitialized buffer is OK
+   Memcheck:Param
+   socketcall.setsockopt(optval)
+   fun:setsockopt
+   ...
+   fun:set_filter
+   fun:pkt_source_new_if
+}
+
+# The log_level is not protected. This is no big deal.
+{
+   set_log_level harmless lack of lock
+   Helgrind:Race
+   fun:log_set_level
+   ...
+}
+
+# Unfortunately, we must match helgrind messages using the stack frame
+# triggered the error, not the stack frame of the other thread that
+# previously setup the error. We have all loging functions that will
+# read log_level after set_log_level write it, so we would like to
+# match all errors _after_ a set_log_level. We can't. So here are just
+# the complete stack frames of the other threads that read log_level.
+
+{
+   update_dedup_stats not properly protected
+   Helgrind:Race
+   fun:update_dedup_stats
+   ...
+}
+

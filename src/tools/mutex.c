@@ -28,6 +28,8 @@
 #include <junkie/tools/tempstr.h>
 #include <junkie/tools/ext.h>
 
+static char const Id[] = "$Id$";
+
 LOG_CATEGORY_DEF(mutex)
 #undef LOG_CAT
 #define LOG_CAT mutex_log_category
@@ -48,6 +50,17 @@ void mutex_lock(struct mutex *mutex)
         SLOG(LOG_ERR, "Cannot lock %s: %s", mutex_name(mutex), strerror(err));
         // so be it
     }
+}
+
+void mutex_lock2(struct mutex *restrict m1, struct mutex *restrict m2)
+{
+    if (m1 > m2) {
+        struct mutex *restrict tmp = m1;
+        m1 = m2; m2 = tmp;
+    }
+
+    mutex_lock(m1);
+    mutex_lock(m2);
 }
 
 void mutex_unlock(struct mutex *mutex)

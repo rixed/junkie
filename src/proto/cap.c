@@ -67,7 +67,6 @@ static char const *cap_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-// See note below about packet_len
 static void cap_proto_info_ctor(struct cap_proto_info *info, struct parser *parser, struct proto_info *parent, struct frame const *frame)
 {
     proto_info_ctor(&info->info, parser, parent, sizeof(*frame), frame->wire_len);
@@ -80,7 +79,7 @@ static void cap_proto_info_ctor(struct cap_proto_info *info, struct parser *pars
  * Parser
  */
 
-struct mux_subparser *cap_subparser_and_parser_new(struct parser *parser, struct proto *proto, struct parser *requestor, uint8_t dev_id, struct timeval const *now)
+struct mux_subparser *cap_subparser_and_parser_new(struct parser *parser, struct proto *proto, struct proto *requestor, uint8_t dev_id, struct timeval const *now)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     return mux_subparser_and_parser_new(mux_parser, proto, requestor, collapse_ifaces ? &zero : &dev_id, now);
@@ -101,8 +100,10 @@ static enum proto_parse_status cap_parse(struct parser *parser, struct proto_inf
 
     if (! subparser) goto fallback;
 
-    if (0 != proto_parse(subparser->parser, &info.info, way, frame->data, frame->cap_len, frame->wire_len, now, okfn, tot_cap_len, tot_packet)) goto fallback;
-    return PROTO_OK;
+    enum proto_parse_status status = proto_parse(subparser->parser, &info.info, way, frame->data, frame->cap_len, frame->wire_len, now, okfn, tot_cap_len, tot_packet);
+    mux_subparser_unref(subparser);
+
+    if (status == PROTO_OK) return PROTO_OK;
 
 fallback:
     (void)proto_parse(NULL, &info.info, way, frame->data, frame->cap_len, frame->wire_len, now, okfn, tot_cap_len, tot_packet);

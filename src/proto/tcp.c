@@ -42,7 +42,7 @@ static char const Id[] = "$Id: f1e4973c1763a7a217c77b2e7a667edf3f209eb7 $";
 LOG_CATEGORY_DEF(proto_tcp);
 
 #define TCP_TIMEOUT 120
-#define TCP_HASH_SIZE 64
+#define TCP_HASH_SIZE 67
 
 /*
  * Proto Infos
@@ -124,6 +124,7 @@ struct tcp_subparser {
     uint32_t max_acknum[2];
     uint32_t isn[2];
     struct pkt_wait_list wl[2]; // for packets reordering. offsets will be relative to ISN
+    struct mutex mutex;         // protects this structure
     struct mux_subparser mux_subparser;
 };
 
@@ -134,6 +135,7 @@ static bool seqnum_gt(uint32_t sa, uint32_t sb)
     return diff < 0x80000000U && diff != 0;
 }
 
+// caller must own tcp_sub->mux_subparser.ref.mutex (ouf)
 static bool tcp_subparser_term(struct tcp_subparser const *tcp_sub)
 {
     return
@@ -141,12 +143,9 @@ static bool tcp_subparser_term(struct tcp_subparser const *tcp_sub)
         (tcp_sub->fin[1] && tcp_sub->ack[0] && seqnum_gt(tcp_sub->max_acknum[0], tcp_sub->fin_seqnum[1]));
 }
 
-static int tcp_subparser_ctor(struct tcp_subparser *tcp_subparser, struct mux_parser *mux_parser, struct parser *child, struct parser *requestor, void const *key)
+static int tcp_subparser_ctor(struct tcp_subparser *tcp_subparser, struct mux_parser *mux_parser, struct parser *child, struct proto *requestor, void const *key, struct timeval const *now)
 {
     SLOG(LOG_DEBUG, "Constructing TCP subparser @%p", tcp_subparser);
-
-    struct timeval now;
-    timeval_set_now(&now);
 
     CHECK_LAST_FIELD(tcp_subparser, mux_subparser, struct mux_subparser);
 
@@ -154,32 +153,34 @@ static int tcp_subparser_ctor(struct tcp_subparser *tcp_subparser, struct mux_pa
     tcp_subparser->ack[0] = tcp_subparser->ack[1] = false;
     tcp_subparser->syn[0] = tcp_subparser->syn[1] = false;
 
-    pkt_wait_list_timeout(&tcp_wl_config, &now);
-
-    if (0 != pkt_wait_list_ctor(tcp_subparser->wl+0, 0 /* relative to the ISN */, &tcp_wl_config, child, &now)) {
+    if (0 != pkt_wait_list_ctor(tcp_subparser->wl+0, 0 /* relative to the ISN */, &tcp_wl_config, child, now)) {
         return -1;
     }
 
-    if (0 != pkt_wait_list_ctor(tcp_subparser->wl+1, 0 /* relative to the ISN */, &tcp_wl_config, child, &now)) {
-        pkt_wait_list_dtor(tcp_subparser->wl+0, &now);
+    if (0 != pkt_wait_list_ctor(tcp_subparser->wl+1, 0 /* relative to the ISN */, &tcp_wl_config, child, now)) {
+        pkt_wait_list_dtor(tcp_subparser->wl+0, now);
         return -1;
     }
 
-    if (0 != mux_subparser_ctor(&tcp_subparser->mux_subparser, mux_parser, child, requestor, key)) {
-        pkt_wait_list_dtor(tcp_subparser->wl+0, &now);
-        pkt_wait_list_dtor(tcp_subparser->wl+1, &now);
+    mutex_ctor(&tcp_subparser->mutex, "TCP subparser");
+
+    // Now that everything is ready, make this subparser public
+    if (0 != mux_subparser_ctor(&tcp_subparser->mux_subparser, mux_parser, child, requestor, key, now)) {
+        pkt_wait_list_dtor(tcp_subparser->wl+0, now);
+        pkt_wait_list_dtor(tcp_subparser->wl+1, now);
+        mutex_dtor(&tcp_subparser->mutex);
         return -1;
     }
 
     return 0;
 }
 
-static struct mux_subparser *tcp_subparser_new(struct mux_parser *mux_parser, struct parser *child, struct parser *requestor, void const *key)
+static struct mux_subparser *tcp_subparser_new(struct mux_parser *mux_parser, struct parser *child, struct proto *requestor, void const *key, struct timeval const *now)
 {
     struct tcp_subparser *tcp_subparser = mux_subparser_alloc(mux_parser, sizeof(*tcp_subparser));
     if (! tcp_subparser) return NULL;
 
-    if (0 != tcp_subparser_ctor(tcp_subparser, mux_parser, child, requestor, key)) {
+    if (0 != tcp_subparser_ctor(tcp_subparser, mux_parser, child, requestor, key, now)) {
         FREE(tcp_subparser);
         return NULL;
     }
@@ -187,7 +188,7 @@ static struct mux_subparser *tcp_subparser_new(struct mux_parser *mux_parser, st
     return &tcp_subparser->mux_subparser;
 }
 
-struct mux_subparser *tcp_subparser_and_parser_new(struct parser *parser, struct proto *proto, struct parser *requestor, uint16_t src, uint16_t dst, struct timeval const *now)
+struct mux_subparser *tcp_subparser_and_parser_new(struct parser *parser, struct proto *proto, struct proto *requestor, uint16_t src, uint16_t dst, struct timeval const *now)
 {
     assert(parser->proto == proto_tcp);
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
@@ -206,6 +207,7 @@ static void tcp_subparser_dtor(struct tcp_subparser *tcp_subparser)
     pkt_wait_list_dtor(tcp_subparser->wl+1, &now);
 
     mux_subparser_dtor(&tcp_subparser->mux_subparser);
+    mutex_dtor(&tcp_subparser->mutex);
 }
 
 static void tcp_subparser_del(struct mux_subparser *mux_subparser)
@@ -226,7 +228,7 @@ static void tcp_key_init(struct tcp_key *key, uint16_t src, uint16_t dst, unsign
     }
 }
 
-struct mux_subparser *tcp_subparser_lookup(struct parser *parser, struct proto *proto, struct parser *requestor, uint16_t src, uint16_t dst, unsigned way, struct timeval const *now)
+struct mux_subparser *tcp_subparser_lookup(struct parser *parser, struct proto *proto, struct proto *requestor, uint16_t src, uint16_t dst, unsigned way, struct timeval const *now)
 {
     assert(parser->proto == proto_tcp);
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
@@ -300,6 +302,7 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
 
     // Keep track of TCP flags
     struct tcp_subparser *tcp_sub = DOWNCAST(subparser, mux_subparser, tcp_subparser);
+    mutex_lock(&tcp_sub->mutex);
     if (
         info.ack &&
         (!tcp_sub->ack[way] || seqnum_gt(info.ack_num, tcp_sub->max_acknum[way]))
@@ -337,13 +340,16 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
         err = proto_parse(NULL, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, wire_len - tcphdr_len, now, okfn, tot_cap_len, tot_packet);
     }
 
-    if (tcp_subparser_term(tcp_sub)) {
-        SLOG(LOG_DEBUG, "TCP cnx terminated (was %s)", parser_name(subparser->parser));
-        tcp_subparser_del(subparser);
-    }
+    bool const term = tcp_subparser_term(tcp_sub);
+    mutex_unlock(&tcp_sub->mutex);
 
-    if (err != PROTO_OK) goto fallback;
-    return PROTO_OK;
+    if (term) {
+        SLOG(LOG_DEBUG, "TCP cnx terminated (was %s)", parser_name(subparser->parser));
+        mux_subparser_deindex(subparser);
+    }
+    mux_subparser_unref(subparser);
+
+    if (err == PROTO_OK) return PROTO_OK;
 
 fallback:
     (void)proto_parse(NULL, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, wire_len - tcphdr_len, now, okfn, tot_cap_len, tot_packet);

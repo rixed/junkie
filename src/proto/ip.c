@@ -42,8 +42,8 @@ static char const Id[] = "$Id: 003ae93bbf458d21ffd9582b447feb9019b93405 $";
 
 LOG_CATEGORY_DEF(proto_ip);
 
-#define IP_TIMEOUT (60*60)
-#define IP_HASH_SIZE 10000
+#define IP_TIMEOUT (10*60)
+#define IP_HASH_SIZE 30011 /* with a max collision rate of 16 we can store 30k*16*2=approx 1M simultaneous IP addr pairs */
 
 static bool reassembly_enabled = true;
 EXT_PARAM_RW(reassembly_enabled, "ip-reassembly", bool, "Whether IP fragments reassembly is enabled or not.")
@@ -91,19 +91,24 @@ static void ip_proto_info_ctor(struct ip_proto_info *info, struct parser *parser
  */
 
 static LIST_HEAD(ip_subprotos, ip_subproto) ip_subprotos;
+static struct mutex ip_subprotos_mutex;
 
 void ip_subproto_ctor(struct ip_subproto *ip_subproto, unsigned protocol, struct proto *proto)
 {
     SLOG(LOG_DEBUG, "Adding proto %s for protocol value %u", proto->name, protocol);
     ip_subproto->protocol = protocol;
     ip_subproto->proto = proto;
+    mutex_lock(&ip_subprotos_mutex);
     LIST_INSERT_HEAD(&ip_subprotos, ip_subproto, entry);
+    mutex_unlock(&ip_subprotos_mutex);
 }
 
 void ip_subproto_dtor(struct ip_subproto *ip_subproto)
 {
     SLOG(LOG_DEBUG, "Removing proto %s for protocol value %u", ip_subproto->proto->name, ip_subproto->protocol);
+    mutex_lock(&ip_subprotos_mutex);
     LIST_REMOVE(ip_subproto, entry);
+    mutex_unlock(&ip_subprotos_mutex);
 }
 
 /*
@@ -142,10 +147,11 @@ struct ip_subparser {
         unsigned end_offset;        // only valid when got_last flag is set
         struct pkt_wait_list wl;    // only constructed when constructed flag is set
     } reassembly[4];
+    struct mutex mutex;             // To protect the reassembly machinery
     struct mux_subparser mux_subparser;
 };
 
-static int ip_subparser_ctor(struct ip_subparser *ip_subparser, struct mux_parser *mux_parser, struct parser *child, struct parser *requestor, void const *key)
+static int ip_subparser_ctor(struct ip_subparser *ip_subparser, struct mux_parser *mux_parser, struct parser *child, struct proto *requestor, void const *key, struct timeval const *now)
 {
     SLOG(LOG_DEBUG, "Construct an IP mux_subparser @%p", ip_subparser);
     CHECK_LAST_FIELD(ip_subparser, mux_subparser, struct mux_subparser);
@@ -155,15 +161,24 @@ static int ip_subparser_ctor(struct ip_subparser *ip_subparser, struct mux_parse
         ip_subparser->reassembly[r].constructed = 0;
         ip_subparser->reassembly[r].got_last = 0;
     }
-    return mux_subparser_ctor(&ip_subparser->mux_subparser, mux_parser, child, requestor, key);
+
+    mutex_ctor(&ip_subparser->mutex, "IP subparser");
+
+    // Now that everything is ready, make this subparser public
+    if (0 != mux_subparser_ctor(&ip_subparser->mux_subparser, mux_parser, child, requestor, key, now)) {
+        mutex_dtor(&ip_subparser->mutex);
+        return -1;
+    }
+
+    return 0;
 }
 
-static struct mux_subparser *ip_subparser_new(struct mux_parser *mux_parser, struct parser *child, struct parser *requestor, void const *key)
+static struct mux_subparser *ip_subparser_new(struct mux_parser *mux_parser, struct parser *child, struct proto *requestor, void const *key, struct timeval const *now)
 {
     struct ip_subparser *ip_subparser = mux_subparser_alloc(mux_parser, sizeof(*ip_subparser));
     if (! ip_subparser) return NULL;
 
-    if (0 != ip_subparser_ctor(ip_subparser, mux_parser, child, requestor, key)) {
+    if (0 != ip_subparser_ctor(ip_subparser, mux_parser, child, requestor, key, now)) {
         FREE(ip_subparser);
         return NULL;
     }
@@ -189,6 +204,7 @@ static void ip_subparser_dtor(struct ip_subparser *ip_subparser, struct timeval 
         ip_reassembly_dtor(ip_subparser->reassembly+r, now);
     }
     mux_subparser_dtor(&ip_subparser->mux_subparser);
+    mutex_dtor(&ip_subparser->mutex);
 }
 
 static void ip_subparser_del(struct mux_subparser *mux_subparser)
@@ -207,8 +223,6 @@ static int ip_reassembly_ctor(struct ip_reassembly *reassembly, struct parser *p
 {
     SLOG(LOG_DEBUG, "Constructing ip_reassembly@%p for parser %s", reassembly, parser_name(parser));
     assert(! reassembly->constructed);
-
-    pkt_wait_list_timeout(&ip_reassembly_config, now);
 
     if (0 != pkt_wait_list_ctor(&reassembly->wl, 0, &ip_reassembly_config, parser, now)) return -1;
     reassembly->id = id;
@@ -239,9 +253,7 @@ static struct ip_reassembly *ip_reassembly_lookup(struct ip_subparser *ip_subpar
     }
 
     if (last_unused == -1) {
-        static int target = 0;
-        last_unused = target;
-        target = (target+1) % NB_ELEMS(ip_subparser->reassembly);
+        last_unused = 0;    // a "random" value would be better
         SLOG(LOG_DEBUG, "No slot left on ip_reassembly, reusing slot at index %u", last_unused);
         ip_reassembly_dtor(ip_subparser->reassembly + last_unused, now);
     }
@@ -265,7 +277,7 @@ unsigned ip_key_ctor(struct ip_key *k, unsigned protocol, struct ip_addr const *
     return 1;
 }
 
-struct mux_subparser *ip_subparser_lookup(struct parser *parser, struct proto *proto, struct parser *requestor, unsigned protocol, struct ip_addr const *src, struct ip_addr const *dst, unsigned *way, struct timeval const *now)
+struct mux_subparser *ip_subparser_lookup(struct parser *parser, struct proto *proto, struct proto *requestor, unsigned protocol, struct ip_addr const *src, struct ip_addr const *dst, unsigned *way, struct timeval const *now)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct ip_key key;
@@ -338,6 +350,7 @@ static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info
 
     // Find subparser
 
+    mutex_lock(&ip_subprotos_mutex);
     struct mux_subparser *subparser = NULL;
     struct ip_subproto *subproto;
     LIST_FOREACH(subproto, &ip_subprotos, entry) {
@@ -349,6 +362,8 @@ static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info
             break;
         }
     }
+    mutex_unlock(&ip_subprotos_mutex);
+
     if (! subparser) {
         SLOG(LOG_DEBUG, "IPv4 protocol %u unknown", protocol);
         goto fallback;
@@ -357,28 +372,37 @@ static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info
     // If we have a fragment, maybe we can't parse payload right now
     if (is_fragment(iphdr) && reassembly_enabled) {
         struct ip_subparser *ip_subparser = DOWNCAST(subparser, mux_subparser, ip_subparser);
+        // Do not tolerate concurrent access from this point
+        mutex_lock(&ip_subparser->mutex);
         unsigned const offset = fragment_offset(iphdr);
         uint16_t id = READ_U16N(&iphdr->id);
         SLOG(LOG_DEBUG, "IP packet is a fragment of id %"PRIu16", offset=%u", id, offset);
         struct ip_reassembly *reassembly = ip_reassembly_lookup(ip_subparser, id, subparser->parser, now);
-        if (! reassembly) goto fallback;
+        if (! reassembly) goto unlock_fallback;
         assert(reassembly->in_use && reassembly->constructed);
         if (! (READ_U8(&iphdr->flags) & IP_MORE_FRAGS_MASK)) {
             reassembly->got_last = 1;
             reassembly->end_offset = offset + payload;
         }
         if (PROTO_OK != pkt_wait_list_add(&reassembly->wl, offset, offset + payload, false, &info.info, info.way, packet + iphdr_len, cap_payload, payload, now, okfn, tot_cap_len, tot_packet)) {
-            goto fallback;  // should not happen
+            goto unlock_fallback;  // should not happen
         }
         if (reassembly->got_last && pkt_wait_list_is_complete(&reassembly->wl, 0, reassembly->end_offset)) {
             reassemble(reassembly, parent, way, now, okfn, tot_cap_len, tot_packet);
         }
+        mutex_unlock(&ip_subparser->mutex);
+        mux_subparser_unref(subparser);
         return PROTO_OK;
+unlock_fallback:    // Beeeerk
+        mutex_unlock(&ip_subparser->mutex);
+        mux_subparser_unref(subparser);
+        goto fallback;
     }
 
     // Parse it at once
-    if (PROTO_OK != proto_parse(subparser->parser, &info.info, info.way, packet + iphdr_len, cap_payload, payload, now, okfn, tot_cap_len, tot_packet)) goto fallback;
-    return PROTO_OK;
+    enum proto_parse_status status = proto_parse(subparser->parser, &info.info, info.way, packet + iphdr_len, cap_payload, payload, now, okfn, tot_cap_len, tot_packet);
+    mux_subparser_unref(subparser);
+    if (status == PROTO_OK) return PROTO_OK;
 
 fallback:
     (void)proto_parse(NULL, &info.info, info.way, packet + iphdr_len, cap_payload, payload, now, okfn, tot_cap_len, tot_packet);
@@ -391,12 +415,14 @@ fallback:
 
 static struct mux_proto mux_proto_ip;
 struct proto *proto_ip = &mux_proto_ip.proto;
-static struct eth_subproto eth_subproto;
+static struct eth_subproto ip_eth_subproto;
 
 void ip_init(void)
 {
     log_category_proto_ip_init();
     ext_param_reassembly_enabled_init();
+    mutex_ctor(&ip_subprotos_mutex, "IPv4 subprotocols");
+    LIST_INIT(&ip_subprotos);
     pkt_wl_config_ctor(&ip_reassembly_config, "IP-reassembly", 65536, 100, 65536, 5 /* FRAGMENTATION TIMEOUT (second) */);
 
     static struct proto_ops const ops = {
@@ -411,16 +437,16 @@ void ip_init(void)
         .subparser_del = ip_subparser_del,
     };
     mux_proto_ctor(&mux_proto_ip, &ops, &mux_ops, "IPv4", IP_TIMEOUT, sizeof(struct ip_key), IP_HASH_SIZE);
-    eth_subproto_ctor(&eth_subproto, ETH_PROTO_IPv4, proto_ip);
-    LIST_INIT(&ip_subprotos);
+    eth_subproto_ctor(&ip_eth_subproto, ETH_PROTO_IPv4, proto_ip);
 }
 
 void ip_fini(void)
 {
     assert(LIST_EMPTY(&ip_subprotos));
-    eth_subproto_dtor(&eth_subproto);
+    eth_subproto_dtor(&ip_eth_subproto);
     mux_proto_dtor(&mux_proto_ip);
     pkt_wl_config_dtor(&ip_reassembly_config);
+    mutex_dtor(&ip_subprotos_mutex);
     ext_param_reassembly_enabled_fini();
     log_category_proto_ip_fini();
 }

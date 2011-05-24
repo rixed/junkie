@@ -1,45 +1,41 @@
 // -*- c-basic-offset: 4; c-backslash-column: 79; indent-tabs-mode: nil -*-
 // vim:sw=4 ts=4 sts=4 expandtab
 #include <stdlib.h>
+#undef NDEBUG
 #include <assert.h>
 #include <string.h>
 #include <stdint.h>
 #include "digest_queue.c"
 
-static void check_hash(uint8_t *raw, size_t size, size_t eth_extra_bytes)
+static void check_hash(uint8_t *data, size_t size, size_t eth_extra_bytes)
 {
-    struct frame frame;
-    frame.data = raw;
-    frame.cap_len = frame.wire_len = size;
-    frame.pkt_source = NULL;
-
     uint8_t hash1[BUFSIZE_TO_HASH] = "";
     uint8_t hash2[BUFSIZE_TO_HASH] = "";
 
-    digest_frame(hash1, &frame);
+    digest_frame(hash1, size, data);
     size_t iphdr_offset = ETHER_HEADER_SIZE + eth_extra_bytes;
 
     /* we modify a mac address, the hash shouldn't change */
-    frame.data[0] = 0xff;
-    digest_frame(hash2, &frame);
+    data[0] = 0xff;
+    digest_frame(hash2, size, data);
     assert(0 == memcmp(hash1, hash2, sizeof hash1));
 
     /* We change the TOS, the hash shouldn't change */
-    frame.data[iphdr_offset + IPV4_TOS_OFFSET] =
-        !frame.data[iphdr_offset + IPV4_TOS_OFFSET];
-    digest_frame(hash2, &frame);
+    data[iphdr_offset + IPV4_TOS_OFFSET] =
+        !data[iphdr_offset + IPV4_TOS_OFFSET];
+    digest_frame(hash2, size, data);
     assert(0 == memcmp(hash1, hash2, sizeof hash1));
 
     /* We change the IP Hdr checksum, the hash shouldn't change */
-    frame.data[iphdr_offset + IPV4_CHECKSUM_OFFSET] =
-        !frame.data[iphdr_offset + IPV4_CHECKSUM_OFFSET];
-    digest_frame(hash2, &frame);
+    data[iphdr_offset + IPV4_CHECKSUM_OFFSET] =
+        !data[iphdr_offset + IPV4_CHECKSUM_OFFSET];
+    digest_frame(hash2, size, data);
     assert(0 == memcmp(hash1, hash2, sizeof hash1));
 
     /* But if we change another value, the hash MUST change! */
-    frame.data[iphdr_offset + IPV4_SRC_HOST_OFFSET] =
-        !frame.data[iphdr_offset + IPV4_SRC_HOST_OFFSET];
-    digest_frame(hash2, &frame);
+    data[iphdr_offset + IPV4_SRC_HOST_OFFSET] =
+        !data[iphdr_offset + IPV4_SRC_HOST_OFFSET];
+    digest_frame(hash2, size, data);
     assert(0 != memcmp(hash1, hash2, sizeof hash1));
 }
 

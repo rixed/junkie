@@ -61,10 +61,10 @@ struct http_parser {
 
 static parse_fun http_sbuf_parse;
 
-static int http_parser_ctor(struct http_parser *http_parser, struct proto *proto, struct timeval const *now)
+static int http_parser_ctor(struct http_parser *http_parser, struct proto *proto)
 {
     assert(proto == proto_http);
-    if (0 != parser_ctor(&http_parser->parser, proto, now)) return -1;
+    if (0 != parser_ctor(&http_parser->parser, proto)) return -1;
     http_parser->state[0].phase = NONE;
     http_parser->state[1].phase = NONE;
     http_parser->c2s_way = ~0U;
@@ -74,13 +74,13 @@ static int http_parser_ctor(struct http_parser *http_parser, struct proto *proto
     return 0;
 }
 
-static struct parser *http_parser_new(struct proto *proto, struct timeval const *now)
+static struct parser *http_parser_new(struct proto *proto)
 {
     MALLOCER(http_parsers);
     struct http_parser *http_parser = MALLOC(http_parsers, sizeof(*http_parser));
     if (! http_parser) return NULL;
 
-    if (-1 == http_parser_ctor(http_parser, proto, now)) {
+    if (-1 == http_parser_ctor(http_parser, proto)) {
         FREE(http_parser);
         return NULL;
     }

@@ -2,6 +2,7 @@
 // vim:sw=4 ts=4 sts=4 expandtab
 #include <stdlib.h>
 #include <stdint.h>
+#undef NDEBUG
 #include <assert.h>
 #include <time.h>
 #include "lib.h"
@@ -29,7 +30,7 @@ void stress_check(struct proto *proto)
     log_set_level(LOG_ERR, NULL);
     srand(time(NULL));
 
-    struct parser *parser = proto->ops->parser_new(proto, &now);
+    struct parser *parser = proto->ops->parser_new(proto);
     assert(parser);
 
     for (unsigned nb_tests = 0; nb_tests < 10000 ; nb_tests ++) {

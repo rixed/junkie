@@ -1,6 +1,7 @@
 // -*- c-basic-offset: 4; c-backslash-column: 79; indent-tabs-mode: nil -*-
 // vim:sw=4 ts=4 sts=4 expandtab
 #include <stdlib.h>
+#undef NDEBUG
 #include <assert.h>
 #include <time.h>
 #include <junkie/cpp.h>
@@ -85,7 +86,7 @@ static void parse_check(void)
 {
     struct timeval now;
     timeval_set_now(&now);
-    struct parser *sdp_parser = proto_sdp->ops->parser_new(proto_sdp, &now);
+    struct parser *sdp_parser = proto_sdp->ops->parser_new(proto_sdp);
     assert(sdp_parser);
 
     for (cur_test = 0; cur_test < NB_ELEMS(parse_tests); cur_test++) {
@@ -101,6 +102,7 @@ int main(void)
 {
     log_init();
     mallocer_init();
+    ref_init();
     sdp_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("sdp_check.log");
@@ -109,6 +111,7 @@ int main(void)
     stress_check(proto_sdp);
 
     sdp_fini();
+    ref_fini();
     mallocer_fini();
     log_fini();
     return EXIT_SUCCESS;

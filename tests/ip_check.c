@@ -1,9 +1,13 @@
 // -*- c-basic-offset: 4; c-backslash-column: 79; indent-tabs-mode: nil -*-
 // vim:sw=4 ts=4 sts=4 expandtab
 #include <stdlib.h>
+#undef NDEBUG
 #include <assert.h>
 #include <junkie/cpp.h>
 #include <junkie/tools/mallocer.h>
+#include <junkie/proto/pkt_wait_list.h>
+#include <junkie/proto/cap.h>
+#include <junkie/proto/eth.h>
 #include "lib.h"
 #include "proto/ip.c"
 #define Id Idv6
@@ -94,9 +98,9 @@ static void parse_check(size_t cap_len_, size_t padding)
 {
     struct timeval now;
     timeval_set_now(&now);
-    struct parser *ip_parser = proto_ip->ops->parser_new(proto_ip, &now);
+    struct parser *ip_parser = proto_ip->ops->parser_new(proto_ip);
     assert(ip_parser);
-    struct parser *ip6_parser = proto_ip6->ops->parser_new(proto_ip, &now);
+    struct parser *ip6_parser = proto_ip6->ops->parser_new(proto_ip);
     assert(ip6_parser);
 
     for (current_test = 0; current_test < NB_ELEMS(parse_tests); current_test++) {
@@ -115,10 +119,14 @@ static void parse_check(size_t cap_len_, size_t padding)
 int main(void)
 {
     log_init();
+    mutex_init();
     mallocer_init();
+    pkt_wait_list_init();
+    ref_init();
+    cap_init();
+    eth_init();
     ip_init();
     ip6_init();
-    log_set_level(LOG_DEBUG, NULL);
     log_set_file("ip_check.log");
 
     parse_check(65535, 0);
@@ -131,7 +139,12 @@ int main(void)
 
     ip6_fini();
     ip_fini();
+    eth_fini();
+    cap_fini();
+    ref_fini();
+    pkt_wait_list_fini();
     mallocer_fini();
+    mutex_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

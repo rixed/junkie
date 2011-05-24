@@ -2,6 +2,7 @@
 // vim:sw=4 ts=4 sts=4 expandtab
 #include <stdlib.h>
 #include <stdio.h>
+#undef NDEBUG
 #include <assert.h>
 #include <junkie/proto/ip.h>
 #include <junkie/proto/port_muxer.h>

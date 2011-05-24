@@ -3,8 +3,10 @@
 #ifndef PKT_WAIT_LIST_H_101231
 #define PKT_WAIT_LIST_H_101231
 #include <stdbool.h>
+#include <junkie/config.h>
 #include <junkie/tools/queue.h>
 #include <junkie/tools/timeval.h>
+#include <junkie/tools/mutex.h>
 #include <junkie/proto/proto.h>
 
 /** @file
@@ -80,14 +82,22 @@ struct pkt_wait {
 };
 
 struct pkt_wl_config {
-    /// The list of struct pkt_wait_list, in LRU-first order.
-    TAILQ_HEAD(pkt_wait_list_list, pkt_wait_list) list;
-    /// Size of the previous list
-    unsigned length;
+    struct pkt_wl_config_list {
+        /// The list of struct pkt_wait_list, in LRU-first order.
+        TAILQ_HEAD(pkt_wait_list_list, pkt_wait_list) list;
+        /// The mutex that protects the above list
+        struct mutex mutex;
+    } lists[CPU_MAX];
     /// Entry in the list of all pkt_wl_configs
     SLIST_ENTRY(pkt_wl_config) entry;
+    /// A sequence to choose a lists at random
+    unsigned list_seqnum;
     /// A name to find it from guile
     char const *name;
+#   ifndef __GNUC__
+    /// The following fields must be read/set atomicaly
+    struct mutex atomic;
+#   endif
     /// To prevent reentry
     bool timeouting;
     /// Acceptable gap between two successive packets
@@ -106,7 +116,8 @@ void pkt_wl_config_ctor(
     unsigned acceptable_gap,        ///< Accept to enqueue a packet only if its not further away from previous one (0 for no check)
     unsigned nb_pkts_max,           ///< Max number of pending packets (0 for unlimited)
     size_t payload_max,             ///< Max pending payload (0 for unlimited)
-    unsigned timeout);              ///< Timeout these pkt_wait_lists after this number of seconds (0 for no timeout)
+    unsigned timeout                ///< Timeout these pkt_wait_lists after this number of seconds (0 for no timeout)
+);
 
 void pkt_wl_config_dtor(struct pkt_wl_config *);
 
@@ -121,8 +132,10 @@ void pkt_wl_config_dtor(struct pkt_wl_config *);
 struct pkt_wait_list {
     /// The list of pkt_wait
     LIST_HEAD(pkt_waits, pkt_wait) pkts;
-    /// The global configuration for this pkt_wait_list
+    /// The global configuration for this pkt_wait_list (never changes during the lifetime of the object)
     struct pkt_wl_config *config;
+    /// The list into this config where this pkt_list is queued
+    struct pkt_wl_config_list *list;
     /// And the entry in this list
     TAILQ_ENTRY(pkt_wait_list) entry;
     /// Current number of pending packets
@@ -185,10 +198,6 @@ uint8_t *pkt_wait_list_reassemble(struct pkt_wait_list *, unsigned start_offset,
 
 /// Removes a packet from a list, without calling the subparser.
 void pkt_wait_del(struct pkt_wait *, struct pkt_wait_list *);
-
-/// Call this from time to time to timeout the packets pending for too long.
-/** @note the lists are cleared but not deleted */
-unsigned pkt_wait_list_timeout(struct pkt_wl_config *config, struct timeval const *now);
 
 void pkt_wait_list_init(void);
 void pkt_wait_list_fini(void);

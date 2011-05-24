@@ -1,10 +1,15 @@
 // -*- c-basic-offset: 4; c-backslash-column: 79; indent-tabs-mode: nil -*-
 // vim:sw=4 ts=4 sts=4 expandtab
 #include <stdlib.h>
+#undef NDEBUG
 #include <assert.h>
 #include <junkie/cpp.h>
+#include <junkie/proto/cap.h>
+#include <junkie/proto/eth.h>
+#include <junkie/proto/ip.h>
 #include <junkie/proto/tcp.h>
 #include <junkie/tools/mallocer.h>
+#include <junkie/proto/pkt_wait_list.h>
 #include "lib.h"
 #include "proto/http.c"
 
@@ -246,7 +251,7 @@ static void parse_check(void)
 {
     struct timeval now;
     timeval_set_now(&now);
-    struct parser *parser = proto_http->ops->parser_new(proto_http, &now);
+    struct parser *parser = proto_http->ops->parser_new(proto_http);
     assert(parser);
 
     for (current_test = 0; current_test < NB_ELEMS(parse_tests); current_test++) {
@@ -311,7 +316,7 @@ static void caplen_check(void)
 
     struct timeval now;
     timeval_set_now(&now);
-    struct parser *http_parser = proto_http->ops->parser_new(proto_http, &now);
+    struct parser *http_parser = proto_http->ops->parser_new(proto_http);
     assert(http_parser);
 
     for (size_t cap_len = 9; cap_len < strlen(msg); cap_len++) {
@@ -327,6 +332,12 @@ int main(void)
     log_init();
     mallocer_init();
     proto_init();
+    pkt_wait_list_init();
+    ref_init();
+    cap_init();
+    eth_init();
+    ip_init();
+    ip6_init();
     tcp_init();
     http_init();
     log_set_level(LOG_DEBUG, NULL);
@@ -339,6 +350,12 @@ int main(void)
 
     http_fini();
     tcp_fini();
+    ip6_fini();
+    ip_fini();
+    eth_fini();
+    cap_fini();
+    ref_fini();
+    pkt_wait_list_fini();
     proto_fini();
     mallocer_fini();
     log_fini();
