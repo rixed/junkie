@@ -217,7 +217,7 @@ static void *sniffer(struct pkt_source *pkt_source, pcap_handler callback)
         SLOG(LOG_DEBUG, "Got a batch of %d packets", nb_packets);
         if (nb_packets < 0) {
             if (nb_packets != -2) {
-                SLOG(LOG_ERR, "Cannot pcap_dispatch on pkt_source %s: %s", pkt_source_name(pkt_source), pcap_geterr(pkt_source->pcap_handle));
+                SLOG(LOG_ALERT, "Cannot pcap_dispatch on pkt_source %s: %s", pkt_source_name(pkt_source), pcap_geterr(pkt_source->pcap_handle));
             }
             SLOG(LOG_INFO, "Stop sniffing on packet source %s (%"PRIuLEAST64" packets received)", pkt_source_name(pkt_source), pkt_source->nb_packets);
             pkt_source_del(pkt_source);
