@@ -1,10 +1,16 @@
 For a detailed Changelog, see git logs.
 Here are only reported the most visible changes.
 
-New in X.X.X (since 1.0.0)
+New in 1.1.0 (since 1.0.0)
 --------------------------
 
 * Support for IP fragmentation, TCP reordering and stream reassembly
 
 * Parsers for (some version of) PostgreSQL, MySQL and Oracle
+
+* HTTP parser is now statefull
+
+* Can replay pcap file at capture speed, can write pcap files (from C not Guile)
+
+* Few sample plugins and many fixes!
 
