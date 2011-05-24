@@ -47,7 +47,8 @@ int streambuf_ctor(struct streambuf *, parse_fun *parse, size_t max_size);
 void streambuf_dtor(struct streambuf *);
 
 /// When a parser want to be called later with (part of) current data
-/** @param wait wait for reception of more data before restarting */
+/** @param wait wait for reception of more data before restarting
+ *  @param way direction of the stream (@see struct mux_proto) */
 void streambuf_set_restart(struct streambuf *, unsigned way, uint8_t const *, bool wait);
 
 /// Add the new payload to the buffered payload, then call the parse callback

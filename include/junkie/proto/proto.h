@@ -103,7 +103,7 @@ enum proto_parse_status {
 typedef enum proto_parse_status parse_fun(
     struct parser *parser,      ///< The parser to hand over the payload to. If NULL okfn is called instead
     struct proto_info *parent,  ///< It's parent proto_info
-    unsigned way,               ///< Direction identifier (see struct mux_proto)
+    unsigned way,               ///< Direction identifier (@see struct mux_proto)
     uint8_t const *packet,      ///< Raw data to parse
     size_t cap_len,             ///< How many bytes are present in packet
     size_t wire_len,            ///< How many bytes were present on the wire
@@ -500,8 +500,8 @@ void mux_subparser_dtor(
 );
 
 /// Search (and optionally create) a subparser
-/** @note if you don't take additional care then the returned subparser might be deleted
- *        by the time you use it. */
+/* Note: if you don't take additional care then the returned subparser might be deleted
+ * by the time you use it. */
 struct mux_subparser *mux_subparser_lookup(
     struct mux_parser *parser,  ///< Look for a subparser of this mux_parser
     struct proto *create_proto, ///< If not found, create a new one that implements this proto
