@@ -256,8 +256,8 @@
            (colls    (assq-ref stats 'nb-collisions))
            (lookups  (assq-ref stats 'nb-lookups))
            (coll-avg (if (> lookups 0) (/ colls lookups) -1))
-           (resize   (lambda (new-h-size)
-                       (simple-format #t "Setting hash size of ~A to ~A\n" proto new-h-size)
+           (resize   (lambda (coll-avg new-h-size)
+                       (simple-format #t "Collision avg of ~A is ~A. Setting hash size to ~A\n" proto (exact->inexact coll-avg) new-h-size)
                        (set-mux-hash-size proto new-h-size)
                        (if (equal? new-h-size h-size-max)
                            (let ((max-children (* new-h-size coll-avg-max 2))) ; we won't grow any further so limit the number of children
@@ -265,10 +265,10 @@
                              (simple-format #t "   and limiting number of children to ~A\n" max-children))))))
       (if (< coll-avg coll-avg-min) ; then make future hashes smaller
           (if (> h-size h-size-min)
-              (resize (max h-size-min (round (/ h-size 2))))))
+              (resize coll-avg (max h-size-min (round (/ h-size 2))))))
       (if (> coll-avg coll-avg-max) ; then make future hashes bigger
           (if (< h-size h-size-max)
-              (resize (min h-size-max (* h-size 2))))))))
+              (resize coll-avg (min h-size-max (* h-size 2))))))))
 
 ; Functions to automatically calibrate the deduplication parameters
 

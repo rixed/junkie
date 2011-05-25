@@ -13,12 +13,14 @@
          (max-hash-size     353) ; so between two given hosts we can happily store 353*16*2=11k different sockets
          (limiter           (make-mux-hash-controller
                               min-collision-avg max-collision-avg min-hash-size max-hash-size))
-         (period            60)) ; will resize every minute
+         (period            60)) ; will resize every minutes (it's important to wait for the stats to settle)
     (set-thread-name "junkie-resizer")
     (let loop ()
       (sleep period)
       (limiter "TCP")
       (limiter "UDP")
+      (limiter "IPv4")
+      (limiter "IPv6")
       (loop))))
 
 (make-thread resizer-thread)
