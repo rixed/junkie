@@ -46,49 +46,57 @@ static void ftp_proto_info_ctor(struct ftp_proto_info *info, struct parser *pars
  * Parse
  */
 
-static void check_for_passv(struct ip_proto_info const *ip, struct proto *requestor, uint8_t const *packet, size_t packet_len, struct timeval const *now)
+static int parse_brokendown_addr(char const *data, char const *fmt, size_t rem_len, struct ip_addr *new_addr, uint16_t *new_port)
 {
-
-    // Merely check for passive mode transition
-#   define PASSV "Entering Passive Mode"
-    size_t const passv_len = strlen(PASSV);
-    char const *passv = memmem(packet, packet_len, PASSV, passv_len);
-    if (! passv) return;  // It may be FTP anyway
-    passv += strlen(PASSV);
-    size_t rem_len = packet_len - (passv - (char *)packet);
-
-    // Get advertised address for future cnx destination
-    if (rem_len >= 1 && *passv == '.') {
-        passv ++;
-        rem_len --;
-    }
-
-    // Don't bother if the remaining length is too short
-    if (rem_len < 14) return;
+    if (rem_len < 13) return -1;
 
     // Copy a reasonable amount so that we can null terminate it for sscanf
     char str[64];
     size_t copy_len = MIN(rem_len, sizeof(str)-1);
-    memcpy(str, passv, copy_len);
+    memcpy(str, data, copy_len);
     str[copy_len] = '\0';
 
     unsigned brok_ip[4], brok_port[2];
-    int const nb_matches = sscanf(str, " (%u,%u,%u,%u,%u,%u)",
+    int const nb_matches = sscanf(str, fmt,
         brok_ip+0, brok_ip+1, brok_ip+2, brok_ip+3,
         brok_port+0, brok_port+1);
-    if (nb_matches != 6) return;
+    if (nb_matches != 6) {
+        SLOG(LOG_DEBUG, "Cannot match format %s in payload", fmt);
+        return -1;
+    }
 
     // Build corresponding ip/tcp key segments
     uint8_t *a;
     uint32_t new_ip4;
-    uint16_t new_port;
     unsigned i;
     // The following work for any endianess
-    for (i = 0, a = (uint8_t *)&new_ip4;  i < NB_ELEMS(brok_ip); i++) a[i] = brok_ip[i];
-    for (i = 0, a = (uint8_t *)&new_port; i < NB_ELEMS(brok_port); i++) a[i] = brok_port[i];
+    for (i = 0, a = (uint8_t *)&new_ip4; i < NB_ELEMS(brok_ip); i++) a[i] = brok_ip[i];
+    for (i = 0, a = (uint8_t *)new_port; i < NB_ELEMS(brok_port); i++) a[i] = brok_port[i];
+    ip_addr_ctor_from_ip4(new_addr, new_ip4);
+    *new_port = ntohs(*new_port);
+
+    return 0;
+}
+
+static void check_for_pasv(struct ip_proto_info const *ip, struct proto *requestor, uint8_t const *packet, size_t packet_len, struct timeval const *now)
+{
+    // Merely check for passive mode transition
+#   define PASV "Entering Passive Mode"
+    size_t const pasv_len = strlen(PASV);
+    char const *pasv = memmem(packet, packet_len, PASV, pasv_len);
+    if (! pasv) return;
+    pasv += pasv_len;
+    size_t rem_len = packet_len - (pasv - (char *)packet);
+
+    // Get advertised address for future cnx destination
+    if (rem_len >= 1 && *pasv == '.') {
+        pasv ++;
+        rem_len --;
+    }
+
     struct ip_addr new_addr;
-    ip_addr_ctor_from_ip4(&new_addr, new_ip4);
-    new_port = ntohs(new_port);
+    uint16_t new_port;
+    if (0 != parse_brokendown_addr(pasv, " (%u,%u,%u,%u,%u,%u)", rem_len, &new_addr, &new_port)) return;
 
     SLOG(LOG_DEBUG, "New passive cnx to %s:%"PRIu16, ip_addr_2_str(&new_addr), new_port);
 
@@ -115,6 +123,46 @@ static void check_for_passv(struct ip_proto_info const *ip, struct proto *reques
         mux_subparser_unref(ftp_parser);
         mux_subparser_unref(tcp_parser);
     }
+#   undef PASV
+}
+
+static void check_for_port(struct ip_proto_info const *ip, struct tcp_proto_info const *tcp, struct proto *requestor, uint8_t const *packet, size_t packet_len, struct timeval const *now)
+{
+    // Merely check for passive mode transition
+#   define PORT_CMD "PORT "
+    size_t const cmd_len = strlen(PORT_CMD);
+    char const *cmd = memmem(packet, packet_len, PORT_CMD, cmd_len);
+    if (! cmd) return;
+    cmd += cmd_len;
+    size_t rem_len = packet_len - (cmd - (char *)packet);
+
+    struct ip_addr usr_addr;
+    uint16_t usr_port;
+    if (0 != parse_brokendown_addr(cmd, "%u,%u,%u,%u,%u,%u\r\n", rem_len, &usr_addr, &usr_port)) return;
+
+    SLOG(LOG_DEBUG, "New client data link on %s:%"PRIu16, ip_addr_2_str(&usr_addr), usr_port);
+
+    // So we are looking for a cnx from the destinator IP, port 20, and this IP and port.
+    unsigned way;
+    struct mux_subparser *tcp_parser = ip_subparser_lookup(
+        ip->info.parser, proto_tcp, NULL, ip->key.protocol,
+        ip->key.addr+1, // the actual FTP server IP
+        &usr_addr,      // advertised new user IP
+        &way,           // the way corresponding to client->server
+        now);
+    // ip_subparser_lookup() either created a TCP parser that will receive all traffic between these IP addresses
+    // (in either way), or returned us a previously created TCP parser already registered for these addresses.
+    // The way returned is the one that will match what we asked for (here client -> server)
+    if (tcp_parser) {
+        // So we must now add to this TCP parser a FTP subparser that will receive all traffic from this server
+        // port minus 1 to this port of the FTP user.
+        // Notice that we must take into account the way that will be used by the IP parser.
+        uint16_t const ftp_port = tcp->key.port[1]-1;
+        struct mux_subparser *ftp_parser = tcp_subparser_and_parser_new(tcp_parser->parser, proto_ftp, requestor, way == 0 ? ftp_port:usr_port, way == 0 ? usr_port:ftp_port, now);
+
+        mux_subparser_unref(ftp_parser);
+        mux_subparser_unref(tcp_parser);
+    }
 }
 
 static enum proto_parse_status ftp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
@@ -131,7 +179,8 @@ static enum proto_parse_status ftp_parse(struct parser *parser, struct proto_inf
     struct ftp_proto_info info;
     ftp_proto_info_ctor(&info, parser, parent, 0, wire_len);
 
-    check_for_passv(ip, parser->proto, packet, cap_len, now);
+    check_for_pasv(ip, parser->proto, packet, cap_len, now);
+    check_for_port(ip, tcp, parser->proto, packet, cap_len, now);
 
     return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
 }

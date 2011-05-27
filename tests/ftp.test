@@ -1,0 +1,10 @@
+#!/bin/sh
+
+NAME="FTP"
+PCAPS="pcap/ftp/ftp_port_cmd.pcap"
+filter() {
+	grep '^FTP' | cut -d' ' -f 2-
+}
+OUTPUT="ftp.out"
+
+. ./dump_test
