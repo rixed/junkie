@@ -23,7 +23,8 @@ extern struct proto *proto_eth;
 /// Ethernet frame
 struct eth_proto_info {
     struct proto_info info;                 ///< Header and payload sizes
-    unsigned vlan_id;                       ///< Vlan identifier
+#   define VLAN_UNSET (-1)
+    int vlan_id;                            ///< Vlan identifier (or VLAN_UNSET if unset)
     unsigned char addr[2][ETH_ADDR_LEN];    ///< src/dest MAC addresses
     unsigned protocol;                      ///< Embedded protocol
 };
@@ -42,7 +43,7 @@ void eth_subproto_ctor(struct eth_subproto *eth_subproto, unsigned protocol, str
 void eth_subproto_dtor(struct eth_subproto *eth_subproto);
 
 /// Spawn a new eth parser for given vlan_id
-struct mux_subparser *eth_subparser_and_parser_new(struct parser *, struct proto *proto, struct proto *requestor, uint16_t vlan_id, struct timeval const *now);
+struct mux_subparser *eth_subparser_and_parser_new(struct parser *, struct proto *proto, struct proto *requestor, int vlan_id, struct timeval const *now);
 
 /// Convert an eth address into a displayable string
 char const *eth_addr_2_str(unsigned char const addr[ETH_ADDR_LEN]);

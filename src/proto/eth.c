@@ -45,7 +45,7 @@ LOG_CATEGORY_DEF(proto_eth);
 
 static bool collapse_vlans = true;
 EXT_PARAM_RW(collapse_vlans, "collapse-vlans", bool, "Set to true if packets from distinct vlans share the same address range");
-static const uint16_t zero = 0;
+static const int vlan_unset = VLAN_UNSET;
 
 // Description of an Ethernet header
 struct eth_hdr {
@@ -80,7 +80,7 @@ static char const *eth_info_2_str(struct proto_info const *info_)
 {
     struct eth_proto_info const *info = DOWNCAST(info_, info, eth_proto_info);
     char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, vlan_id=%"PRIu16", source=%s, dest=%s, proto=%u",
+    snprintf(str, TEMPSTR_SIZE, "%s, vlan_id=%d, source=%s, dest=%s, proto=%u",
         proto_info_2_str(info_),
         info->vlan_id,
         eth_addr_2_str(info->addr[0]),
@@ -89,11 +89,11 @@ static char const *eth_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-static void eth_proto_info_ctor(struct eth_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, uint16_t proto, uint16_t vlan_id, struct eth_hdr const *ethhdr)
+static void eth_proto_info_ctor(struct eth_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, uint16_t proto, int vlan_id, struct eth_hdr const *ethhdr)
 {
     proto_info_ctor(&info->info, parser, parent, head_len, payload);
 
-    info->vlan_id = collapse_vlans ? zero : vlan_id;
+    info->vlan_id = collapse_vlans ? vlan_unset : vlan_id;
     ASSERT_COMPILE(sizeof(info->addr[0]) == sizeof(ethhdr->src));
     memcpy(info->addr[0], ethhdr->src, sizeof(info->addr[0]));
     ASSERT_COMPILE(sizeof(info->addr[1]) == sizeof(ethhdr->dst));
@@ -130,10 +130,10 @@ void eth_subproto_dtor(struct eth_subproto *eth_subproto)
  * Parse
  */
 
-struct mux_subparser *eth_subparser_and_parser_new(struct parser *parser, struct proto *proto, struct proto *requestor, uint16_t vlan_id, struct timeval const *now)
+struct mux_subparser *eth_subparser_and_parser_new(struct parser *parser, struct proto *proto, struct proto *requestor, int vlan_id, struct timeval const *now)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
-    return mux_subparser_and_parser_new(mux_parser, proto, requestor, collapse_vlans ? &zero : &vlan_id, now);
+    return mux_subparser_and_parser_new(mux_parser, proto, requestor, collapse_vlans ? &vlan_unset : &vlan_id, now);
 }
 
 static enum proto_parse_status eth_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
@@ -141,7 +141,7 @@ static enum proto_parse_status eth_parse(struct parser *parser, struct proto_inf
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct eth_hdr const *ethhdr = (struct eth_hdr *)packet;
     uint16_t h_proto = READ_U16N(&ethhdr->proto);
-    uint16_t vlan_id = 0;
+    int vlan_id = VLAN_UNSET;
     size_t ethhdr_len = sizeof(*ethhdr);
 
     // Sanity checks
@@ -186,7 +186,7 @@ static enum proto_parse_status eth_parse(struct parser *parser, struct proto_inf
         }
     }
     mutex_unlock(&eth_subprotos_mutex);
-    struct mux_subparser *subparser = mux_subparser_lookup(mux_parser, sub_proto, NULL, collapse_vlans ? &zero : &vlan_id, now);
+    struct mux_subparser *subparser = mux_subparser_lookup(mux_parser, sub_proto, NULL, collapse_vlans ? &vlan_unset : &vlan_id, now);
 
     if (! subparser) goto fallback;
 
@@ -222,7 +222,7 @@ void eth_init(void)
         .info_2_str = eth_info_2_str,
         .info_addr  = eth_info_addr,
     };
-    mux_proto_ctor(&mux_proto_eth, &ops, &mux_proto_ops, "Ethernet", ETH_TIMEOUT, sizeof(zero) /* vlan_id */, 8);
+    mux_proto_ctor(&mux_proto_eth, &ops, &mux_proto_ops, "Ethernet", ETH_TIMEOUT, sizeof(vlan_unset) /* vlan_id */, 8);
     LIST_INIT(&eth_subprotos);
 }
 
