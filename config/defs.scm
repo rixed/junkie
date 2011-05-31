@@ -170,9 +170,11 @@
     (list-ifaces)))
 
 (define (set-ifaces pattern)
-  (for-each
-    (lambda (ifname) (open-iface ifname #t "" bufsize))
-    (ifaces-matching pattern)))
+  (let ((bufsize (if (defined? 'bufsize) bufsize 0))
+        (caplen  (if (defined? 'caplen) caplen 0)))
+    (for-each
+      (lambda (ifname) (open-iface ifname #t "" caplen bufsize))
+      (ifaces-matching pattern))))
 
 (define (get-ifaces) (iface-names))
 
@@ -191,16 +193,19 @@
 ; Equivalent of set-ifaces for multiple CPUs
 (define (open-iface-multiple n . args)
   (let* ((ifname      (car args))
-         (promisc     (catch 'wrong-type-arg (lambda () (cadr  args)) (lambda (k . a) #t)))
-         (bufsize     (catch 'wrong-type-arg (lambda () (caddr args)) (lambda (k . a) bufsize)))
+         (promisc     (catch 'wrong-type-arg (lambda () (cadr   args)) (lambda (k . a) #t)))
+         (caplen      (catch 'wrong-type-arg (lambda () (caddr  args)) (lambda (k . a) 0)))
+         (bufsize     (catch 'wrong-type-arg (lambda () (cadddr args)) (lambda (k . a) 0)))
          (filters     (pcap-filters-for-split n))
-         (open-single (lambda (flt) (open-iface ifname promisc flt bufsize))))
+         (open-single (lambda (flt) (open-iface ifname promisc flt caplen bufsize))))
     (for-each open-single filters)))
 
 (define (set-ifaces-multiple n pattern)
-  (for-each
-    (lambda (ifname) (open-iface-multiple n ifname #t bufsize))
-    (ifaces-matching pattern)))
+  (let ((bufsize (if (defined? 'bufsize) bufsize 0))
+        (caplen  (if (defined? 'caplen) caplen 0)))
+    (for-each
+      (lambda (ifname) (open-iface-multiple n ifname #t caplen bufsize))
+      (ifaces-matching pattern))))
 
 ; (list-ifaces) will only report the currently mounted network devices.
 ; So we merely up all devices here. This works because we are the allmighty root.

@@ -441,11 +441,13 @@ static uint8_t dev_id_of_ifname(char const *ifname)
     return strtoul(c, NULL, 10);
 }
 
-static struct pkt_source *pkt_source_new_if(char const *ifname, bool promisc, char const *filter, int buffer_size)
+static struct pkt_source *pkt_source_new_if(char const *ifname, bool promisc, char const *filter, size_t snaplen, int buffer_size)
 {
     char errbuf[PCAP_ERRBUF_SIZE] = "";
 
     SLOG(LOG_INFO, "Opening pcap device '%s'%s with filter %s and buffer size %d", ifname, promisc ? " in promiscuous mode":"", filter ? filter:"NONE", buffer_size);
+
+    if (! snaplen) snaplen = 65535;
 
     pcap_t *handle = pcap_create(ifname, errbuf);
     if (! handle) {
@@ -463,8 +465,8 @@ static struct pkt_source *pkt_source_new_if(char const *ifname, bool promisc, ch
         goto err1;
     }
 
-    if (0 != pcap_set_snaplen(handle, 65535)) {
-        SLOG(LOG_ALERT, "Cannot maximize snaplen for packet source %s: %s", ifname, pcap_geterr(handle));
+    if (0 != pcap_set_snaplen(handle, snaplen)) {
+        SLOG(LOG_ALERT, "Cannot set snaplen to %zu for packet source %s: %s", snaplen, ifname, pcap_geterr(handle));
         goto err1;
     }
 
@@ -571,14 +573,15 @@ static struct pkt_source *pkt_source_of_scm(SCM ifname_)
 }
 
 static struct ext_function sg_open_iface;
-static SCM g_open_iface(SCM ifname_, SCM promisc_, SCM filter_, SCM buffer_size_)
+static SCM g_open_iface(SCM ifname_, SCM promisc_, SCM filter_, SCM snaplen_, SCM buffer_size_)
 {
     char *ifname = scm_to_tempstr(ifname_);
     bool const promisc = SCM_UNBNDP(promisc_) || scm_to_bool(promisc_);
     char const *filter = SCM_UNBNDP(filter_) ? NULL : scm_to_tempstr(filter_);
+    size_t const snaplen = SCM_UNBNDP(snaplen_) ? 0 : scm_to_size_t(snaplen_);
     int const buffer_size = SCM_UNBNDP(buffer_size_) ? 0 : scm_to_int(buffer_size_);
 
-    struct pkt_source *pkt_source = pkt_source_new_if(ifname, promisc, filter, buffer_size);
+    struct pkt_source *pkt_source = pkt_source_new_if(ifname, promisc, filter, snaplen, buffer_size);
     return pkt_source ? scm_from_locale_string(pkt_source_guile_name(pkt_source)) : SCM_UNSPECIFIED;
 }
 
@@ -701,14 +704,16 @@ void pkt_source_init(void)
         "See also (? 'open-iface) to start sniffing an interface.\n");
 
     ext_function_ctor(&sg_open_iface,
-        "open-iface", 1, 3, 0, g_open_iface,
+        "open-iface", 1, 4, 0, g_open_iface,
         "(open-iface \"iface-name\"): open the given iface, and set it in promiscuous mode.\n"
         "(open-iface \"iface-name\" #f): open the given iface without setting it\n"
         "    in promiscuous mode.\n"
         "(open-iface \"iface-name\" #t \"filter\"): open the given iface in promiscuous mode,\n"
         "    with the given packet filter.\n"
-        "(open-iface \"iface-name\" #t \"[filter]\" (* 10 1024 1024)): open the given iface,\n"
-        "    set it in promiscuous mode, apply the filter, and use a buffer size of 10Mb.\n"
+        "(open-iface \"iface-name\" #t \"filter\" 90): same as above, but capture only the first\n"
+        "    90 bytes of each packet. Use 0 for all bytes (the default).\n"
+        "(open-iface \"iface-name\" #t \"[filter]\" 90 (* 10 1024 1024)): same as above, using\n"
+        "    a buffer size of 10Mb (instead of system default).\n"
         "Will return #t or #f depending on the success of the operation.\n"
         "See also (? 'list-ifaces) to have a list of all openable ifaces,\n"
         "    and (? 'close-iface) to close a given iface\n");

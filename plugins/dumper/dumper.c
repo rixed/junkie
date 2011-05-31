@@ -21,6 +21,12 @@
 #include <stdio.h>
 #include <junkie/proto/proto.h>
 #include <junkie/cpp.h>
+#include <junkie/tools/cli.h>
+
+static bool display_caplen;
+static struct cli_opt dumper_opts[] = {
+    { { "show-caplen", NULL }, false, "Display the captured length", CLI_SET_BOOL, { .boolean = &display_caplen } },
+};
 
 // Default parse continuation :
 static void dump_frame_rec(struct proto_info const *info)
@@ -29,8 +35,9 @@ static void dump_frame_rec(struct proto_info const *info)
     printf("%s@%p: %s\n", info->parser->proto->name, info->parser, info->parser->proto->ops->info_2_str(info));
 }
 
-int parse_callback(struct proto_info const *last, size_t unused_ cap_len, uint8_t const unused_ *packet)
+int parse_callback(struct proto_info const *last, size_t cap_len, uint8_t const unused_ *packet)
 {
+    if (display_caplen) printf("Captured length: %zu\n", cap_len);
     dump_frame_rec(last);
     printf("\n");
     fflush(stdout);
@@ -40,9 +47,11 @@ int parse_callback(struct proto_info const *last, size_t unused_ cap_len, uint8_
 void on_load(void)
 {
     SLOG(LOG_INFO, "Dumper loaded");
+    (void)cli_register("dumper", dumper_opts, NB_ELEMS(dumper_opts));
 }
 
 void on_unload(void)
 {
     SLOG(LOG_INFO, "Dumper unloading");
+    (void)cli_unregister(dumper_opts);
 }
