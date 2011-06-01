@@ -500,8 +500,7 @@ void mux_subparser_dtor(
 );
 
 /// Search (and optionally create) a subparser
-/* Note: if you don't take additional care then the returned subparser might be deleted
- * by the time you use it. */
+/* Note: in both cases a new ref is returned. */
 struct mux_subparser *mux_subparser_lookup(
     struct mux_parser *parser,  ///< Look for a subparser of this mux_parser
     struct proto *create_proto, ///< If not found, create a new one that implements this proto

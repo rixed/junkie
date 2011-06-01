@@ -427,7 +427,7 @@ static void mux_subparsers_timeout(struct mux_proto *mux_proto, struct mux_subpa
     if (0 == timeout_s) return;
 
     // Beware that deletion of a subparser can lead to the creation of new parsers !
-    int64_t timeout = timeout_s * 1000000;
+    int64_t const timeout = timeout_s * 1000000;
     struct mux_subparser *subparser;
     unsigned count = 0;
     while (NULL != (subparser = TAILQ_FIRST(list))) {
@@ -543,7 +543,7 @@ struct mux_subparser *mux_subparser_lookup(struct mux_parser *mux_parser, struct
     struct mux_subparser *subparser;
     TAILQ_FOREACH(subparser, &list->list, entry) {
         if (
-            // FIXME: various kind of subparsers migh have the same key so we should include proto in any case,
+            // FIXME: various kind of subparsers might have the same key so we should include proto in any case,
             // whether or not we intend to create the child if not found (ie. use another flag for that).
             // But we cannot do that actually, because in case of contracking we want to find whatever the proto
             // registered the ports.
@@ -563,15 +563,10 @@ struct mux_subparser *mux_subparser_lookup(struct mux_parser *mux_parser, struct
     }
 
     if (nb_colls > 8) {
-        SLOG(nb_colls > 100 ? LOG_NOTICE : LOG_DEBUG, "%u collisions while looking for supparser of %s", nb_colls, mux_parser->parser.proto->name);
+        SLOG(nb_colls > 100 ? LOG_NOTICE : LOG_DEBUG, "%u collisions while looking for subparser of %s", nb_colls, mux_parser->parser.proto->name);
         if (unlikely_(nb_colls > 100)) {
-            SLOG(LOG_NOTICE, "Dump of first keys for h = %u :", h);
-            struct mux_subparser *s;
-            unsigned limit = 5;
-            TAILQ_FOREACH(s, &list->list, entry) {
-                SLOG_HEX(LOG_NOTICE, s->key, mux_proto->key_size);
-                if (limit-- == 0) break;
-            }
+            SLOG(LOG_NOTICE, "Dump of first key for h = %u :", h);
+            SLOG_HEX(LOG_NOTICE, TAILQ_FIRST(&list->list)->key, mux_proto->key_size);
         }
     }
 

@@ -63,6 +63,8 @@ static parse_fun http_sbuf_parse;
 
 static int http_parser_ctor(struct http_parser *http_parser, struct proto *proto)
 {
+    SLOG(LOG_DEBUG, "Construct HTTP parser@%p", http_parser);
+
     assert(proto == proto_http);
     if (0 != parser_ctor(&http_parser->parser, proto)) return -1;
     http_parser->state[0].phase = NONE;
@@ -90,6 +92,8 @@ static struct parser *http_parser_new(struct proto *proto)
 
 static void http_parser_dtor(struct http_parser *http_parser)
 {
+    SLOG(LOG_DEBUG, "Destruct HTTP parser@%p", http_parser);
+
     parser_dtor(&http_parser->parser);
     streambuf_dtor(&http_parser->sbuf);
 }
@@ -297,7 +301,9 @@ static enum proto_parse_status http_parse_body(struct http_parser *http_parser, 
 {
     // In this phase, either we known the content length and we skip it before returning to NONE phase,
     // or we don't know and we just skip everything.
-    SLOG(LOG_DEBUG, "Parsing body, remaining %zu bytes", http_parser->state[way].remaining_content);
+    SLOG(LOG_DEBUG, "Parsing body, remaining %zu bytes%s",
+        http_parser->state[way].remaining_content != UNKNOWN_REM_CONTENT ? http_parser->state[way].remaining_content : 0,
+        http_parser->state[way].remaining_content != UNKNOWN_REM_CONTENT ? "" : "(unset)");
 
     size_t const body_part =    // The part of wire_len that belongs to the current body
         http_parser->state[way].remaining_content == UNKNOWN_REM_CONTENT || http_parser->state[way].remaining_content > wire_len ?
