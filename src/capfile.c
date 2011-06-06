@@ -142,7 +142,7 @@ static void capfile_close(struct capfile *capfile)
 static int capfile_open(struct capfile *capfile, char const *path)
 {
     if (capture_files >= max_capture_files) {
-        SLOG(LOG_WARNING, "Cannot open new capture files: %u already opened", capture_files);
+        SLOG(LOG_INFO, "Cannot open new capture files: %u already opened", capture_files);
         return -1;
     }
 
