@@ -73,7 +73,7 @@
 
 
 (define (start-junkie-subagent)
-  (set-thread-name "junkie-snmp-subagent")
+  (set-thread-name "J-guile-snmp-subagt")
   (while #t
          (catch #t
                 (lambda ()

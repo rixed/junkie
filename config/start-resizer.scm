@@ -14,7 +14,7 @@
          (limiter           (make-mux-hash-controller
                               min-collision-avg max-collision-avg min-hash-size max-hash-size))
          (period            60)) ; will resize every minute (it's important to wait for the stats to settle)
-    (set-thread-name "junkie-resizer")
+    (set-thread-name "J-guile-resizer")
     (let loop ()
       (sleep period)
       (limiter "TCP")
