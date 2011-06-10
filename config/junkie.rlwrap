@@ -24,6 +24,7 @@ get-limit-packets
 get-limit-seconds
 get-log-file
 get-log-level
+get-mux-timeout
 get-nb-fuzzed-bits
 get-otherip-metric-enabled
 get-parameter-value
@@ -79,7 +80,7 @@ set-max-children
 set-mux-hash-size
 set-nb-fuzzed-bits
 set-otherip-metric-enabled
-set-proto-timeout
+set-mux-timeout
 set-sysfile-check
 set-tcp-metric-enabled
 set-udp-metric-enabled

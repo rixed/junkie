@@ -35,8 +35,6 @@ static char const Id[] = "$Id: a29b66d469dfd3519df7242ba7ab092d4330a4cf $";
 
 LOG_CATEGORY_DEF(proto_mgcp);
 
-#define MGCP_TIMEOUT 120
-
 /*
  * We implement our own parser in order to store an sdp_parser
  */
@@ -402,7 +400,7 @@ void mgcp_init(void)
         .info_2_str = mgcp_info_2_str,
         .info_addr  = mgcp_info_addr,
     };
-    proto_ctor(&proto_mgcp_, &ops, "MGCP", MGCP_TIMEOUT);
+    proto_ctor(&proto_mgcp_, &ops, "MGCP");
     port_muxer_ctor(&udp_port_muxer_gw, &udp_port_muxers, 2427, 2427, proto_mgcp);
     port_muxer_ctor(&udp_port_muxer_agent, &udp_port_muxers, 2727, 2727, proto_mgcp);
 }

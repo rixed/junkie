@@ -36,6 +36,9 @@ static char const Id[] = "$Id: 177ba6f85a03ac706a2bade616ed149d9394784d $";
 static unsigned nb_fuzzed_bits = 0;
 EXT_PARAM_RW(nb_fuzzed_bits, "nb-fuzzed-bits", uint, "Max number of bits to fuzz by protocolar layer (0 to disable fuzzing).")
 
+static unsigned mux_timeout = 120;
+EXT_PARAM_RW(mux_timeout, "mux-timeout", uint, "After how many seconds an unused multiplexer subparser may be deleted.")
+
 #undef LOG_CAT
 #define LOG_CAT proto_log_category
 
@@ -50,7 +53,7 @@ char const *parser_name(struct parser const *parser)
     return str;
 }
 
-void proto_ctor(struct proto *proto, struct proto_ops const *ops, char const *name, unsigned timeout)
+void proto_ctor(struct proto *proto, struct proto_ops const *ops, char const *name)
 {
     SLOG(LOG_DEBUG, "Constructing proto %s", name);
 
@@ -58,7 +61,6 @@ void proto_ctor(struct proto *proto, struct proto_ops const *ops, char const *na
     proto->name = name;
     proto->nb_frames = 0;
     proto->nb_bytes = 0;
-    proto->timeout = timeout;
     proto->fuzzed_times = 0;
     proto->nb_parsers = 0;
     LIST_INSERT_HEAD(&protos, proto, entry);
@@ -263,7 +265,7 @@ static void dummy_init(void)
         .parser_new = parser_new,
         .parser_del = parser_del,
     };
-    proto_ctor(&static_proto_dummy, &ops, "Dummy", 0);
+    proto_ctor(&static_proto_dummy, &ops, "Dummy");
 }
 
 static void dummy_fini(void)
@@ -427,7 +429,7 @@ static void mux_subparsers_timeout(struct mux_proto *mux_proto, struct mux_subpa
     if (0 == timeout_s) return;
 
     // Beware that deletion of a subparser can lead to the creation of new parsers !
-    int64_t const timeout = timeout_s * 1000000;
+    int64_t const timeout = timeout_s * 1000000LL;
     struct mux_subparser *subparser;
     unsigned count = 0;
     while (NULL != (subparser = TAILQ_FIRST(list))) {
@@ -441,7 +443,11 @@ static void mux_subparsers_timeout(struct mux_proto *mux_proto, struct mux_subpa
         count ++;
     }
 
+#   ifdef __GNUC__
+    (void)__sync_add_and_fetch(&mux_proto->nb_timeouts, count);
+#   else    // well, don't put to much trust in this then
     mux_proto->nb_timeouts += count;
+#   endif
 }
 
 static void mux_subparser_del_as_ref(struct ref *ref)
@@ -471,15 +477,12 @@ int mux_subparser_ctor(struct mux_subparser *subparser, struct mux_parser *mux_p
 
     mutex_lock(mutex);
 
-    mux_subparsers_timeout(mux_proto, &list->list, mux_parser->max_timeout, now);
+    mux_subparsers_timeout(mux_proto, &list->list, mux_timeout, now);
     if (too_many_children(mux_parser)) {
         try_sacrifice_child(mux_proto, list);
     }
 
     mux_subparser_index(subparser);
-
-    unsigned const new_timeout = subparser->parser->proto->timeout;
-    if (new_timeout && new_timeout > mux_parser->max_timeout) mux_parser->max_timeout = new_timeout;
 
     mutex_unlock(mutex);
 
@@ -636,7 +639,6 @@ int mux_parser_ctor(struct mux_parser *mux_parser, struct mux_proto *mux_proto)
 
     mux_parser->hash_size = mux_proto->hash_size;   // We start with this size of hash
     mux_parser->nb_max_children = mux_proto->nb_max_children;   // we copy it since the user may want to change this value for future mux_parsers
-    mux_parser->max_timeout = 0;
     mux_parser->nb_children = 0;
 
     for (unsigned h = 0; h < mux_parser->hash_size; h++) {
@@ -706,9 +708,9 @@ void mux_parser_del(struct parser *parser)
     FREE(mux_parser);
 }
 
-void mux_proto_ctor(struct mux_proto *mux_proto, struct proto_ops const *ops, struct mux_proto_ops const *mux_ops, char const *name, unsigned timeout, size_t key_size, unsigned hash_size)
+void mux_proto_ctor(struct mux_proto *mux_proto, struct proto_ops const *ops, struct mux_proto_ops const *mux_ops, char const *name, size_t key_size, unsigned hash_size)
 {
-    proto_ctor(&mux_proto->proto, ops, name, timeout);
+    proto_ctor(&mux_proto->proto, ops, name);
     mux_proto->ops = *mux_ops;
     mux_proto->hash_size = hash_size;
     mux_proto->key_size = key_size;
@@ -743,7 +745,7 @@ struct mux_proto_ops mux_proto_ops = {
 
 void uniq_proto_ctor(struct uniq_proto *uniq_proto, struct proto_ops const *ops, char const *name)
 {
-    proto_ctor(&uniq_proto->proto, ops, name, 0);
+    proto_ctor(&uniq_proto->proto, ops, name);
     uniq_proto->parser = NULL;
 }
 
@@ -843,22 +845,7 @@ static SCM g_proto_stats(SCM name_)
         scm_cons(scm_from_locale_symbol("nb-bytes"),   scm_from_int64(proto->nb_bytes)),
         scm_cons(scm_from_locale_symbol("nb-parsers"), scm_from_uint(proto->nb_parsers)),
         scm_cons(scm_from_locale_symbol("nb-fuzzed"),  scm_from_uint(proto->fuzzed_times)),
-        scm_cons(scm_from_locale_symbol("timeout"),    scm_from_uint(proto->timeout)),
         SCM_UNDEFINED);
-}
-
-static struct ext_function sg_proto_set_timeout;
-static SCM g_proto_set_timeout(SCM name_, SCM timeout_)
-{
-    struct proto *proto = proto_of_scm_name(name_);
-    if (! proto) return SCM_UNSPECIFIED;
-
-    unsigned const timeout = scm_to_uint(timeout_);
-    mutex_lock(&proto->lock);
-    proto->timeout = timeout;
-    mutex_unlock(&proto->lock);
-
-    return SCM_BOOL_T;
 }
 
 static struct ext_function sg_mux_proto_set_max_children;
@@ -895,6 +882,7 @@ void proto_init(void)
 {
     log_category_proto_init();
     ext_param_nb_fuzzed_bits_init();
+    ext_param_mux_timeout_init();
 
     ext_function_ctor(&sg_proto_stats,
         "proto-stats", 1, 0, 0, g_proto_stats,
@@ -929,19 +917,13 @@ void proto_init(void)
         "See also (? 'set-max-children) for setting the max number of allowed child for newly created parsers of a protocol.\n"
         "         (? 'mux-names) for a list of protocol names that are multiplexers.\n");
 
-    ext_function_ctor(&sg_proto_set_timeout,
-        "set-proto-timeout", 2, 0, 0, g_proto_set_timeout,
-        "(set-proto-timeout \"proto-name\" n): sets the number of seconds after which an unused parser for this proto is reclaimed.\n"
-        "A value of 0 disable timeouting of these parsers.\n"
-        "See also (? 'proto-names) for a list of availbale protocol names,\n"
-        "         (? 'proto-stats) for obtaining the current value.\n");
-
     dummy_init();
 }
 
 void proto_fini(void)
 {
     dummy_fini();
+    ext_param_mux_timeout_fini();
     ext_param_nb_fuzzed_bits_fini();
     log_category_proto_fini();
 }

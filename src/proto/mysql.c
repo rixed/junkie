@@ -33,8 +33,6 @@
 
 static char const Id[] = "$Id$";
 
-#define MYSQL_TIMEOUT (60 * 15)  // 15min should be enough for every request
-
 #undef LOG_CAT
 #define LOG_CAT proto_mysql_log_category
 
@@ -477,7 +475,7 @@ void mysql_init(void)
         .info_2_str = sql_info_2_str,
         .info_addr  = sql_info_addr,
     };
-    proto_ctor(&proto_mysql_, &ops, "MySQL", MYSQL_TIMEOUT);
+    proto_ctor(&proto_mysql_, &ops, "MySQL");
     port_muxer_ctor(&mysql_tcp_muxer, &tcp_port_muxers, 3306, 3306, proto_mysql);
 }
 

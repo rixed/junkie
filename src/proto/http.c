@@ -36,8 +36,6 @@
 
 static char const Id[] = "$Id: 0477d160214401d1ceeb489639cc1a86210de55d $";
 
-#define HTTP_TIMEOUT (60 * 3)  // 3min should be enough for every web server
-
 #undef LOG_CAT
 #define LOG_CAT proto_http_log_category
 
@@ -394,7 +392,7 @@ void http_init(void)
         .info_2_str = http_info_2_str,
         .info_addr  = http_info_addr,
     };
-    proto_ctor(&proto_http_, &ops, "HTTP", HTTP_TIMEOUT);
+    proto_ctor(&proto_http_, &ops, "HTTP");
     port_muxer_ctor(&tcp_port_muxer, &tcp_port_muxers, 80, 80, proto_http);
 }
 

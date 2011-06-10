@@ -31,8 +31,6 @@
 
 static char const Id[] = "$Id$";
 
-#define TNS_TIMEOUT (60 * 15)
-
 #undef LOG_CAT
 #define LOG_CAT proto_tns_log_category
 
@@ -430,7 +428,7 @@ void tns_init(void)
         .info_2_str = sql_info_2_str,
         .info_addr  = sql_info_addr,
     };
-    proto_ctor(&proto_tns_, &ops, "TNS", TNS_TIMEOUT);
+    proto_ctor(&proto_tns_, &ops, "TNS");
     port_muxer_ctor(&tns_tcp_muxer, &tcp_port_muxers, 1521, 1521, proto_tns);
 }
 

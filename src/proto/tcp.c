@@ -41,7 +41,6 @@ static char const Id[] = "$Id: f1e4973c1763a7a217c77b2e7a667edf3f209eb7 $";
 
 LOG_CATEGORY_DEF(proto_tcp);
 
-#define TCP_TIMEOUT 120
 #define TCP_HASH_SIZE 67
 
 /*
@@ -380,7 +379,7 @@ void tcp_init(void)
         .subparser_new = tcp_subparser_new,
         .subparser_del = tcp_subparser_del,
     };
-    mux_proto_ctor(&mux_proto_tcp, &ops, &mux_ops, "TCP", TCP_TIMEOUT, sizeof(struct tcp_key), TCP_HASH_SIZE);
+    mux_proto_ctor(&mux_proto_tcp, &ops, &mux_ops, "TCP", sizeof(struct tcp_key), TCP_HASH_SIZE);
     port_muxer_list_ctor(&tcp_port_muxers, "TCP muxers");
     ip_subproto_ctor(&ip_subproto, IPPROTO_TCP, proto_tcp);
     ip6_subproto_ctor(&ip6_subproto, IPPROTO_TCP, proto_tcp);

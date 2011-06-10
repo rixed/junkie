@@ -36,7 +36,6 @@ static char const udp_Id[] = "$Id: 0d4dcb20e67fb576b956de6ca7a66a15ccb9d583 $";
 
 LOG_CATEGORY_DEF(proto_udp);
 
-#define UDP_TIMEOUT 120
 #define UDP_HASH_SIZE 67
 
 /*
@@ -211,7 +210,7 @@ void udp_init(void)
         .info_2_str = udp_info_2_str,
         .info_addr  = udp_info_addr,
     };
-    mux_proto_ctor(&mux_proto_udp, &ops, &mux_proto_ops, "UDP", UDP_TIMEOUT, sizeof(struct udp_key), UDP_HASH_SIZE);
+    mux_proto_ctor(&mux_proto_udp, &ops, &mux_proto_ops, "UDP", sizeof(struct udp_key), UDP_HASH_SIZE);
     port_muxer_list_ctor(&udp_port_muxers, "UDP muxers");
 
     ip_subproto_ctor(&ip_subproto, IPPROTO_UDP, proto_udp);

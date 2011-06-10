@@ -141,8 +141,6 @@ struct proto {
     uint64_t nb_bytes;      ///< How many bytes this proto had on wire
     /// How many parsers of this proto exists
     unsigned nb_parsers;
-    /// Timeout for parsers of this proto (0 to disable timeouting)
-    unsigned timeout;
     /// Entry in the list of all registered protos
     LIST_ENTRY(proto) entry;
     /// Fuzzing statistics: number of time this proto has been fuzzed.
@@ -161,8 +159,7 @@ extern struct proto *proto_dummy;
 void proto_ctor(
     struct proto *proto,            ///< The proto to construct
     struct proto_ops const *ops,    ///< The ops structure of this implementation
-    char const *name,               ///< A name for the proto
-    unsigned timeout                ///< Any parser unused after that many seconds may be killed (0 for no timeout)
+    char const *name                ///< A name for the proto
 );
 
 /// Destruct a proto (some parsers may still be present after this if referenced by other parsers)
@@ -376,7 +373,6 @@ void mux_proto_ctor(
     struct proto_ops const *ops,    ///< The methods for this proto
     struct mux_proto_ops const *mux_ops,    ///< The methods specific to mux_proto
     char const *name,               ///< Protocol name
-    unsigned timeout,               ///< Timeout unused parsers after that many seconds
     size_t key_size,                ///< Size of the key used to identify subparsers
     unsigned hash_size              ///< Hash size for storing the subparsers
 );
@@ -445,7 +441,6 @@ struct mux_parser {
     struct parser parser;                                   ///< A mux_parser is a specialization of this parser
     unsigned hash_size;                                     ///< The hash size for this particular mux_parser (taken from mux_proto at creation time)
     unsigned nb_max_children;                               ///< The max number of children allowed (0 if not limited)
-    unsigned max_timeout;                                   ///< The longest timeout we have for our subparsers
     unsigned nb_children;                                   ///< Current number of children
     /// The hash of subparsers (Beware of the variable size)
     struct subparsers {

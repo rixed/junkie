@@ -34,7 +34,6 @@ static char const Id[] = "$Id: c1c50fb3b93381abf716bfa300605c930e937160 $";
 #undef LOG_CAT
 #define LOG_CAT proto_ip_log_category
 
-#define IP6_TIMEOUT (10*60)
 #define IP6_HASH_SIZE 30011 /* See ip.c */
 
 /*
@@ -170,7 +169,7 @@ void ip6_init(void)
         .info_2_str = ip_info_2_str,
         .info_addr  = ip_info_addr,
     };
-    mux_proto_ctor(&mux_proto_ip6, &ops, &mux_proto_ops, "IPv6", IP6_TIMEOUT, sizeof(struct ip_key), IP6_HASH_SIZE);
+    mux_proto_ctor(&mux_proto_ip6, &ops, &mux_proto_ops, "IPv6", sizeof(struct ip_key), IP6_HASH_SIZE);
     eth_subproto_ctor(&ip6_eth_subproto, ETH_PROTO_IPv6, proto_ip6);
 }
 
