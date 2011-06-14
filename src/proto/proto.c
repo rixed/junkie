@@ -332,7 +332,9 @@ static void mux_subparser_deindex_locked(struct mux_subparser *subparser)
     unsigned const unused_ n = __sync_fetch_and_sub(&subparser->mux_parser->nb_children, 1);
     assert(n > 0);
 #   else
-    subparser->mux_parser->nb_children --;  // better not take this too seriously then (we do not lock mux_parser because of possible deadlock)
+    mutex_lock(&subparser->mux_proto->proto.lock);
+    subparser->mux_parser->nb_children --;
+    mutex_unlock(&subparser->mux_proto->proto.lock);
 #   endif
     TAILQ_REMOVE(&list->list, subparser, entry);
     subparser->h_idx = NOT_HASHED;
@@ -369,7 +371,9 @@ static void mux_subparser_index(struct mux_subparser *subparser)
 #   if __GNUC__
     (void)__sync_fetch_and_add(&subparser->mux_parser->nb_children, 1);
 #   else
+    mutex_lock(&subparser->mux_proto->proto.lock);
     subparser->mux_parser->nb_children ++;
+    mutex_unlock(&subparser->mux_proto->proto.lock);
 #   endif
     (void)ref(&subparser->ref);
 }
@@ -617,13 +621,13 @@ void mux_subparser_change_key(struct mux_subparser *subparser, struct mux_parser
         // by the time the locks are acquired maybe another thread changed subparser->h_idx?
         if (h_idx == (unsigned volatile)subparser->h_idx) break;
         SLOG(LOG_WARNING, "Subparser list changed while waiting for list mutex");
-        mutex_unlock(cur_mutex);
-        mutex_unlock(new_mutex);
+        mutex_unlock2(cur_mutex, new_mutex);
     } while (1);
 
     // The caller is supposed to own a ref so we don't mind deindexing...
     // Remove
     mux_subparser_deindex_locked(subparser);
+    assert(subparser->ref.count > 0);
     // Change key
     memcpy(subparser->key, key, mux_proto->key_size);
     subparser->h_idx = new_h;
@@ -633,12 +637,12 @@ void mux_subparser_change_key(struct mux_subparser *subparser, struct mux_parser
     mutex_unlock(new_mutex);
 }
 
-int mux_parser_ctor(struct mux_parser *mux_parser, struct mux_proto *mux_proto)
+int mux_parser_ctor(struct mux_parser *mux_parser, struct mux_proto *mux_proto, unsigned hash_size, unsigned nb_max_children)
 {
     if (unlikely_(0 != parser_ctor(&mux_parser->parser, &mux_proto->proto))) return -1;
 
-    mux_parser->hash_size = mux_proto->hash_size;   // We start with this size of hash
-    mux_parser->nb_max_children = mux_proto->nb_max_children;   // we copy it since the user may want to change this value for future mux_parsers
+    mux_parser->hash_size = hash_size;
+    mux_parser->nb_max_children = nb_max_children;
     mux_parser->nb_children = 0;
 
     for (unsigned h = 0; h < mux_parser->hash_size; h++) {
@@ -649,20 +653,22 @@ int mux_parser_ctor(struct mux_parser *mux_parser, struct mux_proto *mux_proto)
     return 0;
 }
 
-size_t mux_parser_size(struct mux_proto *mux_proto)
+size_t mux_parser_size(unsigned hash_size)
 {
     struct mux_parser unused_ mux_parser;   // for the following sizeofs
-    return sizeof(mux_parser) + mux_proto->hash_size * sizeof(*mux_parser.subparsers);
+    return sizeof(mux_parser) + hash_size * sizeof(*mux_parser.subparsers);
 }
 
 struct parser *mux_parser_new(struct proto *proto)
 {
     MALLOCER(mux_parsers);
     struct mux_proto *mux_proto = DOWNCAST(proto, proto, mux_proto);
-    struct mux_parser *mux_parser = MALLOC(mux_parsers, mux_parser_size(mux_proto));
+    unsigned const hash_size = mux_proto->hash_size;  // so that we don't care if the size change between the malloc and the ctor
+    unsigned const nb_max_children = mux_proto->nb_max_children;
+    struct mux_parser *mux_parser = MALLOC(mux_parsers, mux_parser_size(hash_size));
     if (unlikely_(! mux_parser)) return NULL;
 
-    if (unlikely_(0 != mux_parser_ctor(mux_parser, mux_proto))) {
+    if (unlikely_(0 != mux_parser_ctor(mux_parser, mux_proto, hash_size, nb_max_children))) {
         FREE(mux_parser);
         return NULL;
     }

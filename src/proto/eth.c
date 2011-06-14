@@ -220,7 +220,7 @@ void eth_init(void)
         .info_2_str = eth_info_2_str,
         .info_addr  = eth_info_addr,
     };
-    mux_proto_ctor(&mux_proto_eth, &ops, &mux_proto_ops, "Ethernet", sizeof(vlan_unset) /* vlan_id */, 8);
+    mux_proto_ctor(&mux_proto_eth, &ops, &mux_proto_ops, "Ethernet", sizeof(vlan_unset) /* vlan_id */, 11);
     LIST_INIT(&eth_subprotos);
 }
 

@@ -439,7 +439,7 @@ struct mux_subparser {
  * See for instance the SIP parser for an actual example. */
 struct mux_parser {
     struct parser parser;                                   ///< A mux_parser is a specialization of this parser
-    unsigned hash_size;                                     ///< The hash size for this particular mux_parser (taken from mux_proto at creation time)
+    unsigned hash_size;                                     ///< The hash size for this particular mux_parser (taken from mux_proto at creation time, constant)
     unsigned nb_max_children;                               ///< The max number of children allowed (0 if not limited)
     unsigned nb_children;                                   ///< Current number of children
     /// The hash of subparsers (Beware of the variable size)
@@ -450,7 +450,7 @@ struct mux_parser {
 };
 
 /// @returns the size to be allocated before creating the mux_parser
-size_t mux_parser_size(struct mux_proto *mux_proto);
+size_t mux_parser_size(unsigned hash_size);
 
 /** If you overload struct mux_subparser, you might want to use this to allocate your
  * custom mux_subparser since its length depends on the key size. */
@@ -521,7 +521,7 @@ struct mux_subparser *mux_subparser_unref(struct mux_subparser *);
 void mux_subparser_deindex(struct mux_subparser *);
 
 /// Construct a mux_parser
-int mux_parser_ctor(struct mux_parser *mux_parser, struct mux_proto *mux_proto);
+int mux_parser_ctor(struct mux_parser *mux_parser, struct mux_proto *mux_proto, unsigned hash_size, unsigned nb_max_children);
 
 /// Destruct a mux_parser
 void mux_parser_dtor(struct mux_parser *parser);

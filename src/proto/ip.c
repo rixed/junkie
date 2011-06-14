@@ -265,6 +265,7 @@ static struct ip_reassembly *ip_reassembly_lookup(struct ip_subparser *ip_subpar
 
 unsigned ip_key_ctor(struct ip_key *k, unsigned protocol, struct ip_addr const *src, struct ip_addr const *dst)
 {
+    memset(k, 0, sizeof(*k));   // this struct uses some system wide structs that are not packed
     k->protocol = protocol;
     if (ip_addr_cmp(src, dst) <= 0) {
         k->addr[0] = *src;

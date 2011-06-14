@@ -127,7 +127,7 @@ void cap_init(void)
         .info_2_str = cap_info_2_str,
         .info_addr  = cap_info_addr,
     };
-    mux_proto_ctor(&mux_proto_cap, &ops, &mux_proto_ops, "Capture", sizeof(zero)/* device_id */, 8);
+    mux_proto_ctor(&mux_proto_cap, &ops, &mux_proto_ops, "Capture", sizeof(zero)/* device_id */, 11);
 }
 
 void cap_fini(void)
