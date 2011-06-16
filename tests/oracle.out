@@ -194,9 +194,9 @@ head_len=22, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
 head_len=134, payload=0, Clt->Srv, query, query='select * from regions'
 head_len=306, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
 head_len=112, payload=0, Clt->Srv, query
-head_len=407, payload=0, Srv->Clt, query, status=-1, nb_rows=0, nb_fields=512
+head_len=407, payload=0, Srv->Clt, query, status=-1, nb_rows=0, nb_fields=2
 head_len=21, payload=0, Clt->Srv, query
-head_len=221, payload=0, Srv->Clt, query, status=-1, nb_rows=0, nb_fields=512
+head_len=221, payload=0, Srv->Clt, query, status=-1, nb_rows=0, nb_fields=2
 head_len=13, payload=0, Clt->Srv, query
 head_len=17, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
 head_len=10, payload=0, Clt->Srv, exit

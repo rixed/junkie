@@ -310,13 +310,14 @@ static enum proto_parse_status tns_parse_data(struct tns_parser unused_ *tns_par
          * - 1 byte flags
          * - 1 byte num fields
          * - 1 byte iter num (?)
+         * - 1 byte skipped
          * - 2 bytes num iters this time (??)
          * - 2 bytes num rows */
-        if (cursor->cap_len < 7) return PROTO_PARSE_ERR;
+        if (cursor->cap_len < 8) return PROTO_PARSE_ERR;
         cursor_drop(cursor, 1); // skip the flags
-        info->u.query.nb_fields = cursor_read_u16n(cursor);
+        info->u.query.nb_fields = cursor_read_u8(cursor);
         info->set_values |= SQL_NB_FIELDS;
-        cursor_drop(cursor, 3); // skip iter things
+        cursor_drop(cursor, 4); // skip from iter num to num iters
         info->u.query.nb_rows = cursor_read_u16n(cursor);
         info->set_values |= SQL_NB_ROWS;
     } else if (info->is_query) {

@@ -23,7 +23,7 @@ for pcap in $PCAPS ; do
 	../src/junkie -p ../plugins/dumper/.libs/dumper.so -r "$pcap" | filter >> $output
 done
 
-if ! diff "$output" "$OUTPUT"; then
+if ! diff "$OUTPUT" "$output"; then
 	echo "Output differ from $OUTPUT ! (see actual output in $output)"
 	exit 1
 else
