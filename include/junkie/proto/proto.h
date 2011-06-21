@@ -360,8 +360,13 @@ struct mux_proto {
     uint64_t nb_lookups;            ///< Nb lookups in the hashes since last change of hash size
     uint64_t nb_timeouts;           ///< Nb subparsers timeouted from the hashes (ie. not how many parsers of this proto were timeouted!)
     /** A pool of mutexes so that we have enough for all the subparsers hash lines
-     * but not one per hash line (would be too much) */
-    struct mutex mutexes[CPU_MAX];
+     * but not one per hash line (would require too much memory). Also, we turn this
+     * into profit by having only a few timeout queues that can be visited often in order
+     * to timeout subparsers quickly. */
+    struct per_mutex {
+        struct mutex mutex;
+        TAILQ_HEAD(timeout_queue, mux_subparser) timeout_queue;
+    } mutexes[CPU_MAX];
 };
 
 /// Generic new/del functions for struct mux_subparser, suitable iff you do not overload mux_subparser
@@ -403,10 +408,11 @@ struct proto *proto_of_scm_name(SCM name);
  * @note Remember to add the packed_ attribute to your keys ! */
 struct mux_subparser {
     struct ref ref;
+    TAILQ_ENTRY(mux_subparser) to_entry;    ///< Its entry in its timeout queue (sorted in least recently used first)
+    LIST_ENTRY(mux_subparser) h_entry;      ///< Its entry in the hash (sorted in more recently used first - so that lookups are faster)
     struct parser *parser;                  ///< The actual parser
     struct timeval last_used;               ///< Last time we call it's parse method
     struct proto *requestor;                ///< The proto that requested its creation
-    TAILQ_ENTRY(mux_subparser) entry;       ///< Its entry in the hash (sorted in least recently used first)
     struct mux_parser *mux_parser;          ///< Backlink to our mux_parser
     struct mux_proto *mux_proto;            ///< Backlink to our mux_proto, for when mux_parser cannot be used (see mux_subparser_del_as_ref())
 #   define NOT_HASHED (~0U)
@@ -445,7 +451,7 @@ struct mux_parser {
     /// The hash of subparsers (Beware of the variable size)
     struct subparsers {
         /// These two fields are protected by one of the mux_proto->mutexes
-        TAILQ_HEAD(mux_subparsers, mux_subparser) list;     ///< The list of all subparsers with same hash value
+        LIST_HEAD(mux_subparsers, mux_subparser) list;      ///< The list of all subparsers with same hash value (least recently used last)
     } subparsers[];
 };
 
@@ -501,7 +507,7 @@ struct mux_subparser *mux_subparser_lookup(
     struct proto *create_proto, ///< If not found, create a new one that implements this proto
     struct proto *requestor,    ///< If creating, the proto that required its creation
     void const *key,            ///< The key to look for
-    struct timeval const *now   ///< The current time (required if create_proto is set)
+    struct timeval const *now   ///< The current time
 );
 
 /// Update the key of a subparser

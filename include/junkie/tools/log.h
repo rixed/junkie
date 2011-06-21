@@ -35,9 +35,9 @@ char const *log_get_file(void);
 void slog(int priority, char const *filename, char const *funcname, char* fmt, ...) a_la_printf_(4, 5);
 
 #define SLOG_HEX(prio, buf, size) do { \
-    if (LOG_CAT.level >= prio) slog_hex(prio, __FILE__, __func__, buf, size); \
+    if (LOG_CAT.level >= prio) slog_hex(prio, __FILE__, __func__, (unsigned char *)buf, size); \
 } while (/*CONSTCOND*/0)
-void slog_hex(int priority, char const *filename, char const *funcname, char *buf, size_t size);
+void slog_hex(int priority, char const *filename, char const *funcname, unsigned char *buf, size_t size);
 
 #define DIE(fmt, ...) do { \
         slog(LOG_EMERG, NULL, NULL, fmt, ##__VA_ARGS__); \
