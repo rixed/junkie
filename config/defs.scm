@@ -49,7 +49,6 @@
 ; Start a server that executes anything (from localhost only)
 (define (start-repl-server port . rest)
   (letrec ((consume-white-spaces (lambda (port)
-                                   (peek-char port)
                                    (let ((c (peek-char port)))
                                      (cond ((eqv? c #\eot) (begin
                                                              (display "Bye!\r\n")
