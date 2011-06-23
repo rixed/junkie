@@ -243,7 +243,8 @@ struct parser *parser_ref(struct parser *parser)
 struct parser *parser_unref(struct parser *parser)
 {
     if (parser) SLOG(LOG_DEBUG, "unref parser %s count=%u", parser_name(parser), parser->ref.count-1);
-    return DOWNCAST(unref(&parser->ref), ref, parser);
+    unref(&parser->ref);
+    return NULL;
 }
 
 /*

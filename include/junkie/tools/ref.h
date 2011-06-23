@@ -97,6 +97,7 @@ static inline void *unref(struct ref *ref)
          * But two threads may try to perform this at the same time for the same object !
          * (ex: thread 1 unref to 0, thread 2 ref from 0 to 1, then unref from 1 to 0, so queue the object,
          * then thread 1 is scheduled by and queue again the object onto the death row...)
+         * Or we merely unref a thing already on the death row (for instance while cascading deletion).
          * To handle this we merely check for NOT_IN_DEATH_ROW. */
         mutex_lock(&death_row_mutex);
         if (ref->entry.sle_next == NOT_IN_DEATH_ROW) SLIST_INSERT_HEAD(&death_row, ref, entry);
