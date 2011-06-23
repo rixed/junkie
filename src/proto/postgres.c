@@ -25,6 +25,7 @@
 #include <junkie/tools/log.h>
 #include <junkie/tools/tempstr.h>
 #include <junkie/tools/mallocer.h>
+#include <junkie/tools/mutex.h>
 #include <junkie/proto/proto.h>
 #include <junkie/proto/tcp.h>
 #include <junkie/proto/sql.h>
@@ -40,6 +41,7 @@ LOG_CATEGORY_DEF(proto_postgres);
 
 struct postgres_parser {
     struct parser parser;
+    struct mutex mutex;     // Essentially to protect the streambuf
     unsigned c2s_way;       // The way when traffic is going from client to server (~0U for unset)
     enum phase { NONE, STARTUP, QUERY, EXIT } phase;
     struct streambuf sbuf;
@@ -54,6 +56,7 @@ static int pg_parser_ctor(struct postgres_parser *pg_parser, struct proto *proto
     pg_parser->phase = NONE;
     pg_parser->c2s_way = ~0U;    // unset
     if (0 != streambuf_ctor(&pg_parser->sbuf, pg_sbuf_parse, 30000)) return -1;
+    mutex_ctor(&pg_parser->mutex, "postgresql");
 
     return 0;
 }
@@ -76,6 +79,7 @@ static void pg_parser_dtor(struct postgres_parser *pg_parser)
 {
     parser_dtor(&pg_parser->parser);
     streambuf_dtor(&pg_parser->sbuf);
+    mutex_dtor(&pg_parser->mutex);
 }
 
 static void pg_parser_del(struct parser *parser)
@@ -462,7 +466,11 @@ static enum proto_parse_status pg_parse(struct parser *parser, struct proto_info
 {
     struct postgres_parser *pg_parser = DOWNCAST(parser, parser, postgres_parser);
 
-    return streambuf_add(&pg_parser->sbuf, parser, parent, way, payload, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
+    mutex_lock(&pg_parser->mutex);
+    enum proto_parse_status const status = streambuf_add(&pg_parser->sbuf, parser, parent, way, payload, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
+    mutex_unlock(&pg_parser->mutex);
+
+    return status;
 }
 
 /*

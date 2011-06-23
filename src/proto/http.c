@@ -25,6 +25,7 @@
 #include <inttypes.h>
 #include <junkie/tools/tempstr.h>
 #include <junkie/tools/mallocer.h>
+#include <junkie/tools/mutex.h>
 #include <junkie/proto/tcp.h>
 #include <junkie/proto/http.h>
 #include <junkie/proto/streambuf.h>
@@ -43,6 +44,7 @@ LOG_CATEGORY_DEF(proto_http);
 
 struct http_parser {
     struct parser parser;
+    struct mutex mutex;     // Essentially to protect the streambuf
     unsigned c2s_way;   // The way when traffic is going from client to server (~0U for unset)
     struct streambuf sbuf;
     struct http_state {
@@ -70,6 +72,7 @@ static int http_parser_ctor(struct http_parser *http_parser, struct proto *proto
     http_parser->c2s_way = ~0U;
 #   define HTTP_MAX_HDR_SIZE 10000   // in bytes
     if (0 != streambuf_ctor(&http_parser->sbuf, http_sbuf_parse, HTTP_MAX_HDR_SIZE)) return -1;
+    mutex_ctor(&http_parser->mutex, "http");
 
     return 0;
 }
@@ -94,6 +97,7 @@ static void http_parser_dtor(struct http_parser *http_parser)
 
     parser_dtor(&http_parser->parser);
     streambuf_dtor(&http_parser->sbuf);
+    mutex_dtor(&http_parser->mutex);
 }
 
 static void http_parser_del(struct parser *parser)
@@ -370,7 +374,11 @@ static enum proto_parse_status http_parse(struct parser *parser, struct proto_in
 {
     struct http_parser *http_parser = DOWNCAST(parser, parser, http_parser);
 
-    return streambuf_add(&http_parser->sbuf, parser, parent, way, payload, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
+    mutex_lock(&http_parser->mutex);
+    enum proto_parse_status const status = streambuf_add(&http_parser->sbuf, parser, parent, way, payload, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
+    mutex_unlock(&http_parser->mutex);
+
+    return status;
 }
 
 /*

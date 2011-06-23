@@ -24,6 +24,7 @@
 #include <junkie/cpp.h>
 #include <junkie/tools/log.h>
 #include <junkie/tools/mallocer.h>
+#include <junkie/tools/mutex.h>
 #include <junkie/proto/tcp.h>
 #include <junkie/proto/sql.h>
 #include <junkie/proto/streambuf.h>
@@ -38,6 +39,7 @@ LOG_CATEGORY_DEF(proto_tns);
 
 struct tns_parser {
 	struct parser parser;
+    struct mutex mutex;     // Essentially to protect the streambuf
 	unsigned c2s_way;	// The way when traffic is going from client to server (~0U for unset)
     struct streambuf sbuf;
 };
@@ -50,6 +52,7 @@ static int tns_parser_ctor(struct tns_parser *tns_parser, struct proto *proto)
     if (0 != parser_ctor(&tns_parser->parser, proto)) return -1;
     tns_parser->c2s_way = ~0U;    // unset
     if (0 != streambuf_ctor(&tns_parser->sbuf, tns_sbuf_parse, 30000)) return -1;
+    mutex_ctor(&tns_parser->mutex, "TNS");
 
     return 0;
 }
@@ -72,6 +75,7 @@ static void tns_parser_dtor(struct tns_parser *tns_parser)
 {
     parser_dtor(&tns_parser->parser);
     streambuf_dtor(&tns_parser->sbuf);
+    mutex_dtor(&tns_parser->mutex);
 }
 
 static void tns_parser_del(struct parser *parser)
@@ -406,7 +410,11 @@ static enum proto_parse_status tns_parse(struct parser *parser, struct proto_inf
 {
     struct tns_parser *tns_parser = DOWNCAST(parser, parser, tns_parser);
 
-    return streambuf_add(&tns_parser->sbuf, parser, parent, way, payload, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
+    mutex_lock(&tns_parser->mutex);
+    enum proto_parse_status const status = streambuf_add(&tns_parser->sbuf, parser, parent, way, payload, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
+    mutex_unlock(&tns_parser->mutex);
+
+    return status;
 }
 
 /*
