@@ -778,9 +778,11 @@ static void mux_proto_timeout(struct mux_proto *mux_proto, struct timeval const 
     unsigned count = 0;
 
     for (unsigned m = 0; m < NB_ELEMS(mux_proto->mutexes); m++) {
+        enter_unsafe_region();
         mutex_lock(&mux_proto->mutexes[m].mutex);
         count += mux_subparsers_timeout(mux_proto, mux_proto->mutexes+m, mux_timeout, now);
         mutex_unlock(&mux_proto->mutexes[m].mutex);
+        enter_safe_region();
     }
 
     SLOG(LOG_INFO, "Timeouted %u subparsers of proto %s", count, mux_proto->proto.name);
