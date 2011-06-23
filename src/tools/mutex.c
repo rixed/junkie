@@ -52,6 +52,18 @@ void mutex_lock(struct mutex *mutex)
     }
 }
 
+void mutex_unlock(struct mutex *mutex)
+{
+    assert(mutex->name);
+    SLOG(LOG_DEBUG, "Unlocking %s", mutex_name(mutex));
+    int err = pthread_mutex_unlock(&mutex->mutex);
+    if (! err) {
+        SLOG(LOG_DEBUG, "Unlocked %s", mutex_name(mutex));
+    } else {
+        SLOG(LOG_ERR, "Cannot unlock %s: %s", mutex_name(mutex), strerror(err));
+    }
+}
+
 void mutex_lock2(struct mutex *restrict m1, struct mutex *restrict m2)
 {
     if (m1 > m2) {
@@ -63,16 +75,15 @@ void mutex_lock2(struct mutex *restrict m1, struct mutex *restrict m2)
     mutex_lock(m2);
 }
 
-void mutex_unlock(struct mutex *mutex)
+void mutex_unlock2(struct mutex *restrict m1, struct mutex *restrict m2)
 {
-    assert(mutex->name);
-    SLOG(LOG_DEBUG, "Unlocking %s", mutex_name(mutex));
-    int err = pthread_mutex_unlock(&mutex->mutex);
-    if (! err) {
-        SLOG(LOG_DEBUG, "Unlocked %s", mutex_name(mutex));
-    } else {
-        SLOG(LOG_ERR, "Cannot unlock %s: %s", mutex_name(mutex), strerror(err));
+    if (m1 > m2) {
+        struct mutex *restrict tmp = m1;
+        m1 = m2; m2 = tmp;
     }
+
+    mutex_unlock(m2);
+    mutex_unlock(m1);
 }
 
 void mutex_ctor_with_type(struct mutex *mutex, char const *name, int type)

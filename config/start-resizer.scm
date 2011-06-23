@@ -9,7 +9,7 @@
 (define (resizer-thread)
   (let* ((min-collision-avg 4)
          (max-collision-avg 16)  ; make this higher if you want to give more CPU time to reclaim RAM
-         (min-hash-size     5)
+         (min-hash-size     11)
          (max-hash-size     353) ; so between two given hosts we can happily store 353*16*2=11k different sockets
          (limiter           (make-mux-hash-controller
                               min-collision-avg max-collision-avg min-hash-size max-hash-size))

@@ -131,7 +131,7 @@ void slog(int priority, char const *filename, char const *funcname, char *fmt, .
     va_end(ap);
 }
 
-void slog_hex(int priority, char const *filename, char const *funcname, char *buf, size_t size)
+void slog_hex(int priority, char const *filename, char const *funcname, unsigned char *buf, size_t size)
 {
     char *str = tempstr();
 

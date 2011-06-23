@@ -42,8 +42,6 @@ static char const Id[] = "$Id: e9dc9dbf074ba863e946d13272c7f7ea15581dd6 $";
 
 LOG_CATEGORY_DEF(proto_sdp);
 
-#define SDP_TIMEOUT (5 * 60)
-
 struct sdp_parser {
     struct parser parser;
     // We remember the first host/port seen in order to init conntracking when the other one is received
@@ -291,7 +289,7 @@ void sdp_init(void)
         .info_2_str = sdp_info_2_str,
         .info_addr  = sdp_info_addr,
     };
-    proto_ctor(&proto_sdp_, &ops, "SDP", SDP_TIMEOUT);
+    proto_ctor(&proto_sdp_, &ops, "SDP");
 }
 
 void sdp_fini(void)

@@ -49,7 +49,6 @@
 ; Start a server that executes anything (from localhost only)
 (define (start-repl-server port . rest)
   (letrec ((consume-white-spaces (lambda (port)
-                                   (peek-char port)
                                    (let ((c (peek-char port)))
                                      (cond ((eqv? c #\eot) (begin
                                                              (display "Bye!\r\n")
@@ -214,18 +213,15 @@
   (let ((dir (opendir path)))
     (do ((entry (readdir dir) (readdir dir)))
       ((eof-object? entry))
-      (fun entry))
+      (if (not (string-match "^\\.\\.?$" entry))
+          (fun entry)))
     (closedir dir)))
 
 (define (up-all-ifaces)
-  (let* ((is-iface    (lambda (file)
-                        (not (string-match "^\\.\\.?$" file))))
-         (up-iface    (lambda (file)
+  (let* ((up-iface    (lambda (file)
                         (let ((cmd (simple-format #f "/sbin/ifconfig ~a up" file)))
-                          (system cmd))))
-         (up-if-iface (lambda (file)
-                        (if (is-iface file) (up-iface file)))))
-    (for-each-file-in "/sys/class/net" up-if-iface)))
+                          (system cmd)))))
+    (for-each-file-in "/sys/class/net" up-iface)))
 
 ; A simple function to check wether the agentx module is available or not
 (define have-snmp (false-if-exception (resolve-interface '(agentx tools))))
@@ -264,10 +260,7 @@
            (resize   (lambda (coll-avg new-h-size)
                        (simple-format #t "Collision avg of ~A is ~A. Setting hash size to ~A\n" proto (exact->inexact coll-avg) new-h-size)
                        (set-mux-hash-size proto new-h-size)
-                       (if (equal? new-h-size h-size-max)
-                           (let ((max-children (* new-h-size coll-avg-max 2))) ; we won't grow any further so limit the number of children
-                             (set-max-children proto max-children)
-                             (simple-format #t "   and limiting number of children to ~A\n" max-children))))))
+                       (set-max-children proto (* new-h-size coll-avg-max 10)))))
       (if (< coll-avg coll-avg-min) ; then make future hashes smaller
           (if (> h-size h-size-min)
               (resize coll-avg (max h-size-min (round (/ h-size 2))))))

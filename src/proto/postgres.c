@@ -33,8 +33,6 @@
 
 static char const Id[] = "$Id$";
 
-#define PG_TIMEOUT (60 * 15)  // 15min should be enough for every request
-
 #undef LOG_CAT
 #define LOG_CAT proto_postgres_log_category
 
@@ -486,7 +484,7 @@ void postgres_init(void)
         .info_2_str = sql_info_2_str,
         .info_addr  = sql_info_addr,
     };
-    proto_ctor(&proto_postgres_, &ops, "PostgreSQL", PG_TIMEOUT);
+    proto_ctor(&proto_postgres_, &ops, "PostgreSQL");
     port_muxer_ctor(&pg_tcp_muxer, &tcp_port_muxers, 5432, 5432, proto_postgres);
 }
 

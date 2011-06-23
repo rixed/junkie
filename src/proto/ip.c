@@ -42,7 +42,6 @@ static char const Id[] = "$Id: 003ae93bbf458d21ffd9582b447feb9019b93405 $";
 
 LOG_CATEGORY_DEF(proto_ip);
 
-#define IP_TIMEOUT (10*60)
 #define IP_HASH_SIZE 30011 /* with a max collision rate of 16 we can store 30k*16*2=approx 1M simultaneous IP addr pairs */
 
 static bool reassembly_enabled = true;
@@ -266,6 +265,7 @@ static struct ip_reassembly *ip_reassembly_lookup(struct ip_subparser *ip_subpar
 
 unsigned ip_key_ctor(struct ip_key *k, unsigned protocol, struct ip_addr const *src, struct ip_addr const *dst)
 {
+    memset(k, 0, sizeof(*k));   // this struct uses some system wide structs that are not packed
     k->protocol = protocol;
     if (ip_addr_cmp(src, dst) <= 0) {
         k->addr[0] = *src;
@@ -436,7 +436,7 @@ void ip_init(void)
         .subparser_new = ip_subparser_new,
         .subparser_del = ip_subparser_del,
     };
-    mux_proto_ctor(&mux_proto_ip, &ops, &mux_ops, "IPv4", IP_TIMEOUT, sizeof(struct ip_key), IP_HASH_SIZE);
+    mux_proto_ctor(&mux_proto_ip, &ops, &mux_ops, "IPv4", sizeof(struct ip_key), IP_HASH_SIZE);
     eth_subproto_ctor(&ip_eth_subproto, ETH_PROTO_IPv4, proto_ip);
 }
 

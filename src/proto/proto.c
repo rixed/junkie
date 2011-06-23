@@ -36,6 +36,9 @@ static char const Id[] = "$Id: 177ba6f85a03ac706a2bade616ed149d9394784d $";
 static unsigned nb_fuzzed_bits = 0;
 EXT_PARAM_RW(nb_fuzzed_bits, "nb-fuzzed-bits", uint, "Max number of bits to fuzz by protocolar layer (0 to disable fuzzing).")
 
+static unsigned mux_timeout = 120;
+EXT_PARAM_RW(mux_timeout, "mux-timeout", uint, "After how many seconds an unused multiplexer subparser may be deleted.")
+
 #undef LOG_CAT
 #define LOG_CAT proto_log_category
 
@@ -50,7 +53,7 @@ char const *parser_name(struct parser const *parser)
     return str;
 }
 
-void proto_ctor(struct proto *proto, struct proto_ops const *ops, char const *name, unsigned timeout)
+void proto_ctor(struct proto *proto, struct proto_ops const *ops, char const *name)
 {
     SLOG(LOG_DEBUG, "Constructing proto %s", name);
 
@@ -58,7 +61,6 @@ void proto_ctor(struct proto *proto, struct proto_ops const *ops, char const *na
     proto->name = name;
     proto->nb_frames = 0;
     proto->nb_bytes = 0;
-    proto->timeout = timeout;
     proto->fuzzed_times = 0;
     proto->nb_parsers = 0;
     LIST_INSERT_HEAD(&protos, proto, entry);
@@ -241,7 +243,8 @@ struct parser *parser_ref(struct parser *parser)
 struct parser *parser_unref(struct parser *parser)
 {
     if (parser) SLOG(LOG_DEBUG, "unref parser %s count=%u", parser_name(parser), parser->ref.count-1);
-    return DOWNCAST(unref(&parser->ref), ref, parser);
+    unref(&parser->ref);
+    return NULL;
 }
 
 /*
@@ -263,7 +266,7 @@ static void dummy_init(void)
         .parser_new = parser_new,
         .parser_del = parser_del,
     };
-    proto_ctor(&static_proto_dummy, &ops, "Dummy", 0);
+    proto_ctor(&static_proto_dummy, &ops, "Dummy");
 }
 
 static void dummy_fini(void)
@@ -287,28 +290,39 @@ char const *mux_subparser_name(struct mux_subparser const *subparser)
     return str;
 }
 
-static struct subparsers *list_of_h_idx(struct mux_parser *mux_parser, unsigned h_idx)
+static struct subparsers *h_list_of_h_idx(struct mux_parser *mux_parser, unsigned h_idx)
 {
     return mux_parser->subparsers + h_idx;
 }
-
-static struct subparsers *list_of_subparser_(struct mux_subparser *subparser, unsigned h_idx)
+static struct subparsers *h_list_of_subparser_(struct mux_subparser *subparser, unsigned h_idx)
 {
-    return list_of_h_idx(subparser->mux_parser, h_idx);
+    return h_list_of_h_idx(subparser->mux_parser, h_idx);
 }
-
-static struct subparsers *list_of_subparser(struct mux_subparser *subparser)
+static struct subparsers *h_list_of_subparser(struct mux_subparser *subparser)
 {
     assert(subparser->h_idx != NOT_HASHED);
-    return list_of_subparser_(subparser, subparser->h_idx);
+    return h_list_of_subparser_(subparser, subparser->h_idx);
+}
+
+static struct per_mutex *to_list_of_h_idx(struct mux_parser *mux_parser, unsigned h_idx)
+{
+    struct mux_proto *mux_proto = DOWNCAST(mux_parser->parser.proto, proto, mux_proto);
+    return &mux_proto->mutexes[(h_idx + (intptr_t)mux_parser) % NB_ELEMS(mux_proto->mutexes)];
+}
+static struct per_mutex *to_list_of_subparser_(struct mux_subparser *subparser, unsigned h_idx)
+{
+    return to_list_of_h_idx(subparser->mux_parser, h_idx);
+}
+static struct per_mutex *to_list_of_subparser(struct mux_subparser *subparser)
+{
+    assert(subparser->h_idx != NOT_HASHED);
+    return to_list_of_subparser_(subparser, subparser->h_idx);
 }
 
 static struct mutex *mutex_of_h_idx(struct mux_parser *mux_parser, unsigned h_idx)
 {
-    struct mux_proto *mux_proto = DOWNCAST(mux_parser->parser.proto, proto, mux_proto);
-    return mux_proto->mutexes + ((h_idx + (intptr_t)mux_parser) % NB_ELEMS(mux_proto->mutexes));
+    return &(to_list_of_h_idx(mux_parser, h_idx))->mutex;
 }
-
 static struct mutex *mutex_of_subparser_(struct mux_subparser *subparser, unsigned h_idx)
 {
     return mutex_of_h_idx(subparser->mux_parser, h_idx);
@@ -325,14 +339,17 @@ static LIST_HEAD(mux_protos, mux_proto) mux_protos = LIST_HEAD_INITIALIZER(mux_p
 // Caller must own list->mutex
 static void mux_subparser_deindex_locked(struct mux_subparser *subparser)
 {
-    struct subparsers *list = list_of_subparser(subparser);
+    struct per_mutex *const to_list = to_list_of_subparser(subparser);
 #   ifdef __GNUC__
     unsigned const unused_ n = __sync_fetch_and_sub(&subparser->mux_parser->nb_children, 1);
     assert(n > 0);
 #   else
-    subparser->mux_parser->nb_children --;  // better not take this too seriously then (we do not lock mux_parser because of possible deadlock)
+    mutex_lock(&subparser->mux_proto->proto.lock);
+    subparser->mux_parser->nb_children --;
+    mutex_unlock(&subparser->mux_proto->proto.lock);
 #   endif
-    TAILQ_REMOVE(&list->list, subparser, entry);
+    LIST_REMOVE(subparser, h_entry);
+    TAILQ_REMOVE(&to_list->timeout_queue, subparser, to_entry);
     subparser->h_idx = NOT_HASHED;
     (void)unref(&subparser->ref);
 }
@@ -362,12 +379,18 @@ void mux_subparser_deindex(struct mux_subparser *subparser)
 // Caller must own subparsers mutex
 static void mux_subparser_index(struct mux_subparser *subparser)
 {
-    struct subparsers *list = list_of_subparser(subparser);
-    TAILQ_INSERT_TAIL(&list->list, subparser, entry);
+    // Insert the subparser into its mux_parser hash and into the timeout_queue
+    struct subparsers *const h_list = h_list_of_subparser(subparser);
+    struct per_mutex *const to_list = to_list_of_subparser(subparser);
+    LIST_INSERT_HEAD(&h_list->list, subparser, h_entry); // most used first
+    TAILQ_INSERT_TAIL(&to_list->timeout_queue, subparser, to_entry); // most used last
+    // inc nb_children
 #   if __GNUC__
     (void)__sync_fetch_and_add(&subparser->mux_parser->nb_children, 1);
 #   else
+    mutex_lock(&subparser->mux_proto->proto.lock);
     subparser->mux_parser->nb_children ++;
+    mutex_unlock(&subparser->mux_proto->proto.lock);
 #   endif
     (void)ref(&subparser->ref);
 }
@@ -397,10 +420,10 @@ static bool too_many_children(struct mux_parser *mux_parser)
 }
 
 // Caller must own list->mutex
-static void try_sacrifice_child(struct mux_proto *mux_proto, struct subparsers *list)
+static void try_sacrifice_child(struct mux_proto *mux_proto, struct subparsers *h_list)
 {
-    if (TAILQ_EMPTY(&list->list)) return;
-    struct mux_subparser *subparser = TAILQ_LAST(&list->list, mux_subparsers);
+    if (LIST_EMPTY(&h_list->list)) return;
+    struct mux_subparser *subparser = LIST_FIRST(&h_list->list);    // killing the first is not the best strategy but avoids a pointer to last
 
     SLOG(LOG_DEBUG, "Too many children, killing %s", mux_subparser_name(subparser));
 
@@ -422,16 +445,16 @@ static unsigned hash_key(void const *key, size_t key_sz, unsigned hash_size)
 }
 
 // Caller must own list->mutex
-static void mux_subparsers_timeout(struct mux_proto *mux_proto, struct mux_subparsers *list, unsigned timeout_s, struct timeval const *now)
+static unsigned mux_subparsers_timeout(struct mux_proto *mux_proto, struct per_mutex *to_list, unsigned timeout_s, struct timeval const *now)
 {
-    if (0 == timeout_s) return;
+    if (0 == timeout_s) return 0;
 
     // Beware that deletion of a subparser can lead to the creation of new parsers !
-    int64_t const timeout = timeout_s * 1000000;
+    int64_t const timeout = timeout_s * 1000000LL;
     struct mux_subparser *subparser;
     unsigned count = 0;
-    while (NULL != (subparser = TAILQ_FIRST(list))) {
-        // As parsers are sorted by last_used time (least recently used first),
+    while (NULL != (subparser = TAILQ_FIRST(&to_list->timeout_queue))) {
+        // As parsers are sorted by last_used time (least recently used first in the timeout_queue),
         // we can stop scanning as soon as we met a survivor.
         if (likely_(timeval_sub(now, &subparser->last_used) <= timeout)) break;
 
@@ -441,7 +464,13 @@ static void mux_subparsers_timeout(struct mux_proto *mux_proto, struct mux_subpa
         count ++;
     }
 
+#   ifdef __GNUC__
+    (void)__sync_add_and_fetch(&mux_proto->nb_timeouts, count);
+#   else    // well, don't put to much trust in this then
     mux_proto->nb_timeouts += count;
+#   endif
+
+    return count;
 }
 
 static void mux_subparser_del_as_ref(struct ref *ref)
@@ -467,19 +496,15 @@ int mux_subparser_ctor(struct mux_subparser *subparser, struct mux_parser *mux_p
 
     subparser->h_idx = hash_key(key, mux_proto->key_size, mux_parser->hash_size);
     struct mutex *mutex = mutex_of_subparser(subparser);
-    struct subparsers *list = list_of_subparser(subparser);
+    struct subparsers *list = h_list_of_subparser(subparser);
 
     mutex_lock(mutex);
 
-    mux_subparsers_timeout(mux_proto, &list->list, mux_parser->max_timeout, now);
     if (too_many_children(mux_parser)) {
         try_sacrifice_child(mux_proto, list);
     }
 
     mux_subparser_index(subparser);
-
-    unsigned const new_timeout = subparser->parser->proto->timeout;
-    if (new_timeout && new_timeout > mux_parser->max_timeout) mux_parser->max_timeout = new_timeout;
 
     mutex_unlock(mutex);
 
@@ -535,13 +560,13 @@ struct mux_subparser *mux_subparser_lookup(struct mux_parser *mux_parser, struct
     struct mux_proto *mux_proto = DOWNCAST(mux_parser->parser.proto, proto, mux_proto);
     unsigned h = hash_key(key, mux_proto->key_size, mux_parser->hash_size);
     struct mutex *mutex = mutex_of_h_idx(mux_parser, h);
-    struct subparsers *list = list_of_h_idx(mux_parser, h);
+    struct subparsers *h_list = h_list_of_h_idx(mux_parser, h);
 
     mutex_lock(mutex);
 
     unsigned nb_colls = 0;
     struct mux_subparser *subparser;
-    TAILQ_FOREACH(subparser, &list->list, entry) {
+    LIST_FOREACH(subparser, &h_list->list, h_entry) {
         if (
             // FIXME: various kind of subparsers might have the same key so we should include proto in any case,
             // whether or not we intend to create the child if not found (ie. use another flag for that).
@@ -556,18 +581,24 @@ struct mux_subparser *mux_subparser_lookup(struct mux_parser *mux_parser, struct
     }
 
     if (subparser && now) {
-        // Promote this children to the tail of the list since it is used
+        // Promote this children both to the head of the h_list and the tail of the timeout_queue since it is used
         subparser->last_used = *now;
-        TAILQ_REMOVE(&list->list, subparser, entry);
-        TAILQ_INSERT_TAIL(&list->list, subparser, entry);
+        struct per_mutex *const to_list = to_list_of_subparser(subparser);
+        TAILQ_REMOVE(&to_list->timeout_queue, subparser, to_entry);
+        TAILQ_INSERT_TAIL(&to_list->timeout_queue, subparser, to_entry);
+        LIST_REMOVE(subparser, h_entry);
+        LIST_INSERT_HEAD(&h_list->list, subparser, h_entry);
     }
 
     if (nb_colls > 8) {
         SLOG(nb_colls > 100 ? LOG_NOTICE : LOG_DEBUG, "%u collisions while looking for subparser of %s", nb_colls, mux_parser->parser.proto->name);
+#       ifndef NDEBUG
         if (unlikely_(nb_colls > 100)) {
-            SLOG(LOG_NOTICE, "Dump of first key for h = %u :", h);
-            SLOG_HEX(LOG_NOTICE, TAILQ_FIRST(&list->list)->key, mux_proto->key_size);
+            SLOG(LOG_NOTICE, "Dump of first keys for h = %u :", h);
+            SLOG_HEX(LOG_NOTICE, LIST_FIRST(&h_list->list)->key, mux_proto->key_size);
+            SLOG_HEX(LOG_NOTICE, LIST_FIRST(&h_list->list)->h_entry.le_next->key, mux_proto->key_size);
         }
+#       endif
     }
 
     // get a new ref on the subparser for our caller (*before* releasing the mutex!)
@@ -597,7 +628,7 @@ void mux_subparser_change_key(struct mux_subparser *subparser, struct mux_parser
 
     struct mux_proto *mux_proto = DOWNCAST(mux_parser->parser.proto, proto, mux_proto);
     unsigned new_h = hash_key(key, mux_proto->key_size, mux_parser->hash_size);
-    struct subparsers *new_list = list_of_h_idx(mux_parser, new_h);
+    struct subparsers *new_list = h_list_of_h_idx(mux_parser, new_h);
     struct mutex *new_mutex = mutex_of_h_idx(mux_parser, new_h);
     struct subparsers *cur_list;
     struct mutex *cur_mutex;
@@ -606,7 +637,7 @@ void mux_subparser_change_key(struct mux_subparser *subparser, struct mux_parser
     do {
         unsigned const h_idx = subparser->h_idx;
         if (h_idx == NOT_HASHED) return;
-        cur_list = list_of_subparser_(subparser, h_idx);
+        cur_list = h_list_of_subparser_(subparser, h_idx);
         if (cur_list == new_list) return;
         cur_mutex = mutex_of_subparser_(subparser, h_idx);
 
@@ -614,53 +645,53 @@ void mux_subparser_change_key(struct mux_subparser *subparser, struct mux_parser
         // by the time the locks are acquired maybe another thread changed subparser->h_idx?
         if (h_idx == (unsigned volatile)subparser->h_idx) break;
         SLOG(LOG_WARNING, "Subparser list changed while waiting for list mutex");
-        mutex_unlock(cur_mutex);
-        mutex_unlock(new_mutex);
+        mutex_unlock2(cur_mutex, new_mutex);
     } while (1);
 
     // The caller is supposed to own a ref so we don't mind deindexing...
     // Remove
     mux_subparser_deindex_locked(subparser);
+    assert(subparser->ref.count > 0);
     // Change key
     memcpy(subparser->key, key, mux_proto->key_size);
     subparser->h_idx = new_h;
     // Reindex
     mux_subparser_index(subparser);
-    mutex_unlock(cur_mutex);
-    mutex_unlock(new_mutex);
+    mutex_unlock2(cur_mutex, new_mutex);
 }
 
-int mux_parser_ctor(struct mux_parser *mux_parser, struct mux_proto *mux_proto)
+int mux_parser_ctor(struct mux_parser *mux_parser, struct mux_proto *mux_proto, unsigned hash_size, unsigned nb_max_children)
 {
     if (unlikely_(0 != parser_ctor(&mux_parser->parser, &mux_proto->proto))) return -1;
 
-    mux_parser->hash_size = mux_proto->hash_size;   // We start with this size of hash
-    mux_parser->nb_max_children = mux_proto->nb_max_children;   // we copy it since the user may want to change this value for future mux_parsers
-    mux_parser->max_timeout = 0;
+    mux_parser->hash_size = hash_size;
+    mux_parser->nb_max_children = nb_max_children;
     mux_parser->nb_children = 0;
 
     for (unsigned h = 0; h < mux_parser->hash_size; h++) {
-        struct subparsers *const list = mux_parser->subparsers + h;
-        TAILQ_INIT(&list->list);
+        struct subparsers *const h_list = mux_parser->subparsers + h;
+        LIST_INIT(&h_list->list);
     }
 
     return 0;
 }
 
-size_t mux_parser_size(struct mux_proto *mux_proto)
+size_t mux_parser_size(unsigned hash_size)
 {
     struct mux_parser unused_ mux_parser;   // for the following sizeofs
-    return sizeof(mux_parser) + mux_proto->hash_size * sizeof(*mux_parser.subparsers);
+    return sizeof(mux_parser) + hash_size * sizeof(*mux_parser.subparsers);
 }
 
 struct parser *mux_parser_new(struct proto *proto)
 {
     MALLOCER(mux_parsers);
     struct mux_proto *mux_proto = DOWNCAST(proto, proto, mux_proto);
-    struct mux_parser *mux_parser = MALLOC(mux_parsers, mux_parser_size(mux_proto));
+    unsigned const hash_size = mux_proto->hash_size;  // so that we don't care if the size change between the malloc and the ctor
+    unsigned const nb_max_children = mux_proto->nb_max_children;
+    struct mux_parser *mux_parser = MALLOC(mux_parsers, mux_parser_size(hash_size));
     if (unlikely_(! mux_parser)) return NULL;
 
-    if (unlikely_(0 != mux_parser_ctor(mux_parser, mux_proto))) {
+    if (unlikely_(0 != mux_parser_ctor(mux_parser, mux_proto, hash_size, nb_max_children))) {
         FREE(mux_parser);
         return NULL;
     }
@@ -682,12 +713,12 @@ void mux_parser_dtor(struct mux_parser *mux_parser)
      * Hopefully since we are not reachable no new subparser will end up in our hash (addition
      * or change key require a ref on us). */
     for (unsigned h = 0; h < mux_parser->hash_size; h++) {
-        struct subparsers *const list = list_of_h_idx(mux_parser, h);
+        struct subparsers *const h_list = h_list_of_h_idx(mux_parser, h);
         struct mutex *const mutex = mutex_of_h_idx(mux_parser, h);
 
         mutex_lock(mutex);
         struct mux_subparser *subparser;
-        while (NULL != (subparser = TAILQ_FIRST(&list->list))) {
+        while (NULL != (subparser = LIST_FIRST(&h_list->list))) {
             assert(subparser->h_idx % mux_parser->hash_size == h);
             mux_subparser_deindex_locked(subparser);
         }
@@ -706,9 +737,9 @@ void mux_parser_del(struct parser *parser)
     FREE(mux_parser);
 }
 
-void mux_proto_ctor(struct mux_proto *mux_proto, struct proto_ops const *ops, struct mux_proto_ops const *mux_ops, char const *name, unsigned timeout, size_t key_size, unsigned hash_size)
+void mux_proto_ctor(struct mux_proto *mux_proto, struct proto_ops const *ops, struct mux_proto_ops const *mux_ops, char const *name, size_t key_size, unsigned hash_size)
 {
-    proto_ctor(&mux_proto->proto, ops, name, timeout);
+    proto_ctor(&mux_proto->proto, ops, name);
     mux_proto->ops = *mux_ops;
     mux_proto->hash_size = hash_size;
     mux_proto->key_size = key_size;
@@ -718,7 +749,8 @@ void mux_proto_ctor(struct mux_proto *mux_proto, struct proto_ops const *ops, st
     mux_proto->nb_lookups = 0;
     mux_proto->nb_timeouts = 0;
     for (unsigned m = 0; m < NB_ELEMS(mux_proto->mutexes); m++) {
-        mutex_ctor_with_type(mux_proto->mutexes+m, "subparsers", PTHREAD_MUTEX_RECURSIVE);
+        mutex_ctor_with_type(&mux_proto->mutexes[m].mutex, "subparsers", PTHREAD_MUTEX_RECURSIVE);
+        TAILQ_INIT(&mux_proto->mutexes[m].timeout_queue);
     }
     LIST_INSERT_HEAD(&mux_protos, mux_proto, entry);
 }
@@ -727,7 +759,10 @@ void mux_proto_dtor(struct mux_proto *mux_proto)
 {
     LIST_REMOVE(mux_proto, entry);
     for (unsigned m = 0; m < NB_ELEMS(mux_proto->mutexes); m++) {
-        mutex_dtor(mux_proto->mutexes+m);
+        mutex_dtor(&mux_proto->mutexes[m].mutex);
+        if (! TAILQ_EMPTY(&mux_proto->mutexes[m].timeout_queue)) {
+            SLOG(LOG_WARNING, "While destructing proto %s, timeout_queue %u not empty", mux_proto->proto.name, m);
+        }
     }
     proto_dtor(&mux_proto->proto);
 }
@@ -737,13 +772,50 @@ struct mux_proto_ops mux_proto_ops = {
     .subparser_del = mux_subparser_del,
 };
 
+static pthread_t timeouter_pth;
+
+static void mux_proto_timeout(struct mux_proto *mux_proto, struct timeval const *now)
+{
+    unsigned count = 0;
+
+    for (unsigned m = 0; m < NB_ELEMS(mux_proto->mutexes); m++) {
+        enter_unsafe_region();
+        mutex_lock(&mux_proto->mutexes[m].mutex);
+        count += mux_subparsers_timeout(mux_proto, mux_proto->mutexes+m, mux_timeout, now);
+        mutex_unlock(&mux_proto->mutexes[m].mutex);
+        enter_safe_region();
+    }
+
+    SLOG(LOG_INFO, "Timeouted %u subparsers of proto %s", count, mux_proto->proto.name);
+}
+
+static void *timeouter_thread(void unused_ *dummy)
+{
+    set_thread_name("J-timeouter");
+
+    while (1) {
+        struct timeval now;
+        /* We suppose we will be able to take the mutexes and timeout everything in less than a second.
+           Not very harmfull if that's not really the case. */
+        timeval_set_now(&now);
+
+        struct mux_proto *mux_proto;
+        LIST_FOREACH(mux_proto, &mux_protos, entry) {
+            mux_proto_timeout(mux_proto, &now);
+        }
+        
+        sleep(1);
+    }
+    return NULL;
+}
+
 /*
  * Helper for stateless parsers
  */
 
 void uniq_proto_ctor(struct uniq_proto *uniq_proto, struct proto_ops const *ops, char const *name)
 {
-    proto_ctor(&uniq_proto->proto, ops, name, 0);
+    proto_ctor(&uniq_proto->proto, ops, name);
     uniq_proto->parser = NULL;
 }
 
@@ -843,22 +915,7 @@ static SCM g_proto_stats(SCM name_)
         scm_cons(scm_from_locale_symbol("nb-bytes"),   scm_from_int64(proto->nb_bytes)),
         scm_cons(scm_from_locale_symbol("nb-parsers"), scm_from_uint(proto->nb_parsers)),
         scm_cons(scm_from_locale_symbol("nb-fuzzed"),  scm_from_uint(proto->fuzzed_times)),
-        scm_cons(scm_from_locale_symbol("timeout"),    scm_from_uint(proto->timeout)),
         SCM_UNDEFINED);
-}
-
-static struct ext_function sg_proto_set_timeout;
-static SCM g_proto_set_timeout(SCM name_, SCM timeout_)
-{
-    struct proto *proto = proto_of_scm_name(name_);
-    if (! proto) return SCM_UNSPECIFIED;
-
-    unsigned const timeout = scm_to_uint(timeout_);
-    mutex_lock(&proto->lock);
-    proto->timeout = timeout;
-    mutex_unlock(&proto->lock);
-
-    return SCM_BOOL_T;
 }
 
 static struct ext_function sg_mux_proto_set_max_children;
@@ -895,6 +952,16 @@ void proto_init(void)
 {
     log_category_proto_init();
     ext_param_nb_fuzzed_bits_init();
+    ext_param_mux_timeout_init();
+
+    // A thread to timeout all mux_subparsers
+    int err = pthread_create(&timeouter_pth, NULL, timeouter_thread, NULL);
+
+    if (! err) {
+        pthread_detach(timeouter_pth);
+    } else {
+        SLOG(LOG_ERR, "Cannot pthread_create(): %s", strerror(err));
+    }
 
     ext_function_ctor(&sg_proto_stats,
         "proto-stats", 1, 0, 0, g_proto_stats,
@@ -929,19 +996,13 @@ void proto_init(void)
         "See also (? 'set-max-children) for setting the max number of allowed child for newly created parsers of a protocol.\n"
         "         (? 'mux-names) for a list of protocol names that are multiplexers.\n");
 
-    ext_function_ctor(&sg_proto_set_timeout,
-        "set-proto-timeout", 2, 0, 0, g_proto_set_timeout,
-        "(set-proto-timeout \"proto-name\" n): sets the number of seconds after which an unused parser for this proto is reclaimed.\n"
-        "A value of 0 disable timeouting of these parsers.\n"
-        "See also (? 'proto-names) for a list of availbale protocol names,\n"
-        "         (? 'proto-stats) for obtaining the current value.\n");
-
     dummy_init();
 }
 
 void proto_fini(void)
 {
     dummy_fini();
+    ext_param_mux_timeout_fini();
     ext_param_nb_fuzzed_bits_fini();
     log_category_proto_fini();
 }

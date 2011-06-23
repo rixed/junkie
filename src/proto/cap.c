@@ -39,8 +39,6 @@ static char const Id[] = "$Id: 51a18a0ad76ab10ef1fcc9cee870304e884cdc44 $";
 
 LOG_CATEGORY_DEF(proto_capture);
 
-#define CAP_TIMEOUT (60*60)
-
 static bool collapse_ifaces = true;
 EXT_PARAM_RW(collapse_ifaces, "collapse-ifaces", bool, "Set to true if packets from distinct ifaces share the same address range");
 static const uint8_t zero = 0; // When collapsing devices we use this fake device id
@@ -129,7 +127,7 @@ void cap_init(void)
         .info_2_str = cap_info_2_str,
         .info_addr  = cap_info_addr,
     };
-    mux_proto_ctor(&mux_proto_cap, &ops, &mux_proto_ops, "Capture", CAP_TIMEOUT, sizeof(zero)/* device_id */, 8);
+    mux_proto_ctor(&mux_proto_cap, &ops, &mux_proto_ops, "Capture", sizeof(zero)/* device_id */, 11);
 }
 
 void cap_fini(void)

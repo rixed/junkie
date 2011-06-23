@@ -41,8 +41,6 @@ static char const Id[] = "$Id: 70c2033b6d5c020b1a0f8c367cf57c2cfb996c84 $";
 
 LOG_CATEGORY_DEF(proto_eth);
 
-#define ETH_TIMEOUT (60*60)
-
 static bool collapse_vlans = true;
 EXT_PARAM_RW(collapse_vlans, "collapse-vlans", bool, "Set to true if packets from distinct vlans share the same address range");
 static const int vlan_unset = VLAN_UNSET;
@@ -222,7 +220,7 @@ void eth_init(void)
         .info_2_str = eth_info_2_str,
         .info_addr  = eth_info_addr,
     };
-    mux_proto_ctor(&mux_proto_eth, &ops, &mux_proto_ops, "Ethernet", ETH_TIMEOUT, sizeof(vlan_unset) /* vlan_id */, 8);
+    mux_proto_ctor(&mux_proto_eth, &ops, &mux_proto_ops, "Ethernet", sizeof(vlan_unset) /* vlan_id */, 11);
     LIST_INIT(&eth_subprotos);
 }
 

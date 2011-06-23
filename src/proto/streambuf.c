@@ -71,6 +71,17 @@ void streambuf_set_restart(struct streambuf *sbuf, unsigned way, uint8_t const *
 
 MALLOCER_DEF(streambufs);
 
+static void streambuf_empty(struct streambuf_unidir *dir)
+{
+    if (dir->buffer) {
+        if (dir->buffer_is_malloced) FREE((void*)dir->buffer);
+        dir->buffer = NULL;
+        dir->buffer_size = 0;
+    } else {
+        assert(0 == dir->buffer_size);
+    }
+}
+
 static enum proto_parse_status streambuf_append(struct streambuf *sbuf, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len)
 {
     assert(way < 2);
@@ -81,26 +92,31 @@ static enum proto_parse_status streambuf_append(struct streambuf *sbuf, unsigned
 
     struct streambuf_unidir *dir = sbuf->dir+way;
     assert(!dir->buffer || dir->restart_offset < dir->buffer_size);
-    size_t const keep_size = dir->buffer_size - dir->restart_offset;
-    size_t const new_size = keep_size + cap_len;
 
     if (! dir->buffer) {
         dir->buffer = packet;
         dir->buffer_size = cap_len;
         dir->buffer_is_malloced = false;
     } else {
-        if (new_size > sbuf->max_size) return PROTO_PARSE_ERR;
-        uint8_t *new_buffer = MALLOC(streambufs, new_size);
-        if (! new_buffer) return PROTO_PARSE_ERR;
+        size_t const keep_size = dir->buffer_size - dir->restart_offset;
+        size_t const new_size = keep_size + cap_len;
 
-        // Assemble kept buffer and new payload
-        memcpy(new_buffer, dir->buffer + dir->restart_offset, keep_size);
-        memcpy(new_buffer + keep_size, packet, cap_len);
-        assert(dir->buffer);
-        if (dir->buffer_is_malloced) FREE((void*)dir->buffer);
-        dir->buffer = new_buffer;
-        dir->buffer_size = new_size;
-        dir->buffer_is_malloced = true;
+        if (new_size > 0) {
+            if (new_size > sbuf->max_size) return PROTO_PARSE_ERR;
+            uint8_t *new_buffer = MALLOC(streambufs, new_size);
+            if (! new_buffer) return PROTO_PARSE_ERR;
+
+            // Assemble kept buffer and new payload
+            memcpy(new_buffer, dir->buffer + dir->restart_offset, keep_size);
+            memcpy(new_buffer + keep_size, packet, cap_len);
+            assert(dir->buffer);
+            if (dir->buffer_is_malloced) FREE((void*)dir->buffer);
+            dir->buffer = new_buffer;
+            dir->buffer_size = new_size;
+            dir->buffer_is_malloced = true;
+        } else {
+            streambuf_empty(dir);
+        }
     }
 
     dir->restart_offset = 0;
@@ -125,14 +141,6 @@ static int streambuf_keep(struct streambuf_unidir *dir)
     dir->restart_offset = 0;
 
     return 0;
-}
-
-static void streambuf_empty(struct streambuf_unidir *dir)
-{
-    if (dir->buffer) {
-        if (dir->buffer_is_malloced) FREE((void*)dir->buffer);
-        dir->buffer = NULL;
-    }
 }
 
 enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
