@@ -123,6 +123,10 @@ static void sig_set(sigset_t *set)
     // On a ^C, or a kill, we want to call exit() so that all destructors are run
     sigaddset(set, SIGINT);
     sigaddset(set, SIGTERM);
+
+    // Could receive it occasionally
+    sigaddset(set, SIGPIPE);
+    sigaddset(set, SIGCHLD);
 }
 
 static void loop(void)
@@ -144,8 +148,14 @@ static void loop(void)
                 break;
             case SIGTERM:
             case SIGINT:
-                SLOG(LOG_INFO, "SIGINT Caught. Exiting");
+                SLOG(LOG_INFO, "SIGINT Caught. Exiting.");
                 exit(EXIT_SUCCESS); // call all destructors
+                break;
+            case SIGPIPE:
+                SLOG(LOG_INFO, "SIGPIPE Caught. Ignoring.");
+                break;
+            case SIGCHLD:
+                SLOG(LOG_INFO, "SIGCHLD Caught. Ignoring.");
                 break;
         }
     }
