@@ -13,7 +13,7 @@ static void mkdir_all_check(void)
     assert(-1 == mkdir_all("/no/permission", false));
 
     // Checks multiple / are coallesced
-    char *tmp = tempnam("/tmp", "files_check");
+    char *tmp = tempnam(P_tmpdir, "files_check"); // mkstemp
     assert(tmp);
     assert(0 == mkdir_all(tempstr_printf("%s///y//z", tmp), false));
     assert(0 == system(tempstr_printf("rm -rf %s", tmp)));

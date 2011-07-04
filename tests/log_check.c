@@ -1,6 +1,7 @@
 // -*- c-basic-offset: 4; c-backslash-column: 79; indent-tabs-mode: nil -*-
 // vim:sw=4 ts=4 sts=4 expandtab
 #include <stdlib.h>
+#include <stdio.h>
 #undef NDEBUG
 #include <assert.h>
 #include <unistd.h>
@@ -11,7 +12,7 @@
 // Test basic functionnalities
 static void check_simple(void)
 {
-    char filename[] = "/tmp/junkie.check.XXXXXX";
+    char filename[] = P_tmpdir "/junkie.check.XXXXXX";
     if (mktemp(filename)) {}    // Clean warn_unused_result, particularly useless since "The mktemp() function always returns template."
     assert(filename[0] != '\0');
     assert(0 == log_set_file(filename));
@@ -48,7 +49,7 @@ static void check_no_log(void)
 // Set_log_file must create all required dirs
 static void check_create_dir(void)
 {
-    char filename[PATH_MAX] = "/tmp/randomdir.XXXXXX";
+    char filename[PATH_MAX] = P_tmpdir "/randomdir.XXXXXX";
     if (mktemp(filename)) {}
     assert(filename[0] != '\0');
     int const len = strlen(filename);
@@ -71,7 +72,7 @@ static void check_set_get(void)
     assert(NULL == log_get_file());
 
     // Mere test
-    char filename[PATH_MAX] = "/tmp/check.XXXXXX";
+    char filename[PATH_MAX] = P_tmpdir "/check.XXXXXX";
     if (mktemp(filename)) {}
     assert(filename[0] != '\0');
     assert(0 == log_set_file(filename));
