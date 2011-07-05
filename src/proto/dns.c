@@ -35,6 +35,9 @@ static char const Id[] = "$Id: 37812fa0f43e01eeaf93d649ebc8f11fa64aa3c0 $";
 
 LOG_CATEGORY_DEF(proto_dns);
 
+#define DNS_PORT 53
+#define NBNS_PORT 137
+
 struct dns_hdr {
     uint16_t transaction_id;
     uint16_t flags;
@@ -62,25 +65,26 @@ static char const *dns_req_type_2_str(enum dns_req_type type)
     switch (type) {
         case DNS_TYPE_UNSET: return "UNSET";
         case DNS_TYPE_A: return "A";
-		case DNS_TYPE_NS: return "NS";
-		case DNS_TYPE_MD: return "MD";
-		case DNS_TYPE_MF: return "MF";
-		case DNS_TYPE_CNAME: return "CNAME";
-		case DNS_TYPE_SOA: return "SOA";
-		case DNS_TYPE_MB: return "MB";
-		case DNS_TYPE_MG: return "MG";
-		case DNS_TYPE_MR: return "MR";
-		case DNS_TYPE_NULL: return "NULL";
-		case DNS_TYPE_WKS: return "WKS";
-		case DNS_TYPE_PTR: return "PTR";
-		case DNS_TYPE_HINFO: return "HINFO";
-		case DNS_TYPE_MINFO: return "MINFO";
-		case DNS_TYPE_MX: return "MX";
-		case DNS_TYPE_TXT: return "TXT";
-		case DNS_TYPE_AAAA: return "AAAA";
-		case DNS_TYPE_A6: return "A6";
-		case DNS_TYPE_IXFR: return "IXFR";
-		case DNS_TYPE_AXFR: return "AXFR";
+        case DNS_TYPE_NS: return "NS";
+        case DNS_TYPE_MD: return "MD";
+        case DNS_TYPE_MF: return "MF";
+        case DNS_TYPE_CNAME: return "CNAME";
+        case DNS_TYPE_SOA: return "SOA";
+        case DNS_TYPE_MB: return "MB";
+        case DNS_TYPE_MG: return "MG";
+        case DNS_TYPE_MR: return "MR";
+        case DNS_TYPE_NULL: return "NULL";
+        case DNS_TYPE_WKS: return "WKS";
+        case DNS_TYPE_PTR: return "PTR";
+        case DNS_TYPE_HINFO: return "HINFO";
+        case DNS_TYPE_MINFO: return "MINFO";
+        case DNS_TYPE_MX: return "MX";
+        case DNS_TYPE_TXT: return "TXT";
+        case DNS_TYPE_AAAA: return "AAAA";
+        case DNS_TYPE_NBNS: return "NB";
+        case DNS_TYPE_A6: return "A6";
+        case DNS_TYPE_IXFR: return "IXFR";
+        case DNS_TYPE_AXFR: return "AXFR";
     }
     return "UNKNOWN";
 }
@@ -143,11 +147,11 @@ ssize_t extract_qname(char *name, size_t name_len, uint8_t const *buf, size_t bu
     // read length
     uint8_t len = *buf++;
     buf_len--;
-    if (len > buf_len || len > 64) return -1;
+    if (len > buf_len || len > 64) return -1;   // FIXME: handle name compression (if 2 higher bits are set)
 
     if (len == 0) {
         if (name_len > 0) *name = '\0';
-        else name[-1] = '\0';
+        else name[-1] = '\0';   // if name_len == 0 then the name buffer is full, nul term it.
         return 1;
     }
 
@@ -160,6 +164,12 @@ ssize_t extract_qname(char *name, size_t name_len, uint8_t const *buf, size_t bu
     memcpy(name, buf, copy_len);
 
     return len + 1 + extract_qname(name + copy_len, name_len - copy_len, buf+len, buf_len-len, true);
+}
+
+static void strmove(char *d, char *s)
+{
+    while (*s) *d ++ = *s ++;
+    *d = '\0';
 }
 
 static enum proto_parse_status dns_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
@@ -194,6 +204,23 @@ static enum proto_parse_status dns_parse(struct parser *parser, struct proto_inf
         memcpy(&tmp, packet+parsed, sizeof(tmp));
         parsed += sizeof(tmp);
         info.dns_class = ntohs(tmp);
+
+        // now fix the netbios name (according to RFC 1001)
+        if (q == 0 && info.request_type == DNS_TYPE_NBNS) {
+            // convert inplace up to the end or the first dot
+            char *s = info.name;
+            char *d = s;
+            while (
+                s[0] != '\0' && s[1] != '\0' &&
+                s[0] != '.' && s[1] != '.' &&
+                s[0] >= 'A' && s[1] >= 'A' &&
+                s[0] <= 'P' && s[1] <= 'P'
+            ) {
+                *d ++ = ((s[0] - 'A') << 4) | (s[1] - 'A');
+                s += 2;
+            }
+            strmove(d, s);  // copy the rest of the name
+        }
     }
 
     // We don't care that much about the answer.
@@ -206,7 +233,7 @@ static enum proto_parse_status dns_parse(struct parser *parser, struct proto_inf
 
 static struct uniq_proto uniq_proto_dns;
 struct proto *proto_dns = &uniq_proto_dns.proto;
-static struct port_muxer udp_port_muxer;
+static struct port_muxer dns_port_muxer, nbns_port_muxer;
 
 void dns_init(void)
 {
@@ -220,12 +247,14 @@ void dns_init(void)
         .info_addr  = dns_info_addr,
     };
     uniq_proto_ctor(&uniq_proto_dns, &ops, "DNS");
-    port_muxer_ctor(&udp_port_muxer, &udp_port_muxers, 53, 53, proto_dns);
+    port_muxer_ctor(&dns_port_muxer, &udp_port_muxers, DNS_PORT, DNS_PORT, proto_dns);
+    port_muxer_ctor(&nbns_port_muxer, &udp_port_muxers, NBNS_PORT, NBNS_PORT, proto_dns);
 }
 
 void dns_fini(void)
 {
-    port_muxer_dtor(&udp_port_muxer, &udp_port_muxers);
+    port_muxer_dtor(&dns_port_muxer, &udp_port_muxers);
+    port_muxer_dtor(&nbns_port_muxer, &udp_port_muxers);
     uniq_proto_dtor(&uniq_proto_dns);
     log_category_proto_dns_fini();
 }
