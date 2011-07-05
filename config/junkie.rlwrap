@@ -87,4 +87,10 @@ set-udp-metric-enabled
 set-voip-metric-enabled
 set-web-metric-enabled
 set-webapps-file
+tcp-ports
+tcp-add-ports
+tcp-del-ports
+udp-ports
+udp-add-ports
+udp-del-ports
 unload-plugin
