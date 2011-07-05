@@ -50,6 +50,30 @@ EXT_PARAM_RW(max_capture_files, "max-capture-files", uint, "The max number of fi
 static LIST_HEAD(capfiles, capfile) capfiles = LIST_HEAD_INITIALIZER(capfiles);
 static struct mutex capfiles_lock;
 
+static void dec_capture_files(void)
+{
+#   ifdef __GNUC__
+    unsigned prev = __sync_fetch_and_sub(&capture_files, 1);
+    assert(prev > 0);
+#   else
+    mutex_lock(&capfiles_lock);
+    assert(capture_files > 0);
+    capture_files --;
+    mutex_unlock(&capfiles_lock);
+#   endif
+}
+
+static void inc_capture_files(void)
+{
+#   ifdef __GNUC__
+    (void)__sync_add_and_fetch(&capture_files, 1);
+#   else
+    mutex_lock(&capfiles_lock);
+    capture_files ++;
+    mutex_unlock(&capfiles_lock);
+#   endif
+}
+
 static char const *capfile_path(struct capfile *capfile)
 {
     if (! capfile->rotation) return capfile->path;
@@ -108,8 +132,7 @@ static void capfile_dtor(struct capfile *capfile)
     if (capfile->fd >= 0) {
         file_close(capfile->fd);
         capfile->fd = -1;
-        assert(capture_files > 0);
-        capture_files --;
+        dec_capture_files();
     }
 
     if (capfile->path) {
@@ -132,8 +155,7 @@ static void capfile_close(struct capfile *capfile)
     if (capfile->fd >= 0) {
         file_close(capfile->fd);
         capfile->fd = -1;
-        assert(capture_files > 0);
-        capture_files --;
+        dec_capture_files();
     }
     mutex_unlock(&capfile->lock);
 }
@@ -141,14 +163,14 @@ static void capfile_close(struct capfile *capfile)
 // Caller must own the capfile->lock
 static int capfile_open(struct capfile *capfile, char const *path)
 {
-    if (capture_files >= max_capture_files) {
+    if (capture_files >= max_capture_files) {   // not thread safe but if the test is not precise this is not a big deal
         SLOG(LOG_INFO, "Cannot open new capture files: %u already opened", capture_files);
         return -1;
     }
 
     capfile->fd = file_open(path, O_WRONLY|O_TRUNC|O_CREAT);
     if (-1 == capfile->fd) return -1;
-    capture_files ++;
+    inc_capture_files();
 
     capfile->file_size = 0;
     capfile->nb_pkts = 0;
@@ -202,8 +224,7 @@ static int open_pcap(struct capfile *capfile, char const *path)
     if (0 != file_write(capfile->fd, &hdr, sizeof(hdr))) {
         file_close(capfile->fd);
         capfile->fd = -1;
-        assert(capture_files > 0);
-        capture_files --;
+        dec_capture_files();
         goto err;
     }
 
