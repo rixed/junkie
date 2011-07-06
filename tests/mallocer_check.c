@@ -61,12 +61,14 @@ int main(void)
 {
     log_init();
     mallocer_init();
+    mutex_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("mallocer_check.log");
 
     malloc_check();
     realloc_check();
 
+    mutex_fini();
     mallocer_fini();
     log_fini();
 
