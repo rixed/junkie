@@ -298,7 +298,7 @@ void pkt_wl_config_dtor(struct pkt_wl_config *config)
 // caller must own list->mutex
 static void pkt_wait_list_timeout(struct pkt_wl_config *config, struct pkt_wl_config_list *list, struct timeval const *now)
 {
-    unsigned timeout = config->timeout;
+    unsigned const timeout = config->timeout;
     if (timeout == 0) return;
 
     /* Warning! Timeouting a list can trigger the parse of many packets, which in return
@@ -321,16 +321,6 @@ static void pkt_wait_list_timeout(struct pkt_wl_config *config, struct pkt_wl_co
     }
 
     config->timeouting = false;
-}
-
-static int offset_compare(unsigned o1, unsigned n1, unsigned o2, unsigned n2)
-{
-    // We want first the first offset. If both are equal, then we want first the packet that ends first
-    if (o1 < o2) return -1;
-    if (o1 > o2) return 1;
-    if (n1 < n2) return -1;
-    if (n1 > n2) return 1;
-    return 0;
 }
 
 enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned offset, unsigned next_offset, bool can_parse, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
@@ -366,7 +356,8 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
     struct pkt_wait *prev = NULL;
     struct pkt_wait *next;
     LIST_FOREACH(next, &pkt_wl->pkts, entry) {
-        if (offset_compare(offset, next_offset, next->offset, next->next_offset) <= 0) {    // this packet come before next, insert here
+        // Stop whenever the next packet must be sent after (try to preserve packet numbers and order of arrival for okfn)
+        if (offset < next->offset) {
             break;
         }
         prev = next;
@@ -387,12 +378,10 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
         goto quit;
     }
 
-    // else if gap with previous > acceptable_gap or if the packet is fully in the past
-    // then call okfn directly and we are done
-    unsigned prev_offset = prev ? prev->offset : pkt_wl->next_offset;
+    // else if gap after previous > acceptable_gap then call okfn directly and we are done
+    unsigned prev_offset = prev ? prev->next_offset : pkt_wl->next_offset;
     if (
-        (pkt_wl->config->acceptable_gap > 0 && (int)(offset - prev_offset) > (int)pkt_wl->config->acceptable_gap) ||
-        (int)(next_offset - prev_offset) <= 0
+        (pkt_wl->config->acceptable_gap > 0 && (int)(offset - prev_offset) > (int)pkt_wl->config->acceptable_gap)
     ) {
         ret = proto_parse(NULL, parent, way, packet, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
         goto quit;

@@ -100,6 +100,8 @@ enum proto_parse_status {
     PROTO_TOO_SHORT,
 };
 
+char const *proto_parse_status_2_str(enum proto_parse_status status);
+
 typedef enum proto_parse_status parse_fun(
     struct parser *parser,      ///< The parser to hand over the payload to. If NULL okfn is called instead
     struct proto_info *parent,  ///< It's parent proto_info

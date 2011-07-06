@@ -13,18 +13,6 @@
 #define LOG_CAT global_log_category
 
 /*
- * Check offset_compare()
- */
-
-static void offset_compare_check(void)
-{
-    assert(offset_compare(0, 0, 0, 0) == 0);
-    assert(offset_compare(42, 42, 42, 42) == 0);
-    assert(offset_compare(10, 0, 9, 0) == 1);
-    assert(offset_compare(9, 0, 10, 0) == -1);
-}
-
-/*
  * Check that we do not leak memory nor destroy anything by creating and destructing a pkt_wait_list
  */
 
@@ -262,7 +250,6 @@ int main(void)
     log_set_level(LOG_INFO, NULL);  // DEBUG make the test too slow
     log_set_file("pkt_wait_list_check.log");
 
-    offset_compare_check();
     ctor_dtor_check();
     simple_check();
     reorder_check();

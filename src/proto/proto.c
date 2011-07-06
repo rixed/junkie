@@ -115,11 +115,22 @@ struct proto *proto_of_name(char const *name)
     return NULL;
 }
 
+char const *proto_parse_status_2_str(enum proto_parse_status status)
+{
+    switch (status) {
+        case PROTO_OK:        return "Ok";
+        case PROTO_PARSE_ERR: return "ParseErr";
+        case PROTO_TOO_SHORT: return "TooShort";
+    }
+    assert(!"Unknown proto_parse_status");
+    return "INVALID";
+}
+
 enum proto_parse_status proto_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     assert(cap_len <= wire_len);
 
-    if (! parser) {
+    if (! parser || wire_len == 0) {
         if (okfn) (void)okfn(parent, tot_cap_len, tot_packet);
         return PROTO_OK;   // This is not a parse error if okfn fails.
     }
