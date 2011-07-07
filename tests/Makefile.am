@@ -15,7 +15,7 @@ check_PROGRAMS = \
 	cursor_check
 
 dist_check_SCRIPTS = \
-	postgres.test mysql.test oracle.test \
+	postgres.test mysql.test oracle.test dns.test \
 	http-truncation.test digest_queue.scm \
 	pkt_source_stats.scm eth_padding.test \
 	pkt_source_dev_id.scm ftp.test timeout.scm

@@ -1,0 +1,10 @@
+#!/bin/sh
+
+NAME="DNS"
+PCAPS="pcap/dns/llmnr.pcap pcap/dns/nbns.pcap"
+filter() {
+	grep '^DNS' | cut -d' ' -f 2-
+}
+OUTPUT="dns.out"
+
+. ./dump_test

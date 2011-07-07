@@ -1,0 +1,4 @@
+-- pcap/dns/llmnr.pcap --
+head_len=24, payload=0, QUERY, tx_id=1304, err_code=0, request_type=ANY, dns_class=IN, name=stpbi4
+-- pcap/dns/nbns.pcap --
+head_len=50, payload=0, QUERY, tx_id=43573, err_code=0, request_type=NB, dns_class=IN, name=UMTOURNAISIS.BE

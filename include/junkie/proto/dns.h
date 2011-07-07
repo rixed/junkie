@@ -22,6 +22,7 @@ enum dns_req_type {
     DNS_TYPE_A6 = 0x0026,
     DNS_TYPE_IXFR = 0x00fb,
     DNS_TYPE_AXFR = 0x00fc,
+    DNS_TYPE_ANY = 0x00ff,
 };
 
 enum dns_class {
