@@ -37,6 +37,7 @@ LOG_CATEGORY_DEF(proto_dns);
 
 #define DNS_PORT 53
 #define NBNS_PORT 137
+#define MDNS_PORT 5353
 #define LLMNR_PORT 5355
 
 struct dns_hdr {
@@ -235,7 +236,7 @@ static enum proto_parse_status dns_parse(struct parser *parser, struct proto_inf
 
 static struct uniq_proto uniq_proto_dns;
 struct proto *proto_dns = &uniq_proto_dns.proto;
-static struct port_muxer dns_port_muxer, nbns_port_muxer, llmnr_port_muxer;
+static struct port_muxer dns_port_muxer, mdns_port_muxer, nbns_port_muxer, llmnr_port_muxer;
 
 void dns_init(void)
 {
@@ -250,6 +251,7 @@ void dns_init(void)
     };
     uniq_proto_ctor(&uniq_proto_dns, &ops, "DNS");
     port_muxer_ctor(&dns_port_muxer, &udp_port_muxers, DNS_PORT, DNS_PORT, proto_dns);
+    port_muxer_ctor(&mdns_port_muxer, &udp_port_muxers, MDNS_PORT, MDNS_PORT, proto_dns);
     port_muxer_ctor(&nbns_port_muxer, &udp_port_muxers, NBNS_PORT, NBNS_PORT, proto_dns);
     port_muxer_ctor(&llmnr_port_muxer, &udp_port_muxers, LLMNR_PORT, LLMNR_PORT, proto_dns);
 }
@@ -258,6 +260,7 @@ void dns_fini(void)
 {
     port_muxer_dtor(&llmnr_port_muxer, &udp_port_muxers);
     port_muxer_dtor(&nbns_port_muxer, &udp_port_muxers);
+    port_muxer_dtor(&mdns_port_muxer, &udp_port_muxers);
     port_muxer_dtor(&dns_port_muxer, &udp_port_muxers);
     uniq_proto_dtor(&uniq_proto_dns);
     log_category_proto_dns_fini();

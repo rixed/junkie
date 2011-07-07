@@ -1,7 +1,7 @@
 #!/bin/sh
 
 NAME="DNS"
-PCAPS="pcap/dns/llmnr.pcap pcap/dns/nbns.pcap"
+PCAPS="pcap/dns/dns.pcap pcap/dns/llmnr.pcap pcap/dns/nbns.pcap pcap/dns/mdns.pcap"
 filter() {
 	grep '^DNS' | cut -d' ' -f 2-
 }

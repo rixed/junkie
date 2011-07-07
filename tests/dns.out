@@ -1,4 +1,10 @@
+-- pcap/dns/dns.pcap --
+head_len=32, payload=0, QUERY, tx_id=3804, err_code=0, request_type=A, dns_class=IN, name=www.google.com
+head_len=32, payload=0, QUERY, tx_id=51952, err_code=0, request_type=AAAA, dns_class=IN, name=www.google.com
+head_len=284, payload=0, ANSWER, tx_id=3804, err_code=0, request_type=A, dns_class=IN, name=www.google.com
 -- pcap/dns/llmnr.pcap --
 head_len=24, payload=0, QUERY, tx_id=1304, err_code=0, request_type=ANY, dns_class=IN, name=stpbi4
 -- pcap/dns/nbns.pcap --
 head_len=50, payload=0, QUERY, tx_id=43573, err_code=0, request_type=NB, dns_class=IN, name=UMTOURNAISIS.BE
+-- pcap/dns/mdns.pcap --
+head_len=45, payload=0, QUERY, tx_id=0, err_code=0, request_type=PTR, dns_class=IN, name=225.80.168.192.in-addr.arpa
