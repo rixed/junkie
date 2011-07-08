@@ -334,7 +334,7 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
         unsigned const offset = info.seq_num - tcp_sub->isn[way];
         unsigned const next_offset = offset + packet_len + info.syn + info.fin;
         err = pkt_wait_list_add(tcp_sub->wl+way, offset, next_offset, true, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, packet_len, now, okfn, tot_cap_len, tot_packet);
-    } else {    // So be it
+    } else {    // Without the ISN, the pkt_wait_list is unusable. FIXME: the pkt_wait_list should work nonetheless.
         err = proto_parse(subparser->parser, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, wire_len - tcphdr_len, now, okfn, tot_cap_len, tot_packet);
     }
 
