@@ -12,6 +12,8 @@ sactJunkieModule MODULE-IDENTITY
 	ORGANIZATION "SecurActive SA"
 	CONTACT-INFO "info@securactive.net"
 	DESCRIPTION  "Junkie MIB"
+	REVISION     "201107080000Z"
+	DESCRIPTION  "Add statistics about RAM consumption"
 	REVISION     "201101310000Z"
 	DESCRIPTION  "Rename a few files and objects in order to respect established conventions"
 	REVISION     "201011040000Z"
@@ -21,6 +23,7 @@ sactJunkieModule MODULE-IDENTITY
 junkieSystem  OBJECT IDENTIFIER ::= { sactJunkieModule 1 }
 junkieSniffer OBJECT IDENTIFIER ::= { sactJunkieModule 2 }
 junkieParser  OBJECT IDENTIFIER ::= { sactJunkieModule 3 }
+junkieMemory  OBJECT IDENTIFIER ::= { sactJunkieModule 4 }
 
 junkieVersion OBJECT-TYPE
 	SYNTAX OCTET STRING
@@ -266,5 +269,76 @@ muxerLookups OBJECT-TYPE
 		 gives a good idea of the performance of this hash and weither it is
 		 sized correctly."
 	::= { muxerEntry 6 }
+
+-- Memory consumption, by source
+
+mallocerTable OBJECT-TYPE
+	SYNTAX SEQUENCE OF mallocEntry
+	MAX-ACCESS not-accessible
+	STATUS current
+	DESCRIPTION
+		"This table gives informations about RAM utilisation by the sniffer, for all 
+		 known source. Notice that this count the number of bytes allocated to the
+		 application and not the total memory footprint, which is routinely more than
+		 50% higher."
+	::= { junkieMemory 1 }
+
+mallocerEntry OBJECT-TYPE
+	SYNTAX MallocEntry
+	MAX-ACCESS not-accessible
+	STATUS current
+	DESCRIPTION "A row giving statistics on RAM consumption."
+	INDEX { mallocerName }
+	::= { mallocerTable 1 }
+
+MallocerEntry ::= SEQUENCE {
+	mallocerName OCTET STRING,
+	mallocerTotSize Gauge32,
+	mallocerNbBlocks Gauge32,
+	mallocerNbAllocs Counter64
+}
+
+mallocerName OBJECT-TYPE
+	SYNTAX OCTET STRING
+	MAX-ACCESS read-only
+	STATUS current
+	DESCRIPTION "The name of the malloc source."
+	::= { mallocerEntry 1 }
+
+mallocerTotSize OBJECT-TYPE
+	SYNTAX Gauge32
+	UNITS "bytes"
+	MAX-ACCESS read-only
+	STATUS current
+	DESCRIPTION "The current number of allocated bytes."
+	::= { mallocerEntry 2 }
+
+mallocerNbBlocks OBJECT-TYPE
+	SYNTAX Gauge32
+	MAX-ACCESS read-only
+	STATUS current
+	DESCRIPTION
+		"The number of individual objects that are currently allocated."
+	::= { mallocerEntry 3 }
+
+mallocerNbAllocs OBJECT-TYPE
+	SYNTAX Counter64
+	MAX-ACCESS read-only
+	STATUS current
+	DESCRIPTION
+		"How many objects were allocated (and maybe later freed).
+		 This can be used to obtain an allocation rate."
+	::= { mallocerEntry 4 }
+
+guileMemory OBJECT-TYPE
+	SYNTAX Gauge32
+	UNITS "bytes"
+	MAX-ACCESS read-only
+	STATUS current
+	DESCRIPTION
+		"Number of bytes in the various segments allocated by guile.
+		 Notice that alive objets (ie. non garbage collected) might be
+		 only sparsely scattered into these segments."
+	::= { junkieMemory 2 }
 
 END

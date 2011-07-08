@@ -5,6 +5,8 @@
              ((agentx session) :renamer (symbol-prefix-proc 'sess:))
              (guile-user))
 
+(if (not (defined? 'defs-loaded)) (load "defs.scm"))
+
 (define securactive-mib '(1 3 6 1 4 1 36773))
 (define junkie-mib  (append securactive-mib '(1)))
 
@@ -13,6 +15,9 @@
 
 (define (getoid-dup-detection-delay)
   (cons 'integer (get-dup-detection-delay)))
+
+(define (getoid-guile-mem-stats)
+  (cons 'gauge32 (guile-mem-stats)))
 
 (define (oid-less oid1 oid2) ; returns true if oid1 < oid2
   (< ((@ (agentx tools) oid-compare) (car oid1) (car oid2)) 0))
@@ -63,13 +68,28 @@
                    (source-getters
                      (append! prevs source-getter)
                      (1+ idx)
+                     (cdr names))))))
+           (malloc-getters
+             (lambda (prevs idx names)
+               (if (null? names) prevs
+                 (let* ((name          (car names))
+                        (stats         (cached-stats mallocer-stats name))
+                        (malloc-getter (list (cons (append junkie-mib (list 4 1 1 1 idx)) (lambda () (cons 'octet-string name)))
+                                             (cons (append junkie-mib (list 4 1 1 2 idx)) (lambda () (cons 'gauge32   (assq-ref stats 'tot-size))))
+                                             (cons (append junkie-mib (list 4 1 1 3 idx)) (lambda () (cons 'gauge32   (assq-ref stats 'nb-blocks))))
+                                             (cons (append junkie-mib (list 4 1 1 4 idx)) (lambda () (cons 'counter64 (assq-ref stats 'nb-allocs)))))))
+                   (malloc-getters
+                     (append! prevs malloc-getter)
+                     (1+ idx)
                      (cdr names)))))))
-    (let* ((scalars      (list (cons (append junkie-mib '(1 1 0))   getoid-version)
-                               (cons (append junkie-mib '(2 2 0))   getoid-dup-detection-delay)))
+    (let* ((scalars      (list (cons (append junkie-mib '(1 1 0)) getoid-version)
+                               (cons (append junkie-mib '(2 2 0)) getoid-dup-detection-delay)
+                               (cons (append junkie-mib '(4 2 0)) getoid-guile-mem-stats)))
            (getters-list (parser-getters scalars      1 (proto-names)))
            (muxers-list  (muxer-getters  getters-list 1 (mux-names)))
-           (sources-list (source-getters muxers-list  1 (iface-names))))
-      (sort! sources-list oid-less))))
+           (sources-list (source-getters muxers-list  1 (iface-names)))
+           (malloc-list  (malloc-getters sources-list 1 (mallocer-names))))
+      (sort! malloc-list oid-less))))
 
 
 (define (start-junkie-subagent)
