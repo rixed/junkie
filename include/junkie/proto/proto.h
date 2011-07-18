@@ -411,7 +411,7 @@ struct proto *proto_of_scm_name(SCM name);
 struct mux_subparser {
     struct ref ref;
     TAILQ_ENTRY(mux_subparser) to_entry;    ///< Its entry in its timeout queue (sorted in least recently used first)
-    LIST_ENTRY(mux_subparser) h_entry;      ///< Its entry in the hash (sorted in more recently used first - so that lookups are faster)
+    STAILQ_ENTRY(mux_subparser) h_entry;    ///< Its entry in the hash (sorted in more recently used first - so that lookups are faster)
     struct parser *parser;                  ///< The actual parser
     struct timeval last_used;               ///< Last time we call it's parse method
     struct proto *requestor;                ///< The proto that requested its creation
@@ -453,7 +453,7 @@ struct mux_parser {
     /// The hash of subparsers (Beware of the variable size)
     struct subparsers {
         /// These two fields are protected by one of the mux_proto->mutexes
-        LIST_HEAD(mux_subparsers, mux_subparser) list;      ///< The list of all subparsers with same hash value (least recently used last)
+        STAILQ_HEAD(mux_subparsers, mux_subparser) list;    ///< The list of all subparsers with same hash value (least recently used last)
     } subparsers[];
 };
 

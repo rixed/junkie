@@ -350,6 +350,7 @@ static LIST_HEAD(mux_protos, mux_proto) mux_protos = LIST_HEAD_INITIALIZER(mux_p
 // Caller must own list->mutex
 static void mux_subparser_deindex_locked(struct mux_subparser *subparser)
 {
+    struct subparsers *const h_list = h_list_of_subparser(subparser);
     struct per_mutex *const to_list = to_list_of_subparser(subparser);
 #   ifdef __GNUC__
     unsigned const unused_ n = __sync_fetch_and_sub(&subparser->mux_parser->nb_children, 1);
@@ -359,7 +360,7 @@ static void mux_subparser_deindex_locked(struct mux_subparser *subparser)
     subparser->mux_parser->nb_children --;
     mutex_unlock(&subparser->mux_proto->proto.lock);
 #   endif
-    LIST_REMOVE(subparser, h_entry);
+    STAILQ_REMOVE(&h_list->list, subparser, mux_subparser, h_entry);
     TAILQ_REMOVE(&to_list->timeout_queue, subparser, to_entry);
     subparser->h_idx = NOT_HASHED;
     (void)unref(&subparser->ref);
@@ -393,7 +394,7 @@ static void mux_subparser_index(struct mux_subparser *subparser)
     // Insert the subparser into its mux_parser hash and into the timeout_queue
     struct subparsers *const h_list = h_list_of_subparser(subparser);
     struct per_mutex *const to_list = to_list_of_subparser(subparser);
-    LIST_INSERT_HEAD(&h_list->list, subparser, h_entry); // most used first
+    STAILQ_INSERT_HEAD(&h_list->list, subparser, h_entry); // most used first
     TAILQ_INSERT_TAIL(&to_list->timeout_queue, subparser, to_entry); // most used last
     // inc nb_children
 #   if __GNUC__
@@ -433,8 +434,8 @@ static bool too_many_children(struct mux_parser *mux_parser)
 // Caller must own list->mutex
 static void try_sacrifice_child(struct mux_proto *mux_proto, struct subparsers *h_list)
 {
-    if (LIST_EMPTY(&h_list->list)) return;
-    struct mux_subparser *subparser = LIST_FIRST(&h_list->list);    // killing the first is not the best strategy but avoids a pointer to last
+    struct mux_subparser *subparser = STAILQ_LAST(&h_list->list, mux_subparser, h_entry);    // killing the least recently used child
+    if (! subparser) return;    // empty
 
     SLOG(LOG_DEBUG, "Too many children, killing %s", mux_subparser_name(subparser));
 
@@ -577,7 +578,7 @@ struct mux_subparser *mux_subparser_lookup(struct mux_parser *mux_parser, struct
 
     unsigned nb_colls = 0;
     struct mux_subparser *subparser;
-    LIST_FOREACH(subparser, &h_list->list, h_entry) {
+    STAILQ_FOREACH(subparser, &h_list->list, h_entry) {
         if (
             // FIXME: various kind of subparsers might have the same key so we should include proto in any case,
             // whether or not we intend to create the child if not found (ie. use another flag for that).
@@ -597,8 +598,8 @@ struct mux_subparser *mux_subparser_lookup(struct mux_parser *mux_parser, struct
         struct per_mutex *const to_list = to_list_of_subparser(subparser);
         TAILQ_REMOVE(&to_list->timeout_queue, subparser, to_entry);
         TAILQ_INSERT_TAIL(&to_list->timeout_queue, subparser, to_entry);
-        LIST_REMOVE(subparser, h_entry);
-        LIST_INSERT_HEAD(&h_list->list, subparser, h_entry);
+        STAILQ_REMOVE(&h_list->list, subparser, mux_subparser, h_entry);
+        STAILQ_INSERT_HEAD(&h_list->list, subparser, h_entry);
     }
 
     if (nb_colls > 8) {
@@ -606,8 +607,8 @@ struct mux_subparser *mux_subparser_lookup(struct mux_parser *mux_parser, struct
 #       ifndef NDEBUG
         if (unlikely_(nb_colls > 100)) {
             SLOG(LOG_NOTICE, "Dump of first keys for h = %u :", h);
-            SLOG_HEX(LOG_NOTICE, LIST_FIRST(&h_list->list)->key, mux_proto->key_size);
-            SLOG_HEX(LOG_NOTICE, LIST_FIRST(&h_list->list)->h_entry.le_next->key, mux_proto->key_size);
+            SLOG_HEX(LOG_NOTICE, STAILQ_FIRST(&h_list->list)->key, mux_proto->key_size);
+            SLOG_HEX(LOG_NOTICE, STAILQ_FIRST(&h_list->list)->h_entry.stqe_next->key, mux_proto->key_size);
         }
 #       endif
     }
@@ -681,7 +682,7 @@ int mux_parser_ctor(struct mux_parser *mux_parser, struct mux_proto *mux_proto, 
 
     for (unsigned h = 0; h < mux_parser->hash_size; h++) {
         struct subparsers *const h_list = mux_parser->subparsers + h;
-        LIST_INIT(&h_list->list);
+        STAILQ_INIT(&h_list->list);
     }
 
     return 0;
@@ -729,7 +730,7 @@ void mux_parser_dtor(struct mux_parser *mux_parser)
 
         mutex_lock(mutex);
         struct mux_subparser *subparser;
-        while (NULL != (subparser = LIST_FIRST(&h_list->list))) {
+        while (NULL != (subparser = STAILQ_FIRST(&h_list->list))) {
             assert(subparser->h_idx % mux_parser->hash_size == h);
             mux_subparser_deindex_locked(subparser);
         }
