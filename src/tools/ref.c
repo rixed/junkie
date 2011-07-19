@@ -127,6 +127,9 @@ void ref_init(void)
 
 void ref_fini(void)
 {
+    (void)pthread_cancel(doomer_pth);
+    (void)pthread_join(doomer_pth, NULL);
+    SLOG(LOG_DEBUG, "doomer thread was cancelled");
     pthread_rwlock_destroy(&rwlock);
     mutex_dtor(&death_row_mutex);
     log_category_ref_fini();
