@@ -69,7 +69,7 @@ void pthread_mutex_unlock_(void *mutex)
 {
     int err = pthread_mutex_unlock((pthread_mutex_t *)mutex);
     if (err) {
-        SLOG(LOG_ERR, "Cannot lock ext param mutex@%p: %s", mutex, strerror(err));
+        SLOG(LOG_ERR, "Cannot unlock ext param mutex@%p: %s", mutex, strerror(err));
     }
 }
 
