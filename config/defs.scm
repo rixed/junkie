@@ -226,15 +226,17 @@
 (define (cached timeout)
   (let* ((hash      (make-hash-table 50)) ; hash from (func . args) into (timestamp . value)
          (ts-of     car)
-         (value-of  cdr))
+         (value-of  cdr)
+         (mutex     (make-mutex)))
     (lambda func-args
-      (let* ((hash-v (hash-ref hash func-args))
-             (now    (current-time)))
-        (if (and hash-v (<= now (+ timeout (ts-of hash-v))))
-            (value-of hash-v)
-            (let ((v (primitive-eval func-args)))
-              (hash-set! hash func-args (cons now v))
-              v))))))
+      (with-mutex mutex
+                  (let* ((hash-v (hash-ref hash func-args))
+                         (now    (current-time)))
+                    (if (and hash-v (<= now (+ timeout (ts-of hash-v))))
+                        (value-of hash-v)
+                        (let ((v (primitive-eval func-args)))
+                          (hash-set! hash func-args (cons now v))
+                          v)))))))
 
 ; Helper functions that comes handy when configuring muxer hashes
 (define (get-mux-hash-size proto)
