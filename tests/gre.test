@@ -1,0 +1,10 @@
+#!/bin/sh
+
+NAME="GRE"
+PCAPS="pcap/gre/sample.pcap"
+filter() {
+	grep '^GRE' | cut -d' ' -f 2-
+}
+OUTPUT="gre.out"
+
+. ./dump_test

@@ -18,7 +18,7 @@ dist_check_SCRIPTS = \
 	postgres.test mysql.test oracle.test dns.test \
 	http-truncation.test digest_queue.scm \
 	pkt_source_stats.scm eth_padding.test \
-	pkt_source_dev_id.scm ftp.test timeout.scm
+	pkt_source_dev_id.scm ftp.test gre.test timeout.scm
 
 TESTS = $(check_PROGRAMS) $(dist_check_SCRIPTS)
 

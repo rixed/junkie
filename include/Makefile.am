@@ -17,6 +17,7 @@ pkginclude_HEADERS = \
 	junkie/proto/rtp.h \
 	junkie/proto/netbios.h \
 	junkie/proto/ip.h \
+	junkie/proto/gre.h \
 	junkie/proto/ssl.h \
 	junkie/proto/cifs.h \
 	junkie/proto/mgcp.h \

@@ -45,6 +45,7 @@
 #include <junkie/proto/cap.h>
 #include <junkie/proto/eth.h>
 #include <junkie/proto/ip.h>
+#include <junkie/proto/gre.h>
 #include <junkie/proto/arp.h>
 #include <junkie/proto/udp.h>
 #include <junkie/proto/icmp.h>
@@ -79,9 +80,9 @@ static struct {
     I(log),           I(ext),         I(redim_array),
     I(mallocer),      I(mutex),       I(plugins),
     I(hash),          I(proto),       I(fuzzing),
-    I(pkt_wait_list), I(ref),
-    I(cap),           I(eth),         I(ip6),
-    I(arp),           I(ip),          I(udp),
+    I(pkt_wait_list), I(ref),         I(cap),
+    I(eth),           I(ip6),         I(arp),
+    I(ip),            I(gre),         I(udp),
     I(icmpv6),        I(tcp),         I(icmp),
     I(sip),           I(bittorrent),  I(http),
     I(rtp),           I(netbios),     I(ssl),
