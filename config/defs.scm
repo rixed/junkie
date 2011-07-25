@@ -158,49 +158,47 @@
         -1)))
 
 ; backward compatible function set-ifaces
-(use-modules (ice-9 regex))
+(use-modules (ice-9 regex)
+             (ice-9 optargs))
 (define (ifaces-matching pattern)
   (filter
     (lambda (ifname) (string-match pattern ifname))
     (list-ifaces)))
 
-(define (set-ifaces pattern)
-  (let ((bufsize (if (defined? 'bufsize) bufsize 0))
-        (caplen  (if (defined? 'caplen) caplen 0)))
-    (for-each
-      (lambda (ifname) (open-iface ifname #t "" caplen bufsize))
-      (ifaces-matching pattern))))
+(define* (set-ifaces pattern #:key (capfilter "") (bufsize 0) (caplen 0))
+  (for-each
+    (lambda (ifname) (open-iface ifname #t capfilter caplen bufsize))
+    (ifaces-matching pattern)))
 
 (define (get-ifaces) (iface-names))
 
 ; build a list of pcap filter suitable to split traffic through 2^n+1 processes
 ; n must be >= 1
 (use-modules (ice-9 format))
-(define (pcap-filters-for-split n)
+(define* (pcap-filters-for-split n #:key capfilter)
   (letrec ((mask        (- (ash 1 n) 1))
            (next-filter (lambda (prevs i)
                           (if (> i mask)
                             prevs
-                            (let* ((this-filter (format #f "(ip[11] & 0x~x = ~d) or (vlan and ip[11] & 0x~x = ~d)" mask i mask i)))
+                            (let* ((flt         (format #f
+                                                        "(ip[11] & 0x~x = ~d) or (vlan and ip[11] & 0x~x = ~d)"
+                                                        mask i mask i))
+                                   (this-filter (if capfilter
+                                                    (format #f "(~a) and (~a)" capfilter flt)
+                                                    flt)))
                               (next-filter (cons this-filter prevs) (1+ i)))))))
     (next-filter (list "not ip and not (vlan and ip)") 0)))
 
 ; Equivalent of set-ifaces for multiple CPUs
-(define (open-iface-multiple n . args)
-  (let* ((ifname      (car args))
-         (promisc     (catch 'wrong-type-arg (lambda () (cadr   args)) (lambda (k . a) #t)))
-         (caplen      (catch 'wrong-type-arg (lambda () (caddr  args)) (lambda (k . a) 0)))
-         (bufsize     (catch 'wrong-type-arg (lambda () (cadddr args)) (lambda (k . a) 0)))
-         (filters     (pcap-filters-for-split n))
+(define* (open-iface-multiple n ifname #:key (capfilter "") (bufsize 0) (caplen 0) (promisc #t))
+  (let* ((filters     (pcap-filters-for-split n #:capfilter capfilter))
          (open-single (lambda (flt) (open-iface ifname promisc flt caplen bufsize))))
     (for-each open-single filters)))
 
-(define (set-ifaces-multiple n pattern)
-  (let ((bufsize (if (defined? 'bufsize) bufsize 0))
-        (caplen  (if (defined? 'caplen) caplen 0)))
-    (for-each
-      (lambda (ifname) (open-iface-multiple n ifname #t caplen bufsize))
-      (ifaces-matching pattern))))
+(define* (set-ifaces-multiple n pattern #:rest r)
+  (for-each
+    (lambda (ifname) (open-iface-multiple n ifname r))
+    (ifaces-matching pattern)))
 
 ; (list-ifaces) will only report the currently mounted network devices.
 ; So we merely up all devices here. This works because we are the allmighty root.
