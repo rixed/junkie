@@ -22,14 +22,12 @@
 (define (oid-less oid1 oid2) ; returns true if oid1 < oid2
   (< ((@ (agentx tools) oid-compare) (car oid1) (car oid2)) 0))
 
-(define cached-stats (cached 15))
-
 (define (junkie-getters)
   (letrec ((parser-getters
              (lambda (prevs idx names)
                (if (null? names) prevs  ; no more parsers on the table
                  (let* ((name          (car names))
-                        (stats         (cached-stats proto-stats name))
+                        (stats         (proto-stats name))
                         (parser-getter (list (cons (append junkie-mib (list 3 1 1 1 idx)) (lambda () (cons 'octet-string name)))
                                              (cons (append junkie-mib (list 3 1 1 2 idx)) (lambda () (cons 'counter64 (assq-ref stats 'nb-frames))))
                                              (cons (append junkie-mib (list 3 1 1 3 idx)) (lambda () (cons 'counter64 (assq-ref stats 'nb-bytes))))
@@ -42,7 +40,7 @@
              (lambda (prevs idx names)
                (if (null? names) prevs
                  (let* ((name          (car names))
-                        (stats         (cached-stats mux-stats name))
+                        (stats         (mux-stats name))
                         (mux-getter    (list (cons (append junkie-mib (list 3 2 1 1 idx)) (lambda () (cons 'octet-string name)))
                                              (cons (append junkie-mib (list 3 2 1 2 idx)) (lambda () (cons 'gauge32   (assq-ref stats 'hash-size))))
                                              (cons (append junkie-mib (list 3 2 1 3 idx)) (lambda () (cons 'gauge32   (assq-ref stats 'nb-max-children))))
@@ -57,7 +55,7 @@
              (lambda (prevs idx names)
                (if (null? names) prevs
                  (let* ((name          (car names))
-                        (stats         (cached-stats iface-stats name))
+                        (stats         (iface-stats name))
                         (source-getter (list (cons (append junkie-mib (list 2 1 1 1 idx)) (lambda () (cons 'octet-string name)))
                                              (cons (append junkie-mib (list 2 1 1 2 idx)) (lambda () (cons 'counter64 (assq-ref stats 'tot-received))))
                                              (cons (append junkie-mib (list 2 1 1 3 idx)) (lambda () (cons 'counter64 (assq-ref stats 'tot-dropped))))
@@ -73,7 +71,7 @@
              (lambda (prevs idx names)
                (if (null? names) prevs
                  (let* ((name          (car names))
-                        (stats         (cached-stats mallocer-stats name))
+                        (stats         (mallocer-stats name))
                         (malloc-getter (list (cons (append junkie-mib (list 4 1 1 1 idx)) (lambda () (cons 'octet-string name)))
                                              (cons (append junkie-mib (list 4 1 1 2 idx)) (lambda () (cons 'gauge32   (assq-ref stats 'tot-size))))
                                              (cons (append junkie-mib (list 4 1 1 3 idx)) (lambda () (cons 'gauge32   (assq-ref stats 'nb-blocks))))
