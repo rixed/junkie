@@ -350,19 +350,15 @@ static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info
 
     // Find subparser
 
-    mutex_lock(&ip_subprotos_mutex);
     struct mux_subparser *subparser = NULL;
     struct ip_subproto *subproto;
-    LIST_FOREACH(subproto, &ip_subprotos, entry) {
-        if (subproto->protocol == info.key.protocol) {
-            // We have a subproto for this protocol value, look for a parser of this subproto in our mux_subparsers hash (or create a new one)
-            struct ip_key subparser_key;
-            info.way = ip_key_ctor(&subparser_key, info.key.protocol, info.key.addr+0, info.key.addr+1);
-            subparser = mux_subparser_lookup(mux_parser, subproto->proto, NULL, &subparser_key, now);
-            break;
-        }
+    LIST_LOOKUP_LOCKED(subproto, &ip_subprotos, entry, subproto->protocol == info.key.protocol, &ip_subprotos_mutex);
+    if (subproto) {
+        // We have a subproto for this protocol value, look for a parser of this subproto in our mux_subparsers hash (or create a new one)
+        struct ip_key subparser_key;
+        info.way = ip_key_ctor(&subparser_key, info.key.protocol, info.key.addr+0, info.key.addr+1);
+        subparser = mux_subparser_lookup(mux_parser, subproto->proto, NULL, &subparser_key, now);
     }
-    mutex_unlock(&ip_subprotos_mutex);
 
     if (! subparser) {
         SLOG(LOG_DEBUG, "IPv4 protocol %u unknown", protocol);

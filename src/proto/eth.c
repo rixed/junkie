@@ -126,14 +126,8 @@ void eth_subproto_dtor(struct eth_subproto *eth_subproto)
 
 struct proto *eth_subproto_lookup(unsigned protocol)
 {
-    mutex_lock(&eth_subprotos_mutex);
     struct eth_subproto *subproto;
-    LIST_FOREACH(subproto, &eth_subprotos, entry) {
-        if (subproto->protocol == protocol) {
-            break;
-        }
-    }
-    mutex_unlock(&eth_subprotos_mutex);
+    LIST_LOOKUP_LOCKED(subproto, &eth_subprotos, entry, subproto->protocol == protocol, &eth_subprotos_mutex);
 
     return subproto ? subproto->proto : NULL;
 }

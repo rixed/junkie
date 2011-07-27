@@ -82,10 +82,8 @@ struct ext_params ext_params = SLIST_HEAD_INITIALIZER(ext_params);
 static struct ext_param *get_param(char const *name)
 {
     struct ext_param *param;
-    SLIST_FOREACH(param, &ext_params, entry) {
-        if (0 == strcmp(name, param->name)) return param;
-    }
-    return NULL;
+    SLIST_LOOKUP(param, &ext_params, entry, 0 == strcmp(name, param->name));
+    return param;
 }
 
 static struct ext_function sg_parameter_names;

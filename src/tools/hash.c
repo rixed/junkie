@@ -53,10 +53,8 @@ static struct hash_base *hash_of_scm_name(SCM name_)
 {
     char *name = scm_to_tempstr(name_);
     struct hash_base *hash;
-    LIST_FOREACH(hash, &hashes, entry) {
-        if (0 == strcasecmp(name, hash->name)) return hash;
-    }
-    return NULL;
+    LIST_LOOKUP(hash, &hashes, entry, 0 == strcasecmp(name, hash->name));
+    return hash;
 }
 
 static struct ext_function sg_hash_stats;

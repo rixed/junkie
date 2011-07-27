@@ -111,12 +111,8 @@ static SCM g_load_plugin(SCM filename)
 static struct plugin *plugin_lookup(char const *libname)
 {
     struct plugin *plugin;
-    mutex_lock(&plugins_mutex);
-    LIST_FOREACH(plugin, &plugins, entry) {
-        if (0 == strcmp(libname, plugin->libname)) return plugin;
-    }
-    mutex_unlock(&plugins_mutex);
-    return NULL;
+    LIST_LOOKUP_LOCKED(plugin, &plugins, entry, 0 == strcmp(libname, plugin->libname), &plugins_mutex);
+    return plugin;
 }
 
 static struct ext_function sg_unload_plugin;

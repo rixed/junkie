@@ -153,6 +153,7 @@ static enum proto_parse_status gre_parse(struct parser *parser, struct proto_inf
     // Parse
     uint16_t const h_proto = READ_U16N(&grehdr->protocol);
     uint8_t const flags = READ_U8(&grehdr->flags);
+    // FIXME: test me!
     size_t h_len = sizeof(*grehdr) +
         // if either checksum or routing flag are set then both checksum and routing fields are present
         (flags & (GRE_CHECKSUM_MASK|GRE_ROUTING_MASK) ? 4 : 0) +
@@ -177,14 +178,8 @@ static enum proto_parse_status gre_parse(struct parser *parser, struct proto_inf
     // Do we already have a parser for this one ?
     struct gre_subparser *gre_subparser;
     struct parser *subparser = NULL;
-    mutex_lock(&gre_subparsers_mutex);
-    LIST_FOREACH(gre_subparser, &gre_subparsers, entry) {
-        if (gre_subparser->protocol == h_proto) {
-            subparser = parser_ref(gre_subparser->parser);
-            break;
-        }
-    }
-    mutex_unlock(&gre_subparsers_mutex);
+    LIST_LOOKUP_LOCKED(gre_subparser, &gre_subparsers, entry, gre_subparser->protocol == h_proto, &gre_subparsers_mutex);
+    if (gre_subparser) subparser = parser_ref(gre_subparser->parser);
 
     if (! gre_subparser) {  // Nope, look for the proto
         struct proto *sub_proto = eth_subproto_lookup(h_proto);

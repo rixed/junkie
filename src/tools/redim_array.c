@@ -175,10 +175,8 @@ static struct redim_array *array_of_scm_name(SCM name_)
 {
     char *name = scm_to_tempstr(name_);
     struct redim_array *array;
-    LIST_FOREACH(array, &redim_arrays, entry) {
-        if (0 == strcasecmp(name, array->name)) return array;
-    }
-    return NULL;
+    LIST_LOOKUP(array, &redim_arrays, entry, 0 == strcasecmp(name, array->name));
+    return array;
 }
 
 static struct ext_function sg_array_stats;

@@ -499,12 +499,8 @@ static SCM g_wait_list_names(void)
 static struct pkt_wl_config *pkt_wl_config_of_scm_name(SCM name_)
 {
     char *name = scm_to_tempstr(name_);
-    mutex_lock(&pkt_wl_configs_mutex);
     struct pkt_wl_config *config;
-    SLIST_FOREACH(config, &pkt_wl_configs, entry) {
-        if (0 == strcasecmp(name, config->name)) break;
-    }
-    mutex_unlock(&pkt_wl_configs_mutex);
+    SLIST_LOOKUP_LOCKED(config, &pkt_wl_configs, entry, 0 == strcasecmp(name, config->name), &pkt_wl_configs_mutex);
     return config;
 }
 
