@@ -239,6 +239,8 @@ static bool had_udp;
 static struct timeval now;
 static struct parser *eth_parser;
 static unsigned nb_okfn_calls;
+static unsigned udp_num; // when did we receive the whole payload ?
+static unsigned pkt_num[10];
 
 static void setup(void)
 {
@@ -247,6 +249,8 @@ static void setup(void)
     assert(eth_parser);
     had_udp = false;
     nb_okfn_calls = 0;
+    udp_num = ~0;
+    for (unsigned p = 0; p < NB_ELEMS(pkt_num); p++) pkt_num[p] = ~0;
 }
 
 static void teardown(void)
@@ -254,19 +258,28 @@ static void teardown(void)
     parser_unref(eth_parser);
 }
 
-static int okfn(struct proto_info const *last, size_t unused_ cap_len, uint8_t const unused_ *packet)
+static int okfn(struct proto_info const *last, size_t cap_len, uint8_t const *packet)
 {
-    nb_okfn_calls ++;
-
     // We are called once for UDP, and once for each IP fragments
     if (last->parser->proto == proto_udp) {
         assert(! had_udp);
         had_udp = true;
+        udp_num = nb_okfn_calls;
         assert(last->payload == 1024);
     } else {
         assert(last->parser->proto == proto_ip);
         assert(last->payload == 80 || last->payload == 72); // last fragment is 72 bytes long
     }
+
+    // Try to find out which packet have been sent
+    for (unsigned p = 0; p < NB_ELEMS(pkts); p++) {
+        if (0 == memcmp(packet, pkts[p], cap_len)) {
+            pkt_num[nb_okfn_calls] = p;
+            break;
+        }
+    }
+
+    nb_okfn_calls ++;
 
     return 0;
 }
@@ -280,6 +293,10 @@ static void simple_check(void)
         assert(PROTO_OK == proto_parse(eth_parser, NULL, 0, pkts[p], sizeof(pkts[p]), sizeof(pkts[p]), &now, okfn, sizeof(pkts[p]), pkts[p]));
     }
     assert(nb_okfn_calls == NB_ELEMS(pkts));
+    assert(udp_num == NB_ELEMS(pkts)-1);    // we'd like the full reassembled packet to be revealed last
+    // Also check that we were sent the packets in the correct order (ie first to last fragment)
+    assert(pkt_num[0] == 0);
+    assert(pkt_num[NB_ELEMS(pkts)-1] == NB_ELEMS(pkts)-1);
 
     teardown();
 }
@@ -294,6 +311,10 @@ static void reverse_check(void)
         assert(PROTO_OK == proto_parse(eth_parser, NULL, 0, pkts[p], sizeof(pkts[p]), sizeof(pkts[p]), &now, okfn, sizeof(pkts[p]), pkts[p]));
     }
     assert(nb_okfn_calls == NB_ELEMS(pkts));
+    assert(udp_num == NB_ELEMS(pkts)-1);    // we'd like the full reassembled packet to be revealed last (even when fragments arrive at random)
+    // Also check that we were sent the packets in the correct order (first to last fragment, not how we replayed them)
+    assert(pkt_num[0] == 0);
+    assert(pkt_num[NB_ELEMS(pkts)-1] == NB_ELEMS(pkts)-1);
 
     teardown();
 }

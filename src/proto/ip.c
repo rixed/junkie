@@ -290,27 +290,21 @@ struct mux_subparser *ip_subparser_lookup(struct parser *parser, struct proto *p
  * But we also want to acknoledge the several IP fragments that were received (but the
  * first one that count for the whole payload), so we also must call okfn for each IP info.
  * The pkt_wait_list_dtor will do this for us. */
-static void reassemble(struct ip_reassembly *reassembly, struct proto_info *parent, unsigned way, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status reassemble(struct ip_reassembly *reassembly, struct timeval const *now)
 {
     SLOG(LOG_DEBUG, "Reassembling ip_reassembly@%p", reassembly);
 
     /* FIXME: reassembled packet does not lie inside tot_packet, which is a problem if we use another pkt_wait_list in the subparser.
      * we should use wait_pkt->tot_packet here, or rework pkt_wait_list so that it doesn't assume anymore that packet is within tot_packet. */
+    // may fail for instance if cap_len was not big enough
     uint8_t *payload = pkt_wait_list_reassemble(&reassembly->wl, 0, reassembly->end_offset);
-    if (payload) {  // an obvious reason for !payload would be that cap_len was not big enough
-        if (PROTO_OK == proto_parse(reassembly->wl.parser, parent, way, payload, reassembly->end_offset, reassembly->end_offset, now, okfn, tot_cap_len, tot_packet)) {
-            // Remove the last fragment so that proto_parse() is not called for it
-            struct pkt_wait *const pkt = LIST_FIRST(&reassembly->wl.pkts);
-            if (pkt) pkt_wait_del(pkt, &reassembly->wl);
-        }
-        FREE(payload);
-    }
-    // Call proto parse for all fragments (but the last, see above).
-    // FIXME: Then, okfn will be called first for the last packet, then for all others in order. We should destruct this before calling proto_parse for the last one.
+    enum proto_parse_status status = pkt_wait_list_flush(&reassembly->wl, payload, reassembly->end_offset, reassembly->end_offset, now);
+    if (payload) FREE(payload);
     ip_reassembly_dtor(reassembly, now);
+    return status;
 }
 
-static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info *parent, unsigned unused_ way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct ip_hdr const *iphdr = (struct ip_hdr *)packet;
@@ -369,6 +363,8 @@ static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info
         goto fallback;
     }
 
+    enum proto_parse_status status;
+
     // If we have a fragment, maybe we can't parse payload right now
     if (is_fragment(iphdr) && reassembly_enabled) {
         struct ip_subparser *ip_subparser = DOWNCAST(subparser, mux_subparser, ip_subparser);
@@ -388,11 +384,13 @@ static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info
             goto unlock_fallback;  // should not happen
         }
         if (reassembly->got_last && pkt_wait_list_is_complete(&reassembly->wl, 0, reassembly->end_offset)) {
-            reassemble(reassembly, &info.info, way, now, okfn, tot_cap_len, tot_packet);
+            status = reassemble(reassembly, now);
+        } else {
+            status = PROTO_OK;  // for now
         }
         mutex_unlock(&ip_subparser->mutex);
         mux_subparser_unref(subparser);
-        return PROTO_OK;
+        return status;
 unlock_fallback:    // Beeeerk
         mutex_unlock(&ip_subparser->mutex);
         mux_subparser_unref(subparser);
@@ -400,7 +398,7 @@ unlock_fallback:    // Beeeerk
     }
 
     // Parse it at once
-    enum proto_parse_status status = proto_parse(subparser->parser, &info.info, info.way, packet + iphdr_len, cap_payload, payload, now, okfn, tot_cap_len, tot_packet);
+    status = proto_parse(subparser->parser, &info.info, info.way, packet + iphdr_len, cap_payload, payload, now, okfn, tot_cap_len, tot_packet);
     mux_subparser_unref(subparser);
     if (status == PROTO_OK) return PROTO_OK;
 
