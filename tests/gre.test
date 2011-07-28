@@ -1,7 +1,7 @@
 #!/bin/sh
 
 NAME="GRE"
-PCAPS="pcap/gre/sample.pcap"
+PCAPS="pcap/gre/sample.pcap pcap/gre/fragmented.pcap"
 filter() {
 	grep '^GRE' | cut -d' ' -f 2-
 }

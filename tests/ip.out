@@ -1,0 +1,16 @@
+-- pcap/gre/fragmented.pcap --
+Capture: head_len=48, payload=1514, dev_id=0, tv=1311775154s 233032us
+Ethernet: head_len=14, payload=1500, vlan_id=-1, source=00:10:f3:09:19:49, dest=ac:de:48:00:10:99, proto=2048
+IPv4: head_len=20, payload=1480, version=4, addr=80.154.67.162->192.168.80.99, proto=47, ttl=117
+
+Capture: head_len=48, payload=1514, dev_id=0, tv=1311775154s 233035us
+Ethernet: head_len=14, payload=1500, vlan_id=-1, source=00:10:f3:09:19:49, dest=ac:de:48:00:10:99, proto=2048
+IPv4: head_len=20, payload=1480, version=4, addr=80.154.67.162->192.168.80.99, proto=47, ttl=117
+
+Capture: head_len=48, payload=1202, dev_id=0, tv=1311775154s 233038us
+Ethernet: head_len=14, payload=1188, vlan_id=-1, source=00:10:f3:09:19:49, dest=ac:de:48:00:10:99, proto=2048
+IPv4: head_len=20, payload=1168, version=4, addr=80.154.67.162->192.168.80.99, proto=47, ttl=117
+GRE: head_len=4, payload=4124, version=0, protocol=2048, key=None
+IPv4: head_len=20, payload=4104, version=4, addr=192.168.208.10->192.168.208.18, proto=1, ttl=128
+ICMP: head_len=4104, payload=0, type=EchoReply, err=NONE
+
