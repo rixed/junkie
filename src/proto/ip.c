@@ -294,8 +294,10 @@ static void reassemble(struct ip_reassembly *reassembly, struct proto_info *pare
 {
     SLOG(LOG_DEBUG, "Reassembling ip_reassembly@%p", reassembly);
 
+    /* FIXME: reassembled packet does not lie inside tot_packet, which is a problem if we use another pkt_wait_list in the subparser.
+     * we should use wait_pkt->tot_packet here, or rework pkt_wait_list so that it doesn't assume anymore that packet is within tot_packet. */
     uint8_t *payload = pkt_wait_list_reassemble(&reassembly->wl, 0, reassembly->end_offset);
-    if (payload) {  // an obvious reason for !payload this would be that cap_len was not big enough
+    if (payload) {  // an obvious reason for !payload would be that cap_len was not big enough
         if (PROTO_OK == proto_parse(reassembly->wl.parser, parent, way, payload, reassembly->end_offset, reassembly->end_offset, now, okfn, tot_cap_len, tot_packet)) {
             // Remove the last fragment so that proto_parse() is not called for it
             struct pkt_wait *const pkt = LIST_FIRST(&reassembly->wl.pkts);
@@ -303,6 +305,8 @@ static void reassemble(struct ip_reassembly *reassembly, struct proto_info *pare
         }
         FREE(payload);
     }
+    // Call proto parse for all fragments (but the last, see above).
+    // FIXME: Then, okfn will be called first for the last packet, then for all others in order. We should destruct this before calling proto_parse for the last one.
     ip_reassembly_dtor(reassembly, now);
 }
 
@@ -384,7 +388,7 @@ static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info
             goto unlock_fallback;  // should not happen
         }
         if (reassembly->got_last && pkt_wait_list_is_complete(&reassembly->wl, 0, reassembly->end_offset)) {
-            reassemble(reassembly, parent, way, now, okfn, tot_cap_len, tot_packet);
+            reassemble(reassembly, &info.info, way, now, okfn, tot_cap_len, tot_packet);
         }
         mutex_unlock(&ip_subparser->mutex);
         mux_subparser_unref(subparser);

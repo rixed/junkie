@@ -157,6 +157,10 @@ static int pkt_wait_ctor(struct pkt_wait *pkt, unsigned offset, unsigned next_of
     pkt->way = way;
     pkt->okfn = okfn;
     pkt->tot_cap_len = tot_cap_len;
+    if (packet < tot_packet || packet + cap_len > tot_packet + tot_cap_len) {
+        // FIXME: May happen since packet does not always lies within tot_packet (see pkt_wait_list_reassemble)
+        return -1;
+    }
     pkt->start = packet - tot_packet;
     assert(pkt->start <= pkt->tot_cap_len);
     assert(pkt->cap_len <= pkt->tot_cap_len);
@@ -466,7 +470,8 @@ uint8_t *pkt_wait_list_reassemble(struct pkt_wait_list *pkt_wl, unsigned start_o
         SLOG(LOG_DEBUG, "  Copy from pkt@%p from offset %u (%u) %u bytes at location %u", pkt, trim_left, pkt->offset + trim_left, next_end - end, end-start_offset);
         assert(next_end <= end_offset); // no buffer overrun
         assert(trim_left + (next_end-end) <= pkt->cap_len); // don't read out of pkt->packet
-        memcpy(payload + (end-start_offset), pkt->packet + trim_left, next_end - end);
+        assert(pkt->start + trim_left + (next_end-end) <= pkt->tot_cap_len); // really, I mean it!
+        memcpy(payload + (end-start_offset), pkt->packet + pkt->start + trim_left, next_end - end);
         end = next_end;
     }
 
