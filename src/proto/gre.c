@@ -148,7 +148,10 @@ static enum proto_parse_status gre_parse(struct parser *parser, struct proto_inf
         return PROTO_PARSE_ERR;
     }
 
-    if (cap_len < grehdr_len) return PROTO_TOO_SHORT;
+    if (cap_len < grehdr_len) {
+        SLOG(LOG_DEBUG, "Too short on data (%zu < %zu)", cap_len, grehdr_len);
+        return PROTO_TOO_SHORT;
+    }
 
     // Parse
     uint16_t const h_proto = READ_U16N(&grehdr->protocol);
@@ -166,7 +169,10 @@ static enum proto_parse_status gre_parse(struct parser *parser, struct proto_inf
         return PROTO_PARSE_ERR;
     }
 
-    if (cap_len < h_len) return PROTO_TOO_SHORT;
+    if (cap_len < h_len) {
+        SLOG(LOG_DEBUG, "Too short on data for full header (%zu < %zu)", cap_len, h_len);
+        return PROTO_TOO_SHORT;
+    }
 
     uint8_t const version = (READ_U8(&grehdr->version_flags) & GRE_VERSION_MASK) >> 5U;
     uint32_t const key = flags & GRE_KEY_MASK ?
