@@ -284,6 +284,14 @@ static int okfn(struct proto_info const *last, size_t cap_len, uint8_t const *pa
     return 0;
 }
 
+static void check_result(void)
+{
+    assert(nb_okfn_calls == NB_ELEMS(pkts));
+    assert(udp_num == NB_ELEMS(pkts)-1);    // we'd like the full reassembled packet to be revealed last
+    // Also check that we were sent the packets in the correct order (ie first to last fragment)
+    for (unsigned p = 0; p < NB_ELEMS(pkts); p++) assert(pkt_num[p] == p);
+}
+
 // Send all fragments in order and check the reassembly
 static void simple_check(void)
 {
@@ -292,11 +300,7 @@ static void simple_check(void)
     for (unsigned p = 0 ; p < NB_ELEMS(pkts); p++) {
         assert(PROTO_OK == proto_parse(eth_parser, NULL, 0, pkts[p], sizeof(pkts[p]), sizeof(pkts[p]), &now, okfn, sizeof(pkts[p]), pkts[p]));
     }
-    assert(nb_okfn_calls == NB_ELEMS(pkts));
-    assert(udp_num == NB_ELEMS(pkts)-1);    // we'd like the full reassembled packet to be revealed last
-    // Also check that we were sent the packets in the correct order (ie first to last fragment)
-    assert(pkt_num[0] == 0);
-    assert(pkt_num[NB_ELEMS(pkts)-1] == NB_ELEMS(pkts)-1);
+    check_result();
 
     teardown();
 }
@@ -310,11 +314,7 @@ static void reverse_check(void)
     while (p--) {
         assert(PROTO_OK == proto_parse(eth_parser, NULL, 0, pkts[p], sizeof(pkts[p]), sizeof(pkts[p]), &now, okfn, sizeof(pkts[p]), pkts[p]));
     }
-    assert(nb_okfn_calls == NB_ELEMS(pkts));
-    assert(udp_num == NB_ELEMS(pkts)-1);    // we'd like the full reassembled packet to be revealed last (even when fragments arrive at random)
-    // Also check that we were sent the packets in the correct order (first to last fragment, not how we replayed them)
-    assert(pkt_num[0] == 0);
-    assert(pkt_num[NB_ELEMS(pkts)-1] == NB_ELEMS(pkts)-1);
+    check_result();
 
     teardown();
 }
@@ -333,7 +333,7 @@ static void random_check(void)
         SLOG(LOG_DEBUG, "Sending Packet %u", p);
         assert(PROTO_OK == proto_parse(eth_parser, NULL, 0, pkts[p], sizeof(pkts[p]), sizeof(pkts[p]), &now, okfn, sizeof(pkts[p]), pkts[p]));
     }
-    assert(nb_okfn_calls == NB_ELEMS(pkts));
+    check_result();
 
     teardown();
 }
@@ -341,6 +341,7 @@ static void random_check(void)
 int main(void)
 {
     log_init();
+    mutex_init();
     mallocer_init();
     pkt_wait_list_init();
     ref_init();
@@ -365,6 +366,7 @@ int main(void)
     ref_fini();
     pkt_wait_list_fini();
     mallocer_fini();
+    mutex_fini();
     log_fini();
     return EXIT_SUCCESS;
 }
