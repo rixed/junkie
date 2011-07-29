@@ -369,6 +369,8 @@ struct {								\
 
 #define	LIST_NEXT(elm, field)	((elm)->field.le_next)
 
+#define LIST_IS_LAST(elm, field) (NULL == LIST_NEXT(elm, field))
+
 #define	LIST_REMOVE(elm, field) do {					\
 	if (LIST_NEXT((elm), field) != NULL)				\
 		LIST_NEXT((elm), field)->field.le_prev = 		\

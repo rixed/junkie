@@ -75,7 +75,7 @@ struct pkt_wait {
     struct proto_info *parent;
     /// Current way at the time when the packet was put on hold
     unsigned way;
-    /// Current okfn at the time when the packet was put on hold
+    /// Current okfn at the time when the packet was put on hold (FIXME: is it safe to store this, since the plugin might have been unpluged by the time ?)
     proto_okfn_t *okfn;
     /// The copy of the total captured packet
     uint8_t packet[];
@@ -195,6 +195,17 @@ bool pkt_wait_list_is_complete(struct pkt_wait_list *, unsigned start_offset, un
  * @return NULL if reassembly is not possible, either because some packets are missing
  * or some required parts of the packets were not captured. */
 uint8_t *pkt_wait_list_reassemble(struct pkt_wait_list *, unsigned start_offset, unsigned end_offset);
+
+/** Flush a waiting list, ie call proto_parse without subparser for all packets,
+ * expect for the last one (if payload if not NULL) which is given to subparser with the payload.
+ * Subparser is unrefed in all cases. */
+enum proto_parse_status pkt_wait_list_flush(
+    struct pkt_wait_list *pkt_wl,   ///< The waiting list
+    uint8_t *payload,               ///< Optional payload for the last packet
+    size_t cap_len,                 ///< It's length (if payload is set)
+    size_t wire_len,                ///< It's actual length on the wire (if payload is set)
+    struct timeval const *now       ///< The current time
+);
 
 /// Removes a packet from a list, without calling the subparser.
 void pkt_wait_del(struct pkt_wait *, struct pkt_wait_list *);

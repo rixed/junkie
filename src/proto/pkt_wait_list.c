@@ -157,6 +157,10 @@ static int pkt_wait_ctor(struct pkt_wait *pkt, unsigned offset, unsigned next_of
     pkt->way = way;
     pkt->okfn = okfn;
     pkt->tot_cap_len = tot_cap_len;
+    if (packet < tot_packet || packet + cap_len > tot_packet + tot_cap_len) {
+        // FIXME: May happen since packet does not always lies within tot_packet (see pkt_wait_list_reassemble)
+        return -1;
+    }
     pkt->start = packet - tot_packet;
     assert(pkt->start <= pkt->tot_cap_len);
     assert(pkt->cap_len <= pkt->tot_cap_len);
@@ -208,14 +212,47 @@ static void pkt_wait_list_touch(struct pkt_wait_list *pkt_wl, struct timeval con
 }
 
 // caller must own list->mutex
-static void pkt_wait_list_empty(struct pkt_wait_list *pkt_wl, struct timeval const *now)
+static enum proto_parse_status pkt_wait_list_empty(struct pkt_wait_list *pkt_wl, struct timeval const *now)
 {
+    enum proto_parse_status last_status = PROTO_OK;
     struct pkt_wait *pkt;
     while (NULL != (pkt = LIST_FIRST(&pkt_wl->pkts))) {
-        (void)pkt_wait_finalize(pkt, pkt_wl, now);
+        last_status = pkt_wait_finalize(pkt, pkt_wl, now);
     }
     assert(pkt_wl->nb_pkts == 0);
     assert(pkt_wl->tot_payload == 0);
+
+    return last_status;
+}
+
+enum proto_parse_status pkt_wait_list_flush(struct pkt_wait_list *pkt_wl, uint8_t *payload, size_t cap_len, size_t wire_len, struct timeval const *now)
+{
+    enum proto_parse_status last_status = PROTO_OK;
+    mutex_lock(&pkt_wl->list->mutex);
+
+    if (! payload) {
+        // start by cleaning the parser so that the subparse method won't be called
+        pkt_wl->parser = parser_unref(pkt_wl->parser);
+        last_status = pkt_wait_list_empty(pkt_wl, now);
+    } else { // slightly different version
+        struct parser *parser = pkt_wl->parser; // transfert the ref to this local variable
+        pkt_wl->parser = NULL;
+        struct pkt_wait *pkt;
+        while (NULL != (pkt = LIST_FIRST(&pkt_wl->pkts))) {
+            if (LIST_IS_LAST(pkt, entry)) {
+                last_status = proto_parse(parser, pkt->parent, pkt->way, payload, cap_len, wire_len, now, pkt->okfn, pkt->tot_cap_len, pkt->packet);   // FIXME: once again, payload not within pkt->packet !
+                pkt_wait_del_nolock(pkt, pkt_wl);
+            } else {
+                last_status = pkt_wait_finalize(pkt, pkt_wl, now);
+            }
+        }
+        parser_unref(parser);
+        assert(pkt_wl->nb_pkts == 0);
+        assert(pkt_wl->tot_payload == 0);
+    }
+
+    mutex_unlock(&pkt_wl->list->mutex);
+    return last_status;
 }
 
 int pkt_wait_list_ctor(struct pkt_wait_list *pkt_wl, unsigned next_offset, struct pkt_wl_config *config, struct parser *parser, struct timeval const *now)
@@ -363,7 +400,7 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
         prev = next;
     }
 
-    // if previous == NULL and pkt_wl->next_offset == offset, call proto_parse directly, then advance next_offset.
+    // if previous == NULL and pkt_wl->next_offset == offset, we can call proto_parse directly and then advance next_offset.
     if (! prev && pkt_wl->next_offset == offset && can_parse) {
         ret = proto_parse(pkt_wl->parser, parent, way, packet, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
 
@@ -466,7 +503,8 @@ uint8_t *pkt_wait_list_reassemble(struct pkt_wait_list *pkt_wl, unsigned start_o
         SLOG(LOG_DEBUG, "  Copy from pkt@%p from offset %u (%u) %u bytes at location %u", pkt, trim_left, pkt->offset + trim_left, next_end - end, end-start_offset);
         assert(next_end <= end_offset); // no buffer overrun
         assert(trim_left + (next_end-end) <= pkt->cap_len); // don't read out of pkt->packet
-        memcpy(payload + (end-start_offset), pkt->packet + trim_left, next_end - end);
+        assert(pkt->start + trim_left + (next_end-end) <= pkt->tot_cap_len); // really, I mean it!
+        memcpy(payload + (end-start_offset), pkt->packet + pkt->start + trim_left, next_end - end);
         end = next_end;
     }
 

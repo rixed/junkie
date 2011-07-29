@@ -39,3 +39,5 @@ head_len=4, payload=76, version=0, protocol=2048, key=None
 head_len=4, payload=76, version=0, protocol=2048, key=None
 head_len=4, payload=76, version=0, protocol=2048, key=None
 head_len=4, payload=76, version=0, protocol=2048, key=None
+-- pcap/gre/fragmented.pcap --
+head_len=4, payload=4124, version=0, protocol=2048, key=None
