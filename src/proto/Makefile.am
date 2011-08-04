@@ -16,6 +16,7 @@ libproto_la_SOURCES = \
 	postgres.c \
 	mysql.c \
 	tns.c \
+	gre.c \
 	pkt_wait_list.c \
 	streambuf.c \
 	cursor.c

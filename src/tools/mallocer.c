@@ -168,11 +168,7 @@ static struct mallocer *mallocer_of_scm_name(SCM name_)
 {
     char *name = scm_to_tempstr(name_);
     struct mallocer *mallocer;
-    mutex_lock(&mallocers_lock);
-    SLIST_FOREACH(mallocer, &mallocers, entry) {
-        if (0 == strcasecmp(name, mallocer->name)) break;
-    }
-    mutex_unlock(&mallocers_lock);
+    SLIST_LOOKUP_LOCKED(mallocer, &mallocers, entry, 0 == strcasecmp(name, mallocer->name), &mallocers_lock);
     return mallocer;
 }
 

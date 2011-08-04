@@ -124,17 +124,13 @@ static enum proto_parse_status ip6_parse(struct parser *parser, struct proto_inf
     struct mux_subparser *subparser = NULL;
     unsigned way2 = 0;
 
-    mutex_lock(&ip6_subprotos_mutex);
     struct ip_subproto *subproto;
-    LIST_FOREACH(subproto, &ip6_subprotos, entry) {
-        if (subproto->protocol == info.key.protocol) {
-            struct ip_key subparser_key;
-            way2 = ip_key_ctor(&subparser_key, info.key.protocol, info.key.addr+0, info.key.addr+1);
-            subparser = mux_subparser_lookup(mux_parser, subproto->proto, NULL, &subparser_key, now);
-            break;
-        }
+    LIST_LOOKUP_LOCKED(subproto, &ip6_subprotos, entry, subproto->protocol == info.key.protocol, &ip6_subprotos_mutex);
+    if (subproto) {
+        struct ip_key subparser_key;
+        way2 = ip_key_ctor(&subparser_key, info.key.protocol, info.key.addr+0, info.key.addr+1);
+        subparser = mux_subparser_lookup(mux_parser, subproto->proto, NULL, &subparser_key, now);
     }
-    mutex_unlock(&ip6_subprotos_mutex);
 
     if (! subparser) {
         SLOG(LOG_DEBUG, "IPv6 protocol %u unknown", info.key.protocol);

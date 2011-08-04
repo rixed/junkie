@@ -4,6 +4,7 @@
 #define MUTEX_H_100914
 #include <pthread.h>
 #include <errno.h>
+#include <junkie/tools/queue.h>
 
 /** @file
  * @brief Wrappers around pthread_mutex_t
@@ -32,5 +33,17 @@ char const *get_thread_name(void);
 
 void mutex_init(void);
 void mutex_fini(void);
+
+#define LIST_LOOKUP_LOCKED(var, head, field, cond, mutex) do { \
+    mutex_lock(mutex); \
+    LIST_LOOKUP(var, head, field, cond); \
+    mutex_unlock(mutex); \
+} while (0)
+
+#define SLIST_LOOKUP_LOCKED(var, head, field, cond, mutex) do { \
+    mutex_lock(mutex); \
+    SLIST_LOOKUP(var, head, field, cond); \
+    mutex_unlock(mutex); \
+} while (0)
 
 #endif

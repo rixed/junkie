@@ -201,6 +201,12 @@ struct {								\
 	SLIST_FIRST((head)) = SLIST_NEXT(SLIST_FIRST((head)), field);	\
 } while (0)
 
+#define SLIST_LOOKUP(var, head, field, cond) do { \
+	SLIST_FOREACH(var, head, field) { \
+		if (cond) break; \
+	} \
+} while (0)
+
 /*
  * Singly-linked Tail queue declarations.
  */
@@ -363,11 +369,19 @@ struct {								\
 
 #define	LIST_NEXT(elm, field)	((elm)->field.le_next)
 
+#define LIST_IS_LAST(elm, field) (NULL == LIST_NEXT(elm, field))
+
 #define	LIST_REMOVE(elm, field) do {					\
 	if (LIST_NEXT((elm), field) != NULL)				\
 		LIST_NEXT((elm), field)->field.le_prev = 		\
 		    (elm)->field.le_prev;				\
 	*(elm)->field.le_prev = LIST_NEXT((elm), field);		\
+} while (0)
+
+#define LIST_LOOKUP(var, head, field, cond) do { \
+	LIST_FOREACH(var, head, field) { \
+		if (cond) break; \
+	} \
 } while (0)
 
 /*

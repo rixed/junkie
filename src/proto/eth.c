@@ -124,6 +124,14 @@ void eth_subproto_dtor(struct eth_subproto *eth_subproto)
     mutex_unlock(&eth_subprotos_mutex);
 }
 
+struct proto *eth_subproto_lookup(unsigned protocol)
+{
+    struct eth_subproto *subproto;
+    LIST_LOOKUP_LOCKED(subproto, &eth_subprotos, entry, subproto->protocol == protocol, &eth_subprotos_mutex);
+
+    return subproto ? subproto->proto : NULL;
+}
+
 /*
  * Parse
  */
@@ -174,16 +182,7 @@ static enum proto_parse_status eth_parse(struct parser *parser, struct proto_inf
     struct eth_proto_info info;
     eth_proto_info_ctor(&info, parser, parent, ethhdr_len, wire_len - ethhdr_len, h_proto, vlan_id, ethhdr);
 
-    mutex_lock(&eth_subprotos_mutex);
-    struct proto *sub_proto = NULL;
-    struct eth_subproto *subproto;
-    LIST_FOREACH(subproto, &eth_subprotos, entry) {
-        if (subproto->protocol == h_proto) {
-            sub_proto = subproto->proto;
-            break;
-        }
-    }
-    mutex_unlock(&eth_subprotos_mutex);
+    struct proto *sub_proto = eth_subproto_lookup(h_proto);
     struct mux_subparser *subparser = mux_subparser_lookup(mux_parser, sub_proto, NULL, collapse_vlans ? &vlan_unset : &vlan_id, now);
 
     if (! subparser) goto fallback;

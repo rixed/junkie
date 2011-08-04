@@ -107,12 +107,8 @@ void proto_dtor(struct proto *proto)
 struct proto *proto_of_name(char const *name)
 {
     struct proto *proto;
-    LIST_FOREACH(proto, &protos, entry) {
-        if (0 == strcasecmp(proto->name, name)) {
-            return proto;
-        }
-    }
-    return NULL;
+    LIST_LOOKUP(proto, &protos, entry, 0 == strcasecmp(proto->name, name));
+    return proto;
 }
 
 char const *proto_parse_status_2_str(enum proto_parse_status status)
@@ -890,10 +886,8 @@ static struct mux_proto *mux_proto_of_scm_name(SCM name_)
 {
     char *name = scm_to_tempstr(name_);
     struct mux_proto *mux_proto;
-    LIST_FOREACH(mux_proto, &mux_protos, entry) {
-        if (0 == strcasecmp(name, mux_proto->proto.name)) return mux_proto;
-    }
-    return NULL;
+    LIST_LOOKUP(mux_proto, &mux_protos, entry, 0 == strcasecmp(name, mux_proto->proto.name));
+    return mux_proto;
 }
 
 static struct ext_function sg_mux_proto_stats;

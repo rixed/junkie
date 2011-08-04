@@ -127,6 +127,7 @@ int main(void)
     eth_init();
     ip_init();
     ip6_init();
+    log_set_level(LOG_DEBUG, NULL);
     log_set_file("ip_check.log");
 
     parse_check(65535, 0);

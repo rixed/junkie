@@ -33,6 +33,6 @@
 ; Check that we have only the uniq parsers (which are not deleted once created)
 (let* ((nb-parsers (nb-tot-parsers)))
   (simple-format #t "~a parsers left after timeout~%" nb-parsers)
-  (assert (< nb-parsers 5)))
+  (assert (<= nb-parsers 6)))
 
 (exit)
