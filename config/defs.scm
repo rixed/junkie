@@ -175,7 +175,7 @@
 ; build a list of pcap filter suitable to split traffic through 2^n+1 processes
 ; n must be >= 1
 (use-modules (ice-9 format))
-(define* (pcap-filters-for-split n #:key capfilter)
+(define* (pcap-filters-for-split n #:key (capfilter ""))
   (letrec ((mask        (- (ash 1 n) 1))
            (next-filter (lambda (prevs i)
                           (if (> i mask)
@@ -183,7 +183,7 @@
                             (let* ((flt         (format #f
                                                         "(ip[11] & 0x~x = ~d) or (vlan and ip[11] & 0x~x = ~d)"
                                                         mask i mask i))
-                                   (this-filter (if capfilter
+                                   (this-filter (if (not (eqv? capfilter ""))
                                                     (format #f "(~a) and (~a)" capfilter flt)
                                                     flt)))
                               (next-filter (cons this-filter prevs) (1+ i)))))))
