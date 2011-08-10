@@ -159,7 +159,7 @@ int parse_callback(struct proto_info const *info, size_t unused_ cap_len, uint8_
     static time_t last_output = 0;
     if (! last_output) {
         last_output = cap->tv.tv_sec;
-    } else if (cap->tv.tv_sec > last_output + opt_monitoring_period) {
+    } else if (cap->tv.tv_sec > last_output + (time_t)opt_monitoring_period) {
         output_graph();
         reset_edges();
         last_output = cap->tv.tv_sec;

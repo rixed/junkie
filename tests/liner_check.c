@@ -150,7 +150,7 @@ static void check_strtoull(void)
         char const *end;
         unsigned long long res = liner_strtoull(&liner, &end, tests[t].base);
         assert(res == tests[t].expected);
-        assert(end - tests[t].text == tests[t].end_offset);
+        assert(end == tests[t].text + tests[t].end_offset);
     }
 }
 

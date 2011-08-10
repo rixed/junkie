@@ -380,7 +380,7 @@ static enum proto_parse_status sip_parse(struct parser *parser, struct proto_inf
     ) {
         mutex_lock(&callids_2_sdps_mutex);
         // Maybe rehash the hash?
-        static unsigned last_rehash = 0; // timestamp (seconds) of the last rehash
+        static time_t last_rehash = 0; // timestamp (seconds) of the last rehash
         if (now->tv_sec > last_rehash) {
             last_rehash = now->tv_sec;
             HASH_TRY_REHASH(&callids_2_sdps, call_id, entry);
