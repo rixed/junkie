@@ -3,7 +3,8 @@
 NAME="IP"
 PCAPS="pcap/gre/fragmented.pcap"
 filter() {
-	sed -e 's/^\([^@]\+\)@[0-9a-fx]\+\(.*\)$/\1\2/'
+	# filter out capture lines since capture payload sizes depends on word size
+	grep -v '^Capture' | sed -e 's/^\([^@]\+\)@[0-9a-fx]\+\(.*\)$/\1\2/'
 }
 OUTPUT="ip.out"
 
