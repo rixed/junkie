@@ -113,6 +113,7 @@ int main(void)
     parse_check();
     stress_check(proto_arp);
 
+    doomer_stop();
     arp_fini();
     eth_fini();
     ref_fini();

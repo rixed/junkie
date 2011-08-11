@@ -128,6 +128,7 @@ int main(void)
     parse_check();
     stress_check(proto_rtcp);
 
+    doomer_stop();
     rtcp_fini();
     ref_fini();
     mallocer_fini();

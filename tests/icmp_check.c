@@ -165,6 +165,7 @@ int main(void)
     stress_check(proto_icmp);
     stress_check(proto_icmpv6);
 
+    doomer_stop();
     icmpv6_fini();
     icmp_fini();
     ip6_fini();

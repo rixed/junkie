@@ -220,6 +220,7 @@ int main(void)
     qname_check();
     stress_check(proto_dns);
 
+    doomer_stop();
     dns_fini();
     tcp_fini();
     udp_fini();

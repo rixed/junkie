@@ -192,6 +192,7 @@ int main(void)
 
     cnxtrack_check();
 
+    doomer_stop();
     http_fini();
     ftp_fini();
     tcp_fini();

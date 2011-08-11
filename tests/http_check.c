@@ -348,6 +348,7 @@ int main(void)
     caplen_check();
     stress_check(proto_http);
 
+    doomer_stop();
     http_fini();
     tcp_fini();
     ip6_fini();

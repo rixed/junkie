@@ -110,6 +110,7 @@ int main(void)
     parse_check();
     stress_check(proto_sdp);
 
+    doomer_stop();
     sdp_fini();
     ref_fini();
     mallocer_fini();

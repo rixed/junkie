@@ -55,6 +55,7 @@ int main(void)
 
     fetch_nb_rows_check();
 
+    doomer_stop();
     postgres_fini();
     tcp_fini();
     ip6_fini();

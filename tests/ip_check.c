@@ -138,6 +138,7 @@ int main(void)
     }
     stress_check(proto_ip);
 
+    doomer_stop();
     ip6_fini();
     ip_fini();
     eth_fini();

@@ -258,6 +258,7 @@ int main(void)
         reassembly_check();
     }
 
+    doomer_stop();
     ref_fini();
     pkt_wait_list_fini();
     proto_fini();

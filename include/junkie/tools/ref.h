@@ -109,6 +109,9 @@ static inline void *unref(struct ref *ref)
 void enter_unsafe_region(void);
 void enter_safe_region(void);
 
+/// Will stop the doomer_thread (must be called bedore ref_fini(), and probably before any parser_fini()
+void doomer_stop(void);
+
 void ref_init(void);
 void ref_fini(void);
 

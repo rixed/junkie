@@ -165,6 +165,7 @@ int main(void)
     parse_check();
     stress_check(proto_mgcp);
 
+    doomer_stop();
     mgcp_fini();
     udp_fini();
     ip6_fini();

@@ -82,6 +82,7 @@ int main(void)
     parse_check();
     stress_check(proto_udp);
 
+    doomer_stop();
     udp_fini();
     ip6_fini();
     ip_fini();

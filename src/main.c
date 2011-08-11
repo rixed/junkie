@@ -106,6 +106,7 @@ static void all_fini(void)
 {
     plugin_del_all();
 
+    doomer_stop();  // doomer_thread must not awake while we destroy parsers
     for (unsigned i = NB_ELEMS(initers); i > 0; ) {
         initers[--i].fini();
     }

@@ -157,6 +157,7 @@ int main(void)
     parse_check();
     stress_check(proto_sip);
 
+    doomer_stop();
     sip_fini();
     tcp_fini();
     udp_fini();

@@ -125,11 +125,17 @@ void ref_init(void)
     }
 }
 
-void ref_fini(void)
+void doomer_stop(void)
 {
+    acquire(pthread_rwlock_rdlock); // wait for doomer-thread to finish its run
     (void)pthread_cancel(doomer_pth);
     (void)pthread_join(doomer_pth, NULL);
+    release();
     SLOG(LOG_DEBUG, "doomer thread was cancelled");
+}
+
+void ref_fini(void)
+{
     pthread_rwlock_destroy(&rwlock);
     mutex_dtor(&death_row_mutex);
     log_category_ref_fini();

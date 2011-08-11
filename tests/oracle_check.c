@@ -53,6 +53,7 @@ int main(void)
 
     net8_string_check();
 
+    doomer_stop();
     tns_fini();
     tcp_fini();
     ip6_fini();

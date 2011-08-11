@@ -161,6 +161,7 @@ int main(void)
     parse_check();
     stress_check(proto_tcp);
 
+    doomer_stop();
     ssl_fini();
     tcp_fini();
     ip6_fini();

@@ -358,6 +358,7 @@ int main(void)
     reverse_check();
     for (unsigned nb_rand = 0; nb_rand < 100; nb_rand++) random_check();
 
+    doomer_stop();
     udp_fini();
     ip6_fini();
     ip_fini();

@@ -54,6 +54,7 @@ int main(void)
 
     flood_check(100);
 
+    doomer_stop();
     udp_fini();
     ip6_fini();
     ip_fini();
