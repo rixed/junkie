@@ -116,7 +116,8 @@
       (list (cons "total" tot-size)))))
 
 ; Macro to ignore exceptions
-(use-syntax (ice-9 syncase))
+(if (defined? 'use-syntax) ; Guile 2 does not need nor provide this
+  (use-syntax (ice-9 syncase)))
 (define-syntax without-exception
   (syntax-rules ()
                 ((without-exception key thunk ...)

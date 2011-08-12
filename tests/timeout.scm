@@ -7,7 +7,8 @@
 (set-log-file "timeout.log")
 (set-log-level 7)
 
-(use-syntax (ice-9 syncase))
+(if (defined? 'use-syntax) ; Guile 2 does not need nor provide this
+  (use-syntax (ice-9 syncase)))
 (define-syntax assert
   (syntax-rules ()
                 ((assert x)
