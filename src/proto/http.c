@@ -55,6 +55,8 @@ struct http_parser {
         } phase;
 #       define UNKNOWN_REM_CONTENT ((size_t)((ssize_t)-1))
         size_t remaining_content;   // nb bytes before next header (or (ssize_t)-1 if unknown). Only relevant when phase=BODY.
+        // FIXME: store the last query command, and take it into account to skip body in answer to HEADs
+        // FIXME: parse transfert-encoding: chunked
         // FIXME: take into account http-range?
     } state[2];    // One per direction (depending on "way", ie. 0 will be smaller IP)
 };
