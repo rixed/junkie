@@ -351,6 +351,7 @@ int main(void)
     ip6_init();
     udp_init();
     log_set_level(LOG_DEBUG, NULL);
+    log_set_level(LOG_INFO, "mutex");
     log_set_file("ip_reassembly_check.log");
     srandom(time(NULL));
 
