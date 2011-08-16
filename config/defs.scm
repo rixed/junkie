@@ -80,12 +80,15 @@
 ; Display the memory consumption due to Guile
 (use-modules (srfi srfi-1))
 (define (guile-mem-stats)
-  (let* ((maps (cdr (assoc 'cell-heap-segments (gc-stats))))
+  (let* ((stats     (gc-stats))
+         (use-bdwgc (assq 'heap-size stats))
          (sum-size (lambda (x s)
                      (let ((a (car x))
                            (b (cdr x)))
                        (+ s (- b a))))))
-    (fold sum-size 0 maps)))
+    (if use-bdwgc
+        (assq-ref stats 'heap-size)
+        (fold sum-size 0 (assq-ref stats 'cell-heap-segments)))))
 
 ; Display the memory consumption due to the redimentionable arrays
 (define (array-mem-stats)
