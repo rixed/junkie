@@ -28,8 +28,8 @@ char const *log_get_file(void);
 
 #define LOG_CAT global_log_category
 
-#define SLOG(prio, fmt, ...) do { \
-    if (LOG_CAT.level >= (prio)) slog(prio, __FILE__, __func__, fmt, ##__VA_ARGS__); \
+#define SLOG(prio, ...) do { \
+    if (LOG_CAT.level >= (prio)) slog(prio, __FILE__, __func__, ##__VA_ARGS__); \
 } while(/*CONSTCOND*/0)
 
 void slog(int priority, char const *filename, char const *funcname, char* fmt, ...) a_la_printf_(4, 5);
