@@ -99,7 +99,7 @@
                                (size (* nb-elmts elmt-size)))
                           (cons h size)))
                       (array-names)))
-         (stat-one (lambda (h) (const h (cdr (assoc h a2size)))))
+         (stat-one (lambda (h) (cons h (cdr (assoc h a2size)))))
          (sum-size (lambda (x s)
                      (let ((h (car x))
                            (a (cdr x)))
