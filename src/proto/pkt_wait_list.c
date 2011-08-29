@@ -299,8 +299,11 @@ void pkt_wl_config_ctor(struct pkt_wl_config *config, char const *name, unsigned
     config->nb_pkts_max = nb_pkts_max;
     config->payload_max = payload_max;
     config->timeout = timeout;
-    config->timeouting = false;
+    config->timeouting = 0;
     config->list_seqnum = 0;
+#   ifndef __GNUC__
+    mutex_ctor(&config->atomic, "pkt_wl_config");
+#   endif
 
     for (unsigned l = 0; l < NB_ELEMS(config->lists); l++) {
         TAILQ_INIT(&config->lists[l].list);
@@ -330,6 +333,10 @@ void pkt_wl_config_dtor(struct pkt_wl_config *config)
         }
         mutex_dtor(&config->lists[l].mutex);
     }
+
+#   ifndef __GNUC__
+    mutex_dtor(&config->atomic);
+#   endif
 }
 
 // caller must own list->mutex
@@ -343,8 +350,15 @@ static void pkt_wait_list_timeout(struct pkt_wl_config *config, struct pkt_wl_co
      * endlessly.
      * To prevent this the pkt_wl_config comes with a boolean. */
 
-    if (config->timeouting) return;
-    config->timeouting = true;
+#   ifdef __GNUC__
+    unsigned const timeouting = __sync_lock_test_and_set(&config->timeouting, 1);
+#   else
+    mutex_lock(&config->atomic);
+    unsigned const timeouting = config->timeouting;
+    mutex_unlock(&config->atomic);
+#   endif
+
+    if (timeouting) return;
 
     struct timeval oldest = *now;
     timeval_sub_sec(&oldest, timeout);
@@ -357,7 +371,13 @@ static void pkt_wait_list_timeout(struct pkt_wl_config *config, struct pkt_wl_co
         pkt_wait_list_touch(pkt_wl, now);
     }
 
-    config->timeouting = false;
+#   ifdef __GNUC__
+    __sync_lock_release(&config->timeouting);
+#   else
+    mutex_lock(&config->atomic);
+    config->timeouting = 0;
+    mutex_unlock(&config->atomic);
+#   endif
 }
 
 enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned offset, unsigned next_offset, bool can_parse, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)

@@ -99,7 +99,7 @@ struct pkt_wl_config {
     struct mutex atomic;
 #   endif
     /// To prevent reentry
-    bool timeouting;
+    unsigned timeouting; // 1 or 0
     /// Acceptable gap between two successive packets
     unsigned acceptable_gap;
     /// Max number of pending packets
