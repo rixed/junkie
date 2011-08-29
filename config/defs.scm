@@ -258,7 +258,7 @@
            (lookups  (assq-ref stats 'nb-lookups))
            (coll-avg (if (> lookups 0) (/ colls lookups) -1))
            (resize   (lambda (coll-avg new-h-size)
-                       (simple-format #t "Collision avg of ~A is ~A. Setting hash size to ~A\n" proto (exact->inexact coll-avg) new-h-size)
+                       ;(simple-format #t "Collision avg of ~A is ~A. Setting hash size to ~A\n" proto (exact->inexact coll-avg) new-h-size)
                        (set-mux-hash-size proto new-h-size)
                        (set-max-children proto (* new-h-size coll-avg-max 10)))))
       (if (< coll-avg coll-avg-min) ; then make future hashes smaller
