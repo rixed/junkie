@@ -253,6 +253,8 @@ static int copy_printable(char *dst, size_t dst_size, unsigned src_len, char *sr
 #define MIN_QUERY_SIZE 8
 
 // Returns -1 on error, 0 if the string looks alright
+// to_rewind gives us how many bytes we should look backward for string prefix
+// Note: at least one byte can be read from the cursor but we'd rather make sure.
 static int net8_copy_sql(struct sql_proto_info *info, struct cursor *cursor, unsigned to_rewind)
 {
     struct cursor curs;
@@ -261,6 +263,7 @@ static int net8_copy_sql(struct sql_proto_info *info, struct cursor *cursor, uns
      * - 1 byte length
      * - if length != 0xfe, then follows the string, optionally null terminated
      * - if length = 0xfe, the string is segmented. Each segment is a length then the chars, optionally nul terminated. */
+    if (curs.cap_len < 1) return -1;
     unsigned len = cursor_read_u8(&curs);
     if (len != 0xfe) {
         if (len > curs.cap_len) return -1;
@@ -270,6 +273,7 @@ static int net8_copy_sql(struct sql_proto_info *info, struct cursor *cursor, uns
     } else {
         unsigned sql_len = 0;
         do {
+            if (curs.cap_len < 1) return -1;
             len = cursor_read_u8(&curs);
             if (len == 0) break;
             if (len > curs.cap_len) return -1;
@@ -324,21 +328,22 @@ static enum proto_parse_status tns_parse_data(struct tns_parser unused_ *tns_par
         info->set_values |= SQL_NB_ROWS;
     } else if (info->is_query) {
         // Try to locate the command string (ie. at least 8 printable chars)
-        unsigned dropped = 0, nb_chars = 0;  // nb successive chars
+        unsigned rewindable = 0, nb_chars = 0;  // nb successive chars
         while (cursor->cap_len > nb_chars) {
             if (isprint(cursor->head[nb_chars])) {
                 if (++nb_chars > MIN_QUERY_SIZE) {
-                    if (dropped >= 2 && 0 == net8_copy_sql(info, cursor, 2)) break;
-                    if (dropped >= 1 && 0 == net8_copy_sql(info, cursor, 1)) break;
+                    if (rewindable >= 2 && 0 == net8_copy_sql(info, cursor, 2)) break;
+                    if (rewindable >= 1 && 0 == net8_copy_sql(info, cursor, 1)) break;
                     if (0 == net8_copy_sql(info, cursor, 0)) break;
                     // TODO: Keep looking ?
                     break;
                 }
             } else {
+                // drop everything up to this non-printable char, and restart the match
                 cursor_drop(cursor, nb_chars+1);
                 nb_chars = 0;
             }
-            dropped ++;    // count how many bytes we droped
+            rewindable ++;    // count how many bytes we are allowed to rewind for fetching the string prefix
         }
     }
 
