@@ -29,7 +29,7 @@
 (simple-format #t "~a parsers left after replay~%" (nb-tot-parsers))
 
 (set-mux-timeout 1)
-(usleep 2500000)
+(usleep 3500000)
 
 ; Check that we have only the uniq parsers (which are not deleted once created)
 (let* ((nb-parsers (nb-tot-parsers)))
