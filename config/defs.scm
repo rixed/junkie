@@ -5,6 +5,12 @@
 
 (define defs-loaded #t)
 
+(use-modules (srfi srfi-1)
+             (ice-9 regex)
+             (ice-9 optargs)
+             (ice-9 format)
+             (ice-9 threads))
+
 ;; Some definitions the user likely want to use
 
 (define log-emerg   0) (define log-alert  1) (define log-crit 2) (define log-err   3)
@@ -78,7 +84,6 @@
     (for-each display-one (parameter-names))))
 
 ; Display the memory consumption due to Guile
-(use-modules (srfi srfi-1))
 (define (guile-mem-stats)
   (let* ((stats     (gc-stats))
          (use-bdwgc (assq 'heap-size stats))
@@ -162,23 +167,25 @@
         -1)))
 
 ; backward compatible function set-ifaces
-(use-modules (ice-9 regex)
-             (ice-9 optargs))
 (define (ifaces-matching pattern)
   (filter
     (lambda (ifname) (string-match pattern ifname))
     (list-ifaces)))
 
+(define (closed-ifaces-matching pattern)
+  (let* ((matching (ifaces-matching pattern))
+         (opened   (iface-names)))
+    (lset-difference equal? matching opened)))
+
 (define* (set-ifaces pattern #:key (capfilter "") (bufsize 0) (caplen 0))
   (for-each
     (lambda (ifname) (open-iface ifname #t capfilter caplen bufsize))
-    (ifaces-matching pattern)))
+    (closed-ifaces-matching pattern)))
 
 (define (get-ifaces) (iface-names))
 
 ; build a list of pcap filter suitable to split traffic through 2^n+1 processes
 ; n must be >= 1
-(use-modules (ice-9 format))
 (define* (pcap-filters-for-split n #:key (capfilter ""))
   (letrec ((mask        (- (ash 1 n) 1))
            (next-filter (lambda (prevs i)
@@ -200,9 +207,14 @@
     (for-each open-single filters)))
 
 (define* (set-ifaces-multiple n pattern #:rest r)
-  (for-each
-    (lambda (ifname) (open-iface-multiple n ifname r))
-    (ifaces-matching pattern)))
+  (make-thread (lambda ()
+    (set-thread-name "J-set-ifaces")
+    (let loop ()
+      (for-each
+        (lambda (ifname) (open-iface-multiple n ifname r))
+        (closed-ifaces-matching pattern))
+      (sleep 30)
+      (loop)))))
 
 ; (list-ifaces) will only report the currently mounted network devices.
 ; So we merely up all devices here. This works because we are the allmighty root.
