@@ -19,6 +19,8 @@
  */
 #include <string.h>
 #include <pthread.h>
+#include <time.h>
+#include <limits.h>
 #include <junkie/config.h>
 #ifdef HAVE_SYS_PRCTL_H
 #   include <sys/prctl.h>
@@ -43,7 +45,7 @@ void mutex_lock(struct mutex *mutex)
 {
     assert(mutex->name);
     SLOG(LOG_DEBUG, "Locking %s", mutex_name(mutex));
-    int err = pthread_mutex_lock(&mutex->mutex);
+    int const err = pthread_mutex_lock(&mutex->mutex);
     if (! err) {
         SLOG(LOG_DEBUG, "Locked %s", mutex_name(mutex));
     } else {
@@ -56,7 +58,7 @@ void mutex_unlock(struct mutex *mutex)
 {
     assert(mutex->name);
     SLOG(LOG_DEBUG, "Unlocking %s", mutex_name(mutex));
-    int err = pthread_mutex_unlock(&mutex->mutex);
+    int const err = pthread_mutex_unlock(&mutex->mutex);
     if (! err) {
         SLOG(LOG_DEBUG, "Unlocked %s", mutex_name(mutex));
     } else {
@@ -114,6 +116,113 @@ void mutex_dtor(struct mutex *mutex)
     SLOG(LOG_DEBUG, "Destruct mutex %s", mutex_name(mutex));
     (void)pthread_mutex_destroy(&mutex->mutex);
     mutex->name = NULL;
+}
+
+/*
+ * Supermutexes
+ */
+
+static char const *supermutex_name(struct supermutex const *super)
+{
+    return tempstr_printf("%s@%p", super->mutex.name, super);
+}
+
+void supermutex_ctor(struct supermutex *super, char const *name)
+{
+    SLOG(LOG_DEBUG, "Construct supermutex %s@%p", name, super);
+    super->rec_count = 0;
+    super->owner = (pthread_t)0;
+    pthread_rwlock_init(&super->metalock, NULL);
+    mutex_ctor(&super->mutex, name);
+}
+
+void supermutex_dtor(struct supermutex *super)
+{
+    SLOG(LOG_DEBUG, "Destruct supermutex %s", supermutex_name(super));
+    pthread_rwlock_destroy(&super->metalock);
+    mutex_dtor(&super->mutex);
+}
+
+static int metalock_r(struct supermutex *super)
+{
+    int const err = pthread_rwlock_rdlock(&super->metalock);
+    if (err) {
+        SLOG(LOG_ERR, "Cannot get reader metalock for %s: %s", supermutex_name(super), strerror(err));
+    }
+    return err;
+}
+
+static int metalock_w(struct supermutex *super)
+{
+    int const err = pthread_rwlock_wrlock(&super->metalock);
+    if (err) {
+        SLOG(LOG_ERR, "Cannot get writer metalock for %s: %s", supermutex_name(super), strerror(err));
+    }
+    return err;
+}
+
+static void metaunlock(struct supermutex *super)
+{
+    int const err = pthread_rwlock_unlock(&super->metalock);
+    if (err) {
+        SLOG(LOG_CRIT, "Cannot unlock metalock for %s: %s", supermutex_name(super), strerror(err));
+    }
+}
+
+int supermutex_lock(struct supermutex *super)
+{
+    pthread_t const self = pthread_self();
+    if (0 != metalock_r(super)) return MUTEX_SYS_ERROR;
+    if (super->owner == self) {
+        if (super->rec_count == INT_MAX) {
+            metaunlock(super);
+            SLOG(LOG_CRIT, "Too many recursive locking of supermutex %s", supermutex_name(super));
+            return MUTEX_TOO_MANY_RECURS;
+        }
+        super->rec_count ++;
+        metaunlock(super);
+        return 0;
+    }
+
+    // We are not the owner of the lock
+    metaunlock(super);
+    SLOG(LOG_DEBUG, "Locking supermutex %s", supermutex_name(super));
+    // From now on the metadata can change, but we shall not become the owner of the lock
+#   define NSEC_DEADLOCK 1000000 // 1ms
+    int const err = pthread_mutex_timedlock(&super->mutex.mutex, &(struct timespec){ .tv_sec = 0, .tv_nsec = NSEC_DEADLOCK });
+    if (err == ETIMEDOUT) {
+        SLOG(LOG_ERR, "Deadlock while waiting for supermutex %s", supermutex_name(super));
+        return MUTEX_DEADLOCK;
+    } else if (err != 0) {
+        SLOG(LOG_ERR, "Cannot pthread_mutex_timedlock() supermutex %s: %s", supermutex_name(super), strerror(err));
+        return MUTEX_SYS_ERROR;
+    }
+    // So we now own the lock
+    if (0 != metalock_w(super)) {
+        (void)pthread_mutex_unlock(&super->mutex.mutex);
+        return MUTEX_SYS_ERROR;
+    }
+    super->owner = self;
+    super->rec_count = 1;
+    metaunlock(super);
+    SLOG(LOG_DEBUG, "Locked supermutex %s", supermutex_name(super));
+    return 0;
+}
+
+void supermutex_unlock(struct supermutex *super)
+{
+    SLOG(LOG_DEBUG, "Unlocking supermutex %s", supermutex_name(super));
+    pthread_t const self = pthread_self();
+    metalock_r(super);
+    assert(super->owner == self);
+    assert(super->rec_count > 0);
+    if (--super->rec_count == 0) {
+        super->owner = (pthread_t)0;
+        metaunlock(super);
+        mutex_unlock(&super->mutex);
+    } else {
+        metaunlock(super);
+    }
 }
 
 /*

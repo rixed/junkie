@@ -12,7 +12,7 @@ check_PROGRAMS = \
 	arp_check pkt_wait_list_check ip_reassembly_check \
 	tcp_reorder_check streambuf_check cli_check \
 	postgres_check oracle_check endianness_check \
-	cursor_check
+	cursor_check mutex_check
 
 dist_check_SCRIPTS = \
 	postgres.test mysql.test oracle.test dns.test \
@@ -48,6 +48,8 @@ mallocer_check_SOURCES = mallocer_check.c
 mallocer_check_LDADD = ../src/tools/libtools.la
 cli_check_SOURCES = cli_check.c
 cli_check_LDADD = ../src/tools/libtools.la
+mutex_check_SOURCES = mutex_check.c
+mutex_check_LDADD = ../src/tools/libtools.la
 
 ip_check_SOURCES = ip_check.c lib.c lib.h
 ip_check_LDADD = ../src/tools/libtools.la ../src/proto/libproto.la
