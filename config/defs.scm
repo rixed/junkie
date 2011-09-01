@@ -123,14 +123,6 @@
       (map stat-one (mallocer-names))
       (list (cons "total" tot-size)))))
 
-; Macro to ignore exceptions
-(if (defined? 'use-syntax) ; Guile 2 does not need nor provide this
-  (use-syntax (ice-9 syncase)))
-(define-syntax without-exception
-  (syntax-rules ()
-                ((without-exception key thunk ...)
-                 (catch key (lambda () thunk ...) (lambda (a . r) #f)))))
-
 ; get the percentage of duplicate frames over the total number (check out if the
 ; port mirroring is correctly set)
 (define (duplicate-percentage)
