@@ -14,19 +14,19 @@
  * - unused_, to avoid some warnings,
  * - a_la_printf_, to check parameters according to a format string,
  * - packed_, to pack data structures.
- * -sentinel_, to check a variadic list is NULL terminated
+ * - sentinel_, to check a variadic list is NULL terminated
  *
  * Of these, only the last one must be implemented in a way or another
  * in order for junkie to work properly.
  */
 
 #ifdef __GNUC__
-/// functions which result only depends on inputs be careful of thread safety, etc.
-#   define pure_ __attribute__((pure))
+#   define pure_ __attribute__((pure))  ///< functions which result only depends on inputs be careful of thread safety, etc.
 #   define hot_ __attribute__((hot))    ///< for often-called function
 #   define cold_  __attribute__((cold))    ///< for rarely-called function
 #   define likely_(x) __builtin_expect(!!(x), 1) ///< very probable branch in if statement
 #   define unlikely_(x)  __builtin_expect(!!(x), 0) ///< very improbable branch in if statement
+#   define warn_unused __attribute__((warn_unused_result))  ///< emit a warning if the result of a function is not used
 #   define unused_ __attribute__((__unused__))
 #   define a_la_printf_(str_i, arg_i) __attribute__((__format__(__printf__, str_i, arg_i)))
 #   define packed_ __attribute__((__packed__))
@@ -37,6 +37,7 @@
 #   define cold_
 #   define likely_(x)
 #   define unlikely_(x)
+#   define warn_unused
 #   define unused_
 #   define a_la_printf_
 #   define packed_

@@ -86,7 +86,7 @@ struct pkt_wl_config {
         /// The list of struct pkt_wait_list, in LRU-first order.
         TAILQ_HEAD(pkt_wait_list_list, pkt_wait_list) list;
         /// The mutex that protects the above list
-        struct mutex mutex;
+        struct supermutex mutex;
     } lists[CPU_MAX];
     /// Entry in the list of all pkt_wl_configs
     SLIST_ENTRY(pkt_wl_config) entry;

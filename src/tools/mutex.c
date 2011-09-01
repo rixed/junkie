@@ -209,6 +209,21 @@ int supermutex_lock(struct supermutex *super)
     return 0;
 }
 
+void supermutex_lock_maydeadlock(struct supermutex *super)
+{
+    int err;
+    while ((err = supermutex_lock(super)) != 0) {
+        switch (err) {
+            case MUTEX_DEADLOCK: // retry!
+                (void)nanosleep(&(struct timespec){ .tv_sec = 0, .tv_nsec = 1000 }, NULL);
+                break;
+            default:
+                SLOG(LOG_CRIT, "Cannot lock supermutex %s, bailing out!", supermutex_name(super));
+                abort();
+        }
+    }
+}
+
 void supermutex_unlock(struct supermutex *super)
 {
     SLOG(LOG_DEBUG, "Unlocking supermutex %s", supermutex_name(super));

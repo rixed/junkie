@@ -4,6 +4,7 @@
 #define MUTEX_H_100914
 #include <pthread.h>
 #include <errno.h>
+#include <junkie/cpp.h>
 #include <junkie/tools/queue.h>
 
 /** @file
@@ -40,7 +41,10 @@ void supermutex_dtor(struct supermutex *);
 #define MUTEX_TOO_MANY_RECURS (-2)
 #define MUTEX_SYS_ERROR       (-3)
 /// @return 0 if the lock was granted, MUTEX_DEADLOCK in case of deadlock, MUTEX_TOO_MANY_RECURS in case of too many recursion, MUTEX_SYS_ERROR in other error cases
-int supermutex_lock(struct supermutex *);
+int warn_unused supermutex_lock(struct supermutex *);
+
+/// For those cases when you are ready to wait forever
+void supermutex_lock_maydeadlock(struct supermutex *);
 
 /// Will abort if you are not the owner of the lock
 void supermutex_unlock(struct supermutex *);
