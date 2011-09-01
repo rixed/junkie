@@ -188,7 +188,7 @@ int supermutex_lock(struct supermutex *super)
     metaunlock(super);
     SLOG(LOG_DEBUG, "Locking supermutex %s", supermutex_name(super));
     // From now on the metadata can change, but we shall not become the owner of the lock
-#   define NSEC_DEADLOCK 1000000 // 1ms
+#   define NSEC_DEADLOCK 300000000 // 300ms
     int const err = pthread_mutex_timedlock(&super->mutex.mutex, &(struct timespec){ .tv_sec = 0, .tv_nsec = NSEC_DEADLOCK });
     if (err == ETIMEDOUT) {
         SLOG(LOG_ERR, "Deadlock while waiting for supermutex %s", supermutex_name(super));
