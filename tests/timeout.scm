@@ -4,6 +4,7 @@
 
 (display "Testing active timeouting\n")
 
+(false-if-exception (delete-file "timeout.log"))
 (set-log-file "timeout.log")
 (set-log-level 7)
 
@@ -29,11 +30,15 @@
 (simple-format #t "~a parsers left after replay~%" (nb-tot-parsers))
 
 (set-mux-timeout 1)
-(usleep 3500000)
 
 ; Check that we have only the uniq parsers (which are not deleted once created)
-(let* ((nb-parsers (nb-tot-parsers)))
-  (simple-format #t "~a parsers left after timeout~%" nb-parsers)
-  (assert (<= nb-parsers 6)))
+(let loop ((time-elapsed 0))
+  (let* ((nb-parsers (nb-tot-parsers)))
+    (simple-format #t "~a parsers left after ~as~%" nb-parsers time-elapsed)
+    (if (> nb-parsers 6)
+        (begin
+          (assert (<= time-elapsed 10))
+          (sleep 1)
+          (loop (1+ time-elapsed))))))
 
 (exit)
