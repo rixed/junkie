@@ -35,11 +35,6 @@ static char const Id[] = "$Id: 37812fa0f43e01eeaf93d649ebc8f11fa64aa3c0 $";
 
 LOG_CATEGORY_DEF(proto_dns);
 
-#define DNS_PORT 53
-#define NBNS_PORT 137
-#define MDNS_PORT 5353
-#define LLMNR_PORT 5355
-
 struct dns_hdr {
     uint16_t transaction_id;
     uint16_t flags;
@@ -84,6 +79,7 @@ static char const *dns_req_type_2_str(enum dns_req_type type)
         case DNS_TYPE_TXT: return "TXT";
         case DNS_TYPE_AAAA: return "AAAA";
         case DNS_TYPE_NBNS: return "NB";
+        case DNS_TYPE_SRV: return "SRV";
         case DNS_TYPE_A6: return "A6";
         case DNS_TYPE_IXFR: return "IXFR";
         case DNS_TYPE_AXFR: return "AXFR";
@@ -175,6 +171,17 @@ static void strmove(char *d, char *s)
     *d = '\0';
 }
 
+static bool looks_like_netbios(char const *name)
+{
+    unsigned len = 0;
+    while (*name != '\0' && *name != '.') {
+        if (*name < 'A' || *name > 'P') return false;
+        name ++;
+        len ++;
+    }
+    return len >= 32;
+}
+
 static enum proto_parse_status dns_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct dns_hdr *dnshdr = (struct dns_hdr *)packet;
@@ -209,7 +216,7 @@ static enum proto_parse_status dns_parse(struct parser *parser, struct proto_inf
         info.dns_class = ntohs(tmp);
 
         // now fix the netbios name (according to RFC 1001)
-        if (q == 0 && info.request_type == DNS_TYPE_NBNS) {
+        if (q == 0 && ((info.request_type == DNS_TYPE_NBNS || info.request_type == DNS_TYPE_SRV) && looks_like_netbios(info.name))) {
             // convert inplace up to the end or the first dot
             char *s = info.name;
             char *d = s;

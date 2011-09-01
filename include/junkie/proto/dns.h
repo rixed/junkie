@@ -7,6 +7,11 @@
  * @brief DNS informations
  */
 
+#define DNS_PORT 53
+#define NBNS_PORT 137
+#define MDNS_PORT 5353
+#define LLMNR_PORT 5355
+
 extern struct proto *proto_dns;
 extern struct proto *proto_dns_tcp;
 
@@ -19,6 +24,7 @@ enum dns_req_type {
     DNS_TYPE_MINFO, DNS_TYPE_MX, DNS_TYPE_TXT,
     DNS_TYPE_AAAA = 0x001c,
     DNS_TYPE_NBNS = 0x0020,
+    DNS_TYPE_SRV = 0x0021, /* or DNS_TYPE_NBSTAT for NBNS protocol, ie port 137 */
     DNS_TYPE_A6 = 0x0026,
     DNS_TYPE_IXFR = 0x00fb,
     DNS_TYPE_AXFR = 0x00fc,

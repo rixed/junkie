@@ -69,7 +69,7 @@ static enum proto_parse_status dns_tcp_parse(struct parser unused_ *parser, stru
 
 static struct uniq_proto uniq_proto_dns_tcp;
 struct proto *proto_dns_tcp = &uniq_proto_dns_tcp.proto;
-static struct port_muxer tcp_port_muxer;
+static struct port_muxer dns_tcp_port_muxer, mdns_tcp_port_muxer, nbns_tcp_port_muxer, llmnr_tcp_port_muxer;
 
 void dns_tcp_init(void)
 {
@@ -79,12 +79,18 @@ void dns_tcp_init(void)
         .parser_del = uniq_parser_del,
     };
     uniq_proto_ctor(&uniq_proto_dns_tcp, &ops, "DNS/TCP");
-    port_muxer_ctor(&tcp_port_muxer, &tcp_port_muxers, 53, 53, proto_dns_tcp);
+    port_muxer_ctor(&dns_tcp_port_muxer, &tcp_port_muxers, DNS_PORT, DNS_PORT, proto_dns_tcp);
+    port_muxer_ctor(&mdns_tcp_port_muxer, &tcp_port_muxers, MDNS_PORT, MDNS_PORT, proto_dns_tcp);
+    port_muxer_ctor(&nbns_tcp_port_muxer, &tcp_port_muxers, NBNS_PORT, NBNS_PORT, proto_dns_tcp);
+    port_muxer_ctor(&llmnr_tcp_port_muxer, &tcp_port_muxers, LLMNR_PORT, LLMNR_PORT, proto_dns_tcp);
 }
 
 void dns_tcp_fini(void)
 {
-    port_muxer_dtor(&tcp_port_muxer, &tcp_port_muxers);
+    port_muxer_dtor(&llmnr_tcp_port_muxer, &tcp_port_muxers);
+    port_muxer_dtor(&nbns_tcp_port_muxer, &tcp_port_muxers);
+    port_muxer_dtor(&mdns_tcp_port_muxer, &tcp_port_muxers);
+    port_muxer_dtor(&dns_tcp_port_muxer, &tcp_port_muxers);
     uniq_proto_dtor(&uniq_proto_dns_tcp);
 }
 
