@@ -200,6 +200,15 @@ static void qname_check(void)
     }
 }
 
+static void looks_like_netbios_check(void)
+{
+    assert(looks_like_netbios("CKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"));
+    assert(looks_like_netbios("EDFEFIFDFDEFDCDDCACACACACACACAAA.."));
+    assert(looks_like_netbios("EEEDDADDCOEJEOEGEPEDEMEFCOEDEPEN.."));
+    assert(!looks_like_netbios("le joli petit lapin rose"));
+    assert(!looks_like_netbios("CKAAA"));
+}
+
 int main(void)
 {
     log_init();
@@ -217,6 +226,7 @@ int main(void)
     log_set_file("dns_check.log");
 
     parse_check();
+    looks_like_netbios_check();
     qname_check();
     stress_check(proto_dns);
 
