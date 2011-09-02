@@ -240,8 +240,6 @@ enum proto_parse_status pkt_wait_list_flush(struct pkt_wait_list *pkt_wl, uint8_
         struct pkt_wait *pkt;
         while (NULL != (pkt = LIST_FIRST(&pkt_wl->pkts))) {
             if (LIST_IS_LAST(pkt, entry)) {
-                // FIXME: don't call parser with list locked!
-                // but move pkt into a private pkt list instead? but then destruction is more complex (removal from list without deallocation, then deallocation without removal from list...)
                 last_status = proto_parse(parser, pkt->parent, pkt->way, payload, cap_len, wire_len, now, pkt->okfn, pkt->tot_cap_len, pkt->packet);   // FIXME: once again, payload not within pkt->packet !
                 pkt_wait_del_nolock(pkt, pkt_wl);
             } else {
@@ -425,7 +423,7 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
 
     // if previous == NULL and pkt_wl->next_offset == offset, we can call proto_parse directly and then advance next_offset.
     if (! prev && pkt_wl->next_offset == offset && can_parse) {
-        /* FIXME: calling a parser with this list config locked can deadlock!
+        /* Beware: calling a parser with this list config locked can deadlock!
          * Not if the parser called create a new list on the same config (since the mutex is recursive),
          * but if he wants to create a new list on another config which is already locked by another thread
          * who also want to lock the one we already own!
@@ -438,7 +436,6 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
             struct pkt_wait *pkt = LIST_FIRST(&pkt_wl->pkts);
             if (! pkt) break;
             if (pkt->offset > pkt_wl->next_offset) break;
-            // FIXME: there again, don't call any parser with list locked!
             ret = pkt_wait_finalize(pkt, pkt_wl, now);
         }
         goto quit;
