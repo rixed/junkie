@@ -29,6 +29,7 @@
 #include <junkie/tools/log.h>
 #include <junkie/tools/tempstr.h>
 #include <junkie/tools/ext.h>
+#include <junkie/tools/timeval.h>
 
 static char const Id[] = "$Id$";
 
@@ -188,8 +189,11 @@ int supermutex_lock(struct supermutex *super)
     metaunlock(super);
     SLOG(LOG_DEBUG, "Locking supermutex %s", supermutex_name(super));
     // From now on the metadata can change, but we shall not become the owner of the lock
-#   define NSEC_DEADLOCK 300000000 // 300ms
-    int const err = pthread_mutex_timedlock(&super->mutex.mutex, &(struct timespec){ .tv_sec = 0, .tv_nsec = NSEC_DEADLOCK });
+#   define USEC_DEADLOCK 100000 // 100ms
+    struct timeval now;
+    timeval_set_now(&now);
+    timeval_add_usec(&now, USEC_DEADLOCK);
+    int const err = pthread_mutex_timedlock(&super->mutex.mutex, &(struct timespec){ .tv_sec = now.tv_sec, .tv_nsec = now.tv_usec*1000ULL });
     if (err == ETIMEDOUT) {
         SLOG(LOG_ERR, "Deadlock while waiting for supermutex %s", supermutex_name(super));
         return MUTEX_DEADLOCK;
