@@ -69,7 +69,7 @@
                                              (lambda () (eval expr (interaction-environment)))
                                              (lambda (key . args)
                                                (if (eq? key 'quit) (apply throw 'quit args))
-                                               (simple-format #t "You slipped : ~A\r\n" key)))))
+                                               `(error ,key ,args)))))
                            (printer pp))
                        (set-thread-name "J-guile-client")
                        ; Use repl defined in ice-9 boot
