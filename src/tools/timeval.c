@@ -99,7 +99,6 @@ char const *timeval_2_str(struct timeval const *tv)
 void timeval_set_now(struct timeval *now)
 {
 #   ifdef HAVE_CLOCK_GETTIME
-    // FIXME: configure should generate config.h with this HAVE_CLOCK_GETTIME
     struct timespec tp;
     clock_gettime(CLOCK_REALTIME, &tp);
     now->tv_sec = tp.tv_sec;
