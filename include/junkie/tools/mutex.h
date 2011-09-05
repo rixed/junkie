@@ -29,7 +29,7 @@ void mutex_dtor(struct mutex *);
 /// A supermutex is a mutex wich allow recursive lock _and_ deadlock detection (through timedlock)
 struct supermutex {
     struct mutex mutex;
-    pthread_rwlock_t metalock;
+    pthread_rwlock_t metalock;  ///< Protects owner
     int rec_count;  ///< Recursive count (1 when the supermutex is locked once, 2 when the same thread relocked it, and so on)
     pthread_t owner; ///< The owner of the lock (if rec_count > 0)
 };

@@ -59,7 +59,7 @@ void mutex_unlock(struct mutex *mutex)
 {
     assert(mutex->name);
     SLOG(LOG_DEBUG, "Unlocking %s", mutex_name(mutex));
-    int const err = pthread_mutex_unlock(&mutex->mutex);
+    int const err = pthread_mutex_unlock(&mutex->mutex);    // Call directly pthread_mutex_unlock to avoid the logs in mutex_unlock
     if (! err) {
         SLOG(LOG_DEBUG, "Unlocked %s", mutex_name(mutex));
     } else {
