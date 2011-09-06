@@ -1,26 +1,22 @@
 ; vim:syntax=scheme expandtab
 ;;; This modules contains general purpose functions.
 
-;; A global variable to avoid loading this several times
-
-(define defs-loaded #t)
+(define-module (junkie defs))
 
 (use-modules (srfi srfi-1)
              (ice-9 regex)
              (ice-9 optargs)
              (ice-9 format)
-             (ice-9 threads))
+             (ice-9 threads)
+             (junkie runtime))
 
 ;; Some definitions the user likely want to use
 
-(define log-emerg   0) (define log-alert  1) (define log-crit 2) (define log-err   3)
-(define log-warning 4) (define log-notice 5) (define log-info 6) (define log-debug 7)
-
-; This might be already defined somewhere ?
-(define (neq? x y) (not (eq? x y)))
+(define-public log-emerg   0) (define-public log-alert  1) (define-public log-crit 2) (define-public log-err   3)
+(define-public log-warning 4) (define-public log-notice 5) (define-public log-info 6) (define-public log-debug 7)
 
 ; This one might be usefull to display all help available
-(define (help)
+(define-public (help)
   (for-each (lambda (l)
               (display "------------------\n")
               (display l)
@@ -28,7 +24,7 @@
             (?)))
 
 ; A pretty printer
-(define pp (@ (ice-9 pretty-print) pretty-print))
+(define-public pp (@ (ice-9 pretty-print) pretty-print))
 
 ; Run a server on given port
 (define (start-server ip-addr port serve-client)
@@ -49,7 +45,7 @@
              (serve-socket client-cnx)))))
                   
 ; Start a server that executes anything (from localhost only)
-(define (start-repl-server port . rest)
+(define*-public (start-repl-server #:key (port 29000) (prompt (lambda () "junkie> ")))
   (letrec ((consume-white-spaces (lambda (port)
                                    (let ((c (peek-char port)))
                                      (cond ((eqv? c #\eot) (begin
@@ -58,33 +54,33 @@
                                            ((char-whitespace? c) (begin
                                                                    (read-char)
                                                                    (consume-white-spaces port))))))))
-    (let* ((prompt (if (null? rest) (lambda () "junkie> ") (car rest)))
-           (repl   (lambda ()
-                     (let ((reader  (lambda (port)
-                                      (display (prompt))
-                                      (consume-white-spaces port)
-                                      (read port)))
-                           (evaler  (lambda (expr)
-                                      (catch #t
-                                             (lambda () (eval expr (interaction-environment)))
-                                             (lambda (key . args)
-                                               (if (eq? key 'quit) (apply throw 'quit args))
-                                               `(error ,key ,args)))))
-                           (printer pp))
-                       (set-thread-name "J-guile-client")
-                       ; Use repl defined in ice-9 boot
-                       (repl reader evaler printer)))))
-      (set-thread-name "J-guile-server")
-      (start-server (inet-aton "127.0.0.1") port repl))))
+    (let* ((repl (lambda ()
+                   (let ((reader  (lambda (port)
+                                    (display (prompt))
+                                    (consume-white-spaces port)
+                                    (read port)))
+                         (evaler  (lambda (expr)
+                                    (catch #t
+                                           (lambda () (eval expr (resolve-module '(junkie defs))))
+                                           (lambda (key . args)
+                                             (if (eq? key 'quit) (apply throw 'quit args))
+                                             `(error ,key ,args)))))
+                         (printer pp))
+                     (set-thread-name "J-repl-client")
+                     ; Use repl defined in ice-9 boot
+                     (repl reader evaler printer)))))
+      (make-thread (lambda ()
+                     (set-thread-name "J-repl-server")
+                     (start-server (inet-aton "127.0.0.1") port repl))))))
 
 ; An equivalent of the old fashionned display command line option
-(define (display-parameters)
+(define-public (display-parameters)
   (let ((display-one (lambda (p)
                        (simple-format #t "~a: ~a\n" p (get-parameter-value p)))))
     (for-each display-one (parameter-names))))
 
 ; Display the memory consumption due to Guile
-(define (guile-mem-stats)
+(define-public (guile-mem-stats)
   (let* ((stats     (gc-stats))
          (use-bdwgc (assq 'heap-size stats))
          (sum-size (lambda (x s)
@@ -96,7 +92,7 @@
         (fold sum-size 0 (assq-ref stats 'cell-heap-segments)))))
 
 ; Display the memory consumption due to the redimentionable arrays
-(define (array-mem-stats)
+(define-public (array-mem-stats)
   (let* ((a2size (map (lambda (h)
                         (let* ((stats (array-stats h))
                                (nb-elmts (cdr (assoc 'nb-entries stats)))
@@ -115,7 +111,7 @@
       (list (cons "total" tot-size)))))
 
 ; Display malloc statistics
-(define (mallocer-mem-stats)
+(define-public (mallocer-mem-stats)
   (let* ((size     (lambda (name) (cdr (assoc 'tot-size (mallocer-stats name)))))
          (tot-size (apply + (map size (mallocer-names))))
          (stat-one (lambda (name) (cons name (size name)))))
@@ -125,7 +121,7 @@
 
 ; get the percentage of duplicate frames over the total number (check out if the
 ; port mirroring is correctly set)
-(define (duplicate-percentage)
+(define-public (duplicate-percentage)
   (let* ((sums     (fold (lambda (iface prev)
                            (let* ((stats     (iface-stats iface))
                                   (packets   (assq-ref stats 'nb-packets))
@@ -141,7 +137,7 @@
         -1)))
     
 ; get the percentage of dropped packets
-(define (dropped-percentage)
+(define-public (dropped-percentage)
   (let* ((tot-drop (fold (lambda (iface prevs)
                            (let* ((stats     (iface-stats iface))
                                   (received  (assq-ref stats 'tot-received))
@@ -159,22 +155,20 @@
         -1)))
 
 ; backward compatible function set-ifaces
-(define (ifaces-matching pattern)
+(define-public (ifaces-matching pattern)
   (filter
     (lambda (ifname) (string-match pattern ifname))
     (list-ifaces)))
 
-(define (closed-ifaces-matching pattern)
+(define-public (closed-ifaces-matching pattern)
   (let* ((matching (ifaces-matching pattern))
          (opened   (iface-names)))
     (lset-difference equal? matching opened)))
 
-(define* (set-ifaces pattern #:key (capfilter "") (bufsize 0) (caplen 0))
+(define*-public (set-ifaces pattern #:key (capfilter "") (bufsize 0) (caplen 0))
   (for-each
     (lambda (ifname) (open-iface ifname #t capfilter caplen bufsize))
     (closed-ifaces-matching pattern)))
-
-(define (get-ifaces) (iface-names))
 
 ; build a list of pcap filter suitable to split traffic through 2^n+1 processes
 ; n must be >= 1
@@ -193,12 +187,12 @@
     (next-filter (list "not ip and not (vlan and ip)") 0)))
 
 ; Equivalent of set-ifaces for multiple CPUs
-(define* (open-iface-multiple n ifname #:key (capfilter "") (bufsize 0) (caplen 0) (promisc #t))
+(define*-public (open-iface-multiple n ifname #:key (capfilter "") (bufsize 0) (caplen 0) (promisc #t))
   (let* ((filters     (pcap-filters-for-split n #:capfilter capfilter))
          (open-single (lambda (flt) (open-iface ifname promisc flt caplen bufsize))))
     (for-each open-single filters)))
 
-(define* (set-ifaces-multiple n pattern #:rest r)
+(define*-public (set-ifaces-multiple n pattern #:rest r)
   (make-thread (lambda ()
     (set-thread-name "J-set-ifaces")
     (let loop ()
@@ -211,7 +205,7 @@
 ; (list-ifaces) will only report the currently mounted network devices.
 ; So we merely up all devices here. This works because we are the allmighty root.
 ; First we start by a function that can execute a function per file :
-(define (for-each-file-in path fun)
+(define-public (for-each-file-in path fun)
   (let ((dir (opendir path)))
     (do ((entry (readdir dir) (readdir dir)))
       ((eof-object? entry))
@@ -219,17 +213,17 @@
           (fun entry)))
     (closedir dir)))
 
-(define (up-all-ifaces)
+(define-public (up-all-ifaces)
   (let* ((up-iface    (lambda (file)
                         (let ((cmd (simple-format #f "/sbin/ifconfig ~a up" file)))
                           (system cmd)))))
     (for-each-file-in "/sys/class/net" up-iface)))
 
 ; A simple function to check wether the agentx module is available or not
-(define have-snmp (false-if-exception (resolve-interface '(agentx tools))))
+(define-public have-snmp (false-if-exception (resolve-interface '(agentx tools))))
 
 ; Helper function handy for answering SNMP queries : cache a result of some expensive function for some time
-(define (cached timeout)
+(define-public (cached timeout)
   (let* ((hash      (make-hash-table 50)) ; hash from (func . args) into (timestamp . value)
          (ts-of     car)
          (value-of  cdr)
@@ -245,16 +239,8 @@
                           v)))))))
 
 ; Helper functions that comes handy when configuring muxer hashes
-(define (get-mux-hash-size proto)
-  (let ((stats (mux-stats proto)))
-    (assq-ref stats 'hash-size)))
 
-(define (nb-tot-parsers)
-  (let* ((stats      (map proto-stats (proto-names)))
-         (nb-parsers (map (lambda (s) (assq-ref s 'nb-parsers)) stats)))
-    (reduce + 0 nb-parsers)))
-
-(define (make-mux-hash-controller coll-avg-min coll-avg-max h-size-min h-size-max)
+(define-public (make-mux-hash-controller coll-avg-min coll-avg-max h-size-min h-size-max)
   (lambda (proto)
     (let* ((stats    (mux-stats proto))
            (h-size   (assq-ref stats 'hash-size))
@@ -284,7 +270,7 @@
 
 ; A function to loop over all dup-detection-delays and report number of detected dups
 
-(define (best-dedup-delay run-t)
+(define-public (best-dedup-delay run-t)
   (let* ((get-dup-ratio     (lambda (how-long dedup-delay)
                               (format #t "Measuring dup ratio for ~8,' dus: " dedup-delay)
                               (set-dup-detection-delay dedup-delay)
@@ -311,7 +297,7 @@
 ; (note: an eol (end-of-list) occurs when the digest queue is too short to find out if a packet
 ; is a dup)
 
-(define (best-nb-digests max-eol-ratio run-t)
+(define-public (best-nb-digests max-eol-ratio run-t)
   (let* ((get-eol-ratio  (lambda (how-long nbd)
                            (format #t "Measuring eol ratio for ~6d digests: " nbd)
                            (set-nb-digests nbd)
@@ -334,7 +320,7 @@
 
 ; And then, a function to calibrate deduplication automatically
 
-(define (dedup-calibration run-t)
+(define-public (dedup-calibration run-t)
   (set-nb-digests 5000) ; see remark above concerning max-nb-digests
   (let ((best-delay (best-dedup-delay run-t)))
     (format #t "Best dedup delay: ~dus\n" best-delay)
@@ -342,4 +328,65 @@
   (let ((best-nbd (best-nb-digests 5 run-t)))  ; arround 5% of list limit hits is acceptable
     (format #t "Best nb-digests: ~d\n" best-nbd)
     (set-nb-digests best-nbd)))
+
+(define-public (auto-calibration)
+  (make-thread (lambda ()
+                 (set-thread-name "J-autocalibration")
+                 (display "Starting autocalibration of deduplication process...\n")
+                 (sleep 30) ; wait for all interfaces to show up
+                 (dedup-calibration 30) ; each sample period last for 30 seconds
+                 (reset-deduplication-stats))))
+
+;; A thread that will limit UDP/TCP muxers to some hash size and collision rates
+
+(define*-public (start-resizer-thread  #:key
+                                (min-collision-avg 4)   ; collision average under which we will make hash tables bigger
+                                (max-collision-avg 16)  ; collision average above which we will make hash tables smaller
+                                (min-hash-size     11)  ; minimal hash table size under which we won't venture
+                                (max-hash-size     353) ; maximal etc
+                                ; So by default we can happily store 353*16*2=11k different sockets between two given hosts
+                                (period            60)) ; how many seconds we wait between two measurments (it's important to wait for the stats to settle)
+  (let* ((limiter (make-mux-hash-controller
+                    min-collision-avg max-collision-avg min-hash-size max-hash-size))
+         (thread  (lambda ()
+                    (set-thread-name "J-hash-resizer")
+                    (let loop ()
+                      (sleep period)
+                      (limiter "TCP")
+                      (limiter "UDP")
+                      (limiter "IPv4")
+                      (limiter "IPv6")
+                      (loop)))))
+    (make-thread thread)))
+
+; A thread that will periodically report on stdout the number of TCP/UDP simultaneous streams
+
+(define-public (report-cnx period)
+  (let ((thread (lambda (period)
+                  (set-thread-name "J-report-cnx")
+                  (let ((max-tcp 0)
+                        (max-udp 0))
+                    (let loop ()
+                      (let ((cur-tcp (assq-ref (proto-stats "TCP") 'nb-parsers))
+                            (cur-udp (assq-ref (proto-stats "UDP") 'nb-parsers)))
+                        (if (> cur-tcp max-tcp) (set! max-tcp cur-tcp))
+                        (if (> cur-udp max-udp) (set! max-udp cur-udp))
+                        (simple-format #t "Current TCP:~a UDP:~a total:~a / Max TCP:~a UDP:~a total:~a\n"
+                                       cur-tcp cur-udp (+ cur-tcp cur-udp)
+                                       max-tcp max-udp (+ max-tcp max-udp))
+                        (sleep period)
+                        (loop)))))))
+    (make-thread thread period)))
+
+; Some tools mainly usefull for tests
+
+(if (defined? 'use-syntax) ; Guile 2 does not need nor provide this
+  (use-syntax (ice-9 syncase)))
+(define-syntax assert
+  (syntax-rules ()
+                ((assert x)
+                 (if (not x) (begin
+                               (simple-format #t "Assertion-failed: ~a\n" 'x)
+                               (raise SIGABRT))))))
+(export-syntax assert)
 

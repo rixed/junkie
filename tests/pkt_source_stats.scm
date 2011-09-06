@@ -7,15 +7,6 @@
 (set-log-file "pkt_source_stats.log")
 (set-log-level 7)
 
-(if (defined? 'use-syntax) ; Guile 2 does not need nor provide this
-  (use-syntax (ice-9 syncase)))
-(define-syntax assert
-  (syntax-rules ()
-                ((assert x)
-                 (if (not x) (begin
-                               (simple-format #t "Assertion-failed: ~a\n" 'x)
-                               (raise SIGABRT))))))
-
 ; We cannot play a pcap and then when it's done read the statistics since the
 ; statistics would be automatically deleted when the pcap is read in full.
 ; So we trick this by reading in realtime a special pcap with a final

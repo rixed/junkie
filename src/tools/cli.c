@@ -143,7 +143,7 @@ int cli_parse(unsigned nb_args, char **args)
         case CLI_CALL:
             err = opt->u.call(opt->need_argument ? args[1] : NULL);
             break;
-        case CLI_SET_UINT:;
+        case CLI_SET_UINT:
             assert(opt->need_argument);
             char *end;
             *opt->u.uint = strtoul(args[1], &end, 0);

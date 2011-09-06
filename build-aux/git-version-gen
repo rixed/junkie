@@ -1,0 +1,38 @@
+#!/bin/sh
+# Print a version string, either taken from git or from the given file
+
+version_file=$1
+
+if test -z "$1" ; then
+	echo 1>&2 "Usage: $0 version-file"
+	exit 1
+fi
+
+# Try git first
+version=$(
+	git describe --tags 2>/dev/null ||
+	(
+		if git symbolic-ref HEAD >/dev/null 2>&1; then
+			git symbolic-ref HEAD | cut -d/ -f 3-
+		else
+			git name-rev HEAD | cut -d' ' -f 2
+		fi
+	)
+)
+
+if test -n "$version" ; then
+	echo "$version"
+	exit 0
+fi
+
+# fallback on the given file
+
+version=$(cat $version_file 2>/dev/null)
+
+if test -n "$version" ; then
+	echo "$version"
+	exit 0
+fi
+
+echo "UNKNOWN"
+

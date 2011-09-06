@@ -12,8 +12,13 @@ Makefile.in
 *.la
 .deps
 .libs
+config.guess
+config.sub
+depcomp
+install-sh
+ltmain.sh
+missing
 aclocal.m4
-build-aux
 config.log
 config.status
 configure
@@ -65,3 +70,5 @@ tests/cli_check
 tests/cursor_check
 tests/mutex_check
 config/.index
+.tarball-version
+instvars.scm

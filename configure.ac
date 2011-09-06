@@ -3,7 +3,9 @@
 AC_PREREQ([2.65])
 
 # These git commands will disapear from the generated configure script
-AC_INIT(junkie, m4_esyscmd([(git describe --tags || (if git symbolic-ref HEAD >/dev/null 2>&1; then git symbolic-ref HEAD | cut -d/ -f 3- ; else git name-rev HEAD | cut -d' ' -f 2; fi)) | tr -d '\n']), github@securactive.net, , http://github.com/securactive/junkie)
+AC_INIT([junkie],
+		m4_esyscmd([build-aux/git-version-gen .tarball-version | tr -d '\n']),
+		github@securactive.net, , http://github.com/securactive/junkie)
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_MACRO_DIR([m4])
 AM_INIT_AUTOMAKE([-Wall foreign])
@@ -47,8 +49,13 @@ AS_IF([test "x$CPU_MAX" = x], [CPU_MAX="32"])
 AC_DEFINE_UNQUOTED([CPU_MAX], [$CPU_MAX], [Approx of max number of available CPU])
 
 # Where to install various things
+DEFAULT_GUILELIBDIR="$(guile-config info sitedir)"
+AC_ARG_VAR([GUILELIBDIR], [Where to install guile modules [wherever guile-config says]])
+AS_IF([test "x$GUILELIBDIR" = x], [if test -n "$DEFAULT_GUILELIBDIR"; then GUILELIBDIR="$DEFAULT_GUILELIBDIR"; else exit 1; fi])
+
 AC_ARG_VAR([CONFDIR], [Where to store configuration files [SYSCONFDIR/junkie]])
 AS_IF([test "x$CONFDIR" = x], [CONFDIR="$sysconfdir/junkie"])
+
 
 AC_CONFIG_FILES([
 	Makefile
@@ -61,6 +68,8 @@ AC_CONFIG_FILES([
 	plugins/rater/Makefile
 	plugins/arpgraph/Makefile
 	config/Makefile
+	guile/Makefile
+	guile/junkie/Makefile
 	tests/Makefile
 ])
 AC_OUTPUT

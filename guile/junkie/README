@@ -1,0 +1,4 @@
+These files are actually guile modules.
+As they are installed within a junkie directory, their module name
+are therefore (junkie filename).
+For instance: (junkie defs), (junkie instvars), and so on.

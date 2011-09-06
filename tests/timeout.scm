@@ -8,19 +8,13 @@
 (set-log-file "timeout.log")
 (set-log-level 7)
 
-(if (defined? 'use-syntax) ; Guile 2 does not need nor provide this
-  (use-syntax (ice-9 syncase)))
-(define-syntax assert
-  (syntax-rules ()
-                ((assert x)
-                 (if (not x) (begin
-                               (simple-format #t "Assertion-failed: ~a\n" 'x)
-                               (raise SIGABRT))))))
-
-(if (not (defined? 'defs-loaded)) (load "../config/defs.scm"))
-
 (set-quit-when-done #f)
 
+(define (nb-tot-parsers)
+  (let* ((stats      (map proto-stats (proto-names)))
+         (nb-parsers (map (lambda (s) (assq-ref s 'nb-parsers)) stats)))
+    (reduce + 0 nb-parsers)))
+  
 (define (play-pcap-from dir)
   (simple-format #t "Playing all pcap from ~a~%" dir)
   (for-each-file-in (string-append "pcap/" dir)

@@ -7,14 +7,6 @@
 (set-log-file "pkt_source_dev_id.log")
 (set-log-level 7)
 
-(if (defined? 'use-syntax) ; Guile 2 does not need nor provide this
-  (use-syntax (ice-9 syncase)))
-(define-syntax assert
-  (syntax-rules ()
-                ((assert x)
-                 (if (not x) (begin
-                               (simple-format #t "Assertion-failed: ~a\n" 'x)
-                               (raise SIGABRT))))))
 ; First a tool
 (define (uniq? l)
   (if (null? l) #t

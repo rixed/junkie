@@ -108,7 +108,7 @@ SCM g_get_parameter_value(SCM name_)
  * Init
  */
 
-static void *ext_rebind_from_guile(void unused_ *dummy)
+static void rebind_from_guile_(void unused_ *dummy)
 {
     // All defined functions
     struct ext_function *ef;
@@ -116,8 +116,8 @@ static void *ext_rebind_from_guile(void unused_ *dummy)
         if (ef->bound) continue;
         if (! ef->implementation) continue;
         SLOG(LOG_INFO, "New extension function %s", ef->name);
-        scm_c_define_gsubr(ef->name, ef->req, ef->opt, ef->rest, ef->implementation);
-        scm_c_export(ef->name, NULL);
+        (void)scm_c_define_gsubr(ef->name, ef->req, ef->opt, ef->rest, ef->implementation);
+        (void)scm_c_export(ef->name, NULL);
         ef->bound = true;
     }
 
@@ -137,6 +137,12 @@ static void *ext_rebind_from_guile(void unused_ *dummy)
         param->bound = true;
     }
 
+    return;
+}
+
+static void *ext_rebind_from_guile(void *dummy)
+{
+    (void)scm_c_define_module("junkie runtime", rebind_from_guile_, dummy);
     return SUCCESS;
 }
 
@@ -160,7 +166,8 @@ static void *init_scm_extensions(void unused_ *dummy)
 
 static void *eval_string(void *str)
 {
-    (void)scm_c_eval_string(str);
+    SCM junkie_defs_module = scm_c_resolve_module("junkie defs");
+    (void)scm_c_eval_string_in_module(str, junkie_defs_module);
     return SUCCESS;
 }
 
