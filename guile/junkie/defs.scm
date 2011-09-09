@@ -45,7 +45,10 @@
              (serve-socket client-cnx)))))
                   
 ; Start a server that executes anything (from localhost only)
-(define*-public (start-repl-server #:key (port 29000) (prompt (lambda () "junkie> ")))
+(define*-public (start-repl-server #:key
+                                   (port 29000)
+                                   (prompt (lambda () "junkie> "))
+                                   (env-or-module (resolve-module '(junkie defs))))
   (letrec ((consume-white-spaces (lambda (port)
                                    (let ((c (peek-char port)))
                                      (cond ((eqv? c #\eot) (begin
@@ -61,7 +64,7 @@
                                     (read port)))
                          (evaler  (lambda (expr)
                                     (catch #t
-                                           (lambda () (eval expr (resolve-module '(junkie defs))))
+                                           (lambda () (eval expr env-or-module))
                                            (lambda (key . args)
                                              (if (eq? key 'quit) (apply throw 'quit args))
                                              `(error ,key ,args)))))
