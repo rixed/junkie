@@ -311,7 +311,7 @@
                                   (nodups (assq-ref stats 'nodup-found))
                                   (eols   (assq-ref stats 'end-of-list-found))
                                   (sum    (+ dups nodups eols))
-                                  (ratio  (/ (* 100 eols) sum)))
+                                  (ratio  (if (> sum 0) (/ (* 100 eols) sum) 0)))
                              (format #t "~3,2f%\n" (exact->inexact ratio))
                              ratio)))
          (max-nb-digests 5000) ; should be enought for any delay! (ie packet rate should be under max-nb-digests*NB_QUEUES/dedup-delay)
