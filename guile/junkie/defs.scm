@@ -159,9 +159,11 @@
 
 ; backward compatible function set-ifaces
 (define-public (ifaces-matching pattern)
-  (filter
-    (lambda (ifname) (string-match pattern ifname))
-    (list-ifaces)))
+  (let ((ifaces (list-ifaces)))
+    (if (list? ifaces)
+        (filter
+          (lambda (ifname) (string-match pattern ifname))
+          (list-ifaces)))))
 
 (define-public (closed-ifaces-matching pattern)
   (let* ((matching (ifaces-matching pattern))
