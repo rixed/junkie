@@ -202,7 +202,7 @@
     (set-thread-name "J-set-ifaces")
     (let loop ()
       (for-each
-        (lambda (ifname) (open-iface-multiple n ifname r))
+        (lambda (ifname) (apply open-iface-multiple `(,n ,ifname ,@r)))
         (closed-ifaces-matching pattern))
       (sleep 30)
       (loop)))))
