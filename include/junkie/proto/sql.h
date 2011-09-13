@@ -7,7 +7,7 @@
 #include <junkie/proto/proto.h>
 
 /** @file
- * @brief Postgres protocol informations
+ * @brief Database protocol informations
  */
 
 extern struct proto *proto_postgres;
