@@ -40,6 +40,24 @@
 }
 
 {
+   bdwgc being a conservative GC it scans and use many undef words
+   Memcheck:Value8
+   obj:/usr/local/lib/libgc.so*
+}
+
+{
+   bdwgc being a conservative GC it scans and use many undef words (32 bits addresses)
+   Memcheck:Value4
+   obj:/usr/local/lib/libgc.so*
+}
+
+{
+   bdwgc being a conservative GC it scans and use many undef words
+   Memcheck:Cond
+   obj:/usr/local/lib/libgc.so*
+}
+
+{
    PTHREAD_ASSERT_LOCK in add_block relock
    Helgrind:Misc
    fun:pthread_mutex_lock
