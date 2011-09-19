@@ -1,7 +1,7 @@
 Meet Junkie the network sniffer!
 ================================
 
-As the heart of SecurActive network performance monitoring application
+As the heart of SecurActive_ network performance monitoring application
 lies a real-time packet sniffer and analyzer. Modular enough to accomplish
 many different tasks, we believe this tool can be a helpful companion
 to the modern network administrator and analyst, and so we decided to offer it
@@ -31,6 +31,7 @@ In addition, junkie's design encompasses extendability and speed:
 Junkie is still being maintained and extended by SecurActive dedicated team
 but we believe it can be further extended to fulfill many unforeseen purposes.
 
+.. _SecurActive: http://www.securactive.net
 
 Limitations
 ===========
