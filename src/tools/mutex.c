@@ -104,6 +104,8 @@ void mutex_ctor_with_type(struct mutex *mutex, char const *name, int type)
     if (err) SLOG(LOG_ERR, "Cannot set type %d attr of mutex %s@%p: %s", type, name, mutex, strerror(err));
     err = pthread_mutex_init(&mutex->mutex, &attr);
     if (err) SLOG(LOG_ERR, "Cannot create mutex %s@%p: %s", name, mutex, strerror(err));
+    err = pthread_mutexattr_destroy(&attr);
+    if (err) SLOG(LOG_ERR, "Cannot dispose of attr for mutex %s@%p: %s", name, mutex, strerror(err));
 }
 
 void mutex_ctor(struct mutex *mutex, char const *name)
@@ -134,7 +136,7 @@ void supermutex_ctor(struct supermutex *super, char const *name)
     super->rec_count = 0;
     super->owner = (pthread_t)0;
     pthread_rwlock_init(&super->metalock, NULL);
-    mutex_ctor(&super->mutex, name);
+    mutex_ctor_with_type(&super->mutex, name, PTHREAD_MUTEX_NORMAL);    // Other types may not allow timed lock
 }
 
 void supermutex_dtor(struct supermutex *super)

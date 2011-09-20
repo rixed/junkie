@@ -31,7 +31,7 @@ struct supermutex {
     struct mutex mutex;
     pthread_rwlock_t metalock;  ///< Protects owner
     int rec_count;  ///< Recursive count (1 when the supermutex is locked once, 2 when the same thread relocked it, and so on)
-    pthread_t owner; ///< The owner of the lock (if rec_count > 0)
+    pthread_t owner; ///< The owner of the lock (if rec_count > 0) or 0
 };
 
 void supermutex_ctor(struct supermutex *, char const *name);
