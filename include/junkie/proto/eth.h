@@ -2,6 +2,7 @@
 // vim:sw=4 ts=4 sts=4 expandtab
 #ifndef ETH_H_100402
 #define ETH_H_100402
+#include <stdbool.h>
 #include <junkie/proto/proto.h>
 #include <junkie/tools/queue.h>
 
@@ -50,6 +51,9 @@ struct mux_subparser *eth_subparser_and_parser_new(struct parser *, struct proto
 
 /// Convert an eth address into a displayable string
 char const *eth_addr_2_str(unsigned char const addr[ETH_ADDR_LEN]);
+
+/// Tells whether an address is the broadcast address
+bool eth_addr_is_broadcast(unsigned char const addr[ETH_ADDR_LEN]);
 
 void eth_init(void);
 void eth_fini(void);

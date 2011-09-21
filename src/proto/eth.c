@@ -53,6 +53,16 @@ struct eth_hdr {
 } packed_;
 
 /*
+ * Tools
+ */
+
+bool eth_addr_is_broadcast(unsigned char const addr[ETH_ADDR_LEN])
+{
+    static unsigned char all_ones[ETH_ADDR_LEN] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
+    return 0 == memcmp(addr, all_ones, sizeof(all_ones));
+}
+
+/*
  * Proto Infos
  */
 
