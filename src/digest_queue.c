@@ -56,8 +56,8 @@ static int digest_queue_ctor(struct digest_queue *digest, unsigned length)
         q->idx = 0;
         q->length = length;
         q->digests = MALLOC(digest_queues, q->length * sizeof *q->digests);
-        if (! q->digests) return -1;
-        memset(q->digests, 0, q->length * sizeof q->digests);
+        if (! q->digests && length > 0) return -1;
+        if (q->digests) memset(q->digests, 0, q->length * sizeof q->digests);
         mutex_ctor(&q->mutex, "digest queue");
     }
 
@@ -81,7 +81,7 @@ struct digest_queue *digest_queue_new(unsigned length)
 static void digest_queue_dtor(struct digest_queue *digest)
 {
     for (unsigned i = 0; i < NB_ELEMS(digest->queues); i++) {
-        FREE(digest->queues[i].digests);
+        if (digest->queues[i].digests) FREE(digest->queues[i].digests);
         mutex_dtor(&digest->queues[i].mutex);
     }
 }
@@ -98,14 +98,14 @@ int digest_queue_resize(struct digest_queue *digest, unsigned length)
         struct queue *const q = digest->queues + i;
 
         void *new = MALLOC(digest_queues, length * sizeof *q->digests);
-        if (! new) return -1;
+        if (! new && length > 0) return -1;
 
         mutex_lock(&q->mutex);
-        FREE(q->digests);
+        if (q->digests) FREE(q->digests);
         q->digests = new;
         q->idx = 0;
         q->length = length;
-        memset(q->digests, 0, q->length * sizeof q->digests);
+        if (q->digests) memset(q->digests, 0, q->length * sizeof q->digests);
         mutex_unlock(&q->mutex);
     }
 
@@ -133,9 +133,11 @@ enum digest_status digest_queue_find(struct digest_queue *digest, uint8_t buf[DI
         }
     }
 
-    q->idx = (q->idx + 1) % q->length;
-    memcpy(q->digests[q->idx].digest, buf, DIGEST_SIZE);
-    q->digests[q->idx].tv = *frame_tv;
+    if (q->length > 0) {
+        q->idx = (q->idx + 1) % q->length;
+        memcpy(q->digests[q->idx].digest, buf, DIGEST_SIZE);
+        q->digests[q->idx].tv = *frame_tv;
+    }
 
     mutex_unlock(&q->mutex);
     return i < q->length ? DIGEST_NOMATCH : DIGEST_UNKNOWN;
