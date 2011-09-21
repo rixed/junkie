@@ -59,6 +59,10 @@ static struct digest_queue *digests;
 // Some stats about the use of the digest queue. Protected with nb_digests lock.
 static uint_least64_t nb_dup_found, nb_nodup_found, nb_eol_found;
 
+#ifdef WITH_GIANT_LOCK
+static struct mutex giant_lock;
+#endif
+
 static void reset_dedup_stats(void)
 {
     nb_dup_found = nb_nodup_found = nb_eol_found = 0;
@@ -198,12 +202,20 @@ static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, 
         return;
     }
 
+#   ifdef WITH_GIANT_LOCK
+    mutex_lock(&giant_lock);
+#   endif
+
     enter_unsafe_region();
 
     assert(cap_parser);
     (void)proto_parse(cap_parser, NULL, 0, (uint8_t *)&frame, frame.cap_len, frame.wire_len, &frame.tv, parser_callbacks, frame.cap_len, frame.data);
 
     enter_safe_region();
+
+#   ifdef WITH_GIANT_LOCK
+    mutex_unlock(&giant_lock);
+#   endif
 }
 
 static void pkt_source_del(struct pkt_source *);
@@ -683,6 +695,10 @@ static SCM g_reset_dedup_stats(void)
 // The first thing to do when quitting is to stop parsing traffic
 void pkt_source_init(void)
 {
+#   ifdef WITH_GIANT_LOCK
+    mutex_ctor(&giant_lock, "Giant Lock");
+#   endif
+
     mutex_ctor(&pkt_sources_lock, "pkt_sources");
     EXT_LOCK(nb_digests);
     digests = digest_queue_new(nb_digests);
@@ -776,6 +792,10 @@ void pkt_source_fini(void)
         digest_queue_del(digests);
         digests = NULL;
     }
+
+#   ifdef WITH_GIANT_LOCK
+    mutex_dtor(&giant_lock);
+#   endif
 
     log_category_pkt_sources_fini();
     ext_param_nb_digests_fini();

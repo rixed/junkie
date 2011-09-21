@@ -44,6 +44,10 @@ AC_FUNC_CHOWN
 AC_CHECK_FUNCS([clock_gettime localtime_r mkdir regcomp rmdir sqrt strcasecmp strncasecmp strtoull prctl strnstr malloc_stats mallinfo])
 
 # Some build parameters
+AC_ARG_WITH([giant_lock],
+			AS_HELP_STRING([--with-giant-lock], [Disable support for multithreaded parsing (which require functionnal timed locks)]))
+AS_IF([test "x$with_giant_lock" = "xyes"], [AC_DEFINE([WITH_GIANT_LOCK], [], [Use a giant lock to forbid simultaneous parsing of packets])])
+
 AC_ARG_VAR([CPU_MAX], [Approx of max number of available CPU])
 AS_IF([test "x$CPU_MAX" = x], [CPU_MAX="32"])
 AC_DEFINE_UNQUOTED([CPU_MAX], [$CPU_MAX], [Approx of max number of available CPU])
