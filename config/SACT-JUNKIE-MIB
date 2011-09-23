@@ -128,7 +128,8 @@ dupDetectionDelay OBJECT-TYPE
 	MAX-ACCESS read-write
 	STATUS current
 	DESCRIPTION
-		"Number of seconds between two packets that can't be duplicates."
+		"Number of seconds between two packets that can't be duplicates.
+		 Set to zero to disable deduplication altogether."
 	::= { junkieSniffer 2 }
 
 -- Stats table for parsers
