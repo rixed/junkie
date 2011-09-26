@@ -100,7 +100,7 @@
                   (while #t
                          (catch #t
                                 (lambda ()
-                                  (let ((subagent (net:make-subagent "junkie" mib getters)))
+                                  (let ((subagent (net:make-subagent "junkie" mib getters '())))
                                     (net:loop subagent)))
                                 (lambda (key . args)
                                   (sleep 10)))))))
