@@ -146,21 +146,23 @@ static void *ext_rebind_from_guile(void *dummy)
     return SUCCESS;
 }
 
-static void *init_scm_extensions(void unused_ *dummy)
+static void init_scm_extensions_(void unused_ *dummy)
 {
-    SCM module = scm_c_resolve_module("guile-user");
-
     // junkie-parameters: a list of parameter names
-    scm_c_module_define(module, "junkie-parameters", g_parameter_names());
+    scm_c_define("junkie-parameters", g_parameter_names());
     scm_c_export("junkie-parameters", NULL);
 
     // junkie-version: a mere string to query the current junkie version
-    scm_c_module_define(module, "junkie-version", scm_from_locale_string(version_string));
+    scm_c_define("junkie-version", scm_from_locale_string(version_string));
     scm_c_export("junkie-version", NULL);
 
     // bind all ext functions and parameters
     (void)ext_rebind_from_guile(NULL);
+}
 
+static void *init_scm_extensions(void unused_ *dummy)
+{
+    (void)scm_c_define_module("junkie runtime", init_scm_extensions_, dummy);
     return SUCCESS;
 }
 
