@@ -78,12 +78,9 @@ int log_set_file(char const *filename)
         system_log(LOG_ERR, "Cannot create directory for log file '%s'", filename);
         return -1;
     }
-    log_fd = open(filename, O_WRONLY | O_APPEND | O_CREAT, 0644);
+    log_fd = file_open(filename, O_WRONLY | O_APPEND | O_CREAT);
 
-    if (log_fd == -1) {
-        system_log(LOG_ERR, "Cannot open logfile '%s'", filename);
-        return -1;
-    }
+    if (log_fd == -1) return -1;
 
     if (log_filename != filename) { // we often perform set_file(get_file), but snprintf won't work if src and dest overwrite.
         snprintf(log_filename, sizeof(log_filename), "%s", filename);
