@@ -21,7 +21,7 @@
 (define (getoid-guile-mem-stats)
   (cons 'gauge32 (guile-mem-stats)))
 
-(define (oid-less oid1 oid2) ; returns true if oid1 < oid2
+(define-public (oid-less oid1 oid2) ; returns true if oid1 < oid2
   (< ((@ (agentx tools) oid-compare) (car oid1) (car oid2)) 0))
 
 (define cached-stats (cached 15))
