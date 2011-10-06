@@ -395,3 +395,9 @@
                                (raise SIGABRT))))))
 (export-syntax assert)
 
+(define-public (repeat n f)
+  (if (> n 0)
+      (begin
+        (f)
+        (repeat (- n 1) f))))
+
