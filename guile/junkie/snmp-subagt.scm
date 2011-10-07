@@ -4,6 +4,7 @@
 (define-module (junkie snmp-subagt))
 
 (use-modules (ice-9 threads)
+             (rnrs bytevectors)
              ((agentx net)     :renamer (symbol-prefix-proc 'net:))
              ((agentx session) :renamer (symbol-prefix-proc 'sess:))
              (junkie defs)
@@ -13,7 +14,7 @@
 (define mib  (append securactive-mib '(1)))
 
 (define (getoid-version)
-  (cons 'octet-string junkie-version))
+  (cons 'octet-string (string->utf8 junkie-version)))
 
 (define (getoid-dup-detection-delay)
   (cons 'integer (get-dup-detection-delay)))
@@ -32,7 +33,7 @@
                (if (null? names) prevs  ; no more parsers on the table
                  (let* ((name          (car names))
                         (stats         (cached-stats proto-stats name))
-                        (parser-getter (list (cons (append mib (list 3 1 1 1 idx)) (lambda () (cons 'octet-string name)))
+                        (parser-getter (list (cons (append mib (list 3 1 1 1 idx)) (lambda () (cons 'octet-string (string->utf8 name))))
                                              (cons (append mib (list 3 1 1 2 idx)) (lambda () (cons 'counter64 (assq-ref stats 'nb-frames))))
                                              (cons (append mib (list 3 1 1 3 idx)) (lambda () (cons 'counter64 (assq-ref stats 'nb-bytes))))
                                              (cons (append mib (list 3 1 1 4 idx)) (lambda () (cons 'gauge32   (assq-ref stats 'nb-parsers)))))))
@@ -45,7 +46,7 @@
                (if (null? names) prevs
                  (let* ((name          (car names))
                         (stats         (cached-stats mux-stats name))
-                        (mux-getter    (list (cons (append mib (list 3 2 1 1 idx)) (lambda () (cons 'octet-string name)))
+                        (mux-getter    (list (cons (append mib (list 3 2 1 1 idx)) (lambda () (cons 'octet-string (string->utf8 name))))
                                              (cons (append mib (list 3 2 1 2 idx)) (lambda () (cons 'gauge32   (assq-ref stats 'hash-size))))
                                              (cons (append mib (list 3 2 1 3 idx)) (lambda () (cons 'gauge32   (assq-ref stats 'nb-max-children))))
                                              (cons (append mib (list 3 2 1 4 idx)) (lambda () (cons 'counter32 (assq-ref stats 'nb-infanticide))))
@@ -60,7 +61,7 @@
                (if (null? names) prevs
                  (let* ((name          (car names))
                         (stats         (cached-stats iface-stats name))
-                        (source-getter (list (cons (append mib (list 2 1 1 1 idx)) (lambda () (cons 'octet-string name)))
+                        (source-getter (list (cons (append mib (list 2 1 1 1 idx)) (lambda () (cons 'octet-string (string->utf8 name))))
                                              (cons (append mib (list 2 1 1 2 idx)) (lambda () (cons 'counter64 (assq-ref stats 'tot-received))))
                                              (cons (append mib (list 2 1 1 3 idx)) (lambda () (cons 'counter64 (assq-ref stats 'tot-dropped))))
                                              (cons (append mib (list 2 1 1 4 idx)) (lambda () (cons 'counter64 (assq-ref stats 'nb-packets))))
@@ -76,7 +77,7 @@
                (if (null? names) prevs
                  (let* ((name          (car names))
                         (stats         (cached-stats mallocer-stats name))
-                        (malloc-getter (list (cons (append mib (list 4 1 1 1 idx)) (lambda () (cons 'octet-string name)))
+                        (malloc-getter (list (cons (append mib (list 4 1 1 1 idx)) (lambda () (cons 'octet-string (string->utf8 name))))
                                              (cons (append mib (list 4 1 1 2 idx)) (lambda () (cons 'gauge32   (assq-ref stats 'tot-size))))
                                              (cons (append mib (list 4 1 1 3 idx)) (lambda () (cons 'gauge32   (assq-ref stats 'nb-blocks))))
                                              (cons (append mib (list 4 1 1 4 idx)) (lambda () (cons 'counter64 (assq-ref stats 'nb-allocs)))))))
