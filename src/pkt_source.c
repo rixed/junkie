@@ -760,7 +760,7 @@ void pkt_source_init(void)
     ext_function_ctor(&sg_dedup_stats,
         "deduplication-stats", 0, 0, 0, g_dedup_stats,
         "(deduplication-stats): return some statistics about the deduplication mechanism.\n"
-        "See also (? 'reset-dedup-stats).\n");
+        "See also (? 'reset-deduplication-stats).\n");
 
     ext_function_ctor(&sg_reset_dedup_stats,
         "reset-deduplication-stats", 0, 0, 0, g_reset_dedup_stats,
