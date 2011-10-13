@@ -14,8 +14,8 @@ int digest_queue_resize(struct digest_queue *, unsigned size);
 enum digest_status {
     DIGEST_MATCH, DIGEST_NOMATCH, DIGEST_UNKNOWN
 };
-enum digest_status digest_queue_find(struct digest_queue *, uint8_t buf[DIGEST_SIZE], struct timeval const *frame_tv, unsigned delay_usec);
+enum digest_status digest_queue_find(struct digest_queue *, unsigned char buf[DIGEST_SIZE], struct timeval const *frame_tv, unsigned delay_usec);
 
-void digest_frame(uint8_t buf[DIGEST_SIZE], size_t size, uint8_t *restrict packet);
+void digest_frame(unsigned char buf[DIGEST_SIZE], size_t size, unsigned char *restrict packet);
 
 #endif

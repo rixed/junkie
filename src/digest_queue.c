@@ -21,7 +21,6 @@
 #include <string.h>
 #include <sys/time.h>
 #include <assert.h>
-#include <inttypes.h>
 #include <openssl/md5.h>
 #include <junkie/config.h>
 #include <junkie/tools/log.h>
@@ -38,12 +37,12 @@ static char const Id[] = "$Id$";
 struct digest_queue {
     struct queue {
         struct digest_qcell {
-            uint8_t digest[DIGEST_SIZE];
+            unsigned char digest[DIGEST_SIZE];
             struct timeval tv;
         } *digests;
-        uint32_t idx;       // Index of the lastly added frame (more recent)
+        unsigned idx;       // Index of the lastly added frame (more recent)
+        unsigned length;    // Actually all queues have the same length, except during resizing
         struct mutex mutex;
-        size_t length;      // Actually all queues have the same length, except during resizing
     } queues[NB_QUEUES];    // The queue is chosen according to digest hash, so that several distinct threads can perform lookups simultaneously.
 };
 
@@ -112,7 +111,7 @@ int digest_queue_resize(struct digest_queue *digest, unsigned length)
     return 0;
 }
 
-enum digest_status digest_queue_find(struct digest_queue *digest, uint8_t buf[DIGEST_SIZE], struct timeval const *frame_tv, unsigned delay_usec)
+enum digest_status digest_queue_find(struct digest_queue *digest, unsigned char buf[DIGEST_SIZE], struct timeval const *frame_tv, unsigned delay_usec)
 {
     struct timeval min_tv = *frame_tv;
     timeval_sub_usec(&min_tv, delay_usec);
@@ -121,26 +120,26 @@ enum digest_status digest_queue_find(struct digest_queue *digest, uint8_t buf[DI
 
     mutex_lock(&q->mutex);
 
-    unsigned i;
-    for (i = 0; i < q->length; i++) {
-        int j = (q->idx - i + q->length) % q->length;
-
-        if (!timeval_is_set(&q->digests[j].tv) || timeval_cmp(&q->digests[j].tv, &min_tv) < 0) break;
-
-        if (0 == memcmp(q->digests[j].digest, buf, DIGEST_SIZE)) {
-            mutex_unlock(&q->mutex);
-            return DIGEST_MATCH;
-        }
-    }
-
+    unsigned i = q->length;
     if (q->length > 0) {
+        do {
+            unsigned j = (q->idx + i) % q->length;
+
+            if (!timeval_is_set(&q->digests[j].tv) || timeval_cmp(&q->digests[j].tv, &min_tv) < 0) break;
+
+            if (0 == memcmp(q->digests[j].digest, buf, DIGEST_SIZE)) {
+                mutex_unlock(&q->mutex);
+                return DIGEST_MATCH;
+            }
+        } while (--i);
+
         q->idx = (q->idx + 1) % q->length;
         memcpy(q->digests[q->idx].digest, buf, DIGEST_SIZE);
         q->digests[q->idx].tv = *frame_tv;
     }
 
     mutex_unlock(&q->mutex);
-    return i < q->length ? DIGEST_NOMATCH : DIGEST_UNKNOWN;
+    return i != 0 ? DIGEST_NOMATCH : DIGEST_UNKNOWN;
 }
 
 #define BUFSIZE_TO_HASH 64
@@ -161,24 +160,33 @@ enum digest_status digest_queue_find(struct digest_queue *digest, uint8_t buf[DI
 #define IPV4_SRC_HOST_OFFSET    IPV4_CHECKSUM_OFFSET + 2
 #define IPV4_DST_HOST_OFFSET    IPV4_SRC_HOST_OFFSET + 4
 
-void digest_frame(uint8_t buf[DIGEST_SIZE], size_t size, uint8_t *restrict packet)
+void digest_frame(unsigned char buf[DIGEST_SIZE], size_t size, uint8_t *restrict packet)
 {
     SLOG(LOG_DEBUG, "Compute the md5 digest of relevant data in the frame");
 
     size_t iphdr_offset = ETHER_HEADER_SIZE;
     size_t ethertype_offset = ETHER_ETHERTYPE_OFFSET;
 
-    if (size >= ethertype_offset && *(uint16_t *)&packet[ethertype_offset] == 0x0000) {  // Skip Linux Cooked Capture special header
+    if (
+        size > ethertype_offset + 1 &&
+        0x00 == packet[ethertype_offset] &&
+        0x00 == packet[ethertype_offset+1]
+    ) {  // Skip Linux Cooked Capture special header
         iphdr_offset += 2;
         ethertype_offset += 2;
     }
 
-    if (size >= ethertype_offset+1 && 0x81 == packet[ethertype_offset] && 0x00 == packet[ethertype_offset+1]) {
+    if (
+        size >= ethertype_offset+1 &&
+        0x81 == packet[ethertype_offset] &&
+        0x00 == packet[ethertype_offset+1]
+    ) { // Skip VLan tag
         iphdr_offset += 4;
     }
 
     if (size < iphdr_offset + IPV4_CHECKSUM_OFFSET) {
         SLOG(LOG_DEBUG, "Small frame (%zu bytes), compute the digest on the whole data", size);
+        ASSERT_COMPILE(sizeof(uint8_t) == 1);
         (void) MD5((unsigned char *)packet, size, buf);
         return;
     }
