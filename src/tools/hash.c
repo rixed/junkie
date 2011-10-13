@@ -57,6 +57,12 @@ static struct hash_base *hash_of_scm_name(SCM name_)
     return hash;
 }
 
+static SCM nb_lists_sym;
+static SCM nb_lists_min_sym;
+static SCM nb_entries_sym;
+static SCM nb_entries_max_sym;
+static SCM nb_rehash_sym;
+
 static struct ext_function sg_hash_stats;
 static SCM g_hash_stats(SCM name_)
 {
@@ -65,17 +71,23 @@ static SCM g_hash_stats(SCM name_)
 
     return scm_list_n(
         // See g_proto_stats
-        scm_cons(scm_from_locale_symbol("nb-lists"), scm_from_uint(hash->nb_lists)),
-        scm_cons(scm_from_locale_symbol("nb-lists-min"), scm_from_uint(hash->nb_lists_min)),
-        scm_cons(scm_from_locale_symbol("nb-entries"), scm_from_uint(hash->size)),
-        scm_cons(scm_from_locale_symbol("nb-entries-max"), scm_from_uint(hash->max_size)),
-        scm_cons(scm_from_locale_symbol("nb-rehash"), scm_from_uint(hash->nb_rehash)),
+        scm_cons(nb_lists_sym, scm_from_uint(hash->nb_lists)),
+        scm_cons(nb_lists_min_sym, scm_from_uint(hash->nb_lists_min)),
+        scm_cons(nb_entries_sym, scm_from_uint(hash->size)),
+        scm_cons(nb_entries_max_sym, scm_from_uint(hash->max_size)),
+        scm_cons(nb_rehash_sym, scm_from_uint(hash->nb_rehash)),
         SCM_UNDEFINED);
 }
 
 void hash_init(void)
 {
     MALLOCER_INIT(hashes);
+
+    nb_lists_sym       = scm_permanent_object(scm_from_latin1_symbol("nb-lists"));
+    nb_lists_min_sym   = scm_permanent_object(scm_from_latin1_symbol("nb-lists-min"));
+    nb_entries_sym     = scm_permanent_object(scm_from_latin1_symbol("nb-entries"));
+    nb_entries_max_sym = scm_permanent_object(scm_from_latin1_symbol("nb-entries-max"));
+    nb_rehash_sym      = scm_permanent_object(scm_from_latin1_symbol("nb-rehash"));
 
     ext_function_ctor(&sg_hash_names,
         "hash-names", 0, 0, 0, g_hash_names,

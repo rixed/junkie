@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <sys/time.h>
 #include <junkie/cpp.h>
+#include <junkie/tools/ext.h>
 #include <junkie/tools/tempstr.h>
 #include <junkie/tools/mallocer.h>
 #include "tools/hash.c"
@@ -122,6 +123,7 @@ static void rehash_check(void)
 int main(void)
 {
     log_init();
+    ext_init();
     mallocer_init();
     hash_init();
     log_set_level(LOG_DEBUG, NULL);
@@ -133,6 +135,7 @@ int main(void)
 
     hash_fini();
     mallocer_fini();
+    ext_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

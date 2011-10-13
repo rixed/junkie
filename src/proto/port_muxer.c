@@ -111,6 +111,10 @@ struct proto *port_muxer_find(struct port_muxer_list *muxers, uint16_t port)
  * Extension functions
  */
 
+static SCM proto_sym;
+static SCM port_min_sym;
+static SCM port_max_sym;
+
 SCM g_port_muxer_list(struct port_muxer_list *muxers)
 {
     SCM ret = SCM_EOL;
@@ -118,9 +122,9 @@ SCM g_port_muxer_list(struct port_muxer_list *muxers)
     mutex_lock(&muxers->mutex);
     TAILQ_FOREACH(muxer, &muxers->muxers, entry) {
         SCM muxer_def = scm_list_n(
-            scm_cons(scm_from_locale_symbol("proto"),    scm_from_locale_string(muxer->proto->name)),
-            scm_cons(scm_from_locale_symbol("port-min"), scm_from_uint16(muxer->port_min)),
-            scm_cons(scm_from_locale_symbol("port-max"), scm_from_uint16(muxer->port_max)),
+            scm_cons(proto_sym,    scm_from_locale_string(muxer->proto->name)),
+            scm_cons(port_min_sym, scm_from_uint16(muxer->port_min)),
+            scm_cons(port_max_sym, scm_from_uint16(muxer->port_max)),
             SCM_UNDEFINED);
         ret = scm_cons(muxer_def, ret);
     }
@@ -159,3 +163,13 @@ SCM g_port_muxer_del(struct port_muxer_list *muxers, SCM name_, SCM port_min_, S
     return SCM_BOOL_T;
 }
 
+void port_muxer_init(void)
+{
+    proto_sym    = scm_permanent_object(scm_from_latin1_symbol("proto"));
+    port_min_sym = scm_permanent_object(scm_from_latin1_symbol("port-min"));
+    port_max_sym = scm_permanent_object(scm_from_latin1_symbol("port-max"));
+}
+
+void port_muxer_fini(void)
+{
+}

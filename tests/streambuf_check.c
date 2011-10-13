@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <junkie/tools/log.h>
 #include <junkie/tools/miscmacs.h>
+#include <junkie/tools/ext.h>
 #include "proto/streambuf.c"
 
 static char *payloads[] = {
@@ -110,15 +111,17 @@ static void check_drop(void)
 int main(void)
 {
     log_init();
+    ext_init();
+    mallocer_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("streambuf_check.log");
-    mallocer_init();
 
     check_simple();
     check_vicious();
     check_drop();
 
     mallocer_fini();
+    ext_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

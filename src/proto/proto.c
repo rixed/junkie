@@ -890,6 +890,13 @@ static struct mux_proto *mux_proto_of_scm_name(SCM name_)
     return mux_proto;
 }
 
+static SCM hash_size_sym;
+static SCM nb_max_children_sym;
+static SCM nb_infanticide_sym;
+static SCM nb_collisions_sym;
+static SCM nb_lookups_sym;
+static SCM nb_timeouts_sym;
+
 static struct ext_function sg_mux_proto_stats;
 static SCM g_mux_proto_stats(SCM name_)
 {
@@ -897,15 +904,20 @@ static SCM g_mux_proto_stats(SCM name_)
     if (! mux_proto) return SCM_UNSPECIFIED;
 
     SCM alist = scm_list_n(
-        scm_cons(scm_from_locale_symbol("hash-size"),       scm_from_uint(mux_proto->hash_size)),
-        scm_cons(scm_from_locale_symbol("nb-max-children"), scm_from_uint(mux_proto->nb_max_children)),
-        scm_cons(scm_from_locale_symbol("nb-infanticide"),  scm_from_uint64(mux_proto->nb_infanticide)),
-        scm_cons(scm_from_locale_symbol("nb-collisions"),   scm_from_uint64(mux_proto->nb_collisions)),
-        scm_cons(scm_from_locale_symbol("nb-lookups"),      scm_from_uint64(mux_proto->nb_lookups)),
-        scm_cons(scm_from_locale_symbol("nb-timeouts"),     scm_from_uint64(mux_proto->nb_timeouts)),
+        scm_cons(hash_size_sym,       scm_from_uint(mux_proto->hash_size)),
+        scm_cons(nb_max_children_sym, scm_from_uint(mux_proto->nb_max_children)),
+        scm_cons(nb_infanticide_sym,  scm_from_uint64(mux_proto->nb_infanticide)),
+        scm_cons(nb_collisions_sym,   scm_from_uint64(mux_proto->nb_collisions)),
+        scm_cons(nb_lookups_sym,      scm_from_uint64(mux_proto->nb_lookups)),
+        scm_cons(nb_timeouts_sym,     scm_from_uint64(mux_proto->nb_timeouts)),
         SCM_UNDEFINED);
     return alist;
 }
+
+static SCM nb_frames_sym;
+static SCM nb_bytes_sym;
+static SCM nb_parsers_sym;
+static SCM nb_fuzzed_sym;
 
 static struct ext_function sg_proto_stats;
 static SCM g_proto_stats(SCM name_)
@@ -914,13 +926,10 @@ static SCM g_proto_stats(SCM name_)
     if (! proto) return SCM_UNSPECIFIED;
 
     return scm_list_n(
-        // We use scm_from_locale_symbol a lot: hopefully the symbol will always be the same.
-        // Maybe we could/should build the symbol once at init time, but I'm not sure symbols are not garbage collected.
-        // So we should also declare a permanent ref on them ?
-        scm_cons(scm_from_locale_symbol("nb-frames"),  scm_from_int64(proto->nb_frames)),
-        scm_cons(scm_from_locale_symbol("nb-bytes"),   scm_from_int64(proto->nb_bytes)),
-        scm_cons(scm_from_locale_symbol("nb-parsers"), scm_from_uint(proto->nb_parsers)),
-        scm_cons(scm_from_locale_symbol("nb-fuzzed"),  scm_from_uint(proto->fuzzed_times)),
+        scm_cons(nb_frames_sym,  scm_from_int64(proto->nb_frames)),
+        scm_cons(nb_bytes_sym,   scm_from_int64(proto->nb_bytes)),
+        scm_cons(nb_parsers_sym, scm_from_uint(proto->nb_parsers)),
+        scm_cons(nb_fuzzed_sym,  scm_from_uint(proto->fuzzed_times)),
         SCM_UNDEFINED);
 }
 
@@ -968,6 +977,17 @@ void proto_init(void)
     } else {
         SLOG(LOG_ERR, "Cannot pthread_create(): %s", strerror(err));
     }
+
+    hash_size_sym       = scm_permanent_object(scm_from_latin1_symbol("hash-size"));
+    nb_max_children_sym = scm_permanent_object(scm_from_latin1_symbol("nb-max-children"));
+    nb_infanticide_sym  = scm_permanent_object(scm_from_latin1_symbol("nb-infanticide"));
+    nb_collisions_sym   = scm_permanent_object(scm_from_latin1_symbol("nb-collisions"));
+    nb_lookups_sym      = scm_permanent_object(scm_from_latin1_symbol("nb-lookups"));
+    nb_timeouts_sym     = scm_permanent_object(scm_from_latin1_symbol("nb-timeouts"));
+    nb_frames_sym       = scm_permanent_object(scm_from_latin1_symbol("nb-frames"));
+    nb_bytes_sym        = scm_permanent_object(scm_from_latin1_symbol("nb-bytes"));
+    nb_parsers_sym      = scm_permanent_object(scm_from_latin1_symbol("nb-parsers"));
+    nb_fuzzed_sym       = scm_permanent_object(scm_from_latin1_symbol("nb-fuzzed"));
 
     ext_function_ctor(&sg_proto_stats,
         "proto-stats", 1, 0, 0, g_proto_stats,

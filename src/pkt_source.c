@@ -640,6 +640,15 @@ static SCM g_iface_names(void)
     return ret;
 }
 
+static SCM id_sym;
+static SCM nb_packets_sym;
+static SCM nb_duplicates_sym;
+static SCM tot_received_sym;
+static SCM tot_dropped_sym;
+static SCM nb_cap_bytes_sym;
+static SCM nb_wire_bytes_sym;
+static SCM filep_sym;
+
 static struct ext_function sg_iface_stats;
 static SCM g_iface_stats(SCM ifname_)
 {
@@ -656,14 +665,14 @@ static SCM g_iface_stats(SCM ifname_)
     }
 
     ret = scm_list_n(
-        scm_cons(scm_from_locale_symbol("id"),            scm_from_uint8(pkt_source->dev_id)),
-        scm_cons(scm_from_locale_symbol("nb-packets"),    scm_from_uint64(pkt_source->nb_packets)),
-        scm_cons(scm_from_locale_symbol("nb-duplicates"), scm_from_uint64(pkt_source->nb_duplicates)),
-        scm_cons(scm_from_locale_symbol("tot-received"),  have_stats ? scm_from_uint(stats.ps_recv) : SCM_UNSPECIFIED),
-        scm_cons(scm_from_locale_symbol("tot-dropped"),   have_stats ? scm_from_uint(stats.ps_drop) : SCM_UNSPECIFIED),
-        scm_cons(scm_from_locale_symbol("nb-cap-bytes"),  scm_from_uint64(pkt_source->nb_cap_bytes)),
-        scm_cons(scm_from_locale_symbol("nb-wire-bytes"), scm_from_uint64(pkt_source->nb_wire_bytes)),
-        scm_cons(scm_from_locale_symbol("file?"),         scm_from_bool(pkt_source->is_file)),
+        scm_cons(id_sym,            scm_from_uint8(pkt_source->dev_id)),
+        scm_cons(nb_packets_sym,    scm_from_uint64(pkt_source->nb_packets)),
+        scm_cons(nb_duplicates_sym, scm_from_uint64(pkt_source->nb_duplicates)),
+        scm_cons(tot_received_sym,  have_stats ? scm_from_uint(stats.ps_recv) : SCM_UNSPECIFIED),
+        scm_cons(tot_dropped_sym,   have_stats ? scm_from_uint(stats.ps_drop) : SCM_UNSPECIFIED),
+        scm_cons(nb_cap_bytes_sym,  scm_from_uint64(pkt_source->nb_cap_bytes)),
+        scm_cons(nb_wire_bytes_sym, scm_from_uint64(pkt_source->nb_wire_bytes)),
+        scm_cons(filep_sym,         scm_from_bool(pkt_source->is_file)),
         SCM_UNDEFINED);
 
 err:
@@ -671,14 +680,18 @@ err:
     return ret;
 }
 
+static SCM dup_found_sym;
+static SCM nodup_found_sym;
+static SCM end_of_list_found_sym;
+
 static struct ext_function sg_dedup_stats;
 static SCM g_dedup_stats(void)
 {
     EXT_LOCK(nb_digests);
     SCM ret = scm_list_n(
-        scm_cons(scm_from_locale_symbol("dup-found"),         scm_from_uint64(nb_dup_found)),
-        scm_cons(scm_from_locale_symbol("nodup-found"),       scm_from_uint64(nb_nodup_found)),
-        scm_cons(scm_from_locale_symbol("end-of-list-found"), scm_from_uint64(nb_eol_found)),
+        scm_cons(dup_found_sym,         scm_from_uint64(nb_dup_found)),
+        scm_cons(nodup_found_sym,       scm_from_uint64(nb_nodup_found)),
+        scm_cons(end_of_list_found_sym, scm_from_uint64(nb_eol_found)),
         SCM_UNDEFINED);
     EXT_UNLOCK(nb_digests);
 
@@ -704,6 +717,19 @@ void pkt_source_init(void)
     digests = digest_queue_new(nb_digests);
     if (! digests) nb_digests = 0;
     EXT_UNLOCK(nb_digests);
+
+    id_sym                = scm_permanent_object(scm_from_latin1_symbol("id"));
+    nb_packets_sym        = scm_permanent_object(scm_from_latin1_symbol("nb-packets"));
+    nb_duplicates_sym     = scm_permanent_object(scm_from_latin1_symbol("nb-duplicates"));
+    tot_received_sym      = scm_permanent_object(scm_from_latin1_symbol("tot-received"));
+    tot_dropped_sym       = scm_permanent_object(scm_from_latin1_symbol("tot-dropped"));
+    nb_cap_bytes_sym      = scm_permanent_object(scm_from_latin1_symbol("nb-cap-bytes"));
+    nb_wire_bytes_sym     = scm_permanent_object(scm_from_latin1_symbol("nb-wire-bytes"));
+    filep_sym             = scm_permanent_object(scm_from_latin1_symbol("file?"));
+    dup_found_sym         = scm_permanent_object(scm_from_latin1_symbol("dup-found"));
+    nodup_found_sym       = scm_permanent_object(scm_from_latin1_symbol("nodup-found"));
+    end_of_list_found_sym = scm_permanent_object(scm_from_latin1_symbol("end-of-list-found"));
+
 
     ext_param_dup_detection_delay_init();
     ext_param_quit_when_done_init();

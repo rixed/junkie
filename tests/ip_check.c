@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <junkie/cpp.h>
 #include <junkie/tools/mallocer.h>
+#include <junkie/tools/ext.h>
 #include <junkie/proto/pkt_wait_list.h>
 #include <junkie/proto/cap.h>
 #include <junkie/proto/eth.h>
@@ -120,6 +121,7 @@ int main(void)
 {
     log_init();
     mutex_init();
+    ext_init();
     mallocer_init();
     pkt_wait_list_init();
     ref_init();
@@ -146,6 +148,7 @@ int main(void)
     ref_fini();
     pkt_wait_list_fini();
     mallocer_fini();
+    ext_fini();
     mutex_fini();
     log_fini();
     return EXIT_SUCCESS;

@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <time.h>
 #include <junkie/cpp.h>
+#include <junkie/tools/ext.h>
 #include <junkie/proto/pkt_wait_list.h>
 #include <junkie/proto/cap.h>
 #include <junkie/proto/eth.h>
@@ -137,6 +138,7 @@ struct proto *proto_sdp;
 int main(void)
 {
     log_init();
+    ext_init();
     mallocer_init();
     hash_init();
     proto_init();
@@ -170,6 +172,7 @@ int main(void)
     proto_fini();
     hash_fini();
     mallocer_fini();
+    ext_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

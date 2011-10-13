@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <junkie/cpp.h>
 #include <junkie/tools/mallocer.h>
+#include <junkie/tools/ext.h>
 #include <junkie/tools/log.h>
 
 static void assert_empty(struct mallocer *mallocer)
@@ -60,6 +61,7 @@ static void realloc_check(void)
 int main(void)
 {
     log_init();
+    ext_init();
     mallocer_init();
     mutex_init();
     log_set_level(LOG_DEBUG, NULL);
@@ -70,6 +72,7 @@ int main(void)
 
     mutex_fini();
     mallocer_fini();
+    ext_fini();
     log_fini();
 
     return EXIT_SUCCESS;

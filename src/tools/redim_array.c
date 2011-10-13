@@ -179,6 +179,10 @@ static struct redim_array *array_of_scm_name(SCM name_)
     return array;
 }
 
+static SCM nb_entries_sym;
+static SCM alloc_size_sym;
+static SCM entry_size_sym;
+
 static struct ext_function sg_array_stats;
 static SCM g_array_stats(SCM name_)
 {
@@ -187,14 +191,18 @@ static SCM g_array_stats(SCM name_)
 
     return scm_list_n(
         // See g_proto_stats
-        scm_cons(scm_from_locale_symbol("nb-entries"), scm_from_uint(array->nb_entries)),
-        scm_cons(scm_from_locale_symbol("alloc-size"), scm_from_uint(array->alloc_size)),
-        scm_cons(scm_from_locale_symbol("entry-size"), scm_from_size_t(array->entry_size)),
+        scm_cons(nb_entries_sym, scm_from_uint(array->nb_entries)),
+        scm_cons(alloc_size_sym, scm_from_uint(array->alloc_size)),
+        scm_cons(entry_size_sym, scm_from_size_t(array->entry_size)),
         SCM_UNDEFINED);
 }
 
 void redim_array_init(void)
 {
+    nb_entries_sym = scm_permanent_object(scm_from_latin1_symbol("nb-entries"));
+    alloc_size_sym = scm_permanent_object(scm_from_latin1_symbol("alloc-size"));
+    entry_size_sym = scm_permanent_object(scm_from_latin1_symbol("entry-size"));
+
     ext_function_ctor(&sg_array_names,
         "array-names", 0, 0, 0, g_array_names,
         "(array-names): returns the list of availbale array names.\n");

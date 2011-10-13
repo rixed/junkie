@@ -126,6 +126,16 @@ char *mallocer_strdup(struct mallocer *mallocer, char const *str)
  * Extensions
  */
 
+static SCM sbrked_bytes_sym;
+static SCM unused_chunks_sym;
+static SCM fastbin_chunks_sym;
+static SCM mmaped_chunks_sym;
+static SCM mmaped_bytes_sym;
+static SCM freed_fastbin_bytes_sym;
+static SCM malloced_bytes_sym;
+static SCM freed_bytes_sym;
+static SCM topmost_free_bytes_sym;
+
 static struct ext_function sg_malloc_stats;
 static SCM g_malloc_stats(void)
 {
@@ -135,19 +145,17 @@ static SCM g_malloc_stats(void)
 #   ifdef HAVE_MALLINFO
     struct mallinfo info = mallinfo();
     // See g_proto_stats
-#   define CELL(field, name) scm_cons(scm_from_locale_symbol(name), scm_from_int(info.field))
     return scm_list_n(
-        CELL(arena, "sbrked-bytes"),
-        CELL(ordblks, "unused-chunks"),
-        CELL(smblks, "fastbin-chunks"),
-        CELL(hblks, "mmaped-chunks"),
-        CELL(hblkhd, "mmaped-bytes"),
-        CELL(fsmblks, "freed-fastbin-bytes"),
-        CELL(uordblks, "malloced-bytes"),
-        CELL(fordblks, "freed-bytes"),
-        CELL(keepcost, "topmost-free-bytes"),
+        scm_cons(sbrked_bytes_sym,        scm_from_int(info.arena)),
+        scm_cons(unused_chunks_sym,       scm_from_int(info.ordblks)),
+        scm_cons(fastbin_chunks_sym,      scm_from_int(info.smblks)),
+        scm_cons(mmaped_chunks_sym,       scm_from_int(info.hblks)),
+        scm_cons(mmaped_bytes_sym,        scm_from_int(info.hblkhd)),
+        scm_cons(freed_fastbin_bytes_sym, scm_from_int(info.fsmblks)),
+        scm_cons(malloced_bytes_sym,      scm_from_int(info.uordblks)),
+        scm_cons(freed_bytes_sym,         scm_from_int(info.fordblks)),
+        scm_cons(topmost_free_bytes_sym,  scm_from_int(info.keepcost)),
         SCM_UNDEFINED);
-#   undef CELL
 #   else    // HAVE_MALLINFO
     return scm_list_n(SCM_UNDEFINED);
 #   endif   // HAVE_MALLINFO
@@ -172,6 +180,10 @@ static struct mallocer *mallocer_of_scm_name(SCM name_)
     return mallocer;
 }
 
+static SCM tot_size_sym;
+static SCM nb_blocks_sym;
+static SCM nb_allocs_sym;
+
 static struct ext_function sg_mallocer_stats;
 static SCM g_mallocer_stats(SCM name_)
 {
@@ -180,18 +192,21 @@ static SCM g_mallocer_stats(SCM name_)
 
     return scm_list_n(
         // See g_proto_stats
-        scm_cons(scm_from_locale_symbol("tot-size"), scm_from_size_t(mallocer->tot_size)),
-        scm_cons(scm_from_locale_symbol("nb-blocks"), scm_from_uint(mallocer->nb_blocks)),
-        scm_cons(scm_from_locale_symbol("nb-allocs"), scm_from_uint(mallocer->nb_allocs)),
+        scm_cons(tot_size_sym, scm_from_size_t(mallocer->tot_size)),
+        scm_cons(nb_blocks_sym, scm_from_uint(mallocer->nb_blocks)),
+        scm_cons(nb_allocs_sym, scm_from_uint(mallocer->nb_allocs)),
         SCM_UNDEFINED);
 }
+
+static SCM start_address_sym;
+static SCM size_sym;
 
 static SCM next_block(SCM list, struct mallocer_block *block)
 {
     if (! block) return list;
     SCM alist = scm_list_n(
-        scm_cons(scm_from_locale_symbol("start-address"), scm_from_size_t((size_t)block)),
-        scm_cons(scm_from_locale_symbol("size"), scm_from_size_t(block->size)),
+        scm_cons(start_address_sym, scm_from_size_t((size_t)block)),
+        scm_cons(size_sym, scm_from_size_t(block->size)),
         SCM_UNDEFINED);
 
     return next_block(scm_cons(alist, list), LIST_NEXT(block, entry));
@@ -209,6 +224,21 @@ static SCM g_mallocer_blocks(SCM name_)
 void mallocer_init(void)
 {
     mutex_ctor(&mallocers_lock, "mallocers");
+
+    sbrked_bytes_sym        = scm_permanent_object(scm_from_latin1_symbol("sbrked-bytes"));
+    unused_chunks_sym       = scm_permanent_object(scm_from_latin1_symbol("unused-chunks"));
+    fastbin_chunks_sym      = scm_permanent_object(scm_from_latin1_symbol("fastbin-chunks"));
+    mmaped_chunks_sym       = scm_permanent_object(scm_from_latin1_symbol("mmaped-chunks"));
+    mmaped_bytes_sym        = scm_permanent_object(scm_from_latin1_symbol("mmaped-bytes"));
+    freed_fastbin_bytes_sym = scm_permanent_object(scm_from_latin1_symbol("freed-fastbin-bytes"));
+    malloced_bytes_sym      = scm_permanent_object(scm_from_latin1_symbol("malloced-bytes"));
+    freed_bytes_sym         = scm_permanent_object(scm_from_latin1_symbol("freed-bytes"));
+    topmost_free_bytes_sym  = scm_permanent_object(scm_from_latin1_symbol("topmost-free-bytes"));
+    tot_size_sym            = scm_permanent_object(scm_from_latin1_symbol("tot-size"));
+    nb_blocks_sym           = scm_permanent_object(scm_from_latin1_symbol("nb-blocks"));
+    nb_allocs_sym           = scm_permanent_object(scm_from_latin1_symbol("nb-allocs"));
+    start_address_sym       = scm_permanent_object(scm_from_latin1_symbol("start-address"));
+    size_sym                = scm_permanent_object(scm_from_latin1_symbol("size"));
 
     ext_function_ctor(&sg_malloc_stats,
         "libc-mem-stats", 0, 0, 0, g_malloc_stats,

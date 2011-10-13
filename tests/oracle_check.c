@@ -4,6 +4,7 @@
 #undef NDEBUG
 #include <assert.h>
 #include <junkie/cpp.h>
+#include <junkie/tools/ext.h>
 #include <junkie/proto/cap.h>
 #include <junkie/proto/eth.h>
 #include <junkie/proto/ip.h>
@@ -38,6 +39,7 @@ static void net8_string_check(void)
 int main(void)
 {
     log_init();
+    ext_init();
     mallocer_init();
     proto_init();
     pkt_wait_list_init();
@@ -64,6 +66,7 @@ int main(void)
     pkt_wait_list_fini();
     proto_fini();
     mallocer_fini();
+    ext_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

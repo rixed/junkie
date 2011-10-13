@@ -62,6 +62,7 @@
 #include <junkie/proto/mgcp.h>
 #include <junkie/proto/sdp.h>
 #include <junkie/proto/sql.h>
+#include <junkie/proto/port_muxer.h>
 #include "proto/fuzzing.h"
 #include "pkt_source.h"
 #include "plugins.h"
@@ -80,15 +81,16 @@ static struct {
     I(log),           I(ext),         I(redim_array),
     I(mallocer),      I(mutex),       I(plugins),
     I(hash),          I(proto),       I(fuzzing),
-    I(pkt_wait_list), I(ref),         I(cap),
-    I(eth),           I(ip6),         I(arp),
-    I(ip),            I(gre),         I(udp),
-    I(icmpv6),        I(tcp),         I(icmp),
-    I(sip),           I(bittorrent),  I(http),
-    I(rtp),           I(netbios),     I(ssl),
-    I(dns),           I(rtcp),        I(dns_tcp),
-    I(ftp),           I(mgcp),        I(sdp),
-    I(postgres),      I(mysql),       I(tns),
+    I(pkt_wait_list), I(ref),         I(port_muxer),
+    I(cap),           I(eth),         I(arp),
+    I(ip6),           I(ip),          I(gre),
+    I(udp),           I(icmpv6),      I(tcp),
+    I(icmp),          I(sip),         I(bittorrent),
+    I(http),          I(rtp),         I(netbios),
+    I(ssl),           I(dns),         I(rtcp),
+    I(dns_tcp),       I(ftp),         I(mgcp),
+    I(sdp),           I(postgres),    I(mysql),
+    I(tns),
     I(pkt_source),    I(cli),         I(capfile),
 #   undef I
 };

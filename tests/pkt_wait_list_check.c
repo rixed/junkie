@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <junkie/tools/miscmacs.h>
+#include <junkie/tools/ext.h>
 #include <junkie/tools/mallocer.h>
 #include "pkt_wait_list.c"
 
@@ -242,6 +243,7 @@ static void reassembly_check(void)
 int main(void)
 {
     log_init();
+    ext_init();
     mallocer_init();
     proto_init();
     pkt_wait_list_init();
@@ -263,6 +265,7 @@ int main(void)
     pkt_wait_list_fini();
     proto_fini();
     mallocer_fini();
+    ext_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

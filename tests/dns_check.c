@@ -6,6 +6,7 @@
 #include <time.h>
 #include <junkie/cpp.h>
 #include <junkie/tools/miscmacs.h>
+#include <junkie/tools/ext.h>
 #include <junkie/tools/mallocer.h>
 #include <junkie/proto/pkt_wait_list.h>
 #include <junkie/proto/udp.h>
@@ -212,6 +213,7 @@ static void looks_like_netbios_check(void)
 int main(void)
 {
     log_init();
+    ext_init();
     mallocer_init();
     pkt_wait_list_init();
     ref_init();
@@ -241,6 +243,7 @@ int main(void)
     ref_fini();
     pkt_wait_list_fini();
     mallocer_fini();
+    ext_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

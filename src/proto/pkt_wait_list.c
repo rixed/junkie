@@ -568,6 +568,11 @@ static struct pkt_wl_config *pkt_wl_config_of_scm_name(SCM name_)
     return config;
 }
 
+static SCM timeout_sym;
+static SCM max_payload_sym;
+static SCM max_packets_sym;
+static SCM acceptable_gap_sym;
+
 static struct ext_function sg_wait_list_stats;
 static SCM g_wait_list_stats(SCM name_)
 {
@@ -575,10 +580,10 @@ static SCM g_wait_list_stats(SCM name_)
     if (! config) return SCM_UNSPECIFIED;
 
     return scm_list_n(
-        scm_cons(scm_from_locale_symbol("timeout"),        scm_from_uint(config->timeout)),
-        scm_cons(scm_from_locale_symbol("max-payload"),    scm_from_size_t(config->payload_max)),
-        scm_cons(scm_from_locale_symbol("max-packets"),    scm_from_uint(config->nb_pkts_max)),
-        scm_cons(scm_from_locale_symbol("acceptable-gap"), scm_from_uint(config->acceptable_gap)),
+        scm_cons(timeout_sym,        scm_from_uint(config->timeout)),
+        scm_cons(max_payload_sym,    scm_from_size_t(config->payload_max)),
+        scm_cons(max_packets_sym,    scm_from_uint(config->nb_pkts_max)),
+        scm_cons(acceptable_gap_sym, scm_from_uint(config->acceptable_gap)),
         SCM_UNDEFINED);
 }
 
@@ -622,6 +627,11 @@ void pkt_wait_list_init(void)
 {
     log_category_pkt_wait_list_init();
     mutex_ctor(&pkt_wl_configs_mutex, "pkt_wls_list");
+
+    timeout_sym        = scm_permanent_object(scm_from_latin1_symbol("timeout"));
+    max_payload_sym    = scm_permanent_object(scm_from_latin1_symbol("max-payload"));
+    max_packets_sym    = scm_permanent_object(scm_from_latin1_symbol("max-packets"));
+    acceptable_gap_sym = scm_permanent_object(scm_from_latin1_symbol("acceptable-gap"));
 
     ext_function_ctor(&sg_wait_list_names,
         "wait-list-names", 0, 0, 0, g_wait_list_names,

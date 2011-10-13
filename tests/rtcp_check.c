@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <time.h>
 #include <junkie/cpp.h>
+#include <junkie/tools/ext.h>
 #include <junkie/tools/mallocer.h>
 #include <junkie/proto/ip.h>
 #include "lib.h"
@@ -114,6 +115,7 @@ struct proto *proto_udp;
 int main(void)
 {
     log_init();
+    ext_init();
     mallocer_init();
     ref_init();
     rtcp_init();
@@ -132,6 +134,7 @@ int main(void)
     rtcp_fini();
     ref_fini();
     mallocer_fini();
+    ext_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

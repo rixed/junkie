@@ -52,4 +52,7 @@ SCM g_port_muxer_list(struct port_muxer_list *);
 SCM g_port_muxer_add(struct port_muxer_list *, SCM name, SCM port_min, SCM port_max);
 SCM g_port_muxer_del(struct port_muxer_list *, SCM name, SCM port_min, SCM port_max);
 
+void port_muxer_init(void);
+void port_muxer_fini(void);
+
 #endif

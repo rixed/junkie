@@ -7,6 +7,7 @@
 #include <junkie/cpp.h>
 #include <junkie/proto/ip.h>
 #include <junkie/tools/mallocer.h>
+#include <junkie/tools/ext.h>
 #include "lib.h"
 #include "proto/sdp.c"
 
@@ -101,6 +102,7 @@ static void parse_check(void)
 int main(void)
 {
     log_init();
+    ext_init();
     mallocer_init();
     ref_init();
     sdp_init();
@@ -114,6 +116,7 @@ int main(void)
     sdp_fini();
     ref_fini();
     mallocer_fini();
+    ext_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

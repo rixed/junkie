@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <time.h>
 #include <junkie/cpp.h>
+#include <junkie/tools/ext.h>
 #include <junkie/tools/mallocer.h>
 #include "lib.h"
 #include "proto/arp.c"
@@ -103,6 +104,7 @@ static void parse_check(void)
 int main(void)
 {
     log_init();
+    ext_init();
     mallocer_init();
     ref_init();
     eth_init();
@@ -118,6 +120,7 @@ int main(void)
     eth_fini();
     ref_fini();
     mallocer_fini();
+    ext_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

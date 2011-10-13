@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #undef NDEBUG
 #include <assert.h>
+#include <junkie/tools/ext.h>
 #include <junkie/tools/mallocer.h>
 #include "tools/redim_array.c"
 
@@ -53,6 +54,7 @@ static void check_stress(unsigned nb_entries)
 int main(void)
 {
     log_init();
+    ext_init();
     mallocer_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("redim_array_check.log");
@@ -61,6 +63,7 @@ int main(void)
     check_stress(10);
 
     mallocer_fini();
+    ext_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

@@ -8,6 +8,7 @@
 #include <junkie/proto/eth.h>
 #include <junkie/proto/ip.h>
 #include <junkie/proto/tcp.h>
+#include <junkie/tools/ext.h>
 #include <junkie/tools/mallocer.h>
 #include <junkie/proto/pkt_wait_list.h>
 #include "lib.h"
@@ -330,6 +331,7 @@ static void caplen_check(void)
 int main(void)
 {
     log_init();
+    ext_init();
     mallocer_init();
     proto_init();
     pkt_wait_list_init();
@@ -359,6 +361,7 @@ int main(void)
     pkt_wait_list_fini();
     proto_fini();
     mallocer_fini();
+    ext_fini();
     log_fini();
     return EXIT_SUCCESS;
 }
