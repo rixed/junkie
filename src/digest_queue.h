@@ -3,9 +3,10 @@
 #ifndef DIGEST_QUEUE_H_110202
 #define DIGEST_QUEUE_H_110202
 #include <stdint.h>
+#include <openssl/md4.h>
 #include <junkie/tools/mutex.h>
 
-#define DIGEST_SIZE 16
+#define DIGEST_SIZE MD4_DIGEST_LENGTH
 
 struct digest_queue *digest_queue_new(unsigned size);
 void digest_queue_del(struct digest_queue *);

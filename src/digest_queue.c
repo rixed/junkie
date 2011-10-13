@@ -21,7 +21,6 @@
 #include <string.h>
 #include <sys/time.h>
 #include <assert.h>
-#include <openssl/md5.h>
 #include <junkie/config.h>
 #include <junkie/tools/log.h>
 #include <junkie/tools/miscmacs.h>
@@ -187,7 +186,7 @@ void digest_frame(unsigned char buf[DIGEST_SIZE], size_t size, uint8_t *restrict
     if (size < iphdr_offset + IPV4_CHECKSUM_OFFSET) {
         SLOG(LOG_DEBUG, "Small frame (%zu bytes), compute the digest on the whole data", size);
         ASSERT_COMPILE(sizeof(uint8_t) == 1);
-        (void) MD5((unsigned char *)packet, size, buf);
+        (void) MD4((unsigned char *)packet, size, buf);
         return;
     }
 
@@ -209,7 +208,7 @@ void digest_frame(unsigned char buf[DIGEST_SIZE], size_t size, uint8_t *restrict
         memset(packet + iphdr_offset + IPV4_CHECKSUM_OFFSET, 0, sizeof(uint16_t));
     }
 
-    (void) MD5((unsigned char *)&packet[iphdr_offset], len, buf);
+    (void) MD4((unsigned char *)&packet[iphdr_offset], len, buf);
 
     if (4 == ipversion) {
         // Restore the dumped IP header fields
