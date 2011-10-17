@@ -196,6 +196,8 @@ static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, 
         .data = (uint8_t *)packet,
     };
 
+    if (pkt_source->patch_ts) timeval_set_now(&frame.tv);
+
     if (frame_mirror_drop(&frame)) {
         SLOG(LOG_DEBUG, "Drop duplicated packet");
         pkt_source->nb_duplicates ++;
@@ -341,7 +343,7 @@ static int set_filter(pcap_t *pcap_handle, char const *filter)
     return 0;
 }
 
-static int pkt_source_ctor(struct pkt_source *pkt_source, char const *name, pcap_t *pcap_handle, void *(*sniffer)(void *), bool is_file, uint8_t dev_id)
+static int pkt_source_ctor(struct pkt_source *pkt_source, char const *name, pcap_t *pcap_handle, void *(*sniffer)(void *), bool is_file, bool patch_ts, uint8_t dev_id)
 {
     SLOG(LOG_DEBUG, "Construct pkt_source@%p of name %s and dev_id %"PRIu8, pkt_source, name, dev_id);
     int ret = 0;
@@ -354,6 +356,7 @@ static int pkt_source_ctor(struct pkt_source *pkt_source, char const *name, pcap
     pkt_source->nb_cap_bytes = 0;
     pkt_source->nb_wire_bytes = 0;
     pkt_source->is_file = is_file;
+    pkt_source->patch_ts = patch_ts;
 
     mutex_lock(&pkt_sources_lock);
     if (terminating) {
@@ -383,13 +386,13 @@ unlock_quit:
     return ret;
 }
 
-static struct pkt_source *pkt_source_new(char const *name, pcap_t *pcap_handle, void *(*sniffer)(void *), bool is_file, uint8_t dev_id)
+static struct pkt_source *pkt_source_new(char const *name, pcap_t *pcap_handle, void *(*sniffer)(void *), bool is_file, bool patch_ts, uint8_t dev_id)
 {
     MALLOCER(pkt_source);
     struct pkt_source *pkt_source = mallocer_alloc(&mallocer_pkt_source, sizeof(*pkt_source));
     if (! pkt_source) return NULL;
 
-    if (0 != pkt_source_ctor(pkt_source, name, pcap_handle, sniffer, is_file, dev_id)) {
+    if (0 != pkt_source_ctor(pkt_source, name, pcap_handle, sniffer, is_file, patch_ts, dev_id)) {
         mallocer_free(pkt_source);
         pkt_source = NULL;
     }
@@ -397,7 +400,7 @@ static struct pkt_source *pkt_source_new(char const *name, pcap_t *pcap_handle, 
     return pkt_source;
 }
 
-static struct pkt_source *pkt_source_new_file(char const *filename, char const *filter, bool rt)
+static struct pkt_source *pkt_source_new_file(char const *filename, char const *filter, bool rt, bool patch_ts)
 {
     char errbuf[PCAP_ERRBUF_SIZE] = "";
 
@@ -422,7 +425,8 @@ static struct pkt_source *pkt_source_new_file(char const *filename, char const *
         return NULL;
     }
 
-    struct pkt_source *pkt_source = pkt_source_new(basename, handle, rt ? file_sniffer_rt:file_sniffer, true, pcap_id_seq++);
+    void *(*sniff)(void *) = rt ? file_sniffer_rt : file_sniffer;
+    struct pkt_source *pkt_source = pkt_source_new(basename, handle, sniff, true, patch_ts, pcap_id_seq++);
     if (! pkt_source) {
         pcap_close(handle);
     }
@@ -498,7 +502,7 @@ static struct pkt_source *pkt_source_new_if(char const *ifname, bool promisc, ch
     }
 
     uint8_t dev_id = dev_id_of_ifname(ifname);
-    struct pkt_source *pkt_source = pkt_source_new(ifname, handle, iface_sniffer, false, dev_id);
+    struct pkt_source *pkt_source = pkt_source_new(ifname, handle, iface_sniffer, false, false, dev_id);
     if (! pkt_source) {
         pcap_close(handle);
     }
@@ -598,13 +602,14 @@ static SCM g_open_iface(SCM ifname_, SCM promisc_, SCM filter_, SCM snaplen_, SC
 }
 
 static struct ext_function sg_open_pcap;
-static SCM g_open_pcap(SCM filename_, SCM rt_, SCM filter_)
+static SCM g_open_pcap(SCM filename_, SCM rt_, SCM filter_, SCM patch_ts_)
 {
     char const *filename = scm_to_tempstr(filename_);
     char const *filter = SCM_UNBNDP(filter_) ? NULL : scm_to_tempstr(filter_);
     bool const rt = SCM_UNBNDP(rt_) ? false : scm_to_bool(rt_);
+    bool const patch_ts = SCM_UNBNDP(patch_ts_) ? false : scm_to_bool(patch_ts_);
 
-    struct pkt_source *pkt_source = pkt_source_new_file(filename, filter, rt);
+    struct pkt_source *pkt_source = pkt_source_new_file(filename, filter, rt, patch_ts);
     return pkt_source ? SCM_BOOL_T : SCM_BOOL_F;
 }
 
@@ -766,7 +771,7 @@ void pkt_source_init(void)
         "See also (? 'open-iface).\n");
 
     ext_function_ctor(&sg_open_pcap,
-        "open-pcap", 1, 2, 0, g_open_pcap,
+        "open-pcap", 1, 3, 0, g_open_pcap,
         "(open-pcap \"pcap-file\"): read the content of this pcap file, full speed.\n"
         "(open-pcap \"pcap-file\" #t): read this pcap file using its packet rate rather than full speed.\n"
         "(open-pcap \"pcap-file\" #f \"filter\"): same as above, applying given filter.\n"
