@@ -8,3 +8,6 @@ head_len=24, payload=0, QUERY, tx_id=1304, err_code=0, request_type=ANY, dns_cla
 head_len=50, payload=0, QUERY, tx_id=43573, err_code=0, request_type=NB, dns_class=IN, name=UMTOURNAISIS.BE
 -- pcap/dns/mdns.pcap --
 head_len=45, payload=0, QUERY, tx_id=0, err_code=0, request_type=PTR, dns_class=IN, name=225.80.168.192.in-addr.arpa
+-- pcap/dns/ptr_code.pcap --
+head_len=92, payload=0, QUERY, tx_id=0, err_code=0, request_type=SRV, dns_class=IN, name=SFTP File Transfer on optiplexquad._sftp-ssh._tcp.local
+head_len=116, payload=0, ANSWER, tx_id=0, err_code=0, request_type=UNSET, dns_class=UNSET, name=

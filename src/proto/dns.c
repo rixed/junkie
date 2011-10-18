@@ -85,7 +85,7 @@ static char const *dns_req_type_2_str(enum dns_req_type type)
         case DNS_TYPE_AXFR: return "AXFR";
         case DNS_TYPE_ANY: return "ANY";
     }
-    return "UNKNOWN";
+    return tempstr_printf("UNKNOWN(0x%04x)", (unsigned)type);
 }
 
 static char const *dns_class_2_str(enum dns_class class)
@@ -98,7 +98,7 @@ static char const *dns_class_2_str(enum dns_class class)
         case DNS_CLASS_HS: return "HS";
         case DNS_CLASS_ANY: return "ANY";
     }
-    return "UNKNWON";
+    return tempstr_printf("UNKNOWN(0x%04x)", (unsigned)class);
 }
 
 static void const *dns_info_addr(struct proto_info const *info_, size_t *size)
@@ -139,7 +139,7 @@ static void dns_proto_info_ctor(struct dns_proto_info *info, struct parser *pars
  * Parse
  */
 
-ssize_t extract_qname(char *name, size_t name_len, uint8_t const *buf, size_t buf_len, bool prepend_dot)
+static ssize_t extract_qname(char *name, size_t name_len, uint8_t const *buf, size_t buf_len, bool prepend_dot)
 {
     if (buf_len == 0) return -1;
 
@@ -210,10 +210,10 @@ static enum proto_parse_status dns_parse(struct parser *parser, struct proto_inf
         if (cap_len-parsed < 2*sizeof(tmp)) return PROTO_TOO_SHORT;
         memcpy(&tmp, packet+parsed, sizeof(tmp));
         parsed += sizeof(tmp);
-        info.request_type = ntohs(tmp);
+        if (q == 0) info.request_type = ntohs(tmp);
         memcpy(&tmp, packet+parsed, sizeof(tmp));
         parsed += sizeof(tmp);
-        info.dns_class = ntohs(tmp);
+        if (q == 0) info.dns_class = ntohs(tmp);
 
         // now fix the netbios name (according to RFC 1001)
         if (q == 0 && ((info.request_type == DNS_TYPE_NBNS || info.request_type == DNS_TYPE_SRV) && looks_like_netbios(info.name))) {
