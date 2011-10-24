@@ -27,7 +27,7 @@ struct eth_proto_info {
 #   define VLAN_UNSET (-1)
     int vlan_id;                            ///< Vlan identifier (or VLAN_UNSET if unset)
     unsigned char addr[2][ETH_ADDR_LEN];    ///< src/dest MAC addresses
-    unsigned protocol;                      ///< Embedded protocol
+    unsigned protocol;                      ///< Embedded protocol (0 if unset)
 };
 
 /// Other protos can register themselves as Eth subprotos by defining this struct

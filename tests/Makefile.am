@@ -19,7 +19,7 @@ dist_check_SCRIPTS = \
 	http-truncation.test digest_queue.scm \
 	pkt_source_stats.scm eth_padding.test \
 	pkt_source_dev_id.scm ftp.test gre.test \
-	ip.test timeout.scm
+	ip.test timeout.scm eth.test
 
 TESTS = $(check_PROGRAMS) $(dist_check_SCRIPTS)
 

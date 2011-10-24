@@ -188,9 +188,34 @@ static enum proto_parse_status eth_parse(struct parser *parser, struct proto_inf
         ethhdr_len += 4;
     }
 
+    size_t frame_wire_len = wire_len - ethhdr_len;
+
+    if (h_proto <= 1500) {  // h_proto is then the length of payload
+        /* According to IEEE Std.  802.3:
+         * "This two-octet field takes one of two meanings, depending on its numeric value. For numerical evaluation,
+         * the first octet is the most significant octet of this field.
+         *    a) If the value of this field is less than or equal to 1500 decimal (05DC hexadecimal), then the Length/
+         *       Type field indicates the number of MAC client data octets contained in the subsequent MAC Client
+         *       Data field of the basic frame (Length interpretation).
+         *    b) If the value of this field is greater than or equal to 1536 decimal (0600 hexadecimal), then the
+         *       Length/Type field indicates the nature of the MAC client protocol (Type interpretation).
+         *       The Length and Type interpretations of this field are mutually exclusive."
+         */
+        if (h_proto > frame_wire_len) {
+            SLOG(LOG_DEBUG, "Bogus Eth packet: specified length too bug (%"PRIu16" > %zu)", h_proto, frame_wire_len);
+            return PROTO_PARSE_ERR;
+        }
+
+        frame_wire_len = h_proto;
+        h_proto = 0;    // no indication of a protocol, then
+    }
+
+    size_t const frame_cap_len = MIN(cap_len - ethhdr_len, frame_wire_len);
     // Parse
     struct eth_proto_info info;
-    eth_proto_info_ctor(&info, parser, parent, ethhdr_len, wire_len - ethhdr_len, h_proto, vlan_id, ethhdr);
+    eth_proto_info_ctor(&info, parser, parent, ethhdr_len, frame_wire_len, h_proto, vlan_id, ethhdr);
+
+    if (! h_proto) goto fallback;   // no indication of what's the payload
 
     struct proto *sub_proto = eth_subproto_lookup(h_proto);
     struct mux_subparser *subparser = mux_subparser_lookup(mux_parser, sub_proto, NULL, collapse_vlans ? &vlan_unset : &vlan_id, now);
@@ -199,13 +224,13 @@ static enum proto_parse_status eth_parse(struct parser *parser, struct proto_inf
 
     assert(ethhdr_len <= cap_len);
 
-    enum proto_parse_status status = proto_parse(subparser->parser, &info.info, way, packet + ethhdr_len, cap_len - ethhdr_len, wire_len - ethhdr_len, now, okfn, tot_cap_len, tot_packet);
+    enum proto_parse_status status = proto_parse(subparser->parser, &info.info, way, packet + ethhdr_len, frame_cap_len, frame_wire_len, now, okfn, tot_cap_len, tot_packet);
     mux_subparser_unref(subparser);
 
     if (status == PROTO_OK) return PROTO_OK;
 
 fallback:
-    (void)proto_parse(NULL, &info.info, way, packet + ethhdr_len, cap_len - ethhdr_len, wire_len - ethhdr_len, now, okfn, tot_cap_len, tot_packet);
+    (void)proto_parse(NULL, &info.info, way, packet + ethhdr_len, frame_cap_len, frame_wire_len, now, okfn, tot_cap_len, tot_packet);
     return PROTO_OK;
 }
 

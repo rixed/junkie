@@ -1,0 +1,10 @@
+#!/bin/sh
+
+NAME="Ethernet"
+PCAPS="pcap/eth/stp_cdp.pcap"
+filter() {
+	grep '^Ethernet' | cut -d' ' -f 2-
+}
+OUTPUT="eth.out"
+
+. ./dump_test

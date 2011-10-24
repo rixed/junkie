@@ -1,0 +1,3 @@
+-- pcap/eth/stp_cdp.pcap --
+head_len=14, payload=38, vlan_id=-1, source=dc:7b:94:de:c1:98, dest=01:80:c2:00:00:00, proto=0
+head_len=14, payload=34, vlan_id=-1, source=dc:7b:94:de:c1:86, dest=01:00:0c:cc:cc:cc, proto=0
