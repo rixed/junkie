@@ -24,7 +24,7 @@
 #include <string.h>
 #include <inttypes.h>
 #include "junkie/tools/tempstr.h"
-#include "junkie/tools/mallocer.h"
+#include "junkie/tools/objalloc.h"
 #include "junkie/tools/mutex.h"
 #include "junkie/proto/serialize.h"
 #include "junkie/proto/tcp.h"
@@ -95,12 +95,11 @@ static int http_parser_ctor(struct http_parser *http_parser, struct proto *proto
 
 static struct parser *http_parser_new(struct proto *proto)
 {
-    MALLOCER(http_parsers);
-    struct http_parser *http_parser = MALLOC(http_parsers, sizeof(*http_parser));
+    struct http_parser *http_parser = objalloc(sizeof(*http_parser));
     if (! http_parser) return NULL;
 
     if (-1 == http_parser_ctor(http_parser, proto)) {
-        FREE(http_parser);
+        objfree(http_parser);
         return NULL;
     }
 
@@ -120,7 +119,7 @@ static void http_parser_del(struct parser *parser)
 {
     struct http_parser *http_parser = DOWNCAST(parser, parser, http_parser);
     http_parser_dtor(http_parser);
-    FREE(http_parser);
+    objfree(http_parser);
 }
 
 /*

@@ -27,15 +27,13 @@
 #include "junkie/proto/proto.h"
 #include "junkie/cpp.h"
 #include "junkie/tools/ext.h"
-#include "junkie/tools/mallocer.h"
+#include "junkie/tools/objalloc.h"
 #include "junkie/tools/tempstr.h"
 #include "nettrack.h"
 
 LOG_CATEGORY_DEF(nettrack);
 #undef LOG_CAT
 #define LOG_CAT nettrack_log_category
-
-static MALLOCER_DEF(nettrack);
 
 /*
  * We need to register a callback for every parsers, then try all nodes whose last proto matches the called one.
@@ -65,7 +63,7 @@ static void npc_regfile_ctor(struct npc_register *regfile, unsigned nb_registers
 static struct npc_register *npc_regfile_new(unsigned nb_registers)
 {
     size_t size = sizeof(struct npc_register) * nb_registers;
-    struct npc_register *regfile = MALLOC(nettrack, size);
+    struct npc_register *regfile = objalloc(size);
     if (! regfile) return NULL;
 
     npc_regfile_ctor(regfile, nb_registers);
@@ -76,7 +74,7 @@ static void npc_regfile_dtor(struct npc_register *regfile, unsigned nb_registers
 {
     for (unsigned r = 0; r < nb_registers; r++) {
         if (regfile[r].size > 0 && regfile[r].value) {
-            free((void *)regfile[r].value); // beware that individual registers are malloced with malloc not MALLOC
+            free((void *)regfile[r].value); // beware that individual registers are malloced with malloc not objalloc
         }
     }
 }
@@ -84,7 +82,7 @@ static void npc_regfile_dtor(struct npc_register *regfile, unsigned nb_registers
 static void npc_regfile_del(struct npc_register *regfile, unsigned nb_registers)
 {
     npc_regfile_dtor(regfile, nb_registers);
-    FREE(regfile);
+    objfree(regfile);
 }
 
 static void register_copy(struct npc_register *dst, struct npc_register const *src)
@@ -144,10 +142,10 @@ static int nt_state_ctor(struct nt_state *state, struct nt_state *parent, struct
 
 static struct nt_state *nt_state_new(struct nt_state *parent, struct nt_vertex *vertex, struct npc_register *regfile, struct timeval const *now, unsigned index_h)
 {
-    struct nt_state *state = MALLOC(nettrack, sizeof(*state));
+    struct nt_state *state = objalloc(sizeof(*state));
     if (! state) return NULL;
     if (0 != nt_state_ctor(state, parent, vertex, regfile, now, index_h)) {
-        FREE(state);
+        objfree(state);
         return NULL;
     }
     return state;
@@ -179,7 +177,7 @@ static void nt_state_dtor(struct nt_state *state, struct nt_graph *graph)
 static void nt_state_del(struct nt_state *state, struct nt_graph *graph)
 {
     nt_state_dtor(state, graph);
-    FREE(state);
+    objfree(state);
 }
 
 static void nt_state_move(struct nt_state *state, struct nt_vertex *from, struct nt_vertex *to, unsigned index_h)
@@ -201,7 +199,7 @@ static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_
 {
     SLOG(LOG_DEBUG, "Construct new vertex %s with %u buckets", name, index_size);
 
-    vertex->name = STRDUP(nettrack, name);
+    vertex->name = objalloc_strdup(name);
     vertex->index_size = index_size;
     assert(vertex->index_size >= 1);
     LIST_INIT(&vertex->outgoing_edges);
@@ -237,10 +235,10 @@ static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_
 static struct nt_vertex *nt_vertex_new(char const *name, struct nt_graph *graph, npc_match_fn *entry_fn, unsigned index_size)
 {
     if (! index_size) index_size = graph->default_index_size;
-    struct nt_vertex *vertex = MALLOC(nettrack, sizeof(*vertex) + index_size*sizeof(vertex->states[0]));
+    struct nt_vertex *vertex = objalloc(sizeof(*vertex) + index_size*sizeof(vertex->states[0]));
     if (! vertex) return NULL;
     if (0 != nt_vertex_ctor(vertex, name, graph, entry_fn, index_size)) {
-        FREE(vertex);
+        objfree(vertex);
         return NULL;
     }
     return vertex;
@@ -270,14 +268,14 @@ static void nt_vertex_dtor(struct nt_vertex *vertex, struct nt_graph *graph)
 
     LIST_REMOVE(vertex, same_graph);
 
-    FREE(vertex->name);
+    objfree(vertex->name);
     vertex->name = NULL;
 }
 
 static void nt_vertex_del(struct nt_vertex *vertex, struct nt_graph *graph)
 {
     nt_vertex_dtor(vertex, graph);
-    FREE(vertex);
+    objfree(vertex);
 }
 
 
@@ -314,10 +312,10 @@ static int nt_edge_ctor(struct nt_edge *edge, struct nt_graph *graph, struct nt_
 
 static struct nt_edge *nt_edge_new(struct nt_graph *graph, struct nt_vertex *from, struct nt_vertex *to, npc_match_fn *match_fn, npc_match_fn *from_index_fn, npc_match_fn *to_index_fn, bool spawn, bool grab, struct proto *inner_proto)
 {
-    struct nt_edge *edge = MALLOC(nettrack, sizeof(*edge));
+    struct nt_edge *edge = objalloc(sizeof(*edge));
     if (! edge) return NULL;
     if (0 != nt_edge_ctor(edge, graph, from, to, match_fn, from_index_fn, to_index_fn, spawn, grab, inner_proto)) {
-        FREE(edge);
+        objfree(edge);
         return NULL;
     }
     return edge;
@@ -339,7 +337,7 @@ static void nt_edge_dtor(struct nt_edge *edge)
 static void nt_edge_del(struct nt_edge *edge)
 {
     nt_edge_dtor(edge);
-    FREE(edge);
+    objfree(edge);
 }
 
 /*
@@ -375,7 +373,7 @@ static int nt_graph_ctor(struct nt_graph *graph, char const *name, char const *l
         return -1;
     }
 
-    graph->name = STRDUP(nettrack, name);
+    graph->name = objalloc_strdup(name);
     graph->started = false;
     graph->nb_frames = 0;
 
@@ -387,10 +385,10 @@ static int nt_graph_ctor(struct nt_graph *graph, char const *name, char const *l
 
 static struct nt_graph *nt_graph_new(char const *name, char const *libname)
 {
-    struct nt_graph *graph = MALLOC(nettrack, sizeof(*graph));
+    struct nt_graph *graph = objalloc(sizeof(*graph));
     if (! graph) return NULL;
     if (0 != nt_graph_ctor(graph, name, libname)) {
-        FREE(graph);
+        objfree(graph);
         return NULL;
     }
     return graph;
@@ -429,14 +427,14 @@ static void nt_graph_dtor(struct nt_graph *graph)
     (void)lt_dlclose(graph->lib);
     graph->lib = NULL;
 
-    FREE(graph->name);
+    objfree(graph->name);
     graph->name = NULL;
 }
 
 static void nt_graph_del(struct nt_graph *graph)
 {
     nt_graph_dtor(graph);
-    FREE(graph);
+    objfree(graph);
 }
 
 /*
@@ -693,8 +691,7 @@ void nettrack_init(void)
     if (inited++) return;
     log_category_nettrack_init();
     ext_init();
-    mallocer_init();
-    MALLOCER_INIT(nettrack);
+    objalloc_init();
 
     LIST_INIT(&started_graphs);
 
@@ -728,7 +725,7 @@ void nettrack_fini(void)
 {
     if (--inited) return;
 
-    mallocer_fini();
+    objalloc_fini();
     ext_fini();
     log_category_nettrack_fini();
 }

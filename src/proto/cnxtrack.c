@@ -8,6 +8,7 @@
 #include <junkie/tools/mutex.h>
 #include <junkie/tools/ext.h>
 #include <junkie/tools/log.h>
+#include "junkie/tools/objalloc.h"
 
 #undef LOG_CAT
 #define LOG_CAT cnxtrack_log_category
@@ -61,11 +62,10 @@ static int cnxtrack_ip_ctor(struct cnxtrack_ip *ct, unsigned ip_proto, struct ip
 
 struct cnxtrack_ip *cnxtrack_ip_new(unsigned ip_proto, struct ip_addr const *ip_a, uint16_t port_a, struct ip_addr const *ip_b, uint16_t port_b, bool reuse, struct proto *proto, struct timeval const *now, struct proto *requestor)
 {
-    MALLOCER(cnxtracks);
-    struct cnxtrack_ip *ct = MALLOC(cnxtracks, sizeof(*ct));
+    struct cnxtrack_ip *ct = objalloc(sizeof(*ct));
     if (! ct) return NULL;
     if (0 != cnxtrack_ip_ctor(ct, ip_proto, ip_a, port_a, ip_b, port_b, reuse, proto, now, requestor)) {
-        FREE(ct);
+        objfree(ct);
         return NULL;
     }
     return ct;
@@ -83,7 +83,7 @@ static void cnxtrack_ip_dtor(struct cnxtrack_ip *ct)
 static void cnxtrack_ip_del_locked(struct cnxtrack_ip *ct)
 {
     cnxtrack_ip_dtor(ct);
-    FREE(ct);
+    objfree(ct);
 }
 
 void cnxtrack_ip_del(struct cnxtrack_ip *ct)
@@ -202,8 +202,8 @@ void cnxtrack_init(void)
     log_init();
     ext_init();
     mutex_init();
-    mallocer_init();
     hash_init();
+    objalloc_init();
 
     log_category_cnxtrack_init();
     ext_param_cnxtrack_timeout_init();
@@ -231,8 +231,8 @@ void cnxtrack_fini(void)
     ext_param_cnxtrack_timeout_fini();
     log_category_cnxtrack_fini();
 
+    objalloc_fini();
     hash_fini();
-    mallocer_fini();
     mutex_fini();
     ext_fini();
     log_fini();

@@ -24,7 +24,7 @@
 #include "junkie/cpp.h"
 #include "junkie/tools/log.h"
 #include "junkie/tools/tempstr.h"
-#include "junkie/tools/mallocer.h"
+#include "junkie/tools/objalloc.h"
 #include "junkie/tools/mutex.h"
 #include "junkie/proto/serialize.h"
 #include "junkie/proto/proto.h"
@@ -62,12 +62,11 @@ static int pg_parser_ctor(struct pgsql_parser *pg_parser, struct proto *proto)
 
 static struct parser *pg_parser_new(struct proto *proto)
 {
-    MALLOCER(pg_parsers);
-    struct pgsql_parser *pg_parser = MALLOC(pg_parsers, sizeof(*pg_parser));
+    struct pgsql_parser *pg_parser = objalloc(sizeof(*pg_parser));
     if (! pg_parser) return NULL;
 
     if (-1 == pg_parser_ctor(pg_parser, proto)) {
-        FREE(pg_parser);
+        objfree(pg_parser);
         return NULL;
     }
 
@@ -85,7 +84,7 @@ static void pg_parser_del(struct parser *parser)
 {
     struct pgsql_parser *pg_parser = DOWNCAST(parser, parser, pgsql_parser);
     pg_parser_dtor(pg_parser);
-    FREE(pg_parser);
+    objfree(pg_parser);
 }
 
 /*

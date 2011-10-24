@@ -6,7 +6,7 @@
 #include <time.h>
 #include <junkie/cpp.h>
 #include <junkie/proto/ip.h>
-#include <junkie/tools/mallocer.h>
+#include <junkie/tools/objalloc.h>
 #include <junkie/tools/ext.h>
 #include "lib.h"
 #include "proto/sdp.c"
@@ -104,7 +104,7 @@ int main(void)
 {
     log_init();
     ext_init();
-    mallocer_init();
+    objalloc_init();
     ref_init();
     proto_init();
     sdp_init();
@@ -118,7 +118,7 @@ int main(void)
     sdp_fini();
     proto_fini();
     ref_fini();
-    mallocer_fini();
+    objalloc_fini();
     ext_fini();
     log_fini();
     return EXIT_SUCCESS;

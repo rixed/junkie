@@ -6,7 +6,7 @@
 #include <time.h>
 #include <junkie/cpp.h>
 #include <junkie/tools/ext.h>
-#include <junkie/tools/mallocer.h>
+#include <junkie/tools/objalloc.h>
 #include <junkie/proto/pkt_wait_list.h>
 #include <junkie/proto/cap.h>
 #include <junkie/proto/eth.h>
@@ -144,7 +144,7 @@ int main(void)
 {
     log_init();
     ext_init();
-    mallocer_init();
+    objalloc_init();
     pkt_wait_list_init();
     ref_init();
     hash_init();
@@ -176,7 +176,7 @@ int main(void)
     ext_fini();
     ref_fini();
     pkt_wait_list_fini();
-    mallocer_fini();
+    objalloc_fini();
     ext_fini();
     log_fini();
     return EXIT_SUCCESS;

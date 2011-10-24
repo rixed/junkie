@@ -23,11 +23,11 @@
 #include <string.h>
 #include "junkie/cpp.h"
 #include "junkie/tools/ext.h"
-#include "junkie/tools/mallocer.h"
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/hash.h"
 #include "junkie/tools/timeval.h"
 #include "junkie/tools/jhash.h"
+#include "junkie/tools/objalloc.h"
 #include "junkie/proto/serialize.h"
 #include "junkie/proto/proto.h"
 #include "proto/fuzzing.h"
@@ -330,12 +330,11 @@ int parser_ctor(struct parser *parser, struct proto *proto)
 
 static struct parser *parser_new(struct proto *proto)
 {
-    MALLOCER(parsers);
-    struct parser *parser = MALLOC(parsers, sizeof(*parser));
+    struct parser *parser = objalloc(sizeof(*parser));
     if (unlikely_(! parser)) return NULL;
 
     if (unlikely_(0 != parser_ctor(parser, proto))) {
-        FREE(parser);
+        objfree(parser);
         return NULL;
     }
 
@@ -352,7 +351,7 @@ void parser_dtor(struct parser *parser)
 static void parser_del(struct parser *parser)
 {
     parser_dtor(parser);
-    FREE(parser);
+    objfree(parser);
 }
 
 struct parser *parser_ref(struct parser *parser)
@@ -530,7 +529,7 @@ void mux_subparser_dtor(struct mux_subparser *subparser)
 void mux_subparser_del(struct mux_subparser *subparser)
 {
     mux_subparser_dtor(subparser);
-    FREE(subparser);
+    objfree(subparser);
 }
 
 // Caller must own subparsers mutex
@@ -635,9 +634,8 @@ int mux_subparser_ctor(struct mux_subparser *subparser, struct mux_parser *mux_p
 
 void *mux_subparser_alloc(struct mux_parser *mux_parser, size_t size_without_key)
 {
-    MALLOCER(mux_subparsers);
     struct mux_proto *mux_proto = DOWNCAST(mux_parser->parser.proto, proto, mux_proto);
-    void *subparser = MALLOC(mux_subparsers, size_without_key + mux_proto->key_size);
+    void *subparser = objalloc(size_without_key + mux_proto->key_size);
     return subparser;
 }
 
@@ -648,7 +646,7 @@ struct mux_subparser *mux_subparser_new(struct mux_parser *mux_parser, struct pa
     if (unlikely_(! subparser)) return NULL;
 
     if (0 != mux_subparser_ctor(subparser, mux_parser, child, requestor, key, now)) {
-        FREE(subparser);
+        objfree(subparser);
         return NULL;
     }
 
@@ -806,15 +804,15 @@ size_t mux_parser_size(unsigned hash_size)
 
 struct parser *mux_parser_new(struct proto *proto)
 {
-    MALLOCER(mux_parsers);
     struct mux_proto *mux_proto = DOWNCAST(proto, proto, mux_proto);
     unsigned const hash_size = mux_proto->hash_size;  // so that we don't care if the size change between the malloc and the ctor
     unsigned const nb_max_children = mux_proto->nb_max_children;
-    struct mux_parser *mux_parser = MALLOC(mux_parsers, mux_parser_size(hash_size));
+    size_t const sz = mux_parser_size(hash_size);
+    struct mux_parser *mux_parser = objalloc(sz);
     if (unlikely_(! mux_parser)) return NULL;
 
     if (unlikely_(0 != mux_parser_ctor(mux_parser, mux_proto, hash_size, nb_max_children))) {
-        FREE(mux_parser);
+        objfree(mux_parser);
         return NULL;
     }
 
@@ -856,7 +854,7 @@ void mux_parser_del(struct parser *parser)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     mux_parser_dtor(mux_parser);
-    FREE(mux_parser);
+    objfree(mux_parser);
 }
 
 void mux_proto_ctor(struct mux_proto *mux_proto, struct proto_ops const *ops, struct mux_proto_ops const *mux_ops, char const *name, enum proto_code code, size_t key_size, unsigned hash_size)
@@ -965,7 +963,7 @@ void uniq_parser_del(struct parser *parser)
 {
     struct uniq_proto unused_ *uniq_proto = DOWNCAST(parser->proto, proto, uniq_proto);
     assert(uniq_proto->parser == NULL || uniq_proto->parser == parser); // the ref is already unrefed but the pointer itself must be undergoing NULLing
-    FREE(parser);
+    objfree(parser);
 }
 
 /*

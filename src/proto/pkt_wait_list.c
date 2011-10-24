@@ -22,8 +22,8 @@
 #include <assert.h>
 #include "junkie/proto/pkt_wait_list.h"
 #include "junkie/tools/log.h"
-#include "junkie/tools/mallocer.h"
 #include "junkie/tools/ext.h"
+#include "junkie/tools/objalloc.h"
 
 #undef LOG_CAT
 #define LOG_CAT pkt_wait_list_log_category
@@ -48,7 +48,7 @@ static void proto_info_del_rec(struct proto_info *info)
         info->parent = NULL;
     }
 
-    FREE(start);
+    objfree(start);
 }
 
 // caller must own list->mutex
@@ -72,7 +72,7 @@ static void pkt_wait_dtor(struct pkt_wait *pkt, struct pkt_wait_list *pkt_wl)
 static void pkt_wait_del_nolock(struct pkt_wait *pkt, struct pkt_wait_list *pkt_wl)
 {
     pkt_wait_dtor(pkt, pkt_wl);
-    FREE(pkt);
+    objfree(pkt);
 }
 
 void pkt_wait_del(struct pkt_wait *pkt, struct pkt_wait_list *pkt_wl)
@@ -120,14 +120,13 @@ static enum proto_parse_status pkt_wait_finalize(struct pkt_wait *pkt, struct pk
 
 static struct proto_info *copy_info_rec(struct proto_info *info)
 {
-    MALLOCER(waiting_infos);
     if (! info) return NULL;
 
     struct proto_info *parent = copy_info_rec(info->parent);
 
     size_t size;
     void *start = (void *)info->parser->proto->ops->info_addr(info, &size);
-    void *copy = MALLOC(waiting_infos, size);
+    void *copy = objalloc(size);
     if (! copy) {
         SLOG(LOG_WARNING, "Cannot alloc for pending info");
         if (parent) proto_info_del_rec(parent);
@@ -178,15 +177,11 @@ static int pkt_wait_ctor(struct pkt_wait *pkt, unsigned offset, unsigned next_of
 
 static struct pkt_wait *pkt_wait_new(unsigned offset, unsigned next_offset, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, size_t tot_cap_len, uint8_t const *tot_packet)
 {
-    MALLOCER(waiting_pkts);
-    struct pkt_wait *pkt = MALLOC(waiting_pkts, sizeof(*pkt) + tot_cap_len);
-    if (! pkt) {
-        SLOG(LOG_WARNING, "Cannot malloc for waiting packet");
-        return NULL;
-    }
+    struct pkt_wait *pkt = objalloc(sizeof(*pkt) + tot_cap_len);
+    if (! pkt) return NULL;
 
     if (0 != pkt_wait_ctor(pkt, offset, next_offset, parent, way, packet, cap_len, wire_len, tot_cap_len, tot_packet)) {
-        FREE(pkt);
+        objfree(pkt);
         return NULL;
     }
 
@@ -498,14 +493,13 @@ bool pkt_wait_list_is_complete(struct pkt_wait_list *pkt_wl, unsigned start_offs
 
 uint8_t *pkt_wait_list_reassemble(struct pkt_wait_list *pkt_wl, unsigned start_offset, unsigned end_offset)
 {
-    MALLOCER(reassembled_payloads);
     assert(end_offset >= start_offset);
 
     if (! pkt_wl->list) return NULL;
 
     SLOG(LOG_DEBUG, "Reassemble pkt_wl@%p from offset %u to %u", pkt_wl, start_offset, end_offset);
 
-    uint8_t *payload = MALLOC(reassembled_payloads, end_offset - start_offset);
+    uint8_t *payload = objalloc(end_offset - start_offset);
     if (! payload) {
         SLOG(LOG_DEBUG, "Cannot alloc for packet reassembly of %zu bytes", pkt_wl->tot_payload);
         return NULL;
@@ -532,7 +526,7 @@ uint8_t *pkt_wait_list_reassemble(struct pkt_wait_list *pkt_wl, unsigned start_o
     }
 
     if (end != end_offset) {
-        FREE(payload);
+        objfree(payload);
         payload = NULL;
     }
 

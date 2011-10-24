@@ -22,7 +22,7 @@
 #include <limits.h>
 #include <ltdl.h>
 #include "junkie/tools/log.h"
-#include "junkie/tools/mallocer.h"
+#include "junkie/tools/objalloc.h"
 #include "junkie/tools/ext.h"
 #include "plugins.h"
 
@@ -62,11 +62,10 @@ static int plugin_ctor(struct plugin *plugin, char const *libname)
 
 static struct plugin *plugin_new(char const *libname)
 {
-    MALLOCER(plugin);
-    struct plugin *plugin = MALLOC(plugin, sizeof(*plugin));
+    struct plugin *plugin = objalloc(sizeof(*plugin));
     if (! plugin) return NULL;
     if (0 != plugin_ctor(plugin, libname)) {
-        FREE(plugin);
+        objfree(plugin);
         return NULL;
     }
     return plugin;
@@ -91,7 +90,7 @@ static void plugin_dtor(struct plugin *plugin)
 static void plugin_del(struct plugin *plugin)
 {
     plugin_dtor(plugin);
-    FREE(plugin);
+    objfree(plugin);
 }
 
 void plugin_del_all(void)
@@ -149,7 +148,7 @@ void plugins_init(void)
     if (inited++) return;
     ext_init();
     mutex_init();
-    mallocer_init();
+    objalloc_init();
 
     if (0 != lt_dlinit()) {
         DIE("Cannot init ltdl: %s", lt_dlerror());
@@ -181,7 +180,7 @@ void plugins_fini(void)
     ext_param_really_unload_plugins_fini();
     lt_dlexit();
 
-    mallocer_fini();
+    objalloc_fini();
     mutex_fini();
     ext_fini();
 }

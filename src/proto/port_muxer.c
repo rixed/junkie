@@ -21,7 +21,7 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include "junkie/tools/log.h"
-#include "junkie/tools/mallocer.h"
+#include "junkie/tools/objalloc.h"
 #include "junkie/proto/port_muxer.h"
 
 #undef LOG_CAT
@@ -78,8 +78,7 @@ void port_muxer_dtor(struct port_muxer *muxer, struct port_muxer_list *muxers)
 
 struct port_muxer *port_muxer_new(struct port_muxer_list *muxers, uint16_t port_min, uint16_t port_max, struct proto *proto)
 {
-    MALLOCER(port_muxer);
-    struct port_muxer *muxer = MALLOC(port_muxer, sizeof(*muxer));
+    struct port_muxer *muxer = objalloc(sizeof(*muxer));
     if (! muxer) return NULL;
     port_muxer_ctor(muxer, muxers, port_min, port_max, proto);
     muxer->malloced = true;
@@ -91,7 +90,7 @@ void port_muxer_del(struct port_muxer *muxer, struct port_muxer_list *muxers)
     port_muxer_dtor(muxer, muxers);
     if (muxer->malloced) {
         muxer->malloced = false;
-        FREE(muxer);
+        objfree(muxer);
     }
 }
 

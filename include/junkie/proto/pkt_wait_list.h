@@ -183,7 +183,7 @@ enum proto_parse_status pkt_wait_list_add(
  * were captured from them. */
 bool pkt_wait_list_is_complete(struct pkt_wait_list *, unsigned start_offset, unsigned end_offset);
 
-/// Return a MALLOCED buffer with the reassembled bytes
+/// Return an objalloced buffer with the reassembled bytes
 /** At offset 0, you will have the byte at start_offset.
  * @return NULL if reassembly is not possible, either because some packets are missing
  * or some required parts of the packets were not captured. */

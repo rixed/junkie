@@ -112,7 +112,7 @@ int main(void)
 {
     log_init();
     ext_init();
-    mallocer_init();
+    objalloc_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("streambuf_check.log");
 
@@ -120,7 +120,7 @@ int main(void)
     check_vicious();
     check_drop();
 
-    mallocer_fini();
+    objalloc_fini();
     ext_fini();
     log_fini();
     return EXIT_SUCCESS;

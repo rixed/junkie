@@ -26,9 +26,9 @@
 #include <pcap/pcap.h>
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/files.h"
-#include "junkie/tools/mallocer.h"
 #include "junkie/tools/ext.h"
 #include "junkie/tools/mutex.h"
+#include "junkie/tools/objalloc.h"
 #include "junkie/proto/cap.h"
 #include "junkie/proto/capfile.h"
 
@@ -80,10 +80,9 @@ static char const *capfile_path(struct capfile *capfile)
 
 static int capfile_ctor(struct capfile *capfile, struct capfile_ops const *ops, char const *path, unsigned max_pkts, size_t max_size, unsigned max_secs, size_t cap_len, unsigned rotation)
 {
-    MALLOCER(capfile_paths);
     mutex_ctor_with_type(&capfile->lock, path, PTHREAD_MUTEX_RECURSIVE);
     capfile->ops       = ops;
-    capfile->path      = STRDUP(capfile_paths, path);
+    capfile->path      = objalloc_strdup(path);
     if (! capfile->path) goto err1;
     capfile->max_pkts  = max_pkts;
     capfile->max_size  = max_size;
@@ -101,7 +100,7 @@ static int capfile_ctor(struct capfile *capfile, struct capfile_ops const *ops, 
     return 0;
 
 err2:
-    FREE(capfile->path);
+    objfree(capfile->path);
 err1:
     mutex_dtor(&capfile->lock);
     return -1;
@@ -109,12 +108,11 @@ err1:
 
 static struct capfile *capfile_new(struct capfile_ops const *ops, char const *path, unsigned max_pkts, size_t max_size, unsigned max_secs, size_t cap_len, unsigned rotation)
 {
-    MALLOCER(capfiles);
-    struct capfile *capfile = MALLOC(capfiles, sizeof(*capfile));
+    struct capfile *capfile = objalloc(sizeof(*capfile));
     if (! capfile) return NULL;
 
     if (0 != capfile_ctor(capfile, ops, path, max_pkts, max_size, max_secs, cap_len, rotation)) {
-        FREE(capfile);
+        objfree(capfile);
         return NULL;
     }
 
@@ -134,7 +132,7 @@ static void capfile_dtor(struct capfile *capfile)
     }
 
     if (capfile->path) {
-        FREE(capfile->path);
+        objfree(capfile->path);
         capfile->path = NULL;
     }
 
@@ -144,7 +142,7 @@ static void capfile_dtor(struct capfile *capfile)
 static void capfile_del(struct capfile *capfile)
 {
     capfile_dtor(capfile);
-    FREE(capfile);
+    objfree(capfile);
 }
 
 static void capfile_close(struct capfile *capfile)
@@ -374,6 +372,7 @@ void capfile_init(void)
     if (inited++) return;
     ext_init();
     mutex_init();
+    objalloc_init();
 
     log_category_capfile_init();
     ext_param_max_capture_files_init();
@@ -399,6 +398,7 @@ void capfile_fini(void)
     ext_param_max_capture_files_fini();
     log_category_capfile_fini();
 
+    objalloc_fini();
     mutex_fini();
     ext_fini();
 }

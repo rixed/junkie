@@ -6,7 +6,7 @@
 #include <time.h>
 #include <arpa/inet.h>
 #include <junkie/cpp.h>
-#include <junkie/tools/mallocer.h>
+#include <junkie/tools/objalloc.h>
 #include <junkie/tools/ext.h>
 #include <junkie/proto/pkt_wait_list.h>
 #include <junkie/proto/cap.h>
@@ -43,7 +43,7 @@ int main(void)
     log_init();
     mutex_init();
     ext_init();
-    mallocer_init();
+    objalloc_init();
     pkt_wait_list_init();
     ref_init();
     cap_init();
@@ -64,7 +64,7 @@ int main(void)
     cap_fini();
     ref_fini();
     pkt_wait_list_fini();
-    mallocer_fini();
+    objalloc_fini();
     ext_fini();
     mutex_fini();
     log_fini();

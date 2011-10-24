@@ -24,7 +24,7 @@
 #include "junkie/config.h"
 #include "junkie/tools/log.h"
 #include "junkie/tools/miscmacs.h"
-#include "junkie/tools/mallocer.h"
+#include "junkie/tools/objalloc.h"
 #include "junkie/tools/timeval.h"
 #include "junkie/proto/cap.h"   // for collapse_ifaces
 #include "junkie/proto/eth.h"   // for collapse_vlans
@@ -46,15 +46,13 @@ struct digest_queue {
     } queues[NB_QUEUES];    // The queue is chosen according to digest hash, so that several distinct threads can perform lookups simultaneously.
 };
 
-MALLOCER_DEF(digest_queues);
-
 static int digest_queue_ctor(struct digest_queue *digest, unsigned length)
 {
     for (unsigned i = 0; i < NB_ELEMS(digest->queues); i++) {
         struct queue *const q = digest->queues + i;
         q->idx = 0;
         q->length = length;
-        q->digests = MALLOC(digest_queues, q->length * sizeof *q->digests);
+        q->digests = objalloc(q->length * sizeof *q->digests);
         if (! q->digests && length > 0) return -1;
         if (q->digests) memset(q->digests, 0, q->length * sizeof q->digests);
         mutex_ctor(&q->mutex, "digest queue");
@@ -65,12 +63,11 @@ static int digest_queue_ctor(struct digest_queue *digest, unsigned length)
 
 struct digest_queue *digest_queue_new(unsigned length)
 {
-    MALLOCER_INIT(digest_queues);
-    struct digest_queue *digest = MALLOC(digest_queues, sizeof(*digest));
+    struct digest_queue *digest = objalloc(sizeof(*digest));
     if (! digest) return NULL;
 
     if (0 != digest_queue_ctor(digest, length)) {
-        FREE(digest);
+        objfree(digest);
         return NULL;
     }
 
@@ -80,7 +77,7 @@ struct digest_queue *digest_queue_new(unsigned length)
 static void digest_queue_dtor(struct digest_queue *digest)
 {
     for (unsigned i = 0; i < NB_ELEMS(digest->queues); i++) {
-        if (digest->queues[i].digests) FREE(digest->queues[i].digests);
+        if (digest->queues[i].digests) objfree(digest->queues[i].digests);
         mutex_dtor(&digest->queues[i].mutex);
     }
 }
@@ -88,7 +85,7 @@ static void digest_queue_dtor(struct digest_queue *digest)
 void digest_queue_del(struct digest_queue *digest)
 {
     digest_queue_dtor(digest);
-    FREE(digest);
+    objfree(digest);
 }
 
 int digest_queue_resize(struct digest_queue *digest, unsigned length)
@@ -96,11 +93,11 @@ int digest_queue_resize(struct digest_queue *digest, unsigned length)
     for (unsigned i = 0; i < NB_ELEMS(digest->queues); i++) {
         struct queue *const q = digest->queues + i;
 
-        void *new = MALLOC(digest_queues, length * sizeof *q->digests);
+        void *new = objalloc(length * sizeof *q->digests);
         if (! new && length > 0) return -1;
 
         mutex_lock(&q->mutex);
-        if (q->digests) FREE(q->digests);
+        if (q->digests) objfree(q->digests);
         q->digests = new;
         q->idx = 0;
         q->length = length;

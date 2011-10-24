@@ -18,5 +18,6 @@ thisinclude_HEADERS = \
 	ref.h \
 	sock.h \
 	serialization.h \
-	netflow.h
+	netflow.h \
+	objalloc.h
 

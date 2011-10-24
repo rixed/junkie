@@ -24,7 +24,7 @@
 #include "junkie/cpp.h"
 #include "junkie/tools/log.h"
 #include "junkie/tools/miscmacs.h"
-#include "junkie/tools/mallocer.h"
+#include "junkie/tools/objalloc.h"
 #include "junkie/tools/mutex.h"
 #include "junkie/tools/queue.h"
 #include "junkie/proto/serialize.h"
@@ -129,8 +129,7 @@ static void gre_subparser_ctor(struct gre_subparser *gre_subparser, uint16_t pro
 
 static struct gre_subparser *gre_subparser_new(uint16_t protocol, struct parser *parser)
 {
-    MALLOCER(gre_subparsers);
-    struct gre_subparser *gre_subparser = MALLOC(gre_subparsers, sizeof(*gre_subparser));
+    struct gre_subparser *gre_subparser = objalloc(sizeof(*gre_subparser));
     if (! gre_subparser) {
         return NULL;
     }
@@ -149,7 +148,7 @@ static void gre_subparser_dtor(struct gre_subparser *gre_subparser)
 static void gre_subparser_del(struct gre_subparser *gre_subparser)
 {
     gre_subparser_dtor(gre_subparser);
-    FREE(gre_subparser);
+    objfree(gre_subparser);
 }
 
 /*

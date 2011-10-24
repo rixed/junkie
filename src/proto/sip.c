@@ -26,7 +26,7 @@
 #include <string.h>
 #include <strings.h>
 #include <arpa/inet.h>
-#include "junkie/tools/mallocer.h"
+#include "junkie/tools/objalloc.h"
 #include "junkie/tools/log.h"
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/hash.h"
@@ -78,7 +78,7 @@ static void callid_2_sdp_dtor(struct callid_2_sdp *c2s)
 static void callid_2_sdp_del(struct callid_2_sdp *c2s)
 {
     callid_2_sdp_dtor(c2s);
-    FREE(c2s);
+    objfree(c2s);
 }
 
 static void callids_2_sdps_timeout(struct timeval const *now)
@@ -111,11 +111,10 @@ static int callid_2_sdp_ctor(struct callid_2_sdp *c2s, char const *call_id, stru
 
 static struct callid_2_sdp *callid_2_sdp_new(char const *call_id, struct timeval const *now)
 {
-    MALLOCER(callids_2_sdps);
-    struct callid_2_sdp *c2s = MALLOC(callids_2_sdps, sizeof(*c2s));
+    struct callid_2_sdp *c2s = objalloc(sizeof(*c2s));
     if (! c2s) return NULL;
     if (0 != callid_2_sdp_ctor(c2s, call_id, now)) {
-        FREE(c2s);
+        objfree(c2s);
         return NULL;
     }
     return c2s;

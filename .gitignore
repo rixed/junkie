@@ -70,6 +70,7 @@ tests/endianness_check
 tests/cli_check
 tests/cursor_check
 tests/mutex_check
+tests/objalloc_check
 config/.index
 .tarball-version
 instvars.scm
