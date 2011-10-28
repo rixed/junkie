@@ -28,14 +28,14 @@
 #include <pcap.h>
 #include <libguile.h>
 #include "pkt_source.h"
-#include <junkie/tools/mallocer.h>
-#include <junkie/tools/tempstr.h>
-#include <junkie/tools/mutex.h>
-#include <junkie/tools/queue.h>
-#include <junkie/tools/ref.h>
-#include <junkie/proto/cap.h>
-#include <junkie/proto/proto.h>
-#include <junkie/tools/ext.h>
+#include "junkie/tools/mallocer.h"
+#include "junkie/tools/tempstr.h"
+#include "junkie/tools/mutex.h"
+#include "junkie/tools/queue.h"
+#include "junkie/tools/ref.h"
+#include "junkie/proto/cap.h"
+#include "junkie/proto/proto.h"
+#include "junkie/tools/ext.h"
 #include "plugins.h"
 #include "digest_queue.h"
 

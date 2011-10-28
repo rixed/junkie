@@ -68,7 +68,7 @@ static void wl_check_setup(void)
         .parser_new = uniq_parser_new,
         .parser_del = uniq_parser_del,
     };
-    uniq_proto_ctor(&test_proto, &ops, "Test");
+    uniq_proto_ctor(&test_proto, &ops, "Test", PROTO_CODE_DUMMY);
 
     timeval_set_now(&now);
 

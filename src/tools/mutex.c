@@ -21,15 +21,15 @@
 #include <pthread.h>
 #include <time.h>
 #include <limits.h>
-#include <junkie/config.h>
+#include "junkie/config.h"
 #ifdef HAVE_SYS_PRCTL_H
 #   include <sys/prctl.h>
 #endif
-#include <junkie/tools/mutex.h>
-#include <junkie/tools/log.h>
-#include <junkie/tools/tempstr.h>
-#include <junkie/tools/ext.h>
-#include <junkie/tools/timeval.h>
+#include "junkie/tools/mutex.h"
+#include "junkie/tools/log.h"
+#include "junkie/tools/tempstr.h"
+#include "junkie/tools/ext.h"
+#include "junkie/tools/timeval.h"
 
 static char const Id[] = "$Id$";
 

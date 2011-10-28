@@ -8,8 +8,8 @@
 #include <stdint.h>
 #include <pcap.h>
 #include <pthread.h>
-#include <junkie/tools/queue.h>
-#include <junkie/tools/mutex.h>
+#include "junkie/tools/queue.h"
+#include "junkie/tools/mutex.h"
 
 /** A Packet Source is something that gives us packets (with libpcap).
  * So basically it can be either a real interface or a file.

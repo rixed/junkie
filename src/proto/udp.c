@@ -21,12 +21,13 @@
 #include <assert.h>
 #include <stdio.h>
 #include <inttypes.h>
-#include <junkie/cpp.h>
-#include <junkie/tools/ext.h>
-#include <junkie/tools/tempstr.h>
-#include <junkie/tools/log.h>
-#include <junkie/proto/ip.h>
-#include <junkie/proto/udp.h>
+#include "junkie/cpp.h"
+#include "junkie/tools/ext.h"
+#include "junkie/tools/tempstr.h"
+#include "junkie/tools/log.h"
+#include "junkie/tools/serialize.h"
+#include "junkie/proto/ip.h"
+#include "junkie/proto/udp.h"
 #include "proto/ip_hdr.h"
 
 static char const udp_Id[] = "$Id: 0d4dcb20e67fb576b956de6ca7a66a15ccb9d583 $";
@@ -57,6 +58,22 @@ static char const *udp_info_2_str(struct proto_info const *info_)
         proto_info_2_str(info_),
         info->key.port[0], info->key.port[1]);
     return str;
+}
+
+static void udp_serialize(struct proto_info const *info_, uint8_t **buf)
+{
+    struct udp_proto_info const *info = DOWNCAST(info_, info, udp_proto_info);
+    proto_info_serialize(info_, buf);
+    serialize_2(buf, info->key.port[0]);
+    serialize_2(buf, info->key.port[1]);
+}
+
+static void udp_deserialize(struct proto_info *info_, uint8_t const **buf)
+{
+    struct udp_proto_info *info = DOWNCAST(info_, info, udp_proto_info);
+    proto_info_deserialize(info_, buf);
+    info->key.port[0] = deserialize_2(buf);
+    info->key.port[1] = deserialize_2(buf);
 }
 
 static void udp_proto_info_ctor(struct udp_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, uint16_t sport, uint16_t dport)
@@ -204,13 +221,15 @@ void udp_init(void)
     log_category_proto_udp_init();
 
     static struct proto_ops const ops = {
-        .parse      = udp_parse,
-        .parser_new = mux_parser_new,
-        .parser_del = mux_parser_del,
-        .info_2_str = udp_info_2_str,
-        .info_addr  = udp_info_addr,
+        .parse       = udp_parse,
+        .parser_new  = mux_parser_new,
+        .parser_del  = mux_parser_del,
+        .info_2_str  = udp_info_2_str,
+        .info_addr   = udp_info_addr,
+        .serialize   = udp_serialize,
+        .deserialize = udp_deserialize,
     };
-    mux_proto_ctor(&mux_proto_udp, &ops, &mux_proto_ops, "UDP", sizeof(struct udp_key), UDP_HASH_SIZE);
+    mux_proto_ctor(&mux_proto_udp, &ops, &mux_proto_ops, "UDP", PROTO_CODE_UDP, sizeof(struct udp_key), UDP_HASH_SIZE);
     port_muxer_list_ctor(&udp_port_muxers, "UDP muxers");
 
     ip_subproto_ctor(&ip_subproto, IPPROTO_UDP, proto_udp);

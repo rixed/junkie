@@ -42,4 +42,7 @@ bool ip_addr_match_mask(struct ip_addr const *host, struct ip_addr const *net, s
 
 SCM scm_from_ip_addr(struct ip_addr const *ip);
 
+void ip_addr_serialize(struct ip_addr const *addr, uint8_t **buf);
+void ip_addr_deserialize(struct ip_addr *addr, uint8_t const **buf);
+
 #endif

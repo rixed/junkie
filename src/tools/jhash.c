@@ -37,8 +37,8 @@ on 1 byte), but shoehorning those bytes into integers efficiently is messy.
 #include <time.h>       /* defines time_t for timings in the test */
 #include <stdint.h>     /* defines uint32_t etc */
 #include <sys/param.h>  /* attempt to define endianness */
-#include <junkie/tools/jhash.h>
-#include <junkie/config.h>	// for WORDS_BIGENDIAN
+#include "junkie/tools/jhash.h"
+#include "junkie/config.h"	// for WORDS_BIGENDIAN
 
 /*
  * My best guess at if you are big-endian or little-endian.  This may

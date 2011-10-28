@@ -21,14 +21,15 @@
 #include <inttypes.h>
 #include <assert.h>
 #include <string.h>
-#include <junkie/cpp.h>
-#include <junkie/tools/ext.h>
-#include <junkie/tools/mallocer.h>
-#include <junkie/tools/tempstr.h>
-#include <junkie/tools/hash.h>
-#include <junkie/tools/timeval.h>
-#include <junkie/tools/jhash.h>
-#include <junkie/proto/proto.h>
+#include "junkie/cpp.h"
+#include "junkie/tools/ext.h"
+#include "junkie/tools/mallocer.h"
+#include "junkie/tools/tempstr.h"
+#include "junkie/tools/hash.h"
+#include "junkie/tools/timeval.h"
+#include "junkie/tools/jhash.h"
+#include "junkie/tools/serialize.h"
+#include "junkie/proto/proto.h"
 #include "proto/fuzzing.h"
 
 static char const Id[] = "$Id: 177ba6f85a03ac706a2bade616ed149d9394784d $";
@@ -53,12 +54,13 @@ char const *parser_name(struct parser const *parser)
     return str;
 }
 
-void proto_ctor(struct proto *proto, struct proto_ops const *ops, char const *name)
+void proto_ctor(struct proto *proto, struct proto_ops const *ops, char const *name, enum proto_code code)
 {
     SLOG(LOG_DEBUG, "Constructing proto %s", name);
 
     proto->ops = ops;
     proto->name = name;
+    proto->code = code;
     proto->nb_frames = 0;
     proto->nb_bytes = 0;
     proto->fuzzed_times = 0;
@@ -192,6 +194,20 @@ char const *proto_info_2_str(struct proto_info const *info)
     return str;
 }
 
+void proto_info_serialize(struct proto_info const *info, uint8_t **buf)
+{
+    serialize_2(buf, info->head_len);
+    serialize_2(buf, info->payload);
+}
+
+void proto_info_deserialize(struct proto_info *info, uint8_t const **buf)
+{
+    info->parent = NULL;
+    info->parser = NULL;
+    info->head_len = deserialize_2(buf);
+    info->payload = deserialize_2(buf);
+}
+
 /*
  * Parsers
  */
@@ -273,7 +289,7 @@ static void dummy_init(void)
         .parser_new = parser_new,
         .parser_del = parser_del,
     };
-    proto_ctor(&static_proto_dummy, &ops, "Dummy");
+    proto_ctor(&static_proto_dummy, &ops, "Dummy", PROTO_CODE_DUMMY);
 }
 
 static void dummy_fini(void)
@@ -745,9 +761,9 @@ void mux_parser_del(struct parser *parser)
     FREE(mux_parser);
 }
 
-void mux_proto_ctor(struct mux_proto *mux_proto, struct proto_ops const *ops, struct mux_proto_ops const *mux_ops, char const *name, size_t key_size, unsigned hash_size)
+void mux_proto_ctor(struct mux_proto *mux_proto, struct proto_ops const *ops, struct mux_proto_ops const *mux_ops, char const *name, enum proto_code code, size_t key_size, unsigned hash_size)
 {
-    proto_ctor(&mux_proto->proto, ops, name);
+    proto_ctor(&mux_proto->proto, ops, name, code);
     mux_proto->ops = *mux_ops;
     mux_proto->hash_size = hash_size;
     mux_proto->key_size = key_size;
@@ -821,9 +837,9 @@ static void *timeouter_thread(void unused_ *dummy)
  * Helper for stateless parsers
  */
 
-void uniq_proto_ctor(struct uniq_proto *uniq_proto, struct proto_ops const *ops, char const *name)
+void uniq_proto_ctor(struct uniq_proto *uniq_proto, struct proto_ops const *ops, char const *name, enum proto_code code)
 {
-    proto_ctor(&uniq_proto->proto, ops, name);
+    proto_ctor(&uniq_proto->proto, ops, name, code);
     uniq_proto->parser = NULL;
 }
 

@@ -21,12 +21,12 @@
 #include <string.h>
 #include <assert.h>
 #include <inttypes.h>
-#include <junkie/cpp.h>
-#include <junkie/tools/log.h>
-#include <junkie/tools/miscmacs.h>
-#include <junkie/proto/proto.h>
-#include <junkie/proto/eth.h>
-#include <junkie/proto/ip.h>
+#include "junkie/cpp.h"
+#include "junkie/tools/log.h"
+#include "junkie/tools/miscmacs.h"
+#include "junkie/proto/proto.h"
+#include "junkie/proto/eth.h"
+#include "junkie/proto/ip.h"
 #include "proto/ip_hdr.h"
 
 static char const Id[] = "$Id: c1c50fb3b93381abf716bfa300605c930e937160 $";
@@ -159,13 +159,15 @@ void ip6_init(void)
     mutex_ctor(&ip6_subprotos_mutex, "IPv6 subprotocols");
     LIST_INIT(&ip6_subprotos);
     static struct proto_ops const ops = {
-        .parse      = ip6_parse,
-        .parser_new = mux_parser_new,
-        .parser_del = mux_parser_del,
-        .info_2_str = ip_info_2_str,
-        .info_addr  = ip_info_addr,
+        .parse       = ip6_parse,
+        .parser_new  = mux_parser_new,
+        .parser_del  = mux_parser_del,
+        .info_2_str  = ip_info_2_str,
+        .info_addr   = ip_info_addr,
+        .serialize   = ip_serialize,
+        .deserialize = ip_deserialize,
     };
-    mux_proto_ctor(&mux_proto_ip6, &ops, &mux_proto_ops, "IPv6", sizeof(struct ip_key), IP6_HASH_SIZE);
+    mux_proto_ctor(&mux_proto_ip6, &ops, &mux_proto_ops, "IPv6", PROTO_CODE_IP6, sizeof(struct ip_key), IP6_HASH_SIZE);
     eth_subproto_ctor(&ip6_eth_subproto, ETH_PROTO_IPv6, proto_ip6);
 }
 

@@ -19,10 +19,10 @@
  */
 #include <string.h>
 #include <assert.h>
-#include <junkie/tools/ext.h>
-#include <junkie/tools/log.h>
-#include <junkie/tools/redim_array.h>
-#include <junkie/tools/mallocer.h>
+#include "junkie/tools/ext.h"
+#include "junkie/tools/log.h"
+#include "junkie/tools/redim_array.h"
+#include "junkie/tools/mallocer.h"
 
 static char const Id[] = "$Id: 0107bc35f6c8628d004562fe85a4299e95b58648 $";
 

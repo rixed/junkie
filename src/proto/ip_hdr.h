@@ -3,8 +3,8 @@
 #ifndef IP_HDR_H_101230
 #define IP_HDR_H_101230
 #include <stdint.h>
-#include <junkie/config.h>
-#include <junkie/cpp.h>
+#include "junkie/config.h"
+#include "junkie/cpp.h"
 #include <netinet/in.h> // For struct in6_addr (same than in ip_addr.h)
 
 // Definition of an IP header

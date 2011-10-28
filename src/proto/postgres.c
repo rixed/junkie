@@ -21,16 +21,17 @@
 #include <string.h>
 #include <stdbool.h>
 #include <arpa/inet.h>  // for ntohl
-#include <junkie/cpp.h>
-#include <junkie/tools/log.h>
-#include <junkie/tools/tempstr.h>
-#include <junkie/tools/mallocer.h>
-#include <junkie/tools/mutex.h>
-#include <junkie/proto/proto.h>
-#include <junkie/proto/tcp.h>
-#include <junkie/proto/sql.h>
-#include <junkie/proto/streambuf.h>
-#include <junkie/proto/cursor.h>
+#include "junkie/cpp.h"
+#include "junkie/tools/log.h"
+#include "junkie/tools/tempstr.h"
+#include "junkie/tools/mallocer.h"
+#include "junkie/tools/mutex.h"
+#include "junkie/tools/serialize.h"
+#include "junkie/proto/proto.h"
+#include "junkie/proto/tcp.h"
+#include "junkie/proto/sql.h"
+#include "junkie/proto/streambuf.h"
+#include "junkie/proto/cursor.h"
 
 static char const Id[] = "$Id$";
 
@@ -192,6 +193,75 @@ char const *sql_info_2_str(struct proto_info const *info_)
 
     return str;
 }
+
+void sql_serialize(struct proto_info const *info_, uint8_t **buf)
+{
+    struct sql_proto_info const *info = DOWNCAST(info_, info, sql_proto_info);
+    proto_info_serialize(info_, buf);
+    serialize_1(buf, info->is_query);
+    serialize_1(buf, info->msg_type);
+    serialize_1(buf, info->set_values);
+    if (info->set_values & SQL_VERSION) {
+        serialize_1(buf, info->version_maj);
+        serialize_1(buf, info->version_min);
+    }
+    if (info->msg_type == SQL_STARTUP) {
+        if (info->set_values & SQL_SSL_REQUEST)
+            serialize_1(buf, info->u.startup.ssl_request);
+        if (info->set_values & SQL_USER)
+            serialize_str(buf, info->u.startup.user);
+        if (info->set_values & SQL_DBNAME)
+            serialize_str(buf, info->u.startup.dbname);
+        if (info->set_values & SQL_PASSWD)
+            serialize_str(buf, info->u.startup.passwd);
+        if (info->set_values & SQL_AUTH_STATUS)
+            serialize_4(buf, info->u.startup.status);
+    } else if (info->msg_type == SQL_QUERY) {
+        if (info->set_values & SQL_SQL)
+            serialize_str(buf, info->u.query.sql);
+        if (info->set_values & SQL_STATUS)
+            serialize_4(buf, info->u.query.status);
+        if (info->set_values & SQL_NB_ROWS)
+            serialize_4(buf, info->u.query.nb_rows);
+        if (info->set_values & SQL_NB_FIELDS)
+            serialize_4(buf, info->u.query.nb_fields);
+    }
+}
+
+void sql_deserialize(struct proto_info *info_, uint8_t const **buf)
+{
+    struct sql_proto_info *info = DOWNCAST(info_, info, sql_proto_info);
+    proto_info_deserialize(info_, buf);
+    info->is_query = deserialize_1(buf);
+    info->msg_type = deserialize_1(buf);
+    info->set_values = deserialize_1(buf);
+    if (info->set_values & SQL_VERSION) {
+        info->version_maj = deserialize_1(buf);
+        info->version_min = deserialize_1(buf);
+    }
+    if (info->msg_type == SQL_STARTUP) {
+        if (info->set_values & SQL_SSL_REQUEST)
+            info->u.startup.ssl_request = deserialize_1(buf);
+        if (info->set_values & SQL_USER)
+            deserialize_str(buf, info->u.startup.user, sizeof(info->u.startup.user));
+        if (info->set_values & SQL_DBNAME)
+            deserialize_str(buf, info->u.startup.dbname, sizeof(info->u.startup.dbname));
+        if (info->set_values & SQL_PASSWD)
+            deserialize_str(buf, info->u.startup.passwd, sizeof(info->u.startup.passwd));
+        if (info->set_values & SQL_AUTH_STATUS)
+            info->u.startup.status = deserialize_4(buf);
+    } else if (info->msg_type == SQL_QUERY) {
+        if (info->set_values & SQL_SQL)
+            deserialize_str(buf, info->u.query.sql, sizeof(info->u.query.sql));
+        if (info->set_values & SQL_STATUS)
+            info->u.query.status = deserialize_4(buf);
+        if (info->set_values & SQL_NB_ROWS)
+            info->u.query.nb_rows = deserialize_4(buf);
+        if (info->set_values & SQL_NB_FIELDS)
+            info->u.query.nb_fields = deserialize_4(buf);
+    }
+}
+
 
 void const *sql_info_addr(struct proto_info const *info_, size_t *size)
 {
@@ -486,13 +556,15 @@ void postgres_init(void)
     log_category_proto_postgres_init();
 
     static struct proto_ops const ops = {
-        .parse      = pg_parse,
-        .parser_new = pg_parser_new,
-        .parser_del = pg_parser_del,
-        .info_2_str = sql_info_2_str,
-        .info_addr  = sql_info_addr,
+        .parse       = pg_parse,
+        .parser_new  = pg_parser_new,
+        .parser_del  = pg_parser_del,
+        .info_2_str  = sql_info_2_str,
+        .info_addr   = sql_info_addr,
+        .serialize   = sql_serialize,
+        .deserialize = sql_deserialize,
     };
-    proto_ctor(&proto_postgres_, &ops, "PostgreSQL");
+    proto_ctor(&proto_postgres_, &ops, "PostgreSQL", PROTO_CODE_PGSQL);
     port_muxer_ctor(&pg_tcp_muxer, &tcp_port_muxers, 5432, 5432, proto_postgres);
 }
 

@@ -20,8 +20,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include <junkie/tools/log.h>
-#include <junkie/tools/ref.h>
+#include "junkie/tools/log.h"
+#include "junkie/tools/ref.h"
 
 static char const Id[] = "$Id$";
 

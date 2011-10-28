@@ -21,10 +21,10 @@
 #include <string.h>
 #include <inttypes.h>
 #include <arpa/inet.h>
-#include <junkie/tools/ip_addr.h>
-#include <junkie/proto/tcp.h>
-#include <junkie/proto/ip.h>
-#include <junkie/proto/ftp.h>
+#include "junkie/tools/ip_addr.h"
+#include "junkie/proto/tcp.h"
+#include "junkie/proto/ip.h"
+#include "junkie/proto/ftp.h"
 
 static char const Id[] = "$Id: e723dedac9d286da4b57e9dc2f4f01109c8e7ca3 $";
 
@@ -198,13 +198,15 @@ void ftp_init(void)
     log_category_proto_ftp_init();
 
     static struct proto_ops const ops = {
-        .parse      = ftp_parse,
-        .parser_new = uniq_parser_new,
-        .parser_del = uniq_parser_del,
-        .info_2_str = proto_info_2_str,
-        .info_addr  = proto_info_addr,
+        .parse       = ftp_parse,
+        .parser_new  = uniq_parser_new,
+        .parser_del  = uniq_parser_del,
+        .info_2_str  = proto_info_2_str,
+        .info_addr   = proto_info_addr,
+        .serialize   = proto_info_serialize,
+        .deserialize = proto_info_deserialize,
     };
-    uniq_proto_ctor(&uniq_proto_ftp, &ops, "FTP");
+    uniq_proto_ctor(&uniq_proto_ftp, &ops, "FTP", PROTO_CODE_FTP);
     port_muxer_ctor(&tcp_port_muxer, &tcp_port_muxers, 21, 21, proto_ftp);
 }
 

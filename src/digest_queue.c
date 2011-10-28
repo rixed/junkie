@@ -21,12 +21,12 @@
 #include <string.h>
 #include <sys/time.h>
 #include <assert.h>
-#include <junkie/config.h>
-#include <junkie/tools/log.h>
-#include <junkie/tools/miscmacs.h>
-#include <junkie/tools/mallocer.h>
-#include <junkie/tools/timeval.h>
-#include <junkie/cpp.h>
+#include "junkie/config.h"
+#include "junkie/tools/log.h"
+#include "junkie/tools/miscmacs.h"
+#include "junkie/tools/mallocer.h"
+#include "junkie/tools/timeval.h"
+#include "junkie/cpp.h"
 #include "digest_queue.h"
 
 static char const Id[] = "$Id$";

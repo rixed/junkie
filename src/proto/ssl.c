@@ -21,13 +21,13 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <junkie/tools/tempstr.h>
-#include <junkie/tools/miscmacs.h>
-#include <junkie/proto/proto.h>
-#include <junkie/proto/tcp.h>
-#include <junkie/proto/ssl.h>
-#include <junkie/cpp.h>
-#include <junkie/tools/log.h>
+#include "junkie/tools/tempstr.h"
+#include "junkie/tools/miscmacs.h"
+#include "junkie/proto/proto.h"
+#include "junkie/proto/tcp.h"
+#include "junkie/proto/ssl.h"
+#include "junkie/cpp.h"
+#include "junkie/tools/log.h"
 
 static char const ssl_Id[] = "$Id: ff47704a50c73c27351f09b954f78b1fff8aeda4 $";
 
@@ -157,7 +157,7 @@ void ssl_init(void)
         .info_2_str = ssl_info_2_str,
         .info_addr  = ssl_info_addr,
     };
-    uniq_proto_ctor(&uniq_proto_ssl, &ops, "SSL");
+    uniq_proto_ctor(&uniq_proto_ssl, &ops, "SSL", PROTO_CODE_SSL);
     port_muxer_ctor(&tcp_port_muxer, &tcp_port_muxers, 443, 443, proto_ssl);
 }
 

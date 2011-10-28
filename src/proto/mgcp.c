@@ -21,11 +21,12 @@
 #include <assert.h>
 #include <string.h>
 #include <ctype.h>
-#include <junkie/tools/mallocer.h>
-#include <junkie/tools/tempstr.h>
-#include <junkie/proto/udp.h>
-#include <junkie/proto/sdp.h>
-#include <junkie/proto/mgcp.h>
+#include "junkie/tools/mallocer.h"
+#include "junkie/tools/tempstr.h"
+#include "junkie/tools/serialize.h"
+#include "junkie/proto/udp.h"
+#include "junkie/proto/sdp.h"
+#include "junkie/proto/mgcp.h"
 #include "proto/liner.h"
 
 static char const Id[] = "$Id: a29b66d469dfd3519df7242ba7ab092d4330a4cf $";
@@ -151,6 +152,46 @@ static char const *mgcp_info_2_str(struct proto_info const *info_)
         proto_info_2_str(info_),
         info->response ? mgcp_resp_2_str(&info->u.resp) : mgcp_query_2_str(&info->u.query),
         mgcp_params_2_str(info));
+}
+
+static void mgcp_serialize(struct proto_info const *info_, uint8_t **buf)
+{
+    struct mgcp_proto_info const *info = DOWNCAST(info_, info, mgcp_proto_info);
+    proto_info_serialize(info_, buf);
+    serialize_1(buf, info->response);
+    if (info->response) {
+        serialize_1(buf, info->u.resp.code);
+        serialize_4(buf, info->u.resp.txid);
+    } else {
+        serialize_1(buf, info->u.query.command);
+        serialize_4(buf, info->u.query.txid);
+        serialize_str(buf, info->u.query.endpoint);
+    }
+    serialize_1(buf, info->observed);
+    serialize_1(buf, info->signaled);
+    serialize_str(buf, info->dialed);
+    serialize_str(buf, info->cnx_id);
+    serialize_str(buf, info->call_id);
+}
+
+static void mgcp_deserialize(struct proto_info *info_, uint8_t const **buf)
+{
+    struct mgcp_proto_info *info = DOWNCAST(info_, info, mgcp_proto_info);
+    proto_info_deserialize(info_, buf);
+    info->response = deserialize_1(buf);
+    if (info->response) {
+        info->u.resp.code = deserialize_1(buf);
+        info->u.resp.txid = deserialize_4(buf);
+    } else {
+        info->u.query.command = deserialize_1(buf);
+        info->u.query.txid = deserialize_4(buf);
+        deserialize_str(buf, info->u.query.endpoint, sizeof(info->u.query.endpoint));
+    }
+    info->observed = deserialize_1(buf);
+    info->signaled = deserialize_1(buf);
+    deserialize_str(buf, info->dialed, sizeof(info->dialed));
+    deserialize_str(buf, info->cnx_id, sizeof(info->cnx_id));
+    deserialize_str(buf, info->call_id, sizeof(info->call_id));
 }
 
 static void mgcp_proto_info_ctor(struct mgcp_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload)
@@ -394,13 +435,15 @@ void mgcp_init(void)
     log_category_proto_mgcp_init();
 
     static struct proto_ops const ops = {
-        .parse      = mgcp_parse,
-        .parser_new = mgcp_parser_new,
-        .parser_del = mgcp_parser_del,
-        .info_2_str = mgcp_info_2_str,
-        .info_addr  = mgcp_info_addr,
+        .parse       = mgcp_parse,
+        .parser_new  = mgcp_parser_new,
+        .parser_del  = mgcp_parser_del,
+        .info_2_str  = mgcp_info_2_str,
+        .info_addr   = mgcp_info_addr,
+        .serialize   = mgcp_serialize,
+        .deserialize = mgcp_deserialize,
     };
-    proto_ctor(&proto_mgcp_, &ops, "MGCP");
+    proto_ctor(&proto_mgcp_, &ops, "MGCP", PROTO_CODE_MGCP);
     port_muxer_ctor(&udp_port_muxer_gw, &udp_port_muxers, 2427, 2427, proto_mgcp);
     port_muxer_ctor(&udp_port_muxer_agent, &udp_port_muxers, 2727, 2727, proto_mgcp);
 }

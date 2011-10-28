@@ -26,16 +26,17 @@
 #include <string.h>
 #include <strings.h>
 #include <arpa/inet.h>
-#include <junkie/tools/mallocer.h>
-#include <junkie/tools/log.h>
-#include <junkie/tools/tempstr.h>
-#include <junkie/tools/hash.h>
-#include <junkie/tools/mutex.h>
-#include <junkie/proto/ip.h>
-#include <junkie/proto/tcp.h>
-#include <junkie/proto/udp.h>
-#include <junkie/proto/sdp.h>
-#include <junkie/proto/sip.h>
+#include "junkie/tools/mallocer.h"
+#include "junkie/tools/log.h"
+#include "junkie/tools/tempstr.h"
+#include "junkie/tools/hash.h"
+#include "junkie/tools/mutex.h"
+#include "junkie/tools/serialize.h"
+#include "junkie/proto/ip.h"
+#include "junkie/proto/tcp.h"
+#include "junkie/proto/udp.h"
+#include "junkie/proto/sdp.h"
+#include "junkie/proto/sip.h"
 #include "proto/liner.h"
 #include "proto/httper.h"
 
@@ -191,6 +192,62 @@ static char const *sip_info_2_str(struct proto_info const *info_)
              info->set_values & SIP_TO_SET     ? info->to                          : "unset");
 
     return str;
+}
+
+static void sip_serialize(struct proto_info const *info_, uint8_t **buf)
+{
+    struct sip_proto_info const *info = DOWNCAST(info_, info, sip_proto_info);
+    proto_info_serialize(info_, buf);
+    serialize_2(buf, info->set_values);
+    if (info->set_values & SIP_CMD_SET)
+        serialize_1(buf, info->cmd);
+    if (info->set_values & SIP_FROM_SET)
+        serialize_str(buf, info->from);
+    if (info->set_values & SIP_TO_SET)
+        serialize_str(buf, info->to);
+    if (info->set_values & SIP_CALLID_SET)
+        serialize_str(buf, info->call_id);
+    if (info->set_values & SIP_MIME_SET)
+        serialize_str(buf, info->mime_type);
+    if (info->set_values & SIP_VIA_SET) {
+        serialize_1(buf, info->via.protocol);
+        ip_addr_serialize(&info->via.addr, buf);
+        serialize_2(buf, info->via.port);
+    }
+    if (info->set_values & SIP_LENGTH_SET)
+        serialize_4(buf, info->content_length);
+    if (info->set_values & SIP_CODE_SET)
+        serialize_4(buf, info->code);
+    if (info->set_values & SIP_CSEQ_SET)
+        serialize_4(buf, info->cseq);
+}
+
+static void sip_deserialize(struct proto_info *info_, uint8_t const **buf)
+{
+    struct sip_proto_info *info = DOWNCAST(info_, info, sip_proto_info);
+    proto_info_deserialize(info_, buf);
+    info->set_values = deserialize_2(buf);
+    if (info->set_values & SIP_CMD_SET)
+        info->cmd = deserialize_1(buf);
+    if (info->set_values & SIP_FROM_SET)
+        deserialize_str(buf, info->from, sizeof(info->from));
+    if (info->set_values & SIP_TO_SET)
+        deserialize_str(buf, info->to, sizeof(info->to));
+    if (info->set_values & SIP_CALLID_SET)
+        deserialize_str(buf, info->call_id, sizeof(info->call_id));
+    if (info->set_values & SIP_MIME_SET)
+        deserialize_str(buf, info->mime_type, sizeof(info->mime_type));
+    if (info->set_values & SIP_VIA_SET) {
+        info->via.protocol = deserialize_1(buf);
+        ip_addr_deserialize(&info->via.addr, buf);
+        info->via.port = deserialize_2(buf);
+    }
+    if (info->set_values & SIP_LENGTH_SET)
+        info->content_length = deserialize_4(buf);
+    if (info->set_values & SIP_CODE_SET)
+        info->code = deserialize_4(buf);
+    if (info->set_values & SIP_CSEQ_SET)
+        info->cseq = deserialize_4(buf);
 }
 
 static void sip_proto_info_ctor(struct sip_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload)
@@ -425,13 +482,15 @@ void sip_init(void)
     HASH_INIT(&callids_2_sdps, 67, "SIP->SDP");
 
     static struct proto_ops const ops = {
-        .parse      = sip_parse,
-        .parser_new = uniq_parser_new,
-        .parser_del = uniq_parser_del,
-        .info_2_str = sip_info_2_str,
-        .info_addr  = sip_info_addr,
+        .parse       = sip_parse,
+        .parser_new  = uniq_parser_new,
+        .parser_del  = uniq_parser_del,
+        .info_2_str  = sip_info_2_str,
+        .info_addr   = sip_info_addr,
+        .serialize   = sip_serialize,
+        .deserialize = sip_deserialize,
     };
-    uniq_proto_ctor(&uniq_proto_sip, &ops, "SIP");
+    uniq_proto_ctor(&uniq_proto_sip, &ops, "SIP", PROTO_CODE_SIP);
     port_muxer_ctor(&udp_port_muxer, &udp_port_muxers, SIP_PORT, SIP_PORT, proto_sip);
 }
 

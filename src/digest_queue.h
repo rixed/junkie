@@ -4,7 +4,7 @@
 #define DIGEST_QUEUE_H_110202
 #include <stdint.h>
 #include <openssl/md4.h>
-#include <junkie/tools/mutex.h>
+#include "junkie/tools/mutex.h"
 
 #define DIGEST_SIZE MD4_DIGEST_LENGTH
 

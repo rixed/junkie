@@ -28,12 +28,12 @@
 #include <fcntl.h>
 #include <string.h>
 #include <limits.h>
-#include <junkie/tools/miscmacs.h>
-#include <junkie/tools/log.h>
-#include <junkie/tools/tempstr.h>
-#include <junkie/tools/files.h>
-#include <junkie/tools/mutex.h>
-#include <junkie/tools/ext.h>
+#include "junkie/tools/miscmacs.h"
+#include "junkie/tools/log.h"
+#include "junkie/tools/tempstr.h"
+#include "junkie/tools/files.h"
+#include "junkie/tools/mutex.h"
+#include "junkie/tools/ext.h"
 
 static char const Id[] = "$Id: 52f0ab48ebbc1c5ea1bfbb807f830aeda7b80275 $";
 

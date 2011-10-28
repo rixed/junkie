@@ -23,13 +23,14 @@
 #include <stdbool.h>
 #include <inttypes.h>
 #include <assert.h>
-#include <junkie/cpp.h>
-#include <junkie/tools/log.h>
-#include <junkie/tools/tempstr.h>
-#include <junkie/proto/proto.h>
-#include <junkie/proto/eth.h>
-#include <junkie/proto/cap.h>
-#include <junkie/tools/ext.h>
+#include "junkie/cpp.h"
+#include "junkie/tools/log.h"
+#include "junkie/tools/tempstr.h"
+#include "junkie/tools/serialize.h"
+#include "junkie/proto/proto.h"
+#include "junkie/proto/eth.h"
+#include "junkie/proto/cap.h"
+#include "junkie/tools/ext.h"
 #include "pkt_source.h"
 
 static char const Id[] = "$Id: 51a18a0ad76ab10ef1fcc9cee870304e884cdc44 $";
@@ -63,6 +64,22 @@ static char const *cap_info_2_str(struct proto_info const *info_)
         info->dev_id,
         timeval_2_str(&info->tv));
     return str;
+}
+
+static void cap_serialize(struct proto_info const *info_, uint8_t **buf)
+{
+    struct cap_proto_info const *info = DOWNCAST(info_, info, cap_proto_info);
+    proto_info_serialize(info_, buf);
+    serialize_2(buf, info->dev_id);
+    timeval_serialize(&info->tv, buf);
+}
+
+static void cap_deserialize(struct proto_info *info_, uint8_t const **buf)
+{
+    struct cap_proto_info *info = DOWNCAST(info_, info, cap_proto_info);
+    proto_info_deserialize(info_, buf);
+    info->dev_id = deserialize_2(buf);
+    timeval_deserialize(&info->tv, buf);
 }
 
 static void cap_proto_info_ctor(struct cap_proto_info *info, struct parser *parser, struct proto_info *parent, struct frame const *frame)
@@ -121,13 +138,15 @@ void cap_init(void)
     ext_param_collapse_ifaces_init();
 
     static struct proto_ops const ops = {
-        .parse      = cap_parse,
-        .parser_new = mux_parser_new,
-        .parser_del = mux_parser_del,
-        .info_2_str = cap_info_2_str,
-        .info_addr  = cap_info_addr,
+        .parse       = cap_parse,
+        .parser_new  = mux_parser_new,
+        .parser_del  = mux_parser_del,
+        .info_2_str  = cap_info_2_str,
+        .info_addr   = cap_info_addr,
+        .serialize   = cap_serialize,
+        .deserialize = cap_deserialize,
     };
-    mux_proto_ctor(&mux_proto_cap, &ops, &mux_proto_ops, "Capture", sizeof(zero)/* device_id */, 11);
+    mux_proto_ctor(&mux_proto_cap, &ops, &mux_proto_ops, "Capture", PROTO_CODE_CAP, sizeof(zero)/* device_id */, 11);
 }
 
 void cap_fini(void)

@@ -29,9 +29,9 @@
 #include <pwd.h>
 #include <grp.h>
 #include <assert.h>
-#include <junkie/tools/files.h>
-#include <junkie/tools/log.h>
-#include <junkie/tools/mallocer.h>
+#include "junkie/tools/files.h"
+#include "junkie/tools/log.h"
+#include "junkie/tools/mallocer.h"
 
 static char const Id[] = "$Id: 149f17cbcc369a7832303bf390c768771b93b5ce $";
 

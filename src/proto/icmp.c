@@ -21,9 +21,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
-#include <junkie/tools/tempstr.h>
-#include <junkie/proto/ip.h>
-#include <junkie/proto/icmp.h>
+#include "junkie/tools/tempstr.h"
+#include "junkie/tools/serialize.h"
+#include "junkie/proto/ip.h"
+#include "junkie/proto/icmp.h"
 #include "proto/ip_hdr.h"
 
 static char const Id[] = "$Id: cec9e9e404a6e9491b912c6adb58350490d49047 $";
@@ -147,6 +148,42 @@ static char const *icmp_info_2_str(struct proto_info const *info_)
     return str;
 }
 
+void icmp_serialize(struct proto_info const *info_, uint8_t **buf)
+{
+    struct icmp_proto_info const *info = DOWNCAST(info_, info, icmp_proto_info);
+    proto_info_serialize(info_, buf);
+    serialize_1(buf, info->type);
+    serialize_1(buf, info->code);
+    serialize_1(buf, info->set_values);
+    if (info->set_values & ICMP_ERR_SET) {
+        serialize_1(buf, info->err.protocol);
+        ip_addr_serialize(info->err.addr+0, buf);
+        ip_addr_serialize(info->err.addr+1, buf);
+        if (info->set_values & ICMP_ERR_PORT_SET) {
+            serialize_2(buf, info->err.port[0]);
+            serialize_2(buf, info->err.port[1]);
+        }
+    }
+}
+
+void icmp_deserialize(struct proto_info *info_, uint8_t const **buf)
+{
+    struct icmp_proto_info *info = DOWNCAST(info_, info, icmp_proto_info);
+    proto_info_deserialize(info_, buf);
+    info->type = deserialize_1(buf);
+    info->code = deserialize_1(buf);
+    info->set_values = deserialize_1(buf);
+    if (info->set_values & ICMP_ERR_SET) {
+        info->err.protocol = deserialize_1(buf);
+        ip_addr_deserialize(info->err.addr+0, buf);
+        ip_addr_deserialize(info->err.addr+1, buf);
+        if (info->set_values & ICMP_ERR_PORT_SET) {
+            info->err.port[0] = deserialize_2(buf);
+            info->err.port[1] = deserialize_2(buf);
+        }
+    }
+}
+
 static void icmp_proto_info_ctor(struct icmp_proto_info *info, struct parser *parser, struct proto_info *parent, size_t packet_len, uint8_t type, uint8_t code)
 {
     proto_info_ctor(&info->info, parser, parent, packet_len, 0);
@@ -251,13 +288,15 @@ void icmp_init(void)
     log_category_proto_icmp_init();
 
     static struct proto_ops const ops = {
-        .parse      = icmp_parse,
-        .parser_new = uniq_parser_new,
-        .parser_del = uniq_parser_del,
-        .info_2_str = icmp_info_2_str,
-        .info_addr  = icmp_info_addr,
+        .parse       = icmp_parse,
+        .parser_new  = uniq_parser_new,
+        .parser_del  = uniq_parser_del,
+        .info_2_str  = icmp_info_2_str,
+        .info_addr   = icmp_info_addr,
+        .serialize   = icmp_serialize,
+        .deserialize = icmp_deserialize,
     };
-    uniq_proto_ctor(&uniq_proto_icmp, &ops, "ICMP");
+    uniq_proto_ctor(&uniq_proto_icmp, &ops, "ICMP", PROTO_CODE_ICMP);
     ip_subproto_ctor(&icmp_ip_subproto, IPPROTO_ICMP, proto_icmp);
     ip6_subproto_ctor(&icmp_ip6_subproto, IPPROTO_ICMP, proto_icmp);
 }

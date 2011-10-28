@@ -61,6 +61,8 @@ struct sql_proto_info {
 
 char const *sql_info_2_str(struct proto_info const *);
 void const *sql_info_addr(struct proto_info const *, size_t *);
+void sql_serialize(struct proto_info const *, uint8_t **buf);
+void sql_deserialize(struct proto_info *, uint8_t const **buf);
 
 void postgres_init(void);
 void postgres_fini(void);

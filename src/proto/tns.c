@@ -21,14 +21,14 @@
 #include <string.h>
 #include <stdbool.h>
 #include <ctype.h>
-#include <junkie/cpp.h>
-#include <junkie/tools/log.h>
-#include <junkie/tools/mallocer.h>
-#include <junkie/tools/mutex.h>
-#include <junkie/proto/tcp.h>
-#include <junkie/proto/sql.h>
-#include <junkie/proto/streambuf.h>
-#include <junkie/proto/cursor.h>
+#include "junkie/cpp.h"
+#include "junkie/tools/log.h"
+#include "junkie/tools/mallocer.h"
+#include "junkie/tools/mutex.h"
+#include "junkie/proto/tcp.h"
+#include "junkie/proto/sql.h"
+#include "junkie/proto/streambuf.h"
+#include "junkie/proto/cursor.h"
 
 static char const Id[] = "$Id$";
 
@@ -435,13 +435,15 @@ void tns_init(void)
     log_category_proto_tns_init();
 
     static struct proto_ops const ops = {
-        .parse      = tns_parse,
-        .parser_new = tns_parser_new,
-        .parser_del = tns_parser_del,
-        .info_2_str = sql_info_2_str,
-        .info_addr  = sql_info_addr,
+        .parse       = tns_parse,
+        .parser_new  = tns_parser_new,
+        .parser_del  = tns_parser_del,
+        .info_2_str  = sql_info_2_str,
+        .info_addr   = sql_info_addr,
+        .serialize   = sql_serialize,
+        .deserialize = sql_deserialize,
     };
-    proto_ctor(&proto_tns_, &ops, "TNS");
+    proto_ctor(&proto_tns_, &ops, "TNS", PROTO_CODE_TNS);
     port_muxer_ctor(&tns_tcp_muxer, &tcp_port_muxers, 1521, 1521, proto_tns);
 }
 

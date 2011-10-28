@@ -20,12 +20,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
-#include <junkie/cpp.h>
-#include <junkie/tools/log.h>
-#include <junkie/tools/ip_addr.h>
-#include <junkie/proto/proto.h>
-#include <junkie/proto/eth.h>   // for eth_addr_2_str()
-#include <junkie/proto/arp.h>
+#include "junkie/cpp.h"
+#include "junkie/tools/log.h"
+#include "junkie/tools/ip_addr.h"
+#include "junkie/tools/serialize.h"
+#include "junkie/proto/proto.h"
+#include "junkie/proto/eth.h"   // for eth_addr_2_str()
+#include "junkie/proto/arp.h"
 
 static char const Id[] = "$Id: 41d9ce8a5da8afbfb5153b5c45632295bc52b6f9 $";
 
@@ -74,6 +75,29 @@ static char const *arp_info_2_str(struct proto_info const *info_)
         info->hw_addr_is_eth ? eth_addr_2_str(info->hw_target) : "unset");
 
     return str;
+}
+
+static void arp_serialize(struct proto_info const *info_, uint8_t **buf)
+{
+    struct arp_proto_info const *info = DOWNCAST(info_, info, arp_proto_info);
+    proto_info_serialize(info_, buf);
+    serialize_1(buf, info->proto_addr_is_ip + (info->hw_addr_is_eth << 1) + (info->opcode << 2));
+    if (info->proto_addr_is_ip) ip_addr_serialize(&info->sender, buf);
+    if (info->proto_addr_is_ip) ip_addr_serialize(&info->target, buf);
+    if (info->opcode == ARP_REPLY) serialize_n(buf, info->hw_target, ETH_ADDR_LEN);
+}
+
+static void arp_deserialize(struct proto_info *info_, uint8_t const **buf)
+{
+    struct arp_proto_info *info = DOWNCAST(info_, info, arp_proto_info);
+    proto_info_deserialize(info_, buf);
+    unsigned u = deserialize_1(buf);
+    info->proto_addr_is_ip = u&1U;
+    info->hw_addr_is_eth = u&2U;
+    info->opcode = u>>2U;
+    if (info->proto_addr_is_ip) ip_addr_deserialize(&info->sender, buf);
+    if (info->proto_addr_is_ip) ip_addr_deserialize(&info->target, buf);
+    if (info->opcode == ARP_REPLY) deserialize_n(buf, info->hw_target, ETH_ADDR_LEN);
 }
 
 static void fetch_ip(struct ip_addr *ip, unsigned prot_addr_fmt, uint8_t const *ptr)
@@ -181,13 +205,15 @@ void arp_init(void)
     log_category_proto_arp_init();
 
     static struct proto_ops const ops = {
-        .parse      = arp_parse,
-        .parser_new = uniq_parser_new,
-        .parser_del = uniq_parser_del,
-        .info_2_str = arp_info_2_str,
-        .info_addr  = arp_info_addr,
+        .parse       = arp_parse,
+        .parser_new  = uniq_parser_new,
+        .parser_del  = uniq_parser_del,
+        .info_2_str  = arp_info_2_str,
+        .info_addr   = arp_info_addr,
+        .serialize   = arp_serialize,
+        .deserialize = arp_deserialize,
     };
-    uniq_proto_ctor(&uniq_proto_arp, &ops, "ARP");
+    uniq_proto_ctor(&uniq_proto_arp, &ops, "ARP", PROTO_CODE_ARP);
     eth_subproto_ctor(&arp_eth_subproto, ETH_PROTO_ARP, proto_arp);
 }
 

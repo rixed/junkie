@@ -30,7 +30,7 @@ struct http_proto_info {
         HTTP_METHOD_PUT, HTTP_METHOD_OPTIONS, HTTP_METHOD_TRACE, HTTP_METHOD_DELETE,
     } method;                       ///< The method used
     unsigned code;                  ///< The response code, if the message is a response
-    size_t content_length;          ///< The Content-Length, if present
+    unsigned content_length;        ///< The Content-Length, if present
     char mime_type[256];            ///< The Mime-type, if present
     char host[256];                 ///< The Host, if present
 #   define HTTP_URL_SIZE 2048

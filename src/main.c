@@ -19,50 +19,49 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-#include <signal.h>
 #include <string.h>
 #include <stdbool.h>
 #include <unistd.h>
 #include <sys/types.h>
-#include <libgen.h>     /* basename */
-#include <sys/stat.h>       /* umask needed to fork */
-#include <junkie/config.h>
-#include <junkie/tools/log.h>
-#include <junkie/tools/files.h>
-#include <junkie/tools/mutex.h>
-#include <junkie/tools/ext.h>
-#include <junkie/tools/ref.h>
-#include <junkie/cpp.h>
-#include <junkie/capfile.h>
+#include "junkie/config.h"
+#include "junkie/tools/log.h"
+#include "junkie/tools/files.h"
+#include "junkie/tools/mutex.h"
+#include "junkie/tools/ext.h"
+#include "junkie/tools/ref.h"
+#include "junkie/cpp.h"
+#include "junkie/capfile.h"
 // For initers/finiters
-#include <junkie/tools/redim_array.h>
-#include <junkie/tools/mallocer.h>
-#include <junkie/tools/mutex.h>
-#include <junkie/tools/hash.h>
-#include <junkie/tools/cli.h>
-#include <junkie/proto/proto.h>
-#include <junkie/proto/pkt_wait_list.h>
-#include <junkie/proto/cap.h>
-#include <junkie/proto/eth.h>
-#include <junkie/proto/ip.h>
-#include <junkie/proto/gre.h>
-#include <junkie/proto/arp.h>
-#include <junkie/proto/udp.h>
-#include <junkie/proto/icmp.h>
-#include <junkie/proto/tcp.h>
-#include <junkie/proto/sip.h>
-#include <junkie/proto/bittorrent.h>
-#include <junkie/proto/http.h>
-#include <junkie/proto/rtp.h>
-#include <junkie/proto/netbios.h>
-#include <junkie/proto/ssl.h>
-#include <junkie/proto/dns.h>
-#include <junkie/proto/rtcp.h>
-#include <junkie/proto/ftp.h>
-#include <junkie/proto/mgcp.h>
-#include <junkie/proto/sdp.h>
-#include <junkie/proto/sql.h>
-#include <junkie/proto/port_muxer.h>
+#include "junkie/tools/redim_array.h"
+#include "junkie/tools/mallocer.h"
+#include "junkie/tools/mutex.h"
+#include "junkie/tools/hash.h"
+#include "junkie/tools/cli.h"
+#include "junkie/tools/sock.h"
+#include "junkie/tools/serialize.h"
+#include "junkie/proto/proto.h"
+#include "junkie/proto/pkt_wait_list.h"
+#include "junkie/proto/cap.h"
+#include "junkie/proto/eth.h"
+#include "junkie/proto/ip.h"
+#include "junkie/proto/gre.h"
+#include "junkie/proto/arp.h"
+#include "junkie/proto/udp.h"
+#include "junkie/proto/icmp.h"
+#include "junkie/proto/tcp.h"
+#include "junkie/proto/sip.h"
+#include "junkie/proto/bittorrent.h"
+#include "junkie/proto/http.h"
+#include "junkie/proto/rtp.h"
+#include "junkie/proto/netbios.h"
+#include "junkie/proto/ssl.h"
+#include "junkie/proto/dns.h"
+#include "junkie/proto/rtcp.h"
+#include "junkie/proto/ftp.h"
+#include "junkie/proto/mgcp.h"
+#include "junkie/proto/sdp.h"
+#include "junkie/proto/sql.h"
+#include "junkie/proto/port_muxer.h"
 #include "proto/fuzzing.h"
 #include "pkt_source.h"
 #include "plugins.h"
@@ -92,6 +91,7 @@ static struct {
     I(sdp),           I(postgres),    I(mysql),
     I(tns),
     I(pkt_source),    I(cli),         I(capfile),
+    I(sock),          I(serialize),
 #   undef I
 };
 

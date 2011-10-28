@@ -21,9 +21,9 @@
 #include <string.h>
 #include <assert.h>
 #include <ctype.h>
-#include <junkie/tools/log.h>
-#include <junkie/tools/miscmacs.h>
-#include <junkie/proto/proto.h>
+#include "junkie/tools/log.h"
+#include "junkie/tools/miscmacs.h"
+#include "junkie/proto/proto.h"
 #include "proto/liner.h"
 
 static char const Id[] = "$Id: b9348a21349c6b6101f8818e0f9ba93cfd31251e $";

@@ -21,10 +21,10 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <pthread.h>
-#include <junkie/config.h>
-#include <junkie/tools/tempstr.h>
-#include <junkie/tools/miscmacs.h>
-#include <junkie/cpp.h>
+#include "junkie/config.h"
+#include "junkie/tools/tempstr.h"
+#include "junkie/tools/miscmacs.h"
+#include "junkie/cpp.h"
 
 static char const Id[] = "$Id: c34949b73e614e0d0aea39bf9c02d70f06524abd $";
 

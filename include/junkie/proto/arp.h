@@ -21,7 +21,7 @@ struct arp_proto_info {
     bool hw_addr_is_eth;
     struct ip_addr sender;              ///< Set iff proto_addr_is_ip
     struct ip_addr target;              ///< Set iff proto_addr_is_ip
-    uint8_t hw_target[ETH_ADDR_LEN];    ///< Set iff operation == 2
+    uint8_t hw_target[ETH_ADDR_LEN];    ///< Set iff opcode == 2
 };
 
 void arp_init(void);

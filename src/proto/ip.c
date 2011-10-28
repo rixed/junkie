@@ -23,16 +23,17 @@
 #include <assert.h>
 #include <errno.h>
 #include <inttypes.h>
-#include <junkie/cpp.h>
-#include <junkie/tools/log.h>
-#include <junkie/tools/miscmacs.h>
-#include <junkie/tools/tempstr.h>
-#include <junkie/tools/mallocer.h>
-#include <junkie/tools/ext.h>
-#include <junkie/proto/proto.h>
-#include <junkie/proto/eth.h>
-#include <junkie/proto/ip.h>
-#include <junkie/proto/pkt_wait_list.h>
+#include "junkie/cpp.h"
+#include "junkie/tools/log.h"
+#include "junkie/tools/miscmacs.h"
+#include "junkie/tools/tempstr.h"
+#include "junkie/tools/mallocer.h"
+#include "junkie/tools/ext.h"
+#include "junkie/tools/serialize.h"
+#include "junkie/proto/proto.h"
+#include "junkie/proto/eth.h"
+#include "junkie/proto/ip.h"
+#include "junkie/proto/pkt_wait_list.h"
 #include "proto/ip_hdr.h"
 
 static char const Id[] = "$Id: 003ae93bbf458d21ffd9582b447feb9019b93405 $";
@@ -71,6 +72,28 @@ char const *ip_info_2_str(struct proto_info const *info_)
         info->key.protocol,
         info->ttl);
     return str;
+}
+
+void ip_serialize(struct proto_info const *info_, uint8_t **buf)
+{
+    struct ip_proto_info const *info = DOWNCAST(info_, info, ip_proto_info);
+    proto_info_serialize(info_, buf);
+    ip_addr_serialize(info->key.addr+0, buf);
+    ip_addr_serialize(info->key.addr+1, buf);
+    serialize_1(buf, info->key.protocol);
+    serialize_1(buf, info->version);
+    serialize_1(buf, info->ttl);
+}
+
+void ip_deserialize(struct proto_info *info_, uint8_t const **buf)
+{
+    struct ip_proto_info *info = DOWNCAST(info_, info, ip_proto_info);
+    proto_info_deserialize(info_, buf);
+    ip_addr_deserialize(info->key.addr+0, buf);
+    ip_addr_deserialize(info->key.addr+1, buf);
+    info->key.protocol = deserialize_1(buf);
+    info->version = deserialize_1(buf);
+    info->ttl = deserialize_1(buf);
 }
 
 static void ip_proto_info_ctor(struct ip_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, struct ip_hdr const *iphdr)
@@ -424,17 +447,19 @@ void ip_init(void)
     pkt_wl_config_ctor(&ip_reassembly_config, "IP-reassembly", 65536, 100, 65536, 5 /* FRAGMENTATION TIMEOUT (second) */);
 
     static struct proto_ops const ops = {
-        .parse = ip_parse,
-        .parser_new = mux_parser_new,
-        .parser_del = mux_parser_del,
-        .info_2_str = ip_info_2_str,
-        .info_addr  = ip_info_addr,
+        .parse       = ip_parse,
+        .parser_new  = mux_parser_new,
+        .parser_del  = mux_parser_del,
+        .info_2_str  = ip_info_2_str,
+        .info_addr   = ip_info_addr,
+        .serialize   = ip_serialize,
+        .deserialize = ip_deserialize,
     };
     static struct mux_proto_ops const mux_ops = {
         .subparser_new = ip_subparser_new,
         .subparser_del = ip_subparser_del,
     };
-    mux_proto_ctor(&mux_proto_ip, &ops, &mux_ops, "IPv4", sizeof(struct ip_key), IP_HASH_SIZE);
+    mux_proto_ctor(&mux_proto_ip, &ops, &mux_ops, "IPv4", PROTO_CODE_IP, sizeof(struct ip_key), IP_HASH_SIZE);
     eth_subproto_ctor(&ip_eth_subproto, ETH_PROTO_IPv4, proto_ip);
 }
 

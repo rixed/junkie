@@ -24,13 +24,13 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <pcap/pcap.h>
-#include <junkie/tools/tempstr.h>
-#include <junkie/tools/files.h>
-#include <junkie/tools/mallocer.h>
-#include <junkie/tools/ext.h>
-#include <junkie/tools/mutex.h>
-#include <junkie/proto/cap.h>
-#include <junkie/capfile.h>
+#include "junkie/tools/tempstr.h"
+#include "junkie/tools/files.h"
+#include "junkie/tools/mallocer.h"
+#include "junkie/tools/ext.h"
+#include "junkie/tools/mutex.h"
+#include "junkie/proto/cap.h"
+#include "junkie/capfile.h"
 
 static char const Id[] = "$Id$";
 

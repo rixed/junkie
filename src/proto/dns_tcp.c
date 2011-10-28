@@ -22,11 +22,11 @@
 #include <string.h>
 #include <inttypes.h>
 #include <arpa/inet.h>
-#include <junkie/cpp.h>
-#include <junkie/tools/tempstr.h>
-#include <junkie/proto/proto.h>
-#include <junkie/proto/dns.h>
-#include <junkie/proto/tcp.h>
+#include "junkie/cpp.h"
+#include "junkie/tools/tempstr.h"
+#include "junkie/proto/proto.h"
+#include "junkie/proto/dns.h"
+#include "junkie/proto/tcp.h"
 
 
 static char const Id[] = "$Id: da1898e810e979d6a571be386ad1ac6163b7af5f $";
@@ -78,7 +78,7 @@ void dns_tcp_init(void)
         .parser_new = uniq_parser_new,
         .parser_del = uniq_parser_del,
     };
-    uniq_proto_ctor(&uniq_proto_dns_tcp, &ops, "DNS/TCP");
+    uniq_proto_ctor(&uniq_proto_dns_tcp, &ops, "DNS/TCP", PROTO_CODE_DNS /* since we share the same info struct */);
     port_muxer_ctor(&dns_tcp_port_muxer, &tcp_port_muxers, DNS_PORT, DNS_PORT, proto_dns_tcp);
     port_muxer_ctor(&mdns_tcp_port_muxer, &tcp_port_muxers, MDNS_PORT, MDNS_PORT, proto_dns_tcp);
     port_muxer_ctor(&nbns_tcp_port_muxer, &tcp_port_muxers, NBNS_PORT, NBNS_PORT, proto_dns_tcp);

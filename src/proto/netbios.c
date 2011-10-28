@@ -20,11 +20,11 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <stdint.h>
-#include <junkie/cpp.h>
-#include <junkie/tools/log.h>
-#include <junkie/proto/proto.h>
-#include <junkie/proto/netbios.h>
-#include <junkie/proto/cifs.h>
+#include "junkie/cpp.h"
+#include "junkie/tools/log.h"
+#include "junkie/proto/proto.h"
+#include "junkie/proto/netbios.h"
+#include "junkie/proto/cifs.h"
 
 static char const Id[] = "$Id: 9ceb049707094753513467be6533a0d5f6b886bb $";
 
@@ -108,7 +108,7 @@ void netbios_init(void)
         .info_2_str = netbios_info_2_str,
         .info_addr  = netbios_info_addr,
     };
-    uniq_proto_ctor(&uniq_proto_netbios, &ops, "Netbios");
+    uniq_proto_ctor(&uniq_proto_netbios, &ops, "Netbios", PROTO_CODE_NETBIOS);
 }
 
 void netbios_fini(void)

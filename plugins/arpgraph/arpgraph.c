@@ -19,13 +19,13 @@
  */
 #include <stdlib.h>
 #include <stdio.h>
-#include <junkie/cpp.h>
-#include <junkie/tools/cli.h>
-#include <junkie/tools/mallocer.h>
-#include <junkie/tools/tempstr.h>
-#include <junkie/tools/hash.h>
-#include <junkie/proto/arp.h>
-#include <junkie/proto/cap.h>
+#include "junkie/cpp.h"
+#include "junkie/tools/cli.h"
+#include "junkie/tools/mallocer.h"
+#include "junkie/tools/tempstr.h"
+#include "junkie/tools/hash.h"
+#include "junkie/proto/arp.h"
+#include "junkie/proto/cap.h"
 
 // Global parameters settable from the command line
 #define DEFAULT_MONITORING_PERIOD 120 // seconds

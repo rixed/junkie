@@ -23,16 +23,17 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <inttypes.h>
-#include <junkie/cpp.h>
-#include <junkie/tools/log.h>
-#include <junkie/tools/tempstr.h>
-#include <junkie/tools/miscmacs.h>
-#include <junkie/tools/ip_addr.h>
-#include <junkie/proto/proto.h>
-#include <junkie/proto/ip.h>
-#include <junkie/proto/arp.h>
-#include <junkie/proto/eth.h>
-#include <junkie/tools/ext.h>
+#include "junkie/cpp.h"
+#include "junkie/tools/log.h"
+#include "junkie/tools/tempstr.h"
+#include "junkie/tools/miscmacs.h"
+#include "junkie/tools/ip_addr.h"
+#include "junkie/tools/serialize.h"
+#include "junkie/proto/proto.h"
+#include "junkie/proto/ip.h"
+#include "junkie/proto/arp.h"
+#include "junkie/proto/eth.h"
+#include "junkie/tools/ext.h"
 
 static char const Id[] = "$Id: 70c2033b6d5c020b1a0f8c367cf57c2cfb996c84 $";
 
@@ -95,6 +96,27 @@ static char const *eth_info_2_str(struct proto_info const *info_)
         eth_addr_2_str(info->addr[1]),
         info->protocol);
     return str;
+}
+
+static void eth_serialize(struct proto_info const *info_, uint8_t **buf)
+{
+    struct eth_proto_info const *info = DOWNCAST(info_, info, eth_proto_info);
+    proto_info_serialize(info_, buf);
+    serialize_3(buf, info->vlan_id);    // 16 bits for vlan itself, +we need to handle -1 for UNSET
+    serialize_n(buf, info->addr[0], ETH_ADDR_LEN);
+    serialize_n(buf, info->addr[1], ETH_ADDR_LEN);
+    serialize_2(buf, info->protocol);
+}
+
+static void eth_deserialize(struct proto_info *info_, uint8_t const **buf)
+{
+    struct eth_proto_info *info = DOWNCAST(info_, info, eth_proto_info);
+    proto_info_deserialize(info_, buf);
+    info->vlan_id = deserialize_3(buf);
+    if (info->vlan_id == 0xffffff) info->vlan_id = -1;
+    deserialize_n(buf, info->addr[0], ETH_ADDR_LEN);
+    deserialize_n(buf, info->addr[1], ETH_ADDR_LEN);
+    info->protocol = deserialize_2(buf);
 }
 
 static void eth_proto_info_ctor(struct eth_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, uint16_t proto, int vlan_id, struct eth_hdr const *ethhdr)
@@ -248,13 +270,15 @@ void eth_init(void)
     mutex_ctor(&eth_subprotos_mutex, "Eth subprotocols");
 
     static struct proto_ops const ops = {
-        .parse      = eth_parse,
-        .parser_new = mux_parser_new,
-        .parser_del = mux_parser_del,
-        .info_2_str = eth_info_2_str,
-        .info_addr  = eth_info_addr,
+        .parse       = eth_parse,
+        .parser_new  = mux_parser_new,
+        .parser_del  = mux_parser_del,
+        .info_2_str  = eth_info_2_str,
+        .info_addr   = eth_info_addr,
+        .serialize   = eth_serialize,
+        .deserialize = eth_deserialize,
     };
-    mux_proto_ctor(&mux_proto_eth, &ops, &mux_proto_ops, "Ethernet", sizeof(vlan_unset) /* vlan_id */, 11);
+    mux_proto_ctor(&mux_proto_eth, &ops, &mux_proto_ops, "Ethernet", PROTO_CODE_ETH, sizeof(vlan_unset) /* vlan_id */, 11);
     LIST_INIT(&eth_subprotos);
 }
 
