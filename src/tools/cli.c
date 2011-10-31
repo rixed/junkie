@@ -201,14 +201,29 @@ int cli_2_enum(bool case_sensitive, char const *value, ...)
  * Init
  */
 
-static void print_tabuled(char const *help, int margin)
+static void print_tabuled(struct cli_opt const *opt, int margin)
 {
     static char tabs[] = "                    ";
     if (margin < (int)sizeof(tabs)-1) {
-        printf("%s%s\n", tabs+margin, help);
+        printf("%s%s", tabs+margin, opt->help);
     } else {
-        printf("\n%s%s\n", tabs, help);
+        printf("\n%s%s", tabs, opt->help);
     }
+    // display default value
+    switch (opt->action) {
+        case CLI_CALL:
+            break;
+        case CLI_SET_UINT:
+            printf(" (default: %u)", *opt->u.uint);
+            break;
+        case CLI_SET_BOOL:
+            printf(" (default: %s)", *opt->u.boolean ? "true":"false");
+            break;
+        case CLI_DUP_STR:
+            if (*opt->u.str) printf(" (default: %s)", *opt->u.str);
+            break;
+    }
+    puts("");
 }
 
 static void help_block(struct cli_bloc const *bloc)
@@ -224,7 +239,7 @@ static void help_block(struct cli_bloc const *bloc)
             opt->arg[1] ? ", " : "",
             opt->arg[1] ? "-" : "",
             opt->arg[1] ? opt->arg[1] : "");
-        print_tabuled(opt->help, len);
+        print_tabuled(opt, len);
     }
 }
 
