@@ -61,12 +61,7 @@ static struct sock sock;
 static int dump_proto_stack(struct proto_info *info)
 {
     if (info->parent) (void)dump_proto_stack(info->parent);
-
-    printf("%s%s{%s}",
-        info->parent ? "/\n      ":"info: ",
-        info->parser->proto->name,
-        info->parser->proto->ops->info_2_str(info));
-
+    printf("%s: %s\n", info->parser->proto->name, info->parser->proto->ops->info_2_str(info));
     return 0;
 }
 
