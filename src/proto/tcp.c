@@ -91,10 +91,10 @@ static void tcp_deserialize(struct proto_info *info_, uint8_t const **buf)
     info->key.port[0] = deserialize_2(buf);
     info->key.port[1] = deserialize_2(buf);
     unsigned flags = deserialize_1(buf);
-    info->syn = flags & 1;
-    info->ack = flags & 2;
-    info->rst = flags & 4;
-    info->fin = flags & 8;
+    info->syn = !!(flags & 1);
+    info->ack = !!(flags & 2);
+    info->rst = !!(flags & 4);
+    info->fin = !!(flags & 8);
     info->window = deserialize_2(buf);
     info->ack_num = deserialize_4(buf);
     info->seq_num = deserialize_4(buf);

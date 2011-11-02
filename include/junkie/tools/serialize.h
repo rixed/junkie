@@ -44,10 +44,11 @@ static inline void serialize_str(uint8_t **buf, char const *s)
 {
     unsigned c;
     for (c = 0; s[c] != '\0'; c++) {
-        (*buf)[c+1] = s[c];
+        (*buf)[c+2] = s[c];
     }
-    (*buf)[0] = c;
-    *buf += c+1;
+    (*buf)[0] = c;  // Note: must be same endianness than serialize_2()
+    (*buf)[1] = c>>8;
+    *buf += c+2;
 }
 
 static inline unsigned deserialize_1(uint8_t const **buf)
@@ -78,7 +79,7 @@ static inline void deserialize_n(uint8_t const **buf, void *dst, size_t n)
 
 static inline void deserialize_str(uint8_t const **buf, char *dst, size_t max_len)
 {
-    unsigned n = deserialize_1(buf);
+    unsigned n = deserialize_2(buf);
     assert(n < max_len);
     deserialize_n(buf, (uint8_t *)dst, n);
     dst[n] = '\0';

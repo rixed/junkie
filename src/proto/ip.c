@@ -83,6 +83,7 @@ void ip_serialize(struct proto_info const *info_, uint8_t **buf)
     serialize_1(buf, info->key.protocol);
     serialize_1(buf, info->version);
     serialize_1(buf, info->ttl);
+    serialize_1(buf, info->way);    // Not really useful to serialize this but we want to be able to compare the output to test serializer
 }
 
 void ip_deserialize(struct proto_info *info_, uint8_t const **buf)
@@ -94,6 +95,7 @@ void ip_deserialize(struct proto_info *info_, uint8_t const **buf)
     info->key.protocol = deserialize_1(buf);
     info->version = deserialize_1(buf);
     info->ttl = deserialize_1(buf);
+    info->way = deserialize_1(buf);
 }
 
 static void ip_proto_info_ctor(struct ip_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, struct ip_hdr const *iphdr)
