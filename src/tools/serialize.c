@@ -52,11 +52,9 @@ static void serialize_info_rec(unsigned depth, uint8_t **buf, struct proto_info 
     }
 }
 
-void serialize_proto_stack(uint8_t **buf, size_t size, struct proto_info const *last)
+void serialize_proto_stack(uint8_t **buf, struct proto_info const *last)
 {
-    uint8_t *limit = (*buf) + size;
     serialize_info_rec(1, buf, last);
-    assert(*buf <= limit);
 }
 
 /*
@@ -162,13 +160,10 @@ static int deserialize_proto_info_rec(unsigned depth, uint8_t const **buf, struc
     return deserialize_proto_info_rec(depth-1, buf, info, okfn);
 }
 
-int deserialize_proto_stack(uint8_t const *buf, size_t size, int (*okfn)(struct proto_info *))
+int deserialize_proto_stack(uint8_t const **buf, int (*okfn)(struct proto_info *))
 {
-    uint8_t const *ptr = buf;
-
-    unsigned depth = deserialize_1(&ptr);   // the msg starts with the protocol stack depth
-    int ret = deserialize_proto_info_rec(depth, &ptr, NULL, okfn);
-    assert(ptr <= buf+size);
+    unsigned depth = deserialize_1(buf);   // the msg starts with the protocol stack depth
+    int ret = deserialize_proto_info_rec(depth, buf, NULL, okfn);
 
     return ret;
 }

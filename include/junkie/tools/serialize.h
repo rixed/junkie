@@ -9,6 +9,7 @@
 
 #define MSG_MAX_SIZE 5000
 #define MSG_PROTO_INFO 1
+#define DATAGRAM_MAX_SIZE 65535
 
 static inline void serialize_1(uint8_t **buf, unsigned v)
 {
@@ -85,8 +86,8 @@ static inline void deserialize_str(uint8_t const **buf, char *dst, size_t max_le
     dst[n] = '\0';
 }
 
-void serialize_proto_stack(uint8_t **buf, size_t size, struct proto_info const *last);
-int deserialize_proto_stack(uint8_t const *buf, size_t size, int (*okfn)(struct proto_info *));
+void serialize_proto_stack(uint8_t **buf, struct proto_info const *last);
+int deserialize_proto_stack(uint8_t const **buf, int (*okfn)(struct proto_info *));
 
 void serialize_init(void);
 void serialize_fini(void);

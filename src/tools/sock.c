@@ -122,6 +122,8 @@ void sock_dtor(struct sock *s)
 
 int sock_send(struct sock *s, void const *buf, size_t len)
 {
+    SLOG(LOG_DEBUG, "Sending %zu bytes to %s", len, s->name);
+
     if (-1 == sendto(s->fd, buf, len, MSG_DONTWAIT, &s->srv_addr, s->srv_addrlen)) {
         // FIXME: limit the rate of this error!
         SLOG(LOG_ERR, "Cannot send %zu bytes to %s: %s", len, s->name, strerror(errno));

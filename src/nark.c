@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <inttypes.h>
+#include <assert.h>
 #include "junkie/config.h"
 #include "junkie/tools/log.h"
 #include "junkie/tools/cli.h"
@@ -119,19 +120,22 @@ static int opt_version(char const unused_ *opt)
 
 static void loop(void)
 {
-    uint8_t buf[MSG_MAX_SIZE];
+    static uint8_t buf[DATAGRAM_MAX_SIZE];
 
     while (sock_is_opened(&sock)) {
         ssize_t s = sock_recv(&sock, buf, sizeof(buf));
+        uint8_t const *ptr = buf;
         if (s > 0) {
-            switch (buf[0]) {
-                case MSG_PROTO_INFO:;
-                    deserialize_proto_stack(buf+1, s-1, dump_proto_stack);
-                    puts("");
-                    break;
-                default:
-                    SLOG(LOG_ERR, "Unknown message of type %"PRIu8, buf[0]);
-                    break;
+            while (ptr < buf+s) {
+                switch (*ptr++) {
+                    case MSG_PROTO_INFO:
+                        (void)deserialize_proto_stack(&ptr, dump_proto_stack);
+                        puts("");
+                        break;
+                    default:
+                        SLOG(LOG_ERR, "Unknown message of type %"PRIu8, ptr[-1]);
+                        break;
+                }
             }
         } else {
             sock_dtor(&sock);
