@@ -58,6 +58,7 @@
 static char const Id[] = "$Id$";
 static char *opt_port =  "28999";
 static struct sock sock;
+static uint_least32_t nb_rcvd_msgs, nb_lost_msgs;
 
 static int dump_proto_stack(struct proto_info *info)
 {
@@ -131,6 +132,16 @@ static void loop(void)
                     case MSG_PROTO_INFO:
                         (void)deserialize_proto_stack(&ptr, dump_proto_stack);
                         puts("");
+                        nb_rcvd_msgs ++;
+                        break;
+                    case MSG_PROTO_STATS:;
+                        uint_least32_t nb_sent_msgs = deserialize_4(&ptr);
+                        nb_lost_msgs = nb_sent_msgs-nb_rcvd_msgs;   // 2-complement rules!
+                        static uint_least32_t prev_lost = 0;
+                        if (nb_lost_msgs != prev_lost) {
+                            prev_lost = nb_lost_msgs;
+                            fprintf(stderr, "lost %"PRIuLEAST32" msgs\n", nb_lost_msgs);
+                        }
                         break;
                     default:
                         SLOG(LOG_ERR, "Unknown message of type %"PRIu8, ptr[-1]);

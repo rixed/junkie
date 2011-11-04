@@ -9,6 +9,7 @@
 
 #define MSG_MAX_SIZE 5000
 #define MSG_PROTO_INFO 1
+#define MSG_PROTO_STATS 2
 #define DATAGRAM_MAX_SIZE 65535
 
 static inline void serialize_1(uint8_t **buf, unsigned v)

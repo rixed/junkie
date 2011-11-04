@@ -39,6 +39,7 @@ static bool inited = false;
  * this buffer is larger than the corresponding info stack. */
 static uint8_t *ser_buf;
 static unsigned ser_cursor;
+static uint_least32_t ser_nb_msgs;
 static struct mutex ser_buf_lock;   // protect ser_buf and ser_cursor
 
 static void ser_send(void)
@@ -95,6 +96,11 @@ int parse_callback(struct proto_info const *info, size_t unused_ cap_len, uint8_
     uint8_t *ptr = ser_buf + ser_cursor;
     serialize_1(&ptr, MSG_PROTO_INFO);
     serialize_proto_stack(&ptr, info);
+    ser_nb_msgs ++;
+    if (0 == (ser_nb_msgs % 32)) {  // from time to time, insert some stats about how many packets were sent
+        serialize_1(&ptr, MSG_PROTO_STATS);
+        serialize_4(&ptr, ser_nb_msgs);
+    }
     ser_cursor = ptr - ser_buf;
     SLOG(LOG_DEBUG, "New buffer cursor = %u", ser_cursor);
     assert(ser_cursor < opt_msg_size);
