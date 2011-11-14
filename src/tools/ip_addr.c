@@ -24,10 +24,10 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <arpa/inet.h>
+#include <junkie/cpp.h>
 #include <junkie/tools/miscmacs.h>
 #include <junkie/tools/tempstr.h>
 #include <junkie/tools/ip_addr.h>
-#include <junkie/cpp.h>
 #include <junkie/tools/log.h>
 
 static char const Id[] = "$Id: 10f0ed302127e3cba365297a48a6d011a88f41a5 $";
@@ -202,6 +202,22 @@ bool ip_addr_match_mask(struct ip_addr const *host, struct ip_addr const *net, s
         return match_mask_byte((uint8_t *)&host->u.v4.s_addr, (uint8_t *)&net->u.v4.s_addr, (uint8_t *)&mask->u.v4.s_addr, 4);
     } else {
         return match_mask_byte(host->u.v6.s6_addr, net->u.v6.s6_addr, mask->u.v6.s6_addr, 16);
+    }
+}
+
+SCM scm_from_ip_addr(struct ip_addr const *ip)
+{
+    if (ip->family == AF_INET) {
+        return scm_from_uint32(ntohl(ip->u.v4.s_addr));
+    } else {
+        uint32_t w4, w3, w2, w1;
+        memcpy(&w4, ((char *)ip->u.v6.s6_addr)+0*sizeof(w4), sizeof(w4));
+        memcpy(&w3, ((char *)ip->u.v6.s6_addr)+1*sizeof(w4), sizeof(w3));
+        memcpy(&w2, ((char *)ip->u.v6.s6_addr)+2*sizeof(w4), sizeof(w2));
+        memcpy(&w1, ((char *)ip->u.v6.s6_addr)+3*sizeof(w4), sizeof(w1));
+        uint64_t hi = ((uint64_t)ntohl(w4) << 32ULL) | ntohl(w3);
+        uint64_t lo = ((uint64_t)ntohl(w2) << 32ULL) | ntohl(w1);
+        return scm_logior(scm_ash(scm_from_uint64(hi), scm_from_uint(64)), scm_from_uint64(lo));
     }
 }
 

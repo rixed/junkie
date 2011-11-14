@@ -100,6 +100,35 @@ static void broadcast_check(void)
     }
 }
 
+static void scm_conv_check(void)
+{
+    scm_init_guile();
+    static struct {
+        int version;
+        char const *str;
+        char const *num;
+    } tests[] = {
+        { 4, "1.0.0.0", "16777216" },
+        { 4, "127.0.0.1", "2130706433" },
+        { 4, "128.10.5.255", "2148140543" },
+        { 6, "ff02::1", "338963523518870617245727861364146307073" },
+        { 6, "1:2:3:4::", "5192455318486707403025865779445760" },
+    };
+
+    for (unsigned t = 0; t < NB_ELEMS(tests); t++) {
+        struct ip_addr addr;
+        ip_addr_ctor_from_str(&addr, tests[t].str, strlen(tests[t].str), tests[t].version);
+        SCM ip = scm_from_ip_addr(&addr);
+        SCM str = scm_simple_format(SCM_BOOL_F, scm_from_latin1_string("~a"), scm_cons(ip, SCM_EOL));
+        char buf[256];
+        size_t len = scm_to_locale_stringbuf(str, buf, sizeof(buf));
+        assert(len < sizeof(buf));
+        buf[len] = '\0';
+        printf("%s -> '%s' (expected '%s')\n", tests[t].str, buf, tests[t].num);
+        assert(0 == strcmp(tests[t].num, buf));
+    }
+}
+
 int main(void)
 {
     log_init();
@@ -110,6 +139,7 @@ int main(void)
     ip_addr_ctor_from_str_check();
     ip_addr_routable_check();
     broadcast_check();
+    scm_conv_check();
 
     log_fini();
     return EXIT_SUCCESS;

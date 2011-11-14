@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <junkie/tools/ext.h>
 
 /** @file
  * @brief Utilities to handle IPv4/6 addresses
@@ -38,5 +39,7 @@ bool ip_addr_is_routable(struct ip_addr const *);
 bool ip_addr_is_broadcast(struct ip_addr const *);
 
 bool ip_addr_match_mask(struct ip_addr const *host, struct ip_addr const *net, struct ip_addr const *mask);
+
+SCM scm_from_ip_addr(struct ip_addr const *ip);
 
 #endif
