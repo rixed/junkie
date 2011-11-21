@@ -67,20 +67,20 @@ int parse_callback(struct proto_info const *info, size_t unused_ cap_len, uint8_
 }
 
 // Extension of the command line:
-static struct cli_opt sender_opts[] = {
+static struct cli_opt serializer_opts[] = {
     { { "dest", NULL }, true, "peer where to send infos", CLI_DUP_STR, { .str = &opt_dest_name } },
     { { "port", NULL }, true, "destination port",         CLI_DUP_STR, { .str = &opt_dest_port } },
 };
 
 void on_load(void)
 {
-    SLOG(LOG_INFO, "Loading sender");
-    cli_register("Sender plugin", sender_opts, NB_ELEMS(sender_opts));
+    SLOG(LOG_INFO, "Loading serializer");
+    cli_register("Serializer plugin", serializer_opts, NB_ELEMS(serializer_opts));
 }
 
 void on_unload(void)
 {
-    SLOG(LOG_INFO, "Unloading sender");
-    cli_unregister(sender_opts);
+    SLOG(LOG_INFO, "Unloading serializer");
+    cli_unregister(serializer_opts);
     fini_cnx();
 }
