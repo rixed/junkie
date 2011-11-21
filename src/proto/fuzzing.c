@@ -25,9 +25,9 @@
 #include <time.h>
 #include <limits.h>
 #include <math.h>
-#include <junkie/tools/log.h>
-#include <junkie/proto/proto.h>
-#include <junkie/proto/cap.h>
+#include "junkie/tools/log.h"
+#include "junkie/proto/proto.h"
+#include "junkie/proto/cap.h"
 #include "proto/fuzzing.h"
 
 

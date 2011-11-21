@@ -22,11 +22,11 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
-#include <junkie/tools/ext.h>
-#include <junkie/tools/mallocer.h>
-#include <junkie/tools/log.h>
-#include <junkie/tools/miscmacs.h>
-#include <junkie/tools/hash.h>
+#include "junkie/tools/ext.h"
+#include "junkie/tools/mallocer.h"
+#include "junkie/tools/log.h"
+#include "junkie/tools/miscmacs.h"
+#include "junkie/tools/hash.h"
 
 static char const Id[] = "$Id: 2775161eeb7e10bfb48b6f4567b0060a4de15779 $";
 

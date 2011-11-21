@@ -6,5 +6,6 @@ noinst_LTLIBRARIES = libtools.la
 libtools_la_SOURCES = \
 	files.c hash.c ip_addr.c jhash.c \
 	log.c mallocer.c mutex.c redim_array.c \
-	tempstr.c timeval.c ext.c cli.c ref.c
-libtools_la_LDFLAGS = -export-dynamic
+	tempstr.c timeval.c ext.c cli.c ref.c \
+	sock.c serialize.c
+libtools_la_LDFLAGS = --export-dynamic

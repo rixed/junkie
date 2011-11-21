@@ -21,16 +21,16 @@
 #include <string.h>
 #include <stdbool.h>
 #include <ctype.h>
-#include <junkie/cpp.h>
-#include <junkie/tools/log.h>
-#include <junkie/tools/tempstr.h>
-#include <junkie/tools/mallocer.h>
-#include <junkie/tools/mutex.h>
-#include <junkie/proto/proto.h>
-#include <junkie/proto/tcp.h>
-#include <junkie/proto/sql.h>
-#include <junkie/proto/streambuf.h>
-#include <junkie/proto/cursor.h>
+#include "junkie/cpp.h"
+#include "junkie/tools/log.h"
+#include "junkie/tools/tempstr.h"
+#include "junkie/tools/mallocer.h"
+#include "junkie/tools/mutex.h"
+#include "junkie/proto/proto.h"
+#include "junkie/proto/tcp.h"
+#include "junkie/proto/sql.h"
+#include "junkie/proto/streambuf.h"
+#include "junkie/proto/cursor.h"
 
 static char const Id[] = "$Id$";
 
@@ -477,13 +477,15 @@ void mysql_init(void)
     log_category_proto_mysql_init();
 
     static struct proto_ops const ops = {
-        .parse      = mysql_parse,
-        .parser_new = mysql_parser_new,
-        .parser_del = mysql_parser_del,
-        .info_2_str = sql_info_2_str,
-        .info_addr  = sql_info_addr,
+        .parse       = mysql_parse,
+        .parser_new  = mysql_parser_new,
+        .parser_del  = mysql_parser_del,
+        .info_2_str  = sql_info_2_str,
+        .info_addr   = sql_info_addr,
+        .serialize   = sql_serialize,
+        .deserialize = sql_deserialize,
     };
-    proto_ctor(&proto_mysql_, &ops, "MySQL");
+    proto_ctor(&proto_mysql_, &ops, "MySQL", PROTO_CODE_MYSQL);
     port_muxer_ctor(&mysql_tcp_muxer, &tcp_port_muxers, 3306, 3306, proto_mysql);
 }
 

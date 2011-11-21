@@ -23,14 +23,15 @@
 #include <assert.h>
 #include <string.h>
 #include <inttypes.h>
-#include <junkie/tools/tempstr.h>
-#include <junkie/tools/mallocer.h>
-#include <junkie/tools/mutex.h>
-#include <junkie/proto/tcp.h>
-#include <junkie/proto/http.h>
-#include <junkie/proto/streambuf.h>
-#include <junkie/cpp.h>
-#include <junkie/tools/log.h>
+#include "junkie/tools/tempstr.h"
+#include "junkie/tools/mallocer.h"
+#include "junkie/tools/mutex.h"
+#include "junkie/tools/serialize.h"
+#include "junkie/proto/tcp.h"
+#include "junkie/proto/http.h"
+#include "junkie/proto/streambuf.h"
+#include "junkie/cpp.h"
+#include "junkie/tools/log.h"
 #include "proto/httper.h"
 #include "proto/liner.h"
 
@@ -141,19 +142,45 @@ static void const *http_info_addr(struct proto_info const *info_, size_t *size)
     return info;
 }
 
-char const *http_info_2_str(struct proto_info const *info_)
+static char const *http_info_2_str(struct proto_info const *info_)
 {
     struct http_proto_info const *info = DOWNCAST(info_, info, http_proto_info);
     char *str = tempstr();
     snprintf(str, TEMPSTR_SIZE, "%s, method=%s, code=%s, content_length=%s, mime_type=%s, host=%s, url=%s",
         proto_info_2_str(info_),
-        info->set_values & HTTP_METHOD_SET   ? http_method_2_str(info->method)             : "unset",
-        info->set_values & HTTP_CODE_SET     ? tempstr_printf("%u", info->code)            : "unset",
-        info->set_values & HTTP_LENGTH_SET   ? tempstr_printf("%zu", info->content_length) : "unset",
-        info->set_values & HTTP_MIME_SET     ? info->mime_type                             : "unset",
-        info->set_values & HTTP_HOST_SET     ? info->host                                  : "unset",
-        info->set_values & HTTP_URL_SET      ? info->url                                   : "unset");
+        info->set_values & HTTP_METHOD_SET   ? http_method_2_str(info->method)            : "unset",
+        info->set_values & HTTP_CODE_SET     ? tempstr_printf("%u", info->code)           : "unset",
+        info->set_values & HTTP_LENGTH_SET   ? tempstr_printf("%u", info->content_length) : "unset",
+        info->set_values & HTTP_MIME_SET     ? info->mime_type                            : "unset",
+        info->set_values & HTTP_HOST_SET     ? info->host                                 : "unset",
+        info->set_values & HTTP_URL_SET      ? info->url                                  : "unset");
     return str;
+}
+
+static void http_serialize(struct proto_info const *info_, uint8_t **buf)
+{
+    struct http_proto_info const *info = DOWNCAST(info_, info, http_proto_info);
+    proto_info_serialize(info_, buf);
+    serialize_1(buf, info->set_values);
+    if (info->set_values & HTTP_METHOD_SET) serialize_1(buf, info->method);
+    if (info->set_values & HTTP_CODE_SET) serialize_2(buf, info->code);
+    if (info->set_values & HTTP_LENGTH_SET) serialize_4(buf, info->content_length);
+    if (info->set_values & HTTP_MIME_SET) serialize_str(buf, info->mime_type);
+    if (info->set_values & HTTP_HOST_SET) serialize_str(buf, info->host);
+    if (info->set_values & HTTP_URL_SET) serialize_str(buf, info->url);
+}
+
+static void http_deserialize(struct proto_info *info_, uint8_t const **buf)
+{
+    struct http_proto_info *info = DOWNCAST(info_, info, http_proto_info);
+    proto_info_deserialize(info_, buf);
+    info->set_values = deserialize_1(buf);
+    if (info->set_values & HTTP_METHOD_SET) info->method = deserialize_1(buf);
+    if (info->set_values & HTTP_CODE_SET) info->code = deserialize_2(buf);
+    if (info->set_values & HTTP_LENGTH_SET) info->content_length = deserialize_4(buf);
+    if (info->set_values & HTTP_MIME_SET) deserialize_str(buf, info->mime_type, sizeof(info->mime_type));
+    if (info->set_values & HTTP_HOST_SET) deserialize_str(buf, info->host, sizeof(info->host));
+    if (info->set_values & HTTP_URL_SET) deserialize_str(buf, info->url, sizeof(info->url));
 }
 
 static void http_proto_info_ctor(struct http_proto_info *info, struct http_parser *http_parser, struct proto_info *parent, size_t head_len, size_t payload)
@@ -396,13 +423,15 @@ void http_init(void)
     log_category_proto_http_init();
 
     static struct proto_ops const ops = {
-        .parse      = http_parse,
-        .parser_new = http_parser_new,
-        .parser_del = http_parser_del,
-        .info_2_str = http_info_2_str,
-        .info_addr  = http_info_addr,
+        .parse       = http_parse,
+        .parser_new  = http_parser_new,
+        .parser_del  = http_parser_del,
+        .info_2_str  = http_info_2_str,
+        .info_addr   = http_info_addr,
+        .serialize   = http_serialize,
+        .deserialize = http_deserialize,
     };
-    proto_ctor(&proto_http_, &ops, "HTTP");
+    proto_ctor(&proto_http_, &ops, "HTTP", PROTO_CODE_HTTP);
     port_muxer_ctor(&tcp_port_muxer, &tcp_port_muxers, 80, 80, proto_http);
 }
 

@@ -24,11 +24,12 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <arpa/inet.h>
-#include <junkie/cpp.h>
-#include <junkie/tools/miscmacs.h>
-#include <junkie/tools/tempstr.h>
-#include <junkie/tools/ip_addr.h>
-#include <junkie/tools/log.h>
+#include "junkie/cpp.h"
+#include "junkie/tools/miscmacs.h"
+#include "junkie/tools/tempstr.h"
+#include "junkie/tools/ip_addr.h"
+#include "junkie/tools/log.h"
+#include "junkie/tools/serialize.h"
 
 static char const Id[] = "$Id: 10f0ed302127e3cba365297a48a6d011a88f41a5 $";
 
@@ -221,3 +222,31 @@ SCM scm_from_ip_addr(struct ip_addr const *ip)
     }
 }
 
+void ip_addr_serialize(struct ip_addr const *addr, uint8_t **buf)
+{
+	if (addr->family == AF_INET) {
+		serialize_1(buf, 4);
+		serialize_4(buf, addr->u.v4.s_addr);
+	} else if (addr->family == AF_INET6) {
+		serialize_1(buf, 6);
+		serialize_n(buf, &addr->u.v6, sizeof(addr->u.v6));
+	} else {
+		SLOG(LOG_ERR, "Cannot serialize ip_addr of unknown type");
+	}
+}
+
+void ip_addr_deserialize(struct ip_addr *addr, uint8_t const **buf)
+{
+    unsigned version = deserialize_1(buf);
+    if (version == 4) {
+        addr->family = AF_INET;
+        addr->u.v4.s_addr = deserialize_4(buf);
+    } else if (version == 6) {
+        addr->family = AF_INET6;
+        deserialize_n(buf, &addr->u.v6, sizeof(addr->u.v6));
+    } else {
+        SLOG(LOG_ERR, "Cannot deserialize ip_addr of version %u", version);
+        addr->family = AF_INET; // run forest, run!
+        addr->u.v4.s_addr = 0U;
+    }
+}

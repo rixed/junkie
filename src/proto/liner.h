@@ -4,7 +4,7 @@
 #define LINER_H_100429
 #include <unistd.h>
 #include <stdbool.h>
-#include <junkie/cpp.h>
+#include "junkie/cpp.h"
 
 struct liner {
     char const *start;

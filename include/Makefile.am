@@ -42,5 +42,7 @@ pkginclude_HEADERS = \
 	junkie/tools/log.h \
 	junkie/tools/redim_array.h \
 	junkie/tools/cli.h \
-	junkie/tools/ref.h
+	junkie/tools/ref.h \
+	junkie/tools/sock.h \
+	junkie/tools/serialize.h
 

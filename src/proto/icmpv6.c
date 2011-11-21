@@ -21,9 +21,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
-#include <junkie/tools/tempstr.h>
-#include <junkie/proto/icmp.h>
-#include <junkie/proto/ip.h>
+#include "junkie/tools/tempstr.h"
+#include "junkie/proto/icmp.h"
+#include "junkie/proto/ip.h"
 #include "proto/ip_hdr.h"
 
 static char const icmpv6_Id[] = "$Id: be896b1f62e312d5d97d8f01af293f1a9fd19294 $";
@@ -58,6 +58,7 @@ static void const *icmpv6_info_addr(struct proto_info const *info_, size_t *size
     return info;
 }
 
+// Not the same than ICMP(v4) since the error codes are different.
 static char const *icmpv6_info_2_str(struct proto_info const *info_)
 {
     struct icmp_proto_info const *info = DOWNCAST(info_, info, icmp_proto_info);
@@ -149,13 +150,15 @@ void icmpv6_init(void)
     log_category_proto_icmpv6_init();
 
     static struct proto_ops const ops = {
-        .parse      = icmpv6_parse,
-        .parser_new = uniq_parser_new,
-        .parser_del = uniq_parser_del,
-        .info_2_str = icmpv6_info_2_str,
-        .info_addr  = icmpv6_info_addr,
+        .parse       = icmpv6_parse,
+        .parser_new  = uniq_parser_new,
+        .parser_del  = uniq_parser_del,
+        .info_2_str  = icmpv6_info_2_str,
+        .info_addr   = icmpv6_info_addr,
+        .serialize   = icmp_serialize,
+        .deserialize = icmp_deserialize,
     };
-    uniq_proto_ctor(&uniq_proto_icmpv6, &ops, "ICMPv6");
+    uniq_proto_ctor(&uniq_proto_icmpv6, &ops, "ICMPv6", PROTO_CODE_ICMP /* since we share the same info struct */);
     ip6_subproto_ctor(&icmpv6_ip6_subproto, IPPROTO_ICMPV6, proto_icmpv6);
 }
 

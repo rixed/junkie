@@ -22,16 +22,17 @@
 #include <string.h>
 #include <inttypes.h>
 #include <stdio.h>
-#include <junkie/cpp.h>
-#include <junkie/tools/ext.h>
-#include <junkie/tools/mallocer.h>
-#include <junkie/tools/hash.h>
-#include <junkie/tools/tempstr.h>
-#include <junkie/tools/log.h>
-#include <junkie/tools/queue.h>
-#include <junkie/proto/pkt_wait_list.h>
-#include <junkie/proto/ip.h>
-#include <junkie/proto/tcp.h>
+#include "junkie/cpp.h"
+#include "junkie/tools/ext.h"
+#include "junkie/tools/mallocer.h"
+#include "junkie/tools/hash.h"
+#include "junkie/tools/tempstr.h"
+#include "junkie/tools/log.h"
+#include "junkie/tools/queue.h"
+#include "junkie/tools/serialize.h"
+#include "junkie/proto/pkt_wait_list.h"
+#include "junkie/proto/ip.h"
+#include "junkie/proto/tcp.h"
 #include "proto/ip_hdr.h"
 
 static char const Id[] = "$Id: f1e4973c1763a7a217c77b2e7a667edf3f209eb7 $";
@@ -69,6 +70,34 @@ static char const *tcp_info_2_str(struct proto_info const *info_)
         info->ack_num,
         info->seq_num);
     return str;
+}
+
+static void tcp_serialize(struct proto_info const *info_, uint8_t **buf)
+{
+    struct tcp_proto_info const *info = DOWNCAST(info_, info, tcp_proto_info);
+    proto_info_serialize(info_, buf);
+    serialize_2(buf, info->key.port[0]);
+    serialize_2(buf, info->key.port[1]);
+    serialize_1(buf, info->syn + (info->ack<<1) + (info->rst<<2) + (info->fin<<3));
+    serialize_2(buf, info->window);
+    serialize_4(buf, info->ack_num);
+    serialize_4(buf, info->seq_num);
+}
+
+static void tcp_deserialize(struct proto_info *info_, uint8_t const **buf)
+{
+    struct tcp_proto_info *info = DOWNCAST(info_, info, tcp_proto_info);
+    proto_info_deserialize(info_, buf);
+    info->key.port[0] = deserialize_2(buf);
+    info->key.port[1] = deserialize_2(buf);
+    unsigned flags = deserialize_1(buf);
+    info->syn = !!(flags & 1);
+    info->ack = !!(flags & 2);
+    info->rst = !!(flags & 4);
+    info->fin = !!(flags & 8);
+    info->window = deserialize_2(buf);
+    info->ack_num = deserialize_4(buf);
+    info->seq_num = deserialize_4(buf);
 }
 
 static void tcp_proto_info_ctor(struct tcp_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, uint16_t sport, uint16_t dport, struct tcp_hdr const *tcphdr)
@@ -368,17 +397,19 @@ void tcp_init(void)
     pkt_wl_config_ctor(&tcp_wl_config, "TCP-reordering", 100000, 100, 100000, 10 /* REORDERING TIMEOUT (second) */);
 
     static struct proto_ops const ops = {
-        .parse      = tcp_parse,
-        .parser_new = mux_parser_new,
-        .parser_del = mux_parser_del,
-        .info_2_str = tcp_info_2_str,
-        .info_addr  = tcp_info_addr,
+        .parse       = tcp_parse,
+        .parser_new  = mux_parser_new,
+        .parser_del  = mux_parser_del,
+        .info_2_str  = tcp_info_2_str,
+        .info_addr   = tcp_info_addr,
+        .serialize   = tcp_serialize,
+        .deserialize = tcp_deserialize,
     };
     static struct mux_proto_ops const mux_ops = {
         .subparser_new = tcp_subparser_new,
         .subparser_del = tcp_subparser_del,
     };
-    mux_proto_ctor(&mux_proto_tcp, &ops, &mux_ops, "TCP", sizeof(struct tcp_key), TCP_HASH_SIZE);
+    mux_proto_ctor(&mux_proto_tcp, &ops, &mux_ops, "TCP", PROTO_CODE_TCP, sizeof(struct tcp_key), TCP_HASH_SIZE);
     port_muxer_list_ctor(&tcp_port_muxers, "TCP muxers");
     ip_subproto_ctor(&ip_subproto, IPPROTO_TCP, proto_tcp);
     ip6_subproto_ctor(&ip6_subproto, IPPROTO_TCP, proto_tcp);

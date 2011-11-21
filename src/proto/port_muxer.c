@@ -20,9 +20,9 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <inttypes.h>
-#include <junkie/tools/log.h>
-#include <junkie/tools/mallocer.h>
-#include <junkie/proto/port_muxer.h>
+#include "junkie/tools/log.h"
+#include "junkie/tools/mallocer.h"
+#include "junkie/proto/port_muxer.h"
 
 #undef LOG_CAT
 #define LOG_CAT proto_log_category

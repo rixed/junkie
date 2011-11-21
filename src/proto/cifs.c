@@ -18,7 +18,7 @@
  * along with Junkie.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <junkie/proto/cifs.h>
+#include "junkie/proto/cifs.h"
 
 static char const Id[] = "$Id: dc743f7b4589d91ff5d4b2500ede0f478ebdb2de $";
 

@@ -20,9 +20,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include <junkie/tools/log.h>
-#include <junkie/tools/mallocer.h>
-#include <junkie/proto/streambuf.h>
+#include "junkie/tools/log.h"
+#include "junkie/tools/mallocer.h"
+#include "junkie/proto/streambuf.h"
 
 static char const Id[] = "$Id$";
 

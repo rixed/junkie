@@ -4,9 +4,9 @@
 #define PLUGINS_H_101007
 #include <limits.h>
 #include <ltdl.h>
-#include <junkie/proto/proto.h>
-#include <junkie/tools/queue.h>
-#include <junkie/tools/mutex.h>
+#include "junkie/proto/proto.h"
+#include "junkie/tools/queue.h"
+#include "junkie/tools/mutex.h"
 
 struct mutex plugins_mutex;  // protects the plugins list
 

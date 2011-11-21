@@ -3,7 +3,7 @@ SUBDIRS = tools proto .
 AM_CFLAGS = -std=c99 -Wall -W
 AM_CPPFLAGS = -I $(top_srcdir)/include -D_GNU_SOURCE -DTAGNAME=@TAGNAME@ -DBRANCHNAME=@BRANCHNAME@ -DCOMP_HOST=@COMP_HOST@ -DSYSCONFDIR=$(sysconfdir)
 
-bin_PROGRAMS = junkie
+bin_PROGRAMS = junkie nark
 dist_bin_SCRIPTS = juncli
 
 junkie_SOURCES = \
@@ -18,3 +18,9 @@ junkie_SOURCES = \
 
 junkie_LDADD = proto/libproto.la tools/libtools.la
 junkie_LDFLAGS = -export-dynamic
+
+nark_SOURCES = \
+	nark.c
+
+nark_LDADD = proto/libproto.la tools/libtools.la
+

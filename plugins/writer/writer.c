@@ -21,11 +21,11 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <regex.h>
-#include <junkie/cpp.h>
-#include <junkie/capfile.h>
-#include <junkie/tools/cli.h>
-#include <junkie/proto/proto.h>
-#include <junkie/proto/cap.h>
+#include "junkie/cpp.h"
+#include "junkie/capfile.h"
+#include "junkie/tools/cli.h"
+#include "junkie/proto/proto.h"
+#include "junkie/proto/cap.h"
 
 static char *opt_file = NULL;
 static char *opt_method = "pcap";

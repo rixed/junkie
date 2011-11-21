@@ -19,9 +19,9 @@
  */
 #include <stdlib.h>
 #include <stdio.h>
-#include <junkie/proto/proto.h>
-#include <junkie/cpp.h>
-#include <junkie/tools/cli.h>
+#include "junkie/proto/proto.h"
+#include "junkie/cpp.h"
+#include "junkie/tools/cli.h"
 
 static bool display_caplen;
 static struct cli_opt dumper_opts[] = {
@@ -32,7 +32,7 @@ static struct cli_opt dumper_opts[] = {
 static void dump_frame_rec(struct proto_info const *info)
 {
     if (info->parent) dump_frame_rec(info->parent);
-    printf("%s@%p: %s\n", info->parser->proto->name, info->parser, info->parser->proto->ops->info_2_str(info));
+    printf("%s: %s\n", info->parser->proto->name, info->parser->proto->ops->info_2_str(info));
 }
 
 int parse_callback(struct proto_info const *last, size_t cap_len, uint8_t const unused_ *packet)

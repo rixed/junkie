@@ -22,13 +22,13 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <junkie/cpp.h>
-#include <junkie/tools/tempstr.h>
-#include <junkie/tools/miscmacs.h>
-#include <junkie/proto/proto.h>
-#include <junkie/proto/tcp.h>
-#include <junkie/proto/bittorrent.h>
-#include <junkie/tools/log.h>
+#include "junkie/cpp.h"
+#include "junkie/tools/tempstr.h"
+#include "junkie/tools/miscmacs.h"
+#include "junkie/proto/proto.h"
+#include "junkie/proto/tcp.h"
+#include "junkie/proto/bittorrent.h"
+#include "junkie/tools/log.h"
 
 static char const bittorrent_Id[] = "$Id: bb54fce9fbd42ea3ac1130ba0d0f994a3deaae1a $";
 
@@ -79,13 +79,15 @@ void bittorrent_init(void)
     log_category_proto_bittorrent_init();
 
     static struct proto_ops const ops = {
-        .parse      = bittorrent_parse,
-        .parser_new = uniq_parser_new,
-        .parser_del = uniq_parser_del,
-        .info_2_str = proto_info_2_str,
-        .info_addr  = proto_info_addr,
+        .parse       = bittorrent_parse,
+        .parser_new  = uniq_parser_new,
+        .parser_del  = uniq_parser_del,
+        .info_2_str  = proto_info_2_str,
+        .info_addr   = proto_info_addr,
+        .serialize   = proto_info_serialize,
+        .deserialize = proto_info_deserialize,
     };
-    uniq_proto_ctor(&uniq_proto_bittorrent, &ops, "bittorrent");
+    uniq_proto_ctor(&uniq_proto_bittorrent, &ops, "bittorrent", PROTO_CODE_BITTORRENT);
     port_muxer_ctor(&tcp_port_muxer, &tcp_port_muxers, 6881, 6999, proto_bittorrent);
 }
 

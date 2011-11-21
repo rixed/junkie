@@ -20,10 +20,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include <junkie/proto/pkt_wait_list.h>
-#include <junkie/tools/log.h>
-#include <junkie/tools/mallocer.h>
-#include <junkie/tools/ext.h>
+#include "junkie/proto/pkt_wait_list.h"
+#include "junkie/tools/log.h"
+#include "junkie/tools/mallocer.h"
+#include "junkie/tools/ext.h"
 
 static char const Id[] = "$Id$";
 

@@ -37,5 +37,7 @@ char const *timeval_2_str(struct timeval const *);
 void timeval_set_now(struct timeval *);
 void timeval_set_min(struct timeval *restrict, struct timeval const *restrict);
 void timeval_set_max(struct timeval *restrict, struct timeval const *restrict);
+void timeval_serialize(struct timeval const *, uint8_t **);
+void timeval_deserialize(struct timeval *, uint8_t const **);
 
 #endif

@@ -1,3 +1,5 @@
+// -*- c-basic-offset: 4; c-backslash-column: 79; indent-tabs-mode: nil -*-
+// vim:sw=4 ts=4 sts=4 expandtab
 #ifndef FILE_H_100412
 #define FILE_H_100412
 #include <stdbool.h>

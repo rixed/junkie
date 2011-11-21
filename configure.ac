@@ -71,6 +71,7 @@ AC_CONFIG_FILES([
 	plugins/writer/Makefile
 	plugins/rater/Makefile
 	plugins/arpgraph/Makefile
+	plugins/serializer/Makefile
 	config/Makefile
 	guile/Makefile
 	guile/junkie/Makefile

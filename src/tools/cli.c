@@ -22,13 +22,13 @@
 #include <stdarg.h>
 #include <string.h>
 #include <strings.h>
-#include <junkie/cpp.h>
-#include <junkie/tools/miscmacs.h>
-#include <junkie/tools/queue.h>
-#include <junkie/tools/mutex.h>
-#include <junkie/tools/mallocer.h>
-#include <junkie/tools/ext.h>   // for version_string
-#include <junkie/tools/cli.h>
+#include "junkie/cpp.h"
+#include "junkie/tools/miscmacs.h"
+#include "junkie/tools/queue.h"
+#include "junkie/tools/mutex.h"
+#include "junkie/tools/mallocer.h"
+#include "junkie/tools/ext.h"   // for version_string
+#include "junkie/tools/cli.h"
 
 static char const Id[] = "$Id$";
 

@@ -215,12 +215,13 @@
     (do ((entry (readdir dir) (readdir dir)))
       ((eof-object? entry))
       (if (not (string-match "^\\.\\.?$" entry))
-          (fun entry)))
+          (fun (string-append path "/" entry))))
     (closedir dir)))
 
 (define-public (up-all-ifaces)
-  (let* ((up-iface    (lambda (file)
-                        (let ((cmd (simple-format #f "/sbin/ifconfig ~a up" file)))
+  (let* ((up-iface    (lambda (path)
+                        (let* ((file (basename path))
+                               (cmd (simple-format #f "/sbin/ifconfig ~a up" file)))
                           (system cmd)))))
     (for-each-file-in "/sys/class/net" up-iface)))
 

@@ -27,6 +27,7 @@ m4
 include/junkie/config.h
 include/junkie/stamp-h1
 src/junkie
+src/nark
 core.*
 core
 vgcore.*

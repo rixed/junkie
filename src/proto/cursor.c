@@ -18,8 +18,8 @@
  * along with Junkie.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <stdlib.h>
-#include <junkie/tools/log.h>
-#include <junkie/proto/cursor.h>
+#include "junkie/tools/log.h"
+#include "junkie/proto/cursor.h"
 
 void cursor_rollback(struct cursor *cursor, size_t n)
 {

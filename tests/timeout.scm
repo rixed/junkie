@@ -15,11 +15,9 @@
          (nb-parsers (map (lambda (s) (assq-ref s 'nb-parsers)) stats)))
     (reduce + 0 nb-parsers)))
   
-(define (play-pcap-from dir)
-  (simple-format #t "Playing all pcap from ~a~%" dir)
-  (for-each-file-in (string-append "pcap/" dir)
-                    (lambda (f) (open-pcap (string-append "pcap/" dir "/" f)))))
-(for-each-file-in "pcap/" play-pcap-from)
+(for-each-file-in "pcap/" (lambda (dir)
+                            (simple-format #t "Playing all pcap from ~a~%" dir)
+                            (for-each-file-in dir open-pcap)))
 
 (set-mux-timeout 1)
 

@@ -21,8 +21,9 @@
 #include <inttypes.h>
 #include <assert.h>
 #include <time.h>
-#include <junkie/tools/timeval.h>
-#include <junkie/tools/tempstr.h>
+#include "junkie/tools/timeval.h"
+#include "junkie/tools/tempstr.h"
+#include "junkie/tools/serialize.h"
 
 static char const Id[] = "$Id: ca2697009ffd184a7562c03c166f837e9c732021 $";
 
@@ -117,4 +118,16 @@ void timeval_set_min(struct timeval *restrict a, struct timeval const *restrict 
 void timeval_set_max(struct timeval *restrict a, struct timeval const *restrict b)
 {
     if (timeval_cmp(a, b) < 0) *a = *b;
+}
+
+void timeval_serialize(struct timeval const *tv, uint8_t **buf)
+{
+    serialize_4(buf, tv->tv_sec);
+    serialize_4(buf, tv->tv_usec);
+}
+
+void timeval_deserialize(struct timeval *tv, uint8_t const **buf)
+{
+    tv->tv_sec = deserialize_4(buf);
+    tv->tv_usec = deserialize_4(buf);
 }

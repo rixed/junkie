@@ -20,11 +20,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <inttypes.h>
-#include <junkie/cpp.h>
-#include <junkie/capfile.h>
-#include <junkie/tools/cli.h>
-#include <junkie/proto/proto.h>
-#include <junkie/proto/cap.h>
+#include "junkie/cpp.h"
+#include "junkie/capfile.h"
+#include "junkie/tools/cli.h"
+#include "junkie/proto/proto.h"
+#include "junkie/proto/cap.h"
 
 struct capfile *capfile;
 static char *opt_file;

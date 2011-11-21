@@ -20,13 +20,13 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
-#include <junkie/config.h>
+#include "junkie/config.h"
 #ifdef HAVE_MALLOC_H
 #   include <malloc.h>
 #endif
-#include <junkie/tools/ext.h>
-#include <junkie/tools/mallocer.h>
-#include <junkie/tools/mutex.h>
+#include "junkie/tools/ext.h"
+#include "junkie/tools/mallocer.h"
+#include "junkie/tools/mutex.h"
 
 static char const Id[] = "$Id: ad2fe95c8bace3f7f278f0b1bcfde0f0639cf1ba $";
 

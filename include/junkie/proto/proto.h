@@ -137,8 +137,23 @@ struct proto {
         char const *(*info_2_str)(struct proto_info const *);
         /// Return the start address and size of an overloaded proto_info (used to copy it, see pkt_wait_list)
         void const *(*info_addr)(struct proto_info const *, size_t *);
+        /// Serialize its info into a buffer (that's sufficiently large) (see tools/serialize.h for helpers)
+        void (*serialize)(struct proto_info const *, uint8_t **);
+        /// Deserialize from buf (supposed large enought) to info (supposed pointing to the correct subtype)
+        void (*deserialize)(struct proto_info *, uint8_t const **);
     } const *ops;
     char const *name;       ///< Protocol name, used mainly for pretty-printing
+    enum proto_code {
+        PROTO_CODE_CAP, PROTO_CODE_ETH, PROTO_CODE_ARP,
+        PROTO_CODE_IP, PROTO_CODE_IP6, PROTO_CODE_UDP,
+        PROTO_CODE_TCP, PROTO_CODE_DNS, PROTO_CODE_FTP,
+        PROTO_CODE_GRE, PROTO_CODE_HTTP, PROTO_CODE_ICMP,
+        PROTO_CODE_MGCP, PROTO_CODE_RTCP, PROTO_CODE_RTP,
+        PROTO_CODE_SDP, PROTO_CODE_SIP, PROTO_CODE_TNS,
+        PROTO_CODE_PGSQL, PROTO_CODE_MYSQL,
+        PROTO_CODE_BITTORRENT, PROTO_CODE_NETBIOS, PROTO_CODE_SSL,
+        PROTO_CODE_DUMMY, PROTO_CODE_MAX
+    } code;                 ///< Numeric code used for instance to serialize these events
     uint64_t nb_frames;     ///< How many times we called this parse (count frames only if this parser is never called more than once on a frame)
     uint64_t nb_bytes;      ///< How many bytes this proto had on wire
     /// How many parsers of this proto exists
@@ -161,7 +176,8 @@ extern struct proto *proto_dummy;
 void proto_ctor(
     struct proto *proto,            ///< The proto to construct
     struct proto_ops const *ops,    ///< The ops structure of this implementation
-    char const *name                ///< A name for the proto
+    char const *name,               ///< A name for the proto
+    enum proto_code code            ///< The numeric code identifying this proto
 );
 
 /// Destruct a proto (some parsers may still be present after this if referenced by other parsers)
@@ -205,6 +221,12 @@ char const *proto_info_2_str(struct proto_info const *);
 /// Base implementation for info_addr method.
 /** Use it if you do not overload proto_info (?) */
 void const *proto_info_addr(struct proto_info const *, size_t *);
+
+/// Serializer for base proto_info struct.
+void proto_info_serialize(struct proto_info const *, uint8_t **);
+
+/// Deserializer for base proto_info struct.
+void proto_info_deserialize(struct proto_info *, uint8_t const **);
 
 /// Helper for metric modules.
 /** @returns the last proto_info owned by the given proto.
@@ -380,6 +402,7 @@ void mux_proto_ctor(
     struct proto_ops const *ops,    ///< The methods for this proto
     struct mux_proto_ops const *mux_ops,    ///< The methods specific to mux_proto
     char const *name,               ///< Protocol name
+    enum proto_code code,           ///< Protocol Id
     size_t key_size,                ///< Size of the key used to identify subparsers
     unsigned hash_size              ///< Hash size for storing the subparsers
 );
@@ -549,7 +572,12 @@ struct uniq_proto {
 };
 
 /// Construct a uniq_proto
-void uniq_proto_ctor(struct uniq_proto *uniq_proto, struct proto_ops const *ops, char const *name);
+void uniq_proto_ctor(
+    struct uniq_proto *uniq_proto,  ///< Uniq proto that's being constructed
+    struct proto_ops const *ops,    ///< Its operations
+    char const *name,               ///< Its name
+    enum proto_code code            ///< Its Id
+);
 
 /// Destruct a uniq_proto
 void uniq_proto_dtor(struct uniq_proto *uniq_proto);

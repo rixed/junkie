@@ -21,13 +21,14 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <junkie/tools/tempstr.h>
-#include <junkie/tools/miscmacs.h>
-#include <junkie/proto/proto.h>
-#include <junkie/proto/tcp.h>
-#include <junkie/proto/ssl.h>
-#include <junkie/cpp.h>
-#include <junkie/tools/log.h>
+#include "junkie/tools/tempstr.h"
+#include "junkie/tools/miscmacs.h"
+#include "junkie/tools/serialize.h"
+#include "junkie/proto/proto.h"
+#include "junkie/proto/tcp.h"
+#include "junkie/proto/ssl.h"
+#include "junkie/cpp.h"
+#include "junkie/tools/log.h"
 
 static char const ssl_Id[] = "$Id: ff47704a50c73c27351f09b954f78b1fff8aeda4 $";
 
@@ -71,6 +72,20 @@ static char const *ssl_info_2_str(struct proto_info const *info_)
         proto_info_2_str(info_),
         ssl_mode_2_str(info->mode));
     return str;
+}
+
+static void ssl_serialize(struct proto_info const *info_, uint8_t **buf)
+{
+    struct ssl_proto_info const *info = DOWNCAST(info_, info, ssl_proto_info);
+    proto_info_serialize(info_, buf);
+    serialize_1(buf, info->mode);
+}
+
+static void ssl_deserialize(struct proto_info *info_, uint8_t const **buf)
+{
+    struct ssl_proto_info *info = DOWNCAST(info_, info, ssl_proto_info);
+    proto_info_deserialize(info_, buf);
+    info->mode = deserialize_1(buf);
 }
 
 static void ssl_proto_info_ctor(struct ssl_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, enum ssl_mode mode)
@@ -151,13 +166,15 @@ void ssl_init(void)
     log_category_proto_ssl_init();
 
     static struct proto_ops const ops = {
-        .parse      = ssl_parse,
-        .parser_new = uniq_parser_new,
-        .parser_del = uniq_parser_del,
-        .info_2_str = ssl_info_2_str,
-        .info_addr  = ssl_info_addr,
+        .parse       = ssl_parse,
+        .parser_new  = uniq_parser_new,
+        .parser_del  = uniq_parser_del,
+        .info_2_str  = ssl_info_2_str,
+        .info_addr   = ssl_info_addr,
+        .serialize   = ssl_serialize,
+        .deserialize = ssl_deserialize,
     };
-    uniq_proto_ctor(&uniq_proto_ssl, &ops, "SSL");
+    uniq_proto_ctor(&uniq_proto_ssl, &ops, "SSL", PROTO_CODE_SSL);
     port_muxer_ctor(&tcp_port_muxer, &tcp_port_muxers, 443, 443, proto_ssl);
 }
 

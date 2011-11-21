@@ -22,11 +22,12 @@
 #include <string.h>
 #include <inttypes.h>
 #include <arpa/inet.h>
-#include <junkie/cpp.h>
-#include <junkie/tools/tempstr.h>
-#include <junkie/proto/proto.h>
-#include <junkie/proto/udp.h>
-#include <junkie/proto/dns.h>
+#include "junkie/cpp.h"
+#include "junkie/tools/tempstr.h"
+#include "junkie/tools/serialize.h"
+#include "junkie/proto/proto.h"
+#include "junkie/proto/udp.h"
+#include "junkie/proto/dns.h"
 
 static char const Id[] = "$Id: 37812fa0f43e01eeaf93d649ebc8f11fa64aa3c0 $";
 
@@ -121,6 +122,30 @@ static char const *dns_info_2_str(struct proto_info const *info_)
         info->name);
 
     return str;
+}
+
+static void dns_serialize(struct proto_info const *info_, uint8_t **buf)
+{
+    struct dns_proto_info const *info = DOWNCAST(info_, info, dns_proto_info);
+    proto_info_serialize(info_, buf);
+    serialize_1(buf, info->query);
+    serialize_2(buf, info->transaction_id);
+    serialize_2(buf, info->error_code);
+    serialize_2(buf, info->request_type);
+    serialize_1(buf, info->dns_class);
+    serialize_str(buf, info->name);
+}
+
+static void dns_deserialize(struct proto_info *info_, uint8_t const **buf)
+{
+    struct dns_proto_info *info = DOWNCAST(info_, info, dns_proto_info);
+    proto_info_deserialize(info_, buf);
+    info->query = deserialize_1(buf);
+    info->transaction_id = deserialize_2(buf);
+    info->error_code = deserialize_2(buf);
+    info->request_type = deserialize_2(buf);
+    info->dns_class = deserialize_1(buf);
+    deserialize_str(buf, info->name, sizeof(info->name));
 }
 
 static void dns_proto_info_ctor(struct dns_proto_info *info, struct parser *parser, struct proto_info *parent, size_t packet_len, uint16_t transaction_id, uint16_t flags)
@@ -250,13 +275,15 @@ void dns_init(void)
     log_category_proto_dns_init();
 
     static struct proto_ops const ops = {
-        .parse      = dns_parse,
-        .parser_new = uniq_parser_new,
-        .parser_del = uniq_parser_del,
-        .info_2_str = dns_info_2_str,
-        .info_addr  = dns_info_addr,
+        .parse       = dns_parse,
+        .parser_new  = uniq_parser_new,
+        .parser_del  = uniq_parser_del,
+        .info_2_str  = dns_info_2_str,
+        .info_addr   = dns_info_addr,
+        .serialize   = dns_serialize,
+        .deserialize = dns_deserialize,
     };
-    uniq_proto_ctor(&uniq_proto_dns, &ops, "DNS");
+    uniq_proto_ctor(&uniq_proto_dns, &ops, "DNS", PROTO_CODE_DNS);
     port_muxer_ctor(&dns_port_muxer, &udp_port_muxers, DNS_PORT, DNS_PORT, proto_dns);
     port_muxer_ctor(&mdns_port_muxer, &udp_port_muxers, MDNS_PORT, MDNS_PORT, proto_dns);
     port_muxer_ctor(&nbns_port_muxer, &udp_port_muxers, NBNS_PORT, NBNS_PORT, proto_dns);

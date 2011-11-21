@@ -18,11 +18,11 @@
  * along with Junkie.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <string.h>
-#include <junkie/cpp.h>
-#include <junkie/tools/log.h>
-#include <junkie/tools/miscmacs.h>
-#include <junkie/proto/proto.h>
-#include <junkie/proto/http.h>
+#include "junkie/cpp.h"
+#include "junkie/tools/log.h"
+#include "junkie/tools/miscmacs.h"
+#include "junkie/proto/proto.h"
+#include "junkie/proto/http.h"
 #include "httper.h"
 
 static char const Id[] = "$Id: 54219ace954440929240814509fbfe7977403a52 $";
