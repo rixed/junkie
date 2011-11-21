@@ -46,6 +46,31 @@ static char const *icmpv6_type_2_str(uint8_t type)
         case 4:   return "BadParameter";
         case 128: return "EchoRequest";
         case 129: return "EchoReply";
+        case 130: return "MulticastListenerQuery";
+        case 131: return "MulticastListenerReport";
+        case 132: return "MulticastListenerDone";
+        case 133: return "RouterSolicitation";
+        case 134: return "RouterAdvertisement";
+        case 135: return "NeighborSolicitation";
+        case 136: return "NeighborAdvertisement";
+        case 137: return "RedirectMessage";
+        case 138: return "RouterRenumbering";
+        case 139: return "NodeInformationQuery";
+        case 140: return "NodeInformationResponse";
+        case 141: return "InverseNeighborDiscoverySolicitationMessage";
+        case 142: return "InverseNeighborDiscoveryAdvertisementMessage";
+        case 143: return "V2MulticastListenerReport";
+        case 144: return "HomeAgentAddressDiscoveryRequestMessage";
+        case 145: return "HomeAgentAddressDiscoveryReplyMessage";
+        case 146: return "MobilePrefixSolicitation";
+        case 147: return "MobilePrefixAdvertisement";
+        case 148: return "CertificationPathSolicitationMessage";
+        case 149: return "CertificationPathAdvertisementMessage";
+        case 151: return "MulticastRouterAdvertisement";
+        case 152: return "MulticastRouterSolicitation";
+        case 153: return "MulticastRouterTermination";
+        case 154: return "FMIPv6Messages";
+        case 155: return "RPLControlMessage";
     }
 
     return "UNKNOWN";
