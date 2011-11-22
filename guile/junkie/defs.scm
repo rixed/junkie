@@ -360,8 +360,13 @@
                       (sleep period)
                       (limiter "TCP")
                       (limiter "UDP")
-                      (limiter "IPv4")
-                      (limiter "IPv6")
+                      ;; Achtung!
+                      ;; We use the statistics of the running multiplexers to change the settings of the future multiplexers.
+                      ;; So in a situation where the multiplexers are not often recycled we will keep changing settings for
+                      ;; multiplexers that are actually unafected by these changes. So we'd better reserve this for short
+                      ;; lived multiplexers such as TCP and UDP, and not long lived ones such as IP.
+                      ;(limiter "IPv4")
+                      ;(limiter "IPv6")
                       (loop)))))
     (make-thread thread)))
 

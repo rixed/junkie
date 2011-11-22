@@ -1021,6 +1021,7 @@ void proto_init(void)
     ext_function_ctor(&sg_mux_proto_stats,
         "mux-stats", 1, 0, 0, g_mux_proto_stats,
         "(mux-stats \"proto-name\"): returns various stats about this multiplexer.\n"
+        "BEWARE that currently alive multiplexers may have different settings!\n"
         "See also (? 'mux-names) for a list of protocol names that are multiplexers.\n"
         "         (? 'set-max-children) and (? 'set-mux-hash-size) for altering a multiplexer.\n");
 
