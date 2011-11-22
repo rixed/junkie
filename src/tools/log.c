@@ -215,9 +215,33 @@ static SCM g_get_log_file(void)
     return log_file ? scm_from_locale_string(log_file) : SCM_UNSPECIFIED;
 }
 
+LOG_CATEGORY_DEF(guile)
+
+static struct ext_function sg_primitive_log;
+static SCM g_primitive_log(SCM priority_, SCM filename_, SCM funcname_, SCM msg_)
+{
+    int const priority = scm_to_int(priority_);
+    if (priority > guile_log_category.level) return SCM_UNSPECIFIED;
+
+    scm_dynwind_begin(0);
+    char *msg = scm_to_locale_string(msg_);
+    scm_dynwind_free(msg);
+    char *filename = scm_to_locale_string(filename_);
+    scm_dynwind_free(filename);
+    char *funcname = scm_to_locale_string(funcname_);
+    scm_dynwind_free(funcname);
+
+    slog(priority, filename, funcname, msg);
+
+    scm_dynwind_end();
+
+    return SCM_UNSPECIFIED;
+}
+
 void log_init(void)
 {
     log_category_global_init();
+    log_category_guile_init();
 
     ext_function_ctor(&sg_set_log_level, "set-log-level", 1, 1, 0, g_set_log_level,
         "(set-log-level n): sets log level globally to n.\n"
@@ -245,9 +269,15 @@ void log_init(void)
         "get-log-file", 0, 0, 0, g_get_log_file,
         "(get-log-file): returns the filename currently used by junkie to print its log, if any.\n"
         "See also (? 'set-log-file).\n");
+
+    ext_function_ctor(&sg_primitive_log,
+        "primitive-log", 4, 0, 0, g_primitive_log,
+        "(primitive-log log-level file-name func-name \"msg\"): outputs the message in same log files than junkie.\n"
+        "See also (? 'set-log-file).\n");
 }
 
 void log_fini(void)
 {
+    log_category_guile_fini();
     log_category_global_fini();
 }

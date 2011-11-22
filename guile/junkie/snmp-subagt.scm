@@ -107,5 +107,5 @@
                                   (sleep 10)))))))
     (if have-snmp
         (make-thread thread)
-        (display "Skip starting of junkie SNMP subagent.\n"))))
+        (slog log-notice "Skip starting of junkie SNMP subagent."))))
 

@@ -15,6 +15,16 @@
 (define-public log-emerg   0) (define-public log-alert  1) (define-public log-crit 2) (define-public log-err   3)
 (define-public log-warning 4) (define-public log-notice 5) (define-public log-info 6) (define-public log-debug 7)
 
+(define-syntax slog
+  (syntax-rules ()
+    ((_ lvl fmt ...) (let* ((loc   (current-source-location))
+                            (stack (make-stack #t))
+                            (msg   ((@ (ice-9 format) format) #f fmt ...))
+                            (file  (or (and=> (assq-ref loc 'filename) basename) "<some file>"))
+                            (func  (or (procedure-name (frame-procedure (stack-ref stack 1))) "")))
+                       (primitive-log lvl file func msg)))))
+(export-syntax slog)
+
 ; This one might be usefull to display all help available
 (define-public (help)
   (for-each (lambda (l)
@@ -254,9 +264,11 @@
            (lookups  (assq-ref stats 'nb-lookups))
            (coll-avg (if (> lookups 0) (/ colls lookups) -1))
            (resize   (lambda (coll-avg new-h-size)
-                       ;(simple-format #t "Collision avg of ~A is ~A. Setting hash size to ~A\n" proto (exact->inexact coll-avg) new-h-size)
-                       (set-mux-hash-size proto new-h-size)
-                       (set-max-children proto (* new-h-size coll-avg-max 10)))))
+                       (let ((new-max-children (* new-h-size coll-avg-max 10)))
+                         (slog log-info "Collision avg of ~a is ~a. Setting hash size to ~a (and max children to ~a)"
+                               proto (exact->inexact coll-avg) new-h-size new-max-children)
+                         (set-mux-hash-size proto new-h-size)
+                         (set-max-children proto new-max-children)))))
       (if (< coll-avg coll-avg-min) ; then make future hashes smaller
           (if (> h-size h-size-min)
               (resize coll-avg (max h-size-min (round (/ h-size 2))))))
@@ -278,7 +290,6 @@
 
 (define-public (best-dedup-delay run-t)
   (let* ((get-dup-ratio     (lambda (how-long dedup-delay)
-                              (format #t "Measuring dup ratio for ~8,' dus: " dedup-delay)
                               (set-dup-detection-delay dedup-delay)
                               (reset-deduplication-stats)
                               (sleep how-long)
@@ -288,7 +299,7 @@
                                      (eols   (assq-ref stats 'end-of-list-found))
                                      (sum    (+ dups nodups eols))
                                      (ratio  (if (> sum 0) (/ (* 100 dups) sum) 0)))
-                                (format #t "~3,2f%\n" (exact->inexact ratio))
+                                (slog log-notice "Measured dup ratio for ~8,' dus: ~3,2f%" dedup-delay (exact->inexact ratio))
                                 ratio)))
          (max-delay         100000)
          (min-delay         1)
@@ -305,7 +316,6 @@
 
 (define-public (best-nb-digests max-eol-ratio run-t)
   (let* ((get-eol-ratio  (lambda (how-long nbd)
-                           (format #t "Measuring eol ratio for ~6d digests: " nbd)
                            (set-nb-digests nbd)
                            (reset-deduplication-stats)
                            (sleep how-long)
@@ -315,7 +325,7 @@
                                   (eols   (assq-ref stats 'end-of-list-found))
                                   (sum    (+ dups nodups eols))
                                   (ratio  (if (> sum 0) (/ (* 100 eols) sum) 0)))
-                             (format #t "~3,2f%\n" (exact->inexact ratio))
+                             (slog log-notice "Measured eol ratio for ~6d digests: ~3,2f%" nbd (exact->inexact ratio))
                              ratio)))
          (max-nb-digests 5000) ; should be enought for any delay! (ie packet rate should be under max-nb-digests*NB_QUEUES/dedup-delay)
          (min-nb-digests 1)
@@ -329,16 +339,16 @@
 (define-public (dedup-calibration run-t)
   (set-nb-digests 5000) ; see remark above concerning max-nb-digests
   (let ((best-delay (best-dedup-delay run-t)))
-    (format #t "Best dedup delay: ~dus\n" best-delay)
+    (slog log-notice "Best dedup delay: ~dus" best-delay)
     (set-dup-detection-delay best-delay))
   (let ((best-nbd (best-nb-digests 5 run-t)))  ; arround 5% of list limit hits is acceptable
-    (format #t "Best nb-digests: ~d\n" best-nbd)
+    (slog log-notice "Best nb-digests: ~d" best-nbd)
     (set-nb-digests best-nbd)))
 
 (define-public (auto-calibration)
   (make-thread (lambda ()
                  (set-thread-name "J-autocalibration")
-                 (display "Starting autocalibration of deduplication process...\n")
+                 (slog log-notice "Starting autocalibration of deduplication process...")
                  (sleep 30) ; wait for all interfaces to show up
                  (dedup-calibration 30) ; each sample period last for 30 seconds
                  (reset-deduplication-stats))))
@@ -382,9 +392,9 @@
                             (cur-udp (assq-ref (proto-stats "UDP") 'nb-parsers)))
                         (if (> cur-tcp max-tcp) (set! max-tcp cur-tcp))
                         (if (> cur-udp max-udp) (set! max-udp cur-udp))
-                        (simple-format #t "Current TCP:~a UDP:~a total:~a / Max TCP:~a UDP:~a total:~a\n"
-                                       cur-tcp cur-udp (+ cur-tcp cur-udp)
-                                       max-tcp max-udp (+ max-tcp max-udp))
+                        (slog log-info "Current TCP:~a UDP:~a total:~a / Max TCP:~a UDP:~a total:~a"
+                              cur-tcp cur-udp (+ cur-tcp cur-udp)
+                              max-tcp max-udp (+ max-tcp max-udp))
                         (sleep period)
                         (loop)))))))
     (make-thread thread period)))
