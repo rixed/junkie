@@ -35,7 +35,7 @@ static struct parse_test {
         },
         .expected = {
             .info = { .head_len = 2*16+4, .payload = 0, },
-            .type = 3, .code = 1, .set_values = ICMP_ERR_SET,
+            .type = 3, .code = 1, .id = 0, .set_values = ICMP_ERR_SET,
             .err = { .protocol = 1, }
         },
         .src = "192.168.10.4", .dst = "216.239.59.104",
@@ -49,7 +49,7 @@ static struct parse_test {
         },
         .expected = {
             .info = { .head_len = 2*16+4, .payload = 0, },
-            .type = 3, .code = 3, .set_values = ICMP_ERR_SET|ICMP_ERR_PORT_SET,
+            .type = 3, .code = 3, .id = 0, .set_values = ICMP_ERR_SET|ICMP_ERR_PORT_SET,
             .err = { .protocol = 17, .port = { 2120, 3131 } }
         },
         .src = "192.168.10.4", .dst = "88.161.126.36",
@@ -64,7 +64,7 @@ static struct parse_test {
         },
         .expected = {
             .info = { .head_len = 4*16, .payload = 0, },
-            .type = 8, .code = 0, .set_values = 0,
+            .type = 8, .code = 0, .id = 0x8c13, .set_values = ICMP_ID_SET,
         },
     }, {
         .version = 4,
@@ -76,7 +76,7 @@ static struct parse_test {
         },
         .expected = {
             .info = { .head_len = 2*16+4, .payload = 0, },
-            .type = 11, .code = 0, .set_values = ICMP_ERR_SET,
+            .type = 11, .code = 0, .id = 0, .set_values = ICMP_ERR_SET,
             .err = { .protocol = 1, }
         },
         .src = "192.168.10.4", .dst = "88.161.126.36",
@@ -91,7 +91,7 @@ static struct parse_test {
         },
         .expected = {
             .info = { .head_len = 16*4, .payload = 0, },
-            .type = 129, .code = 0, .set_values = 0,
+            .type = 129, .code = 0, .id = 0x7e15, .set_values = ICMP_ID_SET,
         },
     }
 };
@@ -107,6 +107,9 @@ static int icmp_info_check(struct proto_info const *info_, size_t unused_ cap_le
     assert(info->type == expected->type);
     assert(info->code == expected->code);
     assert(info->set_values == expected->set_values);
+    if (info->set_values & ICMP_ID_SET) {
+        assert(info->id == expected->id);
+    }
     if (info->set_values & ICMP_ERR_SET) {
         struct parse_test const *const test = parse_tests + current_test;
         struct ip_addr src, dst;

@@ -88,10 +88,11 @@ static char const *icmpv6_info_2_str(struct proto_info const *info_)
 {
     struct icmp_proto_info const *info = DOWNCAST(info_, info, icmp_proto_info);
     char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, type=%s, code=%"PRIu8", err=%s",
+    snprintf(str, TEMPSTR_SIZE, "%s, type=%s, code=%"PRIu8", err=%s, id=%d",
         proto_info_2_str(info_),
         icmpv6_type_2_str(info->type), info->code,
-        info->set_values & ICMP_ERR_SET ? icmp_err_2_str(&info->err, info->set_values) : "NONE");
+        info->set_values & ICMP_ERR_SET ? icmp_err_2_str(&info->err, info->set_values) : "NONE",
+        info->set_values & ICMP_ID_SET ? info->id : -1);
 
     return str;
 }
@@ -119,7 +120,7 @@ static int icmpv6_extract_err_infos(struct icmp_proto_info *info, uint8_t const 
         return -1;
     }
 
-    err->protocol = iphdr->next;
+    err->protocol = READ_U8(&iphdr->next);
     ip_addr_ctor_from_ip6(err->addr+0, &iphdr->src);
     ip_addr_ctor_from_ip6(err->addr+1, &iphdr->dst);
 
@@ -141,6 +142,17 @@ static bool icmpv6_is_err(uint8_t type)
     return !(type & 0x80);
 }
 
+static bool icmpv6_has_id(uint8_t type)
+{
+    switch (type) {
+        case 128:
+        case 129:
+            return true;
+        // and probably others as well...
+    }
+    return false;
+}
+
 static enum proto_parse_status icmpv6_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct icmp_hdr *icmphdr = (struct icmp_hdr *)packet;
@@ -150,10 +162,16 @@ static enum proto_parse_status icmpv6_parse(struct parser *parser, struct proto_
     if (cap_len < sizeof(*icmphdr)) return PROTO_TOO_SHORT;
 
     struct icmp_proto_info info;
-    icmpv6_proto_info_ctor(&info, parser, parent, wire_len, icmphdr->type, icmphdr->code);
+    uint8_t const type = READ_U8(&icmphdr->type);
+    icmpv6_proto_info_ctor(&info, parser, parent, wire_len, type, READ_U8(&icmphdr->code));
+
+    if (icmpv6_has_id(type)) {
+        info.set_values |= ICMP_ID_SET;
+        info.id = READ_U16N(&icmphdr->id);
+    }
 
     // Extract error values
-    if (icmpv6_is_err(icmphdr->type)) {
+    if (icmpv6_is_err(type)) {
         if (0 == icmpv6_extract_err_infos(&info, packet + sizeof(*icmphdr), cap_len - sizeof(*icmphdr))) {
             info.set_values |= ICMP_ERR_SET;
         }

@@ -17,8 +17,10 @@ extern struct proto *proto_icmpv6;
 struct icmp_proto_info {
     struct proto_info info;     ///< Header size correspond to the whole message since ICMP have no actual payload
     uint8_t type, code;         ///< ICMP type and code
+    uint16_t id;                ///< Most ICMP messages comes with a 16bits Id.
 #   define ICMP_ERR_SET      0x1  // at least protocol and addr
 #   define ICMP_ERR_PORT_SET 0x2
+#   define ICMP_ID_SET       0x4
     unsigned set_values;        ///< Mask of the field that are actually defined in this struct
     struct icmp_err {
         uint8_t protocol;       ///< The protocol that triggered the error

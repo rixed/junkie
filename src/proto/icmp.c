@@ -140,10 +140,11 @@ static char const *icmp_info_2_str(struct proto_info const *info_)
 {
     struct icmp_proto_info const *info = DOWNCAST(info_, info, icmp_proto_info);
     char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, type=%s, err=%s",
+    snprintf(str, TEMPSTR_SIZE, "%s, type=%s, err=%s, id=%d",
         proto_info_2_str(info_),
         icmp_type_2_str(info->type, info->code),
-        info->set_values & ICMP_ERR_SET ? icmp_err_2_str(&info->err, info->set_values) : "NONE");
+        info->set_values & ICMP_ERR_SET ? icmp_err_2_str(&info->err, info->set_values) : "NONE",
+        info->set_values & ICMP_ID_SET ? info->id : -1);
 
     return str;
 }
@@ -155,6 +156,9 @@ void icmp_serialize(struct proto_info const *info_, uint8_t **buf)
     serialize_1(buf, info->type);
     serialize_1(buf, info->code);
     serialize_1(buf, info->set_values);
+    if (info->set_values & ICMP_ID_SET) {
+        serialize_2(buf, info->id);
+    }
     if (info->set_values & ICMP_ERR_SET) {
         serialize_1(buf, info->err.protocol);
         ip_addr_serialize(info->err.addr+0, buf);
@@ -173,6 +177,9 @@ void icmp_deserialize(struct proto_info *info_, uint8_t const **buf)
     info->type = deserialize_1(buf);
     info->code = deserialize_1(buf);
     info->set_values = deserialize_1(buf);
+    if (info->set_values & ICMP_ID_SET) {
+        info->id = deserialize_2(buf);
+    }
     if (info->set_values & ICMP_ERR_SET) {
         info->err.protocol = deserialize_1(buf);
         ip_addr_deserialize(info->err.addr+0, buf);
@@ -254,6 +261,20 @@ static bool icmp_is_err(uint8_t type)
     return true;
 }
 
+static bool icmp_has_id(uint8_t type)
+{
+    switch (type) {
+        case 0:
+        case 8:
+        case 13:
+        case 14:
+        case 17:
+        case 18:
+            return true;
+    }
+    return false;
+}
+
 static enum proto_parse_status icmp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct icmp_hdr *icmphdr = (struct icmp_hdr *)packet;
@@ -263,10 +284,16 @@ static enum proto_parse_status icmp_parse(struct parser *parser, struct proto_in
     if (cap_len < sizeof(*icmphdr)) return PROTO_TOO_SHORT;
 
     struct icmp_proto_info info;
-    icmp_proto_info_ctor(&info, parser, parent, wire_len, READ_U8(&icmphdr->type), READ_U8(&icmphdr->code));
+    uint8_t const type = READ_U8(&icmphdr->type);
+    icmp_proto_info_ctor(&info, parser, parent, wire_len, type, READ_U8(&icmphdr->code));
+
+    if (icmp_has_id(type)) {
+        info.set_values |= ICMP_ID_SET;
+        info.id = READ_U16N(&icmphdr->id);
+    }
 
     // Extract error values
-    if (icmp_is_err(READ_U8(&icmphdr->type))) {
+    if (icmp_is_err(type)) {
         if (0 == icmp_extract_err_infos(&info, packet + sizeof(*icmphdr), cap_len - sizeof(*icmphdr))) {
             info.set_values |= ICMP_ERR_SET;
         }

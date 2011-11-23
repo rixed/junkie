@@ -52,7 +52,7 @@ struct icmp_hdr {
   uint8_t type;
   uint8_t code;
   uint16_t checksum;
-  uint32_t compl;
+  uint16_t id, seqnum;  // for message with an id and/or a seqnum
 } packed_;
 
 // Definition of an UDP header
