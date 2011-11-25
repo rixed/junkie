@@ -693,11 +693,10 @@ static struct ext_function sg_dedup_stats;
 static SCM g_dedup_stats(void)
 {
     EXT_LOCK(nb_digests);
-    SCM ret = scm_list_n(
+    SCM ret = scm_list_3(
         scm_cons(dup_found_sym,         scm_from_uint64(nb_dup_found)),
         scm_cons(nodup_found_sym,       scm_from_uint64(nb_nodup_found)),
-        scm_cons(end_of_list_found_sym, scm_from_uint64(nb_eol_found)),
-        SCM_UNDEFINED);
+        scm_cons(end_of_list_found_sym, scm_from_uint64(nb_eol_found)));
     EXT_UNLOCK(nb_digests);
 
     return ret;

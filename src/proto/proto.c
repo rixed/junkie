@@ -941,12 +941,11 @@ static SCM g_proto_stats(SCM name_)
     struct proto *proto = proto_of_scm_name(name_);
     if (! proto) return SCM_UNSPECIFIED;
 
-    return scm_list_n(
+    return scm_list_4(
         scm_cons(nb_frames_sym,  scm_from_int64(proto->nb_frames)),
         scm_cons(nb_bytes_sym,   scm_from_int64(proto->nb_bytes)),
         scm_cons(nb_parsers_sym, scm_from_uint(proto->nb_parsers)),
-        scm_cons(nb_fuzzed_sym,  scm_from_uint(proto->fuzzed_times)),
-        SCM_UNDEFINED);
+        scm_cons(nb_fuzzed_sym,  scm_from_uint(proto->fuzzed_times)));
 }
 
 static struct ext_function sg_mux_proto_set_max_children;

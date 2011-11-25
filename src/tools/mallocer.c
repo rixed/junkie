@@ -157,7 +157,7 @@ static SCM g_malloc_stats(void)
         scm_cons(topmost_free_bytes_sym,  scm_from_int(info.keepcost)),
         SCM_UNDEFINED);
 #   else    // HAVE_MALLINFO
-    return scm_list_n(SCM_UNDEFINED);
+    return SCM_EOL;
 #   endif   // HAVE_MALLINFO
 }
 
@@ -190,12 +190,11 @@ static SCM g_mallocer_stats(SCM name_)
     struct mallocer *mallocer = mallocer_of_scm_name(name_);
     if (! mallocer) return SCM_UNSPECIFIED;
 
-    return scm_list_n(
+    return scm_list_3(
         // See g_proto_stats
         scm_cons(tot_size_sym, scm_from_size_t(mallocer->tot_size)),
         scm_cons(nb_blocks_sym, scm_from_uint(mallocer->nb_blocks)),
-        scm_cons(nb_allocs_sym, scm_from_uint(mallocer->nb_allocs)),
-        SCM_UNDEFINED);
+        scm_cons(nb_allocs_sym, scm_from_uint(mallocer->nb_allocs)));
 }
 
 static SCM start_address_sym;
@@ -204,10 +203,9 @@ static SCM size_sym;
 static SCM next_block(SCM list, struct mallocer_block *block)
 {
     if (! block) return list;
-    SCM alist = scm_list_n(
+    SCM alist = scm_list_2(
         scm_cons(start_address_sym, scm_from_size_t((size_t)block)),
-        scm_cons(size_sym, scm_from_size_t(block->size)),
-        SCM_UNDEFINED);
+        scm_cons(size_sym, scm_from_size_t(block->size)));
 
     return next_block(scm_cons(alist, list), LIST_NEXT(block, entry));
 }

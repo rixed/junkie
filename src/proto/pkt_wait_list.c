@@ -579,12 +579,11 @@ static SCM g_wait_list_stats(SCM name_)
     struct pkt_wl_config *config = pkt_wl_config_of_scm_name(name_);
     if (! config) return SCM_UNSPECIFIED;
 
-    return scm_list_n(
+    return scm_list_4(
         scm_cons(timeout_sym,        scm_from_uint(config->timeout)),
         scm_cons(max_payload_sym,    scm_from_size_t(config->payload_max)),
         scm_cons(max_packets_sym,    scm_from_uint(config->nb_pkts_max)),
-        scm_cons(acceptable_gap_sym, scm_from_uint(config->acceptable_gap)),
-        SCM_UNDEFINED);
+        scm_cons(acceptable_gap_sym, scm_from_uint(config->acceptable_gap)));
 }
 
 static struct ext_function sg_wait_list_set_max_payload;

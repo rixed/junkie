@@ -189,12 +189,11 @@ static SCM g_array_stats(SCM name_)
     struct redim_array *array = array_of_scm_name(name_);
     if (! array) return SCM_UNSPECIFIED;
 
-    return scm_list_n(
+    return scm_list_3(
         // See g_proto_stats
         scm_cons(nb_entries_sym, scm_from_uint(array->nb_entries)),
         scm_cons(alloc_size_sym, scm_from_uint(array->alloc_size)),
-        scm_cons(entry_size_sym, scm_from_size_t(array->entry_size)),
-        SCM_UNDEFINED);
+        scm_cons(entry_size_sym, scm_from_size_t(array->entry_size)));
 }
 
 void redim_array_init(void)

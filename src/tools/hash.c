@@ -69,14 +69,13 @@ static SCM g_hash_stats(SCM name_)
     struct hash_base *hash = hash_of_scm_name(name_);
     if (! hash) return SCM_UNSPECIFIED;
 
-    return scm_list_n(
+    return scm_list_5(
         // See g_proto_stats
         scm_cons(nb_lists_sym, scm_from_uint(hash->nb_lists)),
         scm_cons(nb_lists_min_sym, scm_from_uint(hash->nb_lists_min)),
         scm_cons(nb_entries_sym, scm_from_uint(hash->size)),
         scm_cons(nb_entries_max_sym, scm_from_uint(hash->max_size)),
-        scm_cons(nb_rehash_sym, scm_from_uint(hash->nb_rehash)),
-        SCM_UNDEFINED);
+        scm_cons(nb_rehash_sym, scm_from_uint(hash->nb_rehash)));
 }
 
 void hash_init(void)
