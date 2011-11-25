@@ -104,6 +104,19 @@ SCM g_get_parameter_value(SCM name_)
     return param->get();
 }
 
+static struct ext_function sg_set_parameter_value;
+SCM g_set_parameter_value(SCM name_, SCM value)
+{
+    char *name = scm_to_tempstr(name_);
+    struct ext_param *param = get_param(name);
+    if (! param) {
+        SLOG(LOG_ERR, "No parameter named %s", name);
+        scm_throw(scm_from_latin1_symbol("no-such-parameter"), scm_list_1(name_));
+        assert(!"Never reached");
+    }
+    return param->set(value);
+}
+
 /*
  * Init
  */
@@ -251,6 +264,12 @@ void ext_init(void)
         "get-parameter-value", 1, 0, 0, g_get_parameter_value,
         "(get-parameter-value \"name\"): returns the value of the parameter named \"name\".\n"
         "Note: parameters can also be accessed with (get-the_parameter_name).\n"
+        "See also (? 'parameter-names).\n");
+
+    ext_function_ctor(&sg_set_parameter_value,
+        "set-parameter-value", 2, 0, 0, g_set_parameter_value,
+        "(set-parameter-value \"name\" value): sets the new value of the parameter named \"name\".\n"
+        "Note: equivalent to (set-the_parameter_name).\n"
         "See also (? 'parameter-names).\n");
 
     ext_function_ctor(&sg_help,
