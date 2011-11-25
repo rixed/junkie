@@ -21,7 +21,7 @@
                             (stack (make-stack #t))
                             (msg   ((@ (ice-9 format) format) #f fmt ...))
                             (file  (or (and=> (assq-ref loc 'filename) basename) "<some file>"))
-                            (func  (or (procedure-name (frame-procedure (stack-ref stack 1))) "")))
+                            (func  (or (and=> (procedure-name (frame-procedure (stack-ref stack 1))) symbol->string) "")))
                        (primitive-log lvl file func msg)))))
 (export-syntax slog)
 
