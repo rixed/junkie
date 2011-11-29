@@ -37,6 +37,7 @@ EXT_PARAM_RW(really_unload_plugins, "really-unload-plugins", bool, "Should we go
 
 static int plugin_ctor(struct plugin *plugin, char const *libname)
 {
+    SLOG(LOG_DEBUG, "Loading plugin %s", libname);
     mutex_lock(&plugins_mutex);
     plugin->handle = lt_dlopen(libname);
     if (! plugin->handle) {

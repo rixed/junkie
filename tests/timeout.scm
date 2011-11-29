@@ -1,5 +1,5 @@
 #!../src/junkie -c
-; vim:syntax=scheme expandtab
+; vim:syntax=scheme filetype=scheme expandtab
 !#
 
 (display "Testing active timeouting\n")

@@ -1,4 +1,4 @@
-; vim:syntax=scheme expandtab
+; vim:syntax=scheme filetype=scheme expandtab
 ;;; This file implements Junkie's SNMP subagent, with the help of guile-agentx
 
 (define-module (junkie snmp-subagt))
