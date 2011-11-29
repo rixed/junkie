@@ -1,5 +1,5 @@
 ; vim:syntax=scheme filetype=scheme expandtab
-;;; This modules contains general purpose functions.
+;;; This module contains general purpose functions.
 
 (define-module (junkie defs))
 
