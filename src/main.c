@@ -118,32 +118,11 @@ static void all_fini(void)
  * Main program loop
  */
 
-static void sig_set(sigset_t *set)
+static void loop(sigset_t *set)
 {
-    sigemptyset(set);
-    // Reopen log file (used by logrotate).
-    sigaddset(set, SIGHUP);
-
-    // On a ^C, or a kill, we want to call exit() so that all destructors are run
-    sigaddset(set, SIGINT);
-    sigaddset(set, SIGTERM);
-
-    // Could receive it occasionally
-    sigaddset(set, SIGPIPE);
-    sigaddset(set, SIGCHLD);
-}
-
-static void loop(void)
-{
-    sigset_t set;
-    int sig = 0;
-
-    sig_set(&set);
-    pthread_sigmask(SIG_BLOCK, &set, NULL);
-
     for (;;) {
-        sig_set(&set);
-        sigwait(&set, &sig);
+        int sig;
+        if (0 != sigwait(set, &sig)) continue;
 
         switch (sig) {
             case SIGHUP:
@@ -217,6 +196,20 @@ int main(int nb_args, char **args)
 {
     // Start by building the version string that's used in usage and --version option
     snprintf(version_string, sizeof(version_string), STRIZE(TAGNAME) " / " STRIZE(BRANCHNAME) ", compiled on " STRIZE(COMP_HOST) " @ %s", __DATE__);
+
+    // First we want to block all signals we will read later using sigwait, before some threads are spawned.
+    sigset_t set;
+    sigemptyset(&set);
+    // Reopen log file (used by logrotate).
+    sigaddset(&set, SIGHUP);
+    // On a ^C, or a kill, we want to call exit() so that all destructors are run
+    sigaddset(&set, SIGINT);
+    sigaddset(&set, SIGTERM);
+    // Can receive it occasionally
+    sigaddset(&set, SIGPIPE);
+    sigaddset(&set, SIGCHLD);
+    pthread_sigmask(SIG_BLOCK, &set, NULL);
+
     all_init();
     atexit(all_fini);
 
@@ -247,7 +240,7 @@ int main(int nb_args, char **args)
         load_if_exist(STRIZE(SYSCONFDIR) "/junkie.scm");
     }
 
-    loop();
+    loop(&set);
 
     return EXIT_SUCCESS;
 }
