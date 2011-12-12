@@ -26,6 +26,7 @@
 #include "junkie/tools/miscmacs.h"
 #include "junkie/tools/mallocer.h"
 #include "junkie/tools/timeval.h"
+#include "junkie/proto/cap.h"   // for collapse_ifaces
 #include "junkie/proto/eth.h"   // for collapse_vlans
 #include "junkie/cpp.h"
 #include "digest_queue.h"
@@ -39,6 +40,7 @@ struct digest_queue {
         struct digest_qcell {
             unsigned char digest[DIGEST_SIZE];
             struct timeval tv;
+            uint8_t dev_id; // The device this packet was recieved from
         } *digests;
         unsigned idx;       // Index of the lastly added frame (more recent)
         unsigned length;    // Actually all queues have the same length, except during resizing
@@ -111,7 +113,7 @@ int digest_queue_resize(struct digest_queue *digest, unsigned length)
     return 0;
 }
 
-enum digest_status digest_queue_find(struct digest_queue *digest, unsigned char buf[DIGEST_SIZE], struct timeval const *frame_tv, unsigned delay_usec)
+enum digest_status digest_queue_find(struct digest_queue *digest, unsigned char buf[DIGEST_SIZE], uint8_t dev_id, struct timeval const *frame_tv, unsigned delay_usec)
 {
     struct timeval min_tv = *frame_tv;
     timeval_sub_usec(&min_tv, delay_usec);
@@ -127,7 +129,10 @@ enum digest_status digest_queue_find(struct digest_queue *digest, unsigned char 
 
             if (!timeval_is_set(&q->digests[j].tv) || timeval_cmp(&q->digests[j].tv, &min_tv) < 0) break;
 
-            if (0 == memcmp(q->digests[j].digest, buf, DIGEST_SIZE)) {
+            if (
+                (collapse_ifaces || dev_id == q->digests[j].dev_id) &&
+                0 == memcmp(q->digests[j].digest, buf, DIGEST_SIZE)
+            ) {
                 mutex_unlock(&q->mutex);
                 return DIGEST_MATCH;
             }
@@ -136,6 +141,7 @@ enum digest_status digest_queue_find(struct digest_queue *digest, unsigned char 
         q->idx = (q->idx + 1) % q->length;
         memcpy(q->digests[q->idx].digest, buf, DIGEST_SIZE);
         q->digests[q->idx].tv = *frame_tv;
+        q->digests[q->idx].dev_id = dev_id;
     }
 
     mutex_unlock(&q->mutex);
@@ -220,5 +226,4 @@ void digest_frame(unsigned char buf[DIGEST_SIZE], size_t size, uint8_t *restrict
         memcpy(packet + iphdr_offset + IPV4_CHECKSUM_OFFSET, &checksum, sizeof checksum);
     }
 }
-
 

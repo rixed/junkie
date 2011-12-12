@@ -2,6 +2,7 @@
 // vim:sw=4 ts=4 sts=4 expandtab
 #ifndef CAP_H_100409
 #define CAP_H_100409
+#include <stdbool.h>
 #include <junkie/tools/timeval.h>
 #include <junkie/proto/proto.h>
 
@@ -21,6 +22,8 @@ struct cap_proto_info {
     unsigned dev_id;        ///< Incomming device id
     struct timeval tv;      ///< Date of arrival
 };
+
+bool collapse_ifaces;
 
 void cap_init(void);
 void cap_fini(void);
