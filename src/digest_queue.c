@@ -26,6 +26,7 @@
 #include "junkie/tools/miscmacs.h"
 #include "junkie/tools/mallocer.h"
 #include "junkie/tools/timeval.h"
+#include "junkie/proto/eth.h"   // for collapse_vlans
 #include "junkie/cpp.h"
 #include "digest_queue.h"
 
@@ -161,10 +162,11 @@ enum digest_status digest_queue_find(struct digest_queue *digest, unsigned char 
 
 void digest_frame(unsigned char buf[DIGEST_SIZE], size_t size, uint8_t *restrict packet)
 {
-    SLOG(LOG_DEBUG, "Compute the md5 digest of relevant data in the frame");
+    SLOG(LOG_DEBUG, "Compute the digest of relevant data in the frame");
 
-    size_t iphdr_offset = ETHER_HEADER_SIZE;
-    size_t ethertype_offset = ETHER_ETHERTYPE_OFFSET;
+    unsigned iphdr_offset = ETHER_HEADER_SIZE;
+    unsigned ethertype_offset = ETHER_ETHERTYPE_OFFSET;
+    unsigned hash_start = iphdr_offset;
 
     if (
         size > ethertype_offset + 1 &&
@@ -173,30 +175,30 @@ void digest_frame(unsigned char buf[DIGEST_SIZE], size_t size, uint8_t *restrict
     ) {  // Skip Linux Cooked Capture special header
         iphdr_offset += 2;
         ethertype_offset += 2;
+        hash_start += 2;
     }
 
     if (
         size >= ethertype_offset+1 &&
         0x81 == packet[ethertype_offset] &&
         0x00 == packet[ethertype_offset+1]
-    ) { // Skip VLan tag
+    ) { // Optionally skip the VLan Tag
         iphdr_offset += 4;
+        if (collapse_vlans) hash_start += 4;
     }
 
     if (size < iphdr_offset + IPV4_CHECKSUM_OFFSET) {
         SLOG(LOG_DEBUG, "Small frame (%zu bytes), compute the digest on the whole data", size);
         ASSERT_COMPILE(sizeof(uint8_t) == 1);
-        (void) MD4((unsigned char *)packet, size, buf);
+        (void)MD4((unsigned char *)packet, size, buf);
         return;
     }
-
-    size_t len = MIN(BUFSIZE_TO_HASH, size - iphdr_offset);
 
     assert(size >= iphdr_offset + IPV4_TOS_OFFSET);
     assert(size >= iphdr_offset + IPV4_TTL_OFFSET);
     uint8_t tos = packet[iphdr_offset + IPV4_TOS_OFFSET];
     uint8_t ttl = packet[iphdr_offset + IPV4_TTL_OFFSET];
-    uint16_t checksum = *(uint16_t *)&packet[iphdr_offset + IPV4_CHECKSUM_OFFSET];
+    uint16_t checksum = READ_U16(&packet[iphdr_offset + IPV4_CHECKSUM_OFFSET]);
 
     uint8_t ipversion = (packet[iphdr_offset + IPV4_VERSION_OFFSET] & 0xf0) >> 4;
     if (4 == ipversion) {
@@ -208,7 +210,8 @@ void digest_frame(unsigned char buf[DIGEST_SIZE], size_t size, uint8_t *restrict
         memset(packet + iphdr_offset + IPV4_CHECKSUM_OFFSET, 0, sizeof(uint16_t));
     }
 
-    (void) MD4((unsigned char *)&packet[iphdr_offset], len, buf);
+    size_t const len = MIN(BUFSIZE_TO_HASH, size - hash_start);
+    (void)MD4((unsigned char *)&packet[hash_start], len, buf);
 
     if (4 == ipversion) {
         // Restore the dumped IP header fields

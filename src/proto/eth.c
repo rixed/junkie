@@ -42,7 +42,7 @@ static char const Id[] = "$Id: 70c2033b6d5c020b1a0f8c367cf57c2cfb996c84 $";
 
 LOG_CATEGORY_DEF(proto_eth);
 
-static bool collapse_vlans = true;
+bool collapse_vlans = true;
 EXT_PARAM_RW(collapse_vlans, "collapse-vlans", bool, "Set to true if packets from distinct vlans share the same address range");
 static const int vlan_unset = VLAN_UNSET;
 
