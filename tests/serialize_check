@@ -24,7 +24,7 @@ rm -f $dumplog $narklog
 
 stdbuf -oL $nark > $narklog &
 narkpid=$!
-disown $narkpid
+#disown $narkpid
 
 # FIXME: It may happen that one pcap is finished while the for-each-file-in is not over yet, thus quitting junkie before all pcaps have been played.
 $junkie > $dumplog \
