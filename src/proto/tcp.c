@@ -216,12 +216,12 @@ static struct mux_subparser *tcp_subparser_new(struct mux_parser *mux_parser, st
     return &tcp_subparser->mux_subparser;
 }
 
-struct mux_subparser *tcp_subparser_and_parser_new(struct parser *parser, struct proto *proto, struct proto *requestor, uint16_t src, uint16_t dst, struct timeval const *now)
+struct mux_subparser *tcp_subparser_and_parser_new(struct parser *parser, struct proto *proto, struct proto *requestor, uint16_t src, uint16_t dst, unsigned way, struct timeval const *now)
 {
     assert(parser->proto == proto_tcp);
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
-
-    struct tcp_key key = { .port = { src, dst } };
+    struct port_key key;
+    port_key_init(&key, src, dst, way);
     return mux_subparser_and_parser_new(mux_parser, proto, requestor, &key, now);
 }
 
@@ -245,23 +245,12 @@ static void tcp_subparser_del(struct mux_subparser *mux_subparser)
     FREE(tcp_subparser);
 }
 
-static void tcp_key_init(struct tcp_key *key, uint16_t src, uint16_t dst, unsigned way)
-{
-    if (way == 0) {
-        key->port[0] = src;
-        key->port[1] = dst;
-    } else {
-        key->port[0] = dst;
-        key->port[1] = src;
-    }
-}
-
 struct mux_subparser *tcp_subparser_lookup(struct parser *parser, struct proto *proto, struct proto *requestor, uint16_t src, uint16_t dst, unsigned way, struct timeval const *now)
 {
     assert(parser->proto == proto_tcp);
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
-    struct tcp_key key;
-    tcp_key_init(&key, src, dst, way);
+    struct port_key key;
+    port_key_init(&key, src, dst, way);
     return mux_subparser_lookup(mux_parser, proto, requestor, &key, now);
 }
 
@@ -303,8 +292,8 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
     tcp_proto_info_ctor(&info, parser, parent, tcphdr_len, wire_len - tcphdr_len, sport, dport, tcphdr);
 
     // Find out subparser based on exact ports
-    struct tcp_key key;
-    tcp_key_init(&key, sport, dport, way);
+    struct port_key key;
+    port_key_init(&key, sport, dport, way);
     struct mux_subparser *subparser = mux_subparser_lookup(mux_parser, NULL, NULL, &key, now);
 
     // Or using a wildcard port
@@ -409,7 +398,7 @@ void tcp_init(void)
         .subparser_new = tcp_subparser_new,
         .subparser_del = tcp_subparser_del,
     };
-    mux_proto_ctor(&mux_proto_tcp, &ops, &mux_ops, "TCP", PROTO_CODE_TCP, sizeof(struct tcp_key), TCP_HASH_SIZE);
+    mux_proto_ctor(&mux_proto_tcp, &ops, &mux_ops, "TCP", PROTO_CODE_TCP, sizeof(struct port_key), TCP_HASH_SIZE);
     port_muxer_list_ctor(&tcp_port_muxers, "TCP muxers");
     ip_subproto_ctor(&ip_subproto, IPPROTO_TCP, proto_tcp);
     ip6_subproto_ctor(&ip6_subproto, IPPROTO_TCP, proto_tcp);

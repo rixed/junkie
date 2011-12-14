@@ -47,6 +47,11 @@ void port_muxer_del(struct port_muxer *, struct port_muxer_list *);
  */
 struct proto *port_muxer_find(struct port_muxer_list *, uint16_t port);
 
+struct port_key {
+    uint16_t port[2];
+} packed_;
+void port_key_init(struct port_key *key, uint16_t src, uint16_t dst, unsigned way);
+
 #include <libguile.h>
 SCM g_port_muxer_list(struct port_muxer_list *);
 SCM g_port_muxer_add(struct port_muxer_list *, SCM name, SCM port_min, SCM port_max);

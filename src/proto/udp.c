@@ -112,23 +112,12 @@ static SCM g_udp_del_port(SCM name, SCM port_min, SCM port_max)
  * Parse
  */
 
-static void udp_key_init(struct udp_key *key, uint16_t src, uint16_t dst, unsigned way)
-{
-    if (way == 0) {
-        key->port[0] = src;
-        key->port[1] = dst;
-    } else {
-        key->port[0] = dst;
-        key->port[1] = src;
-    }
-}
-
 struct mux_subparser *udp_subparser_and_parser_new(struct parser *parser, struct proto *proto, struct proto *requestor, uint16_t src, uint16_t dst, unsigned way, struct timeval const *now)
 {
     assert(parser->proto == proto_udp);
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
-    struct udp_key key;
-    udp_key_init(&key, src, dst, way);
+    struct port_key key;
+    port_key_init(&key, src, dst, way);
     return mux_subparser_and_parser_new(mux_parser, proto, requestor, &key, now);
 }
 
@@ -136,8 +125,8 @@ struct mux_subparser *udp_subparser_lookup(struct parser *parser, struct proto *
 {
     assert(parser->proto == proto_udp);
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
-    struct udp_key key;
-    udp_key_init(&key, src, dst, way);
+    struct port_key key;
+    port_key_init(&key, src, dst, way);
     return mux_subparser_lookup(mux_parser, proto, requestor, &key, now);
 }
 
@@ -176,8 +165,8 @@ static enum proto_parse_status udp_parse(struct parser *parser, struct proto_inf
     udp_proto_info_ctor(&info, parser, parent, sizeof(*udphdr), payload, sport, dport);
 
     // Find out subparser based on exact ports
-    struct udp_key key;
-    udp_key_init(&key, sport, dport, way);
+    struct port_key key;
+    port_key_init(&key, sport, dport, way);
     struct mux_subparser *subparser = mux_subparser_lookup(mux_parser, NULL, NULL, &key, now);
 
     // Or using a wildcard port
@@ -229,7 +218,7 @@ void udp_init(void)
         .serialize   = udp_serialize,
         .deserialize = udp_deserialize,
     };
-    mux_proto_ctor(&mux_proto_udp, &ops, &mux_proto_ops, "UDP", PROTO_CODE_UDP, sizeof(struct udp_key), UDP_HASH_SIZE);
+    mux_proto_ctor(&mux_proto_udp, &ops, &mux_proto_ops, "UDP", PROTO_CODE_UDP, sizeof(struct port_key), UDP_HASH_SIZE);
     port_muxer_list_ctor(&udp_port_muxers, "UDP muxers");
 
     ip_subproto_ctor(&ip_subproto, IPPROTO_UDP, proto_udp);

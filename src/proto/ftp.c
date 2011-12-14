@@ -118,7 +118,7 @@ static void check_for_pasv(struct ip_proto_info const *ip, struct proto *request
         // Notice that we must take into account the way that will be used by the IP parser.
         uint16_t const clt_port = 0;
         uint16_t const srv_port = new_port;
-        struct mux_subparser *ftp_parser = tcp_subparser_and_parser_new(tcp_parser->parser, proto_ftp, requestor, way == 0 ? clt_port:srv_port, way == 0 ? srv_port:clt_port, now);
+        struct mux_subparser *ftp_parser = tcp_subparser_and_parser_new(tcp_parser->parser, proto_ftp, requestor, clt_port, srv_port, way, now);
 
         mux_subparser_unref(ftp_parser);
         mux_subparser_unref(tcp_parser);
@@ -158,7 +158,7 @@ static void check_for_port(struct ip_proto_info const *ip, struct tcp_proto_info
         // port minus 1 to this port of the FTP user.
         // Notice that we must take into account the way that will be used by the IP parser.
         uint16_t const ftp_port = tcp->key.port[1]-1;
-        struct mux_subparser *ftp_parser = tcp_subparser_and_parser_new(tcp_parser->parser, proto_ftp, requestor, way == 0 ? ftp_port:usr_port, way == 0 ? usr_port:ftp_port, now);
+        struct mux_subparser *ftp_parser = tcp_subparser_and_parser_new(tcp_parser->parser, proto_ftp, requestor, ftp_port, usr_port, way, now);
 
         mux_subparser_unref(ftp_parser);
         mux_subparser_unref(tcp_parser);

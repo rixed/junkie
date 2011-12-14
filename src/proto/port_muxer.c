@@ -108,6 +108,21 @@ struct proto *port_muxer_find(struct port_muxer_list *muxers, uint16_t port)
 }
 
 /*
+ * Port key related function
+ */
+
+void port_key_init(struct port_key *key, uint16_t src, uint16_t dst, unsigned way)
+{
+    if (way == 0) {
+        key->port[0] = src;
+        key->port[1] = dst;
+    } else {
+        key->port[0] = dst;
+        key->port[1] = src;
+    }
+}
+
+/*
  * Extension functions
  */
 

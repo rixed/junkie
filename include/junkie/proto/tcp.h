@@ -14,9 +14,7 @@ extern struct proto *proto_tcp;
 
 struct tcp_proto_info {
     struct proto_info info;
-    struct tcp_key {
-        uint16_t port[2];   // src/dest
-    } packed_ key;
+    struct port_key key;
     unsigned syn:1;
     unsigned ack:1;
     unsigned rst:1;
@@ -27,7 +25,7 @@ struct tcp_proto_info {
 };
 
 // You can use src = 0 or dst = 0 for any port
-struct mux_subparser *tcp_subparser_and_parser_new(struct parser *parser, struct proto *proto, struct proto *requestor, uint16_t src, uint16_t dst, struct timeval const *now);
+struct mux_subparser *tcp_subparser_and_parser_new(struct parser *parser, struct proto *proto, struct proto *requestor, uint16_t src, uint16_t dst, unsigned way, struct timeval const *now);
 struct mux_subparser *tcp_subparser_lookup(struct parser *parser, struct proto *proto, struct proto *requestor, uint16_t src, uint16_t dst, unsigned way, struct timeval const *now);
 
 extern struct port_muxer_list tcp_port_muxers;
