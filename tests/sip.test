@@ -1,0 +1,10 @@
+#!/bin/sh
+
+NAME="SIP"
+PCAPS="pcap/voip/sip_via.pcap"
+filter() {
+	grep '^SIP'
+}
+OUTPUT="sip.out"
+
+. ./dump_test
