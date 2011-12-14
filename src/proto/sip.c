@@ -473,7 +473,7 @@ fallback:
 
 static struct uniq_proto uniq_proto_sip;
 struct proto *proto_sip = &uniq_proto_sip.proto;
-static struct port_muxer udp_port_muxer;
+static struct port_muxer udp_port_muxer, tcp_port_muxer;
 
 void sip_init(void)
 {
@@ -492,10 +492,12 @@ void sip_init(void)
     };
     uniq_proto_ctor(&uniq_proto_sip, &ops, "SIP", PROTO_CODE_SIP);
     port_muxer_ctor(&udp_port_muxer, &udp_port_muxers, SIP_PORT, SIP_PORT, proto_sip);
+    port_muxer_ctor(&tcp_port_muxer, &tcp_port_muxers, SIP_PORT, SIP_PORT, proto_sip);
 }
 
 void sip_fini(void)
 {
+    port_muxer_dtor(&tcp_port_muxer, &tcp_port_muxers);
     port_muxer_dtor(&udp_port_muxer, &udp_port_muxers);
     uniq_proto_dtor(&uniq_proto_sip);
     log_category_proto_sip_fini();
