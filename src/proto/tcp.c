@@ -30,6 +30,7 @@
 #include "junkie/tools/log.h"
 #include "junkie/tools/queue.h"
 #include "junkie/tools/serialize.h"
+#include "junkie/proto/cnxtrack.h"
 #include "junkie/proto/pkt_wait_list.h"
 #include "junkie/proto/ip.h"
 #include "junkie/proto/tcp.h"
@@ -291,27 +292,22 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
     struct tcp_proto_info info;
     tcp_proto_info_ctor(&info, parser, parent, tcphdr_len, wire_len - tcphdr_len, sport, dport, tcphdr);
 
-    // Find out subparser based on exact ports
+    // Search an already spawned subparser
     struct port_key key;
     port_key_init(&key, sport, dport, way);
     struct mux_subparser *subparser = mux_subparser_lookup(mux_parser, NULL, NULL, &key, now);
-
-    // Or using a wildcard port
-    if (! subparser) {
-        subparser = tcp_subparser_lookup(&mux_parser->parser, NULL, NULL, 0, dport, way, now);
-        if (subparser) mux_subparser_change_key(subparser, mux_parser, &key);
-    }
-    if (! subparser) {
-        subparser = tcp_subparser_lookup(&mux_parser->parser, NULL, NULL, sport, 0, way, now);
-        if (subparser) mux_subparser_change_key(subparser, mux_parser, &key);
-    }
-
     if (subparser) SLOG(LOG_DEBUG, "Found subparser for this cnx, for proto %s", subparser->parser->proto->name);
 
-    // No one yet ? Then use port
     if (! subparser) {
+        // Use predefined ports first
         struct proto *sub_proto = port_muxer_find(&tcp_port_muxers, info.key.port[0]);
         if (! sub_proto) sub_proto = port_muxer_find(&tcp_port_muxers, info.key.port[1]);
+        // Then try connection tracking
+        if (! sub_proto) {
+            ASSIGN_INFO_OPT2(ip, ip6, parent);
+            if (! ip) ip = ip6;
+            if (ip) sub_proto = cnxtrack_ip_lookup(IPPROTO_TCP, ip->key.addr+0, sport, ip->key.addr+1, dport, now);
+        }
         if (sub_proto) subparser = mux_subparser_and_parser_new(mux_parser, sub_proto, NULL, &key, now);
     }
 
