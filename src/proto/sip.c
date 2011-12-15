@@ -383,7 +383,7 @@ static int sip_extract_via(unsigned unused_ field, struct liner *liner, void *in
 }
 
 // The Via header may inform us that the peer is expecting answers on a non-standard port. Let's conntrack it.
-static void try_conntrack_via(struct sip_proto_info const *info, struct proto_info *parent, unsigned way, struct timeval const *now)
+static void try_conntrack_via(struct sip_proto_info const *info, struct proto_info *parent, unsigned unused_ way, struct timeval const *now)
 {
     /* We do not want to add a conntrack if:
      * a- we already have done so in a previous packet
