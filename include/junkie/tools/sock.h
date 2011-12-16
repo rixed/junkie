@@ -16,6 +16,7 @@ struct sock {
     int fd;
     struct sockaddr srv_addr;
     size_t srv_addrlen;
+    int srv_family;
     char name[64];
 };
 

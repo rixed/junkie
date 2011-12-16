@@ -86,7 +86,7 @@ int log_set_file(char const *filename)
         snprintf(log_filename, sizeof(log_filename), "%s", filename);
     }
 
-    slog(LOG_INFO, __FILE__, __func__, "Opening log file.");
+    SLOG(LOG_INFO, "Opening log file.");
     return 0;
 }
 

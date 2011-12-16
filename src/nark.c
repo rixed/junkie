@@ -157,8 +157,10 @@ static void loop(void)
 int main(int nb_args, char **args)
 {
     all_init();
-    atexit(all_fini);
+    log_set_level(LOG_ERR, NULL);
+    log_set_file("/dev/stderr");
 
+    atexit(all_fini);
     static struct cli_opt main_opts[] = {
         { { "version", "v" }, false, "display version",      CLI_CALL,    { .call = opt_version } },
         { { "port", "p" },    true,  "listen on given port", CLI_DUP_STR, { .str  = &opt_port } },

@@ -36,14 +36,15 @@ LOG_CATEGORY_DEF(sock);
 
 int sock_ctor_client(struct sock *s, char const *host, char const *service)
 {
-    SLOG(LOG_DEBUG, "Construct sock to %s:%s", host, service);
+    int res = -1;
+    SLOG(LOG_DEBUG, "Construct sock to %s.%s", host, service);
 
     struct addrinfo *info;
     struct addrinfo hints;
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;    // either v4 or v6
     hints.ai_socktype = SOCK_DGRAM;
-    hints.ai_flags = AI_CANONNAME;
+    hints.ai_flags = AI_CANONNAME | AI_V4MAPPED | AI_ADDRCONFIG;
 
     int err = getaddrinfo(host, service, &hints, &info);
     if (err) {
@@ -52,32 +53,47 @@ int sock_ctor_client(struct sock *s, char const *host, char const *service)
         return -1;
     }
 
-    memset(&s->srv_addr, 0, sizeof(s->srv_addr));
-    memcpy(&s->srv_addr, info->ai_addr, info->ai_addrlen);
-    s->srv_addrlen = info->ai_addrlen;
+    for (struct addrinfo *info_ = info; info_; info_ = info_->ai_next) {
+        memset(&s->srv_addr, 0, sizeof(s->srv_addr));
+        memcpy(&s->srv_addr, info_->ai_addr, info_->ai_addrlen);
+        s->srv_addrlen = info_->ai_addrlen;
+        s->srv_family = info_->ai_family;
 
-    char addr[256], srv[256];
-    err = getnameinfo(&s->srv_addr, s->srv_addrlen, addr, sizeof(addr), srv, sizeof(srv), NI_DGRAM|NI_NOFQDN|NI_NUMERICSERV|NI_NUMERICHOST);
-    if (! err) {
-        snprintf(s->name, sizeof(s->name), "%s@%s:%s", info->ai_canonname, addr, srv);
-    } else {
-        SLOG(LOG_WARNING, "Cannot getnameinfo(): %s", gai_strerror(err));
-        snprintf(s->name, sizeof(s->name), "%s@?:%s", info->ai_canonname, service);
+        char addr[256], srv[256];
+        err = getnameinfo(&s->srv_addr, s->srv_addrlen, addr, sizeof(addr), srv, sizeof(srv), NI_DGRAM|NI_NOFQDN|NI_NUMERICSERV|NI_NUMERICHOST);
+        if (! err) {
+            snprintf(s->name, sizeof(s->name), "%s@%s.%s", info->ai_canonname, addr, srv);
+        } else {
+            SLOG(LOG_WARNING, "Cannot getnameinfo(): %s", gai_strerror(err));
+            snprintf(s->name, sizeof(s->name), "%s@?.%s", info->ai_canonname, service);
+        }
+        SLOG(LOG_DEBUG, "Trying to use socket %s", s->name);
+
+        s->fd = socket(s->srv_family, SOCK_DGRAM, 0);
+        if (s->fd < 0) {
+            SLOG(LOG_WARNING, "Cannot socket(): %s", strerror(errno));
+            continue;
+        }
+
+        // try to connect
+        int cfd = connect(s->fd, &s->srv_addr, s->srv_addrlen);
+        if (cfd < 0) {
+            SLOG(LOG_WARNING, "Cannot connect(): %s", strerror(errno));
+            continue;
+        }
+        (void)close(cfd);
+
+        res = 0;
+        break;  // go with this one
     }
 
     freeaddrinfo(info);
-
-    s->fd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (s->fd < 0) {
-        SLOG(LOG_ERR, "Cannot socket(): %s", strerror(errno));
-        return -1;
-    }
-
-    return 0;
+    return res;
 }
 
 int sock_ctor_server(struct sock *s, char const *service)
 {
+    int res = -1;
     SLOG(LOG_DEBUG, "Construct sock for serving %s", service);
 
     struct addrinfo *info;
@@ -89,24 +105,31 @@ int sock_ctor_server(struct sock *s, char const *service)
         return -1;
     }
 
-    memcpy(&s->srv_addr, info->ai_addr, info->ai_addrlen);
-    s->srv_addrlen = info->ai_addrlen;
-    snprintf(s->name, sizeof(s->name), "*:%s", service);
+    for (struct addrinfo *info_ = info; info_; info_ = info_->ai_next) {
+        memset(&s->srv_addr, 0, sizeof(s->srv_addr));
+        memcpy(&s->srv_addr, info_->ai_addr, info_->ai_addrlen);
+        s->srv_addrlen = info_->ai_addrlen;
+        s->srv_family = info_->ai_family;
+        snprintf(s->name, sizeof(s->name), "*.%s", service);
+
+        s->fd = socket(s->srv_family, SOCK_DGRAM, 0);
+        if (s->fd < 0) {
+            SLOG(LOG_WARNING, "Cannot socket(): %s", strerror(errno));
+            continue;
+        }
+        if (0 != bind(s->fd, &s->srv_addr, s->srv_addrlen)) {
+            SLOG(LOG_WARNING, "Cannot bind(): %s", strerror(errno));
+            (void)close(s->fd);
+            s->fd = -1;
+            continue;
+        } else {
+            res = 0;
+            break;
+        }
+    }
+
     freeaddrinfo(info);
-
-    s->fd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (s->fd < 0) {
-        SLOG(LOG_ERR, "Cannot socket(): %s", strerror(errno));
-        return -1;
-    }
-    if (0 != bind(s->fd, &s->srv_addr, s->srv_addrlen)) {
-        SLOG(LOG_ERR, "Cannot bind(): %s", strerror(errno));
-        (void)close(s->fd);
-        s->fd = -1;
-        return -1;
-    }
-
-    return 0;
+    return res;
 }
 
 void sock_dtor(struct sock *s)
