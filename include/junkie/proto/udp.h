@@ -14,9 +14,7 @@ extern struct proto *proto_udp;
 
 struct udp_proto_info {
     struct proto_info info;
-    struct udp_key {
-        uint16_t port[2];
-    } packed_ key;
+    struct port_key key;
 };
 
 // TODO: inline them ?

@@ -212,12 +212,15 @@ static enum proto_parse_status sdp_parse(struct parser *parser, struct proto_inf
 
     if (0 != sdper_parse(&sdper, &cap_len, packet, cap_len, &info)) return PROTO_PARSE_ERR;
 
+    // Start conntracking of RT(C)P streams if we have all required informations
     if (
         (info.set_values & SDP_PORT_SET) &&
         (info.set_values & SDP_HOST_SET)
     ) {
         SLOG(LOG_DEBUG, "SDP@%p, connect info is %s:%"PRIu16, sdp_parser, ip_addr_2_str(&info.host), info.port);
 
+        /* FIXME: store both peers of the SDP tunnel and respawn the RT(C)Ps as soon as
+         * one of the end changes. Problem is: we don't know which peer this is! */
         if (! sdp_parser->host_set) {
             sdp_parser->host_set = true;
             sdp_parser->host = info.host;
