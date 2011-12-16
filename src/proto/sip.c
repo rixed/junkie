@@ -37,6 +37,7 @@
 #include "junkie/proto/udp.h"
 #include "junkie/proto/sdp.h"
 #include "junkie/proto/sip.h"
+#include "junkie/proto/cnxtrack.h"
 #include "proto/liner.h"
 #include "proto/httper.h"
 
@@ -383,71 +384,22 @@ static int sip_extract_via(unsigned unused_ field, struct liner *liner, void *in
 }
 
 // The Via header may inform us that the peer is expecting answers on a non-standard port. Let's conntrack it.
-static void try_conntrack_via(struct sip_proto_info const *info, struct proto_info *parent, unsigned unused_ way, struct timeval const *now)
+static void conntrack_via(struct sip_proto_info const *info, struct timeval const *now)
 {
-    /* We do not want to add a conntrack if:
-     * a- we already have done so in a previous packet
-     * b- the dest port correspond to SIP already
-     *
-     * Case a can not be dealt with easily without a flag since the conntracking
-     * subparser keys are rewriten once used (to get rid of port 0, replaced by
-     * actual port, which we do not know here). But Sip being stateless we have
-     * no room to store this flag! So we resort on the wildcard 0 port only, and
-     * reinsert it whenever it is rewritten.
-     *
-     * Case b can be known by querying port_muxer_find with tcp/udp_port_muxers.
-     * We start with case b since it's faster and sufficient most of the times.
-     */
-    SLOG(LOG_DEBUG, "Trying to conntrack Sip via %s %s:%"PRIu16,
+    /* We conntrack the Via at every occurence, which will insert many conntrack
+     * that will never be used (because most of the time Via is toward default SIP
+     * port anyway.
+     * We can't but hope that timeouting tracked connection will compensate for our
+     * slopyness.
+     * Notice that we conntrack from any peer to the Via address. SIP is so fun! */
+    SLOG(LOG_DEBUG, "Conntracking SIP via %s %s:%"PRIu16,
         info->via.protocol == IPPROTO_UDP ? "UDP" :
             info->via.protocol == IPPROTO_TCP ? "TCP" : "unknown",
         ip_addr_2_str(&info->via.addr),
         info->via.port);
 
     assert(info->set_values & SIP_VIA_SET);
-    struct port_muxer_list *port_muxers;
-    struct proto *proto_transp;
-    switch (info->via.protocol) {
-        case IPPROTO_UDP:
-            port_muxers = &udp_port_muxers;
-            proto_transp = proto_udp;
-            break;
-        case IPPROTO_TCP:
-            port_muxers = &tcp_port_muxers;
-            proto_transp = proto_tcp;
-            break;
-        default:
-            SLOG(LOG_DEBUG, "Unknown protocol for Sip Via: %u", info->via.protocol);
-            return;
-    }
-    struct proto *sub_proto = port_muxer_find(port_muxers, info->via.port);
-    if (sub_proto == proto_sip) {
-        SLOG(LOG_DEBUG, "We are already the default proto for this Via spec");
-        return;
-    }
-
-    ASSIGN_INFO_CHK(ip, parent, );
-    /* Note: We conntrack from the current server address to the Via address and port.
-     * We will not track an unknown IP to connect to the Via address, because we lack the
-     * structure to store this kind of conntracking.
-     * FIXME: add a global one-size-fit-all conntracking hash (with addresses, port, proto,
-     * and any wildcard) to replace the use of subparsers hashes with port wildcard? */
-    // Look for a transp parser between the server (ip->addr[1]:server_port), and
-    // the client address specified in Via field (info->via.addr:info->via.port)
-    unsigned way2;
-    struct mux_subparser *ip_subparser =
-        ip_subparser_lookup(ip->info.parser, proto_transp, NULL, info->via.protocol, ip->key.addr+1, &info->via.addr, &way2, now);
-    if (! ip_subparser) return;
-
-    // Then for the SIP parser, child of this transp (UDP|TCP) parser
-    struct mux_subparser *transp_subparser =
-        (info->via.protocol == IPPROTO_UDP ? udp_subparser_lookup : tcp_subparser_lookup)
-        (ip_subparser->parser, proto_sip, NULL, 0 /* server_port? */, info->via.port, way2, now);
-
-    assert(!transp_subparser || transp_subparser->parser->proto == proto_sip);
-    if (transp_subparser) SLOG(LOG_DEBUG, "Successfully created the conntracking SIP parser");
-    mux_subparser_unref(transp_subparser);
-    mux_subparser_unref(ip_subparser);
+    (void)cnxtrack_ip_new(info->via.protocol, &info->via.addr, info->via.port, ADDR_UNKNOWN, PORT_UNKNOWN, false /* only one cnx */, proto_sip, now, NULL);
 }
 
 static enum proto_parse_status sip_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t unused_ *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
@@ -498,7 +450,7 @@ static enum proto_parse_status sip_parse(struct parser *parser, struct proto_inf
         (info.set_values & SIP_CMD_SET) &&
         (info.set_values & SIP_VIA_SET)
     ) {
-        try_conntrack_via(&info, parent, way, now);
+        conntrack_via(&info, now);
     }
 
     struct parser *subparser = NULL;
