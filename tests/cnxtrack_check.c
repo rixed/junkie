@@ -8,6 +8,7 @@
 #include <junkie/tools/miscmacs.h>
 #include <junkie/tools/ext.h>
 #include <junkie/tools/mallocer.h>
+#include <junkie/tools/hash.h>
 #include <junkie/cpp.h>
 #include <junkie/proto/pkt_wait_list.h>
 #include <junkie/proto/cap.h>
@@ -16,6 +17,7 @@
 #include <junkie/proto/tcp.h>
 #include <junkie/proto/ftp.h>
 #include <junkie/proto/http.h>
+#include <junkie/proto/cnxtrack.h>
 
 static struct test {
     uint8_t const *packet;
@@ -176,9 +178,13 @@ static void cnxtrack_check(void)
 
 int main(void)
 {
+    // FIXME: this is getting boring. Maybe we should go for a dependancy based init system?
     log_init();
+    mutex_init();
     ext_init();
     mallocer_init();
+    hash_init();
+    cnxtrack_init();
     proto_init();
     pkt_wait_list_init();
     ref_init();
@@ -205,8 +211,11 @@ int main(void)
     ref_fini();
     pkt_wait_list_fini();
     proto_fini();
+    cnxtrack_fini();
+    hash_fini();
     mallocer_fini();
     ext_fini();
+    mutex_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

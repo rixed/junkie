@@ -202,8 +202,6 @@ void cnxtrack_init(void)
 
 void cnxtrack_fini(void)
 {
-    mutex_dtor(&cnxtracker_lock);
-
     struct cnxtrack_ip *ct;
     while (NULL != (ct = TAILQ_FIRST(&cnxtrack_ips))) {
         cnxtrack_ip_del(ct);
@@ -211,6 +209,7 @@ void cnxtrack_fini(void)
 
     HASH_DEINIT(&cnxtrack_ips_h);
 
+    mutex_dtor(&cnxtracker_lock);
     ext_param_cnxtrack_timeout_fini();
     log_category_cnxtrack_fini();
 }
