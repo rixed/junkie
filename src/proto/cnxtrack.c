@@ -31,21 +31,23 @@ struct cnxtrack_ip {
         struct port_key port;
     } packed_ key;
     struct proto *proto;
+    struct proto *requestor;
     bool reuse;
     struct timeval last_used;
 };
 
-static int cnxtrack_ip_ctor(struct cnxtrack_ip *ct, unsigned ip_proto, struct ip_addr const *src, uint16_t src_port, struct ip_addr const *dst, uint16_t dst_port, bool reuse, struct proto *proto, struct timeval const *now)
+static int cnxtrack_ip_ctor(struct cnxtrack_ip *ct, unsigned ip_proto, struct ip_addr const *ip_a, uint16_t port_a, struct ip_addr const *ip_b, uint16_t port_b, bool reuse, struct proto *proto, struct timeval const *now, struct proto *requestor)
 {
     SLOG(LOG_DEBUG, "Construct cnxtrack_ip@%p for proto %u, %s:%"PRIu16"->%s:%"PRIu16" for %s",
-        ct, ip_proto, ip_addr_2_str(src), src_port, ip_addr_2_str(dst), dst_port, proto->name);
+        ct, ip_proto, ip_addr_2_str(ip_a), port_a, ip_addr_2_str(ip_b), port_b, proto->name);
 
     ct->key.ip.protocol = ip_proto;
-    ct->key.ip.addr[0] = *src;
-    ct->key.ip.addr[1] = *dst;
-    ct->key.port.port[0] = src_port;
-    ct->key.port.port[1] = dst_port;
+    ct->key.ip.addr[0] = *ip_a;
+    ct->key.ip.addr[1] = *ip_b;
+    ct->key.port.port[0] = port_a;
+    ct->key.port.port[1] = port_b;
     ct->proto = proto;
+    ct->requestor = requestor;
     ct->reuse = reuse;
     ct->last_used = *now;
 
@@ -57,12 +59,12 @@ static int cnxtrack_ip_ctor(struct cnxtrack_ip *ct, unsigned ip_proto, struct ip
     return 0;
 }
 
-struct cnxtrack_ip *cnxtrack_ip_new(unsigned ip_proto, struct ip_addr const *src, uint16_t src_port, struct ip_addr const *dst, uint16_t dst_port, bool reuse, struct proto *proto, struct timeval const *now)
+struct cnxtrack_ip *cnxtrack_ip_new(unsigned ip_proto, struct ip_addr const *ip_a, uint16_t port_a, struct ip_addr const *ip_b, uint16_t port_b, bool reuse, struct proto *proto, struct timeval const *now, struct proto *requestor)
 {
     MALLOCER(cnxtracks);
     struct cnxtrack_ip *ct = MALLOC(cnxtracks, sizeof(*ct));
     if (! ct) return NULL;
-    if (0 != cnxtrack_ip_ctor(ct, ip_proto, src, src_port, dst, dst_port, reuse, proto, now)) {
+    if (0 != cnxtrack_ip_ctor(ct, ip_proto, ip_a, port_a, ip_b, port_b, reuse, proto, now, requestor)) {
         FREE(ct);
         return NULL;
     }
@@ -101,15 +103,15 @@ static void cnxtrack_ip_timeout(struct timeval const *now)
 }
 
 // caller must own cnxtracker_lock
-static struct cnxtrack_ip *lll_lookup(unsigned ip_proto, struct ip_addr const *src, uint16_t src_port, struct ip_addr const *dst, uint16_t dst_port)
+static struct cnxtrack_ip *ll_lookup(unsigned ip_proto, struct ip_addr const *ip_a, uint16_t port_a, struct ip_addr const *ip_b, uint16_t port_b)
 {
     struct cnxtrack_ip_key key = {
         .ip = {
             .protocol = ip_proto,
-            .addr = { *src, *dst },
+            .addr = { *ip_a, *ip_b },
         },
         .port = {
-            .port = { src_port, dst_port },
+            .port = { port_a, port_b },
         },
     };
     struct cnxtrack_ip *ct;
@@ -117,19 +119,12 @@ static struct cnxtrack_ip *lll_lookup(unsigned ip_proto, struct ip_addr const *s
     return ct;
 }
 
-static struct cnxtrack_ip *ll_lookup(unsigned ip_proto, struct ip_addr const *src, uint16_t src_port, struct ip_addr const *dst, uint16_t dst_port)
-{
-    struct cnxtrack_ip *ct = lll_lookup(ip_proto, src, src_port, dst, dst_port);
-    if (ct) return ct;
-    return lll_lookup(ip_proto, dst, dst_port, src, src_port);
-}
-
-struct proto *cnxtrack_ip_lookup(unsigned ip_proto, struct ip_addr const *src, uint16_t src_port, struct ip_addr const *dst, uint16_t dst_port, struct timeval const *now)
+struct proto *cnxtrack_ip_lookup(unsigned ip_proto, struct ip_addr const *ip_a, uint16_t port_a, struct ip_addr const *ip_b, uint16_t port_b, struct timeval const *now, struct proto **requestor)
 {
     struct proto *proto = NULL;
 
     SLOG(LOG_DEBUG, "Lookup tracked cnx for proto %u, %s:%"PRIu16"->%s:%"PRIu16,
-        ip_proto, ip_addr_2_str(src), src_port, ip_addr_2_str(dst), dst_port);
+        ip_proto, ip_addr_2_str(ip_a), port_a, ip_addr_2_str(ip_b), port_b);
 
     mutex_lock(&cnxtracker_lock);
 
@@ -145,44 +140,35 @@ struct proto *cnxtrack_ip_lookup(unsigned ip_proto, struct ip_addr const *src, u
 
     // Ok, look for an exact match first
     struct cnxtrack_ip *ct;
-    ct = ll_lookup(ip_proto, src, src_port, dst, dst_port);
+    ct = ll_lookup(ip_proto, ip_a, port_a, ip_b, port_b);
+    if (ct) goto done;
+    ct = ll_lookup(ip_proto, ip_b, port_b, ip_a, port_a);
     if (ct) goto done;
 
     // Maybe we lacked one IP address?
-    if (src != &cnxtrack_ip_addr_unknown) {
-        ct = ll_lookup(ip_proto, &cnxtrack_ip_addr_unknown, src_port, dst, dst_port);
-        if (ct) goto done;
-    }
-    if (dst != &cnxtrack_ip_addr_unknown) {
-        ct = ll_lookup(ip_proto, src, src_port, &cnxtrack_ip_addr_unknown, dst_port);
-        if (ct) goto done;
-    }
+    ct = ll_lookup(ip_proto, ip_a, port_a, &cnxtrack_ip_addr_unknown, port_b);
+    if (ct) goto done;
+    ct = ll_lookup(ip_proto, ip_b, port_b, &cnxtrack_ip_addr_unknown, port_a);
+    if (ct) goto done;
 
     // Maybe we lacked one port then?
-    if (src_port != PORT_UNKNOWN) {
-        ct = ll_lookup(ip_proto, src, PORT_UNKNOWN, dst, dst_port);
-        if (ct) goto done;
-    }
-    if (dst_port != PORT_UNKNOWN) {
-        ct = ll_lookup(ip_proto, src, src_port, dst, PORT_UNKNOWN);
-        if (ct) goto done;
-    }
+    ct = ll_lookup(ip_proto, ip_a, port_a, ip_b, PORT_UNKNOWN);
+    if (ct) goto done;
+    ct = ll_lookup(ip_proto, ip_b, port_b, ip_a, PORT_UNKNOWN);
+    if (ct) goto done;
 
     // It's becoming problematic. Maybe we had only one peer then?
-    if (src != &cnxtrack_ip_addr_unknown || src_port != PORT_UNKNOWN) {
-        ct = ll_lookup(ip_proto, &cnxtrack_ip_addr_unknown, PORT_UNKNOWN, dst, dst_port);
-        if (ct) goto done;
-    }
-    if (dst != &cnxtrack_ip_addr_unknown || dst_port != PORT_UNKNOWN) {
-        ct = ll_lookup(ip_proto, src, src_port, &cnxtrack_ip_addr_unknown, PORT_UNKNOWN);
-        if (ct) goto done;
-    }
+    ct = ll_lookup(ip_proto, ip_a, port_a, &cnxtrack_ip_addr_unknown, PORT_UNKNOWN);
+    if (ct) goto done;
+    ct = ll_lookup(ip_proto, ip_b, port_b, &cnxtrack_ip_addr_unknown, PORT_UNKNOWN);
+    if (ct) goto done;
 
-    // I'm afraid we don't know this stream. 14 hash search for nothing...
+    // I'm afraid we don't know this stream. so many hash searches for nothing...
 
 done:
     if (ct) {
         proto = ct->proto;
+        if (requestor) *requestor = ct->requestor;
         if (ct->reuse) {
             // promote at head of used list
             TAILQ_REMOVE(&cnxtrack_ips, ct, used_entry);

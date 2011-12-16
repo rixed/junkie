@@ -39,19 +39,20 @@ struct cnxtrack_ip;
 /// Track a future connection
 struct cnxtrack_ip *cnxtrack_ip_new(
     unsigned ip_proto,          ///< IP subprotocol (probably just IPPROTO_TCP or IPPROTO_UDP)
-    struct ip_addr const *src,  ///< Source address or ADDR_UNKNOWN
-    uint16_t src_port,          ///< Source port or PORT_UNKNOWN
-    struct ip_addr const *dst,  ///< Dest address or ADDR_UNKNOWN
-    uint16_t dst_port,          ///< Dest port or PORT_UNKNOWN
+    struct ip_addr const *ip_a, ///< first peer's address
+    uint16_t port_a,            ///< first peer's port
+    struct ip_addr const *ip_b, ///< second peer's address or ADDR_UNKNOWN
+    uint16_t port_b,            ///< second peer's port or PORT_UNKNOWN
     bool reuse,                 ///< If not set, the cnxtrack will be deleted once used
     struct proto *proto,        ///< The proto that should handle that payload
-    struct timeval const *now   ///< The current time
+    struct timeval const *now,  ///< The current time
+    struct proto *requestor     ///< Who requested this conntracking (for instance, is this RTP for SIP or for MGCP?)
 );
 
 void cnxtrack_ip_del(struct cnxtrack_ip *);
 
 /// Find a suitable proto for this socket, or NULL if none found
-struct proto *cnxtrack_ip_lookup(unsigned ip_proto, struct ip_addr const *src, uint16_t src_port, struct ip_addr const *dst, uint16_t dst_port, struct timeval const *now);
+struct proto *cnxtrack_ip_lookup(unsigned ip_proto, struct ip_addr const *ip_a, uint16_t port_a, struct ip_addr const *ip_b, uint16_t port_b, struct timeval const *now, struct proto **requestor);
 
 void cnxtrack_init(void);
 void cnxtrack_fini(void);
