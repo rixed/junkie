@@ -62,7 +62,9 @@
          (body
            (div (@ (id . title))
                 (p "Junkie the Network Sniffer"))
-           ,@body)))
+           ,@body
+           (div (@ (id . footer))
+                (p ,junkie-version)))))
 ; TODO: if debug is on, add the dump of headers+params?
 
 (define* (respond #:optional body #:key
