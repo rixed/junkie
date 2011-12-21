@@ -30,6 +30,11 @@
 #include "junkie/proto/proto.h"
 #include "junkie/proto/cap.h"
 
+#undef LOG_CAT
+#define LOG_CAT writer_log_category
+
+LOG_CATEGORY_DEF(writer);
+
 /*
  * A capture is governed by a capture_conf object that describes this capture policy.
  * This object is in turn available to guile.
@@ -37,7 +42,9 @@
 
 struct capture_conf {
     char *file;
-    LIST_ENTRY(capture_conf) entry; // once activated, will be on the list (else NULL)
+    LIST_ENTRY(capture_conf) entry;
+    bool listed;    // if in conf_captures list
+    bool paused;
     enum file_type { PCAP, CSV } method;
     unsigned max_pkts;
     unsigned max_size;
@@ -52,14 +59,15 @@ struct capture_conf {
 static LIST_HEAD(capture_confs, capture_conf) capture_confs;    // list of all activated capture_confs
 static struct mutex confs_lock; // protects the above list
 
+// This really must be a projection since we might destruct from unload independantly from guile's GC
 static void capture_conf_dtor(struct capture_conf *conf)
 {
     SLOG(LOG_DEBUG, "Destructing capture_conf %s@%p", conf->file, conf);
 
-    if (conf->entry.le_next) {
+    if (conf->listed) {
         mutex_lock(&confs_lock);
         LIST_REMOVE(conf, entry);
-        conf->entry.le_next = NULL;
+        conf->listed = false;
         mutex_unlock(&confs_lock);
     }
     if (conf->capfile) {
@@ -87,9 +95,14 @@ static int set_match_re(struct capture_conf *conf, char const *value)
     return 0;
 }
 
-static void conf_start_capture(struct capture_conf *conf)
+static void conf_capture_start(struct capture_conf *conf)
 {
     if (! conf->file) return;
+    if (conf->capfile) {
+        SLOG(LOG_ERR, "Capture into %s is already started", conf->file);
+        return;
+    }
+    SLOG(LOG_DEBUG, "Starting capture %s", conf->file);
 
     switch (conf->method) {
         case PCAP:
@@ -101,11 +114,24 @@ static void conf_start_capture(struct capture_conf *conf)
     }
 }
 
+static void conf_capture_stop(struct capture_conf *conf)
+{
+    if (! conf->file) return;
+    if (! conf->capfile) {
+        SLOG(LOG_ERR, "Capture into %s is not started", conf->file);
+        return;
+    }
+    SLOG(LOG_DEBUG, "Stoping capture %s", conf->file);
+
+    conf->capfile->ops->del(conf->capfile);
+    conf->capfile = NULL;
+}
+
 /*
  * Command line has a special capture_conf (unavailable from guile)
  */
 
-static struct capture_conf cli_conf = { .method = PCAP };
+static struct capture_conf cli_conf = { .listed = false, .paused = false, .method = PCAP };
 
 // Called by the CLI parser to set cli_conf.match_re
 static int cli_match(char const *value)
@@ -127,7 +153,8 @@ static bool info_match(struct capture_conf const *conf, struct proto_info const 
 
 static void try_write(struct capture_conf *conf, struct proto_info const *info, size_t cap_len, uint8_t const *packet)
 {
-    if (conf->capfile && info_match(conf, info)) {
+    if (conf->capfile && !conf->paused && info_match(conf, info)) {
+        //SLOG(LOG_DEBUG, "Saving a packet into %s", conf->file);
         (void)conf->capfile->ops->write(conf->capfile, info, cap_len, packet);
     }
 }
@@ -136,7 +163,7 @@ int parse_callback(struct proto_info const *info, size_t cap_len, uint8_t const 
 {
     static bool cli_inited = false;
     if (! cli_inited) {
-        conf_start_capture(&cli_conf);
+        conf_capture_start(&cli_conf);
         cli_inited = true;
     }
 
@@ -145,6 +172,7 @@ int parse_callback(struct proto_info const *info, size_t cap_len, uint8_t const 
     mutex_lock(&confs_lock);
     struct capture_conf *conf;
     LIST_FOREACH(conf, &capture_confs, entry) {
+        assert(conf->listed);
         try_write(conf, info, cap_len, packet);
     }
     mutex_unlock(&confs_lock);
@@ -172,7 +200,12 @@ static int print_conf(SCM conf_smob, SCM port, scm_print_state unused_ *pstate)
 
     scm_puts("#<capture-conf ", port);
     scm_display(scm_from_locale_string(conf->file ? conf->file : "no file"), port);
+    scm_puts(conf->method == PCAP ? " method=PCAP":" method=CSV", port);
+    if (! conf->capfile) scm_puts(" NotStarted", port);
+    if (conf->paused) scm_puts(" Paused", port);
     scm_puts(">", port);
+
+    scm_remember_upto_here_1(conf_smob);
 
     /* non-zero means success */
     return 1;
@@ -181,14 +214,16 @@ static int print_conf(SCM conf_smob, SCM port, scm_print_state unused_ *pstate)
 static struct ext_function sg_make_capture_conf;
 static SCM g_make_capture_conf(SCM file_, SCM method_, SCM match_, SCM max_pkts_, SCM max_size_, SCM max_secs_, SCM caplen_, SCM rotation_)
 {
+    scm_dynwind_begin(0);
     char *file = scm_to_locale_string(file_);
+    scm_dynwind_unwind_handler(free, file, 0); // do not free if we exit normaly
 
-    if (! scm_is_symbol(method_)) {
+    if (! (SCM_UNBNDP(method_) || scm_is_symbol(method_))) {
         scm_throw(scm_from_latin1_symbol("wrong-type-arg"), scm_list_1(method_));
         assert(!"Not reached");
     }
 
-    int method = SCM_UNBNDP(match_) ? 0 : cli_2_enum(false, scm_to_latin1_string(scm_symbol_to_string(method_)), "pcap", "csv", NULL);
+    int method = SCM_UNBNDP(method_) ? 0 : cli_2_enum(false, scm_to_latin1_string(scm_symbol_to_string(method_)), "pcap", "csv", NULL);
     if (method < 0) {
         scm_throw(scm_from_latin1_symbol("no-such-method"), scm_list_1(method_));
         assert(!"Not reached");
@@ -196,8 +231,10 @@ static SCM g_make_capture_conf(SCM file_, SCM method_, SCM match_, SCM max_pkts_
 
     char *match = SCM_UNBNDP(match_) ? NULL : scm_to_locale_string(match_);
 
+    SLOG(LOG_DEBUG, "Constructing a capture conf for file %s and method %s", file, method==PCAP ? "pcap":"csv");
     struct capture_conf *conf = scm_gc_malloc(sizeof(*conf), "capture-conf");
-    conf->entry.le_next = NULL;
+    conf->listed = false;
+    conf->paused = false;
     conf->file = file;
     conf->method = method;
     conf->max_pkts = SCM_UNBNDP(max_pkts_) ? 0 : scm_to_uint(max_pkts_);
@@ -211,9 +248,55 @@ static SCM g_make_capture_conf(SCM file_, SCM method_, SCM match_, SCM max_pkts_
     SCM smob;
     SCM_NEWSMOB(smob, conf_tag, conf);
     if (match) set_match_re(conf, match);
-    conf_start_capture(conf);
+    
+    mutex_lock(&confs_lock);
+    LIST_INSERT_HEAD(&capture_confs, conf, entry);
+    conf->listed = true;
+    mutex_unlock(&confs_lock);
+
+    scm_dynwind_end();
 
     return smob;
+}
+
+static struct ext_function sg_capture_start;
+static SCM g_capture_start(SCM conf_smob)
+{
+    struct capture_conf *conf = (struct capture_conf *)SCM_SMOB_DATA(conf_smob);
+    conf_capture_start(conf);
+
+    scm_remember_upto_here_1(conf_smob);
+
+    return SCM_UNSPECIFIED;
+}
+
+static struct ext_function sg_capture_stop;
+static SCM g_capture_stop(SCM conf_smob)
+{
+    struct capture_conf *conf = (struct capture_conf *)SCM_SMOB_DATA(conf_smob);
+    conf_capture_stop(conf);
+
+    scm_remember_upto_here_1(conf_smob);
+
+    return SCM_UNSPECIFIED;
+}
+
+static struct ext_function sg_capture_pause;
+static SCM g_capture_pause(SCM conf_smob)
+{
+    struct capture_conf *conf = (struct capture_conf *)SCM_SMOB_DATA(conf_smob);
+    conf->paused = true;
+    scm_remember_upto_here_1(conf_smob);
+    return SCM_UNSPECIFIED;
+}
+
+static struct ext_function sg_capture_resume;
+static SCM g_capture_resume(SCM conf_smob)
+{
+    struct capture_conf *conf = (struct capture_conf *)SCM_SMOB_DATA(conf_smob);
+    conf->paused = false;
+    scm_remember_upto_here_1(conf_smob);
+    return SCM_UNSPECIFIED;
 }
 
 /*
@@ -237,24 +320,59 @@ static struct cli_opt writer_opts[] = {
 
 void on_load(void)
 {
+    log_category_writer_init();
     SLOG(LOG_INFO, "Loading writer");
     cli_register("Writer plugin", writer_opts, NB_ELEMS(writer_opts));
     LIST_INIT(&capture_confs);
     mutex_ctor(&confs_lock, "capture_confs");
-    
+
     // Init SMOB type
     conf_tag = scm_make_smob_type("capture-conf", sizeof (struct capture_conf));
     scm_set_smob_free(conf_tag, free_conf);
     scm_set_smob_print(conf_tag, print_conf);
     ext_function_ctor(&sg_make_capture_conf,
         "make-capture-conf", 1, 7, 0, g_make_capture_conf,
-        "(make-capture-conf): create a capture configuration.\n");
+        "(make-capture-conf \"some/file\"\n"
+        "                   'csv ; method, either 'csv or 'pcap\n"
+        "                   \"some regex\" ; optional, regular expression for filtering packets\n"
+        "                   max-pkts max-size max-secs caplen rotation) ; optional as well\n"
+        "                   : create a capture configuration (but does not start it).\n"
+        "See also (? 'capture-start) for actually starting the capture.\n");
+
+    ext_function_ctor(&sg_capture_start,
+        "capture-start", 1, 0, 0, g_capture_start,
+        "(capture-start capture): start the capture.\n"
+        "Starting a capture will overwrite the previously captured files.\n"
+        "See also (? 'capture-stop)\n");
+
+    ext_function_ctor(&sg_capture_stop,
+        "capture-stop", 1, 0, 0, g_capture_stop,
+        "(capture-stop capture): stop the capture\n"
+        "See also (? 'capture-start)\n");
+
+    ext_function_ctor(&sg_capture_pause,
+        "capture-pause", 1, 0, 0, g_capture_pause,
+        "(capture-pause capture): pause the capture\n"
+        "See also (? 'capture-resume)\n");
+
+    ext_function_ctor(&sg_capture_resume,
+        "capture-resume", 1, 0, 0, g_capture_resume,
+        "(capture-resume capture): resume the capture\n"
+        "See also (? 'capture-pause)\n");
 }
 
 void on_unload(void)
 {
     SLOG(LOG_INFO, "Unloading writer");
     cli_unregister(writer_opts);
+    
     capture_conf_dtor(&cli_conf);
+    struct capture_conf *conf;
+    while (NULL != (conf = LIST_FIRST(&capture_confs))) {
+        assert(conf->listed);
+        capture_conf_dtor(conf);
+    }
+
     mutex_dtor(&confs_lock);
+    log_category_writer_fini();
 }
