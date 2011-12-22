@@ -18,7 +18,7 @@ body {
 
 div#title {
 	height: 64px;
-	background: #FF6600 url("/logo.png") no-repeat left;
+	background: #FFCC66 url("/logo.png") no-repeat left;
 	border-width: 0 0 3px 0;
 	border-style: solid;
 	border-color: white;

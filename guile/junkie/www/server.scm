@@ -12,6 +12,8 @@
              (web response)
              (web uri)
              (sxml simple)
+             (sxml match)
+             (srfi srfi-1) ; for fold
              (ice-9 regex)
              (ice-9 threads)
              (ice-9 match)
@@ -56,25 +58,19 @@
                  (cons (string->symbol (uri-decode pair)) 'unset))))
          pairs)))
 
-(define (templatize title body)
-  `(html (head (title ,title)
-               (link (@ (type . "text/css") (href . "/junkie.css") (rel . "stylesheet")) ""))
-         (body
-           (div (@ (id . title))
-                (p "Junkie the Network Sniffer"))
-           ,@body
-           (div (@ (id . footer))
-                (p ,junkie-version)))))
-; TODO: if debug is on, add the dump of headers+params?
+(define (make-simple-page tree)
+  `(html (body ,@tree)))
+
+(define templatize make-simple-page)
+(export templatize)
 
 (define* (respond #:optional body #:key
                   (status 200)
-                  (title "Hello hello!")
                   (doctype "<!DOCTYPE html>\n")
                   (content-type-params '((charset . "utf-8")))
                   (content-type 'text/html)
                   (extra-headers '())
-                  (sxml (and body (templatize title body))))
+                  (sxml (and body (templatize body))))
          (list (build-response
                  #:code status
                  #:headers `((content-type
@@ -176,13 +172,6 @@
 
 (export run)
 
-(define (start-dispatch dispatch . rest)
-  (make-thread (lambda ()
-                 (set-thread-name "J-www-server")
-                 (apply run `(,dispatch ,@rest)))))
-
-(export start-dispatch)
-
 (define (chain-dispatchers l)
   (match l
          (()      (lambda (path params) #f))
@@ -192,12 +181,98 @@
 
 (export chain-dispatchers)
 
+;;
+;; SXML transformers
+;; TODO: test them!
+;;
+
+; Add a title to a document (adding the head if it's missing)
+(define (add-title new-title tree)
+  (sxml-match tree
+              ; if there were already a title, change it
+              [(html (head (title ,previous-title) ,h ...) ,body ...)
+               `(html (head (title ,new-title) ,h ...) ,body ...)]
+              ; if there were none, add one
+              [(html (head ,h ...) ,body ...)
+               `(html (head (title ,new-title) ,h ...) ,body ...)]
+              ; if there were no head, add one
+              [(html ,body ...)
+               `(html (head (title ,new-title)) ,body ...)]))
+
+(define (add-css href tree)
+  (sxml-match tree
+              [(html (head ,h ...) ,body ...)
+               `(html (head ,h ... (link (@ (type . "text/css") (href . ,href) (rel . "stylesheet")) "")) ,body ...)]
+              [(html ,body ...)
+               `(html (head (link (@ (type . "text/css") (href . ,href) (rel . "stylesheet")) "")) ,body ...)]))
+
+;;
+;; Now what follows is specific to junkie's particular web server
+;;
+
+(define (add-header-footer tree)
+  (sxml-match tree
+              [(html ,pre-body ... (body ,body ...))
+               `(html ,pre-body ... (body
+                                      (div (@ (id "title")) (p "Junkie the Network Sniffer"))
+                                      (div (@ (id "menu")))
+                                      (div (@ (id "page")) ,body ...)
+                                      (div (@ (id "footer")) (p ,junkie-version))))]))
+
+; same pattern as above...
+; Note: Inside an attr-list-pattern (@ ...) we cannot match for (a . b) but only (a b)
+;       or compilation fails. So, we must not use the short version for div ids if we want to match them!
+(define *current-path* (make-fluid))
+(define (add-menu label href tree)
+  (let* ((current-path (string-join (fluid-ref *current-path*) "/"))
+         (selected (string=? (string-append "/" current-path) href)))
+    (slog log-debug "Adding menu for href=~s, when current-path=~s" href current-path)
+    (sxml-match tree
+                [(html ,pre-body ... (body (div (@ (id "title")) ,title)
+                                           (div (@ (id "menu")) ,m ...)
+                                           ,post-menu ...))
+                 `(html ,pre-body ... (body (div (@ (id "title")) ,title)
+                                            (div (@ (id "menu"))
+                                                 ,m ...
+                                                 (a (@ (href . ,href)
+                                                       (class . ,(if selected "selected" ""))) ; TODO
+                                                    ,label))
+                                            ,post-menu ...))])))
+
+(define (homepage path params)
+  (if (null? path)
+      (respond
+        `((h1 "It works! (or so, it seams)")
+          (p "To learn more about junkie, see "
+             (a (@ (href . "http://github.com/securactive/junkie")) here))))
+      #f))
+
+(use-modules (junkie www crud)) ; for crudables
 (define (start port)
+  (set! templatize (fold (lambda (crudable prev)
+                           (let ((name (crudable-name crudable)))
+                             (lambda (sxml)
+                               (add-menu name
+                                         (string-append "/crud/read/" name)
+                                         (prev sxml)))))
+                         (lambda (sxml)
+                           (add-menu "Home" "/"
+                                     (add-header-footer
+                                       (add-css "/junkie.css"
+                                                (add-title "Junkie"
+                                                           (make-simple-page sxml))))))
+                         (reverse crudables)))
   (let ((dispatch (chain-dispatchers
                     (list
+                      homepage
                       static-dispatch
                       (@ (junkie www crud) crud-dispatch)))))
-    (start-dispatch dispatch #:port port)))
+    (make-thread (lambda ()
+                   (set-thread-name "J-www-server")
+                   (run (lambda (path params)
+                          (fluid-set! *current-path* path)
+                          (dispatch path params))
+                        #:port port)))))
 
 (export start)
 

@@ -25,6 +25,7 @@
 
 (define-record-type crudable (fields name keys reader writer creator actions))
 (export make-crudable)
+(export crudable-name)
 
 ; We have a global registry of crudables so that we can retrieve them by name
 
@@ -33,6 +34,7 @@
   (slog log-debug "new CRUDable ~s" crudable)
   (assert (crudable? crudable))
   (set! crudables (cons crudable crudables)))
+(export crudables)
 
 (export register-crudable)
 
@@ -116,10 +118,11 @@
 
 (define (pop l n)
   (cond
-    ((= 0 n)   '())
-    ((null? l) '())
-    (else      (cons (car l)
-                     (pop (cdr l) (- n 1))))))
+    ((eqv? 0 n) '())
+    ((null? l)  '())
+    (else       (cons (car l)
+                      (pop (cdr l) (- n 1))))))
+
 (define (fun-params fun)
   (let ((bindings (program-bindings fun))
         (arity    (arity:nreq (car (program-arities fun)))))
@@ -150,17 +153,6 @@
 
 (export show-crudable)
 
-; FIXME: this does not belongs here but in the templater
-(define (add-menu sxml selected)
-  (let ((links (map (lambda (crudable)
-                      (let ((name (crudable-name crudable)))
-                        `(a (@ (href . ,(string-append "/crud/read/" name))
-                               (class . ,(if (string=? name selected) "selected" "")))
-                            ,name)))
-                    (reverse crudables))))
-    `((div (@ (id . "menu")) ,@links)
-      (div (@ (id . "page")) ,@sxml))))
-
 (define (string-starts-with? str prefix)
   (string= str prefix 0 (string-length prefix)))
 
@@ -171,11 +163,10 @@
           (let ((crudable (crudable-find name)))
             (if crudable
                 (begin
-                  (slog log-debug "Found a crudable for name ~a" name)
-                  (respond (add-menu (show-crudable crudable) name)
-                           #:title name))
+                  (slog log-debug "Found a crudable named ~a" name)
+                  (respond (show-crudable crudable)))
                 (begin
-                  (slog log-debug "No crudable for name ~a" name)
+                  (slog log-debug "No crudable named ~a" name)
                   (respond (error-page (simple-format #f "No such object ~a" name)))))))
           (("crud" "write" name)
            (let ((crudable (crudable-find name)))
@@ -183,7 +174,7 @@
                  (let ((field (assq-ref params 'field))
                        (value (assq-ref params 'value))
                        (key   (assq-ref params 'id)))
-                   (slog log-debug "Found a crudable for name ~a" name)
+                   (slog log-debug "Found a crudable named ~a" name)
                    (catch #t
                           (lambda ()
                             ((crudable-writer crudable) key field value)
@@ -192,7 +183,7 @@
                             (slog log-err "Writting crudable ~s resulted in error ~s ~s" name key args)
                             (respond (error-page (simple-format #f "Error ~s ~s" key args))))))
                  (begin ; TODO: with-crudable-named name (lambda...)
-                   (slog log-debug "No crudable for name ~a" name)
+                   (slog log-debug "No crudable named ~a" name)
                    (respond (error-page (simple-format #f "No such object ~a" name)))))))
           (("crud" "new" name)
            (let ((crudable (crudable-find name)))
@@ -205,13 +196,12 @@
                             (apply creator (map cdr (filter (lambda (p)
                                                               (string-starts-with? (val->string (car p)) creator-prefix))
                                                             params)))
-                            (respond (add-menu (show-crudable crudable) name)
-                                     #:title name))
+                            (respond (show-crudable crudable)))
                           (lambda (key . args)
                             (slog log-err "Creating crudable resulted in error ~s ~s" key args)
                             (respond (error-page (simple-format #f "Error ~s ~s" key args))))))
                  (begin
-                   (slog log-debug "No crudable for name ~a" name)
+                   (slog log-debug "No crudable named ~a" name)
                    (respond (error-page (simple-format #f "No such object ~a" name)))))))
           (("crud" "action" name action-label)
            (let ((crudable (crudable-find name)))
@@ -223,13 +213,12 @@
                    (catch #t
                           (lambda ()
                             (action-fun key)
-                            (respond (add-menu (show-crudable crudable) name)
-                                     #:title name))
+                            (respond (show-crudable crudable)))
                           (lambda (key . args)
                             (slog log-err "Performing ~a on crudable ~a resulted in error ~s ~s" action-label name key args)
                             (respond (error-page (simple-format #f "Error ~s ~s" key args))))))
                  (begin
-                   (slog log-debug "No crudable for name ~a" name)
+                   (slog log-debug "No crudable named ~a" name)
                    (respond (error-page (simple-format #f "No such object ~a" name)))))))
           (_ #f)))
 
