@@ -1,4 +1,4 @@
-SUBDIRS = www
+SUBDIRS = www writer
 
 guilelibdir = @GUILELIBDIR@/junkie
 dist_guilelib_DATA = \

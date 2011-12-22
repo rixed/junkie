@@ -193,8 +193,6 @@
 (export chain-dispatchers)
 
 (define (start port)
-  ((@ (junkie www monitor) register))
-  (set-quit-when-done #f)
   (let ((dispatch (chain-dispatchers
                     (list
                       static-dispatch

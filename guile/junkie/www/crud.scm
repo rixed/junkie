@@ -51,6 +51,7 @@
   (if (string? v) v (object->string v)))
 
 ; values must start with a non-editable key. writer-url should be an url or #f
+; TODO: all numeric columns must have a min/max/sum/avg at the end
 (define* (show-table vals heads name create-heads #:key writer-url creator-url deletor-url)
   (slog log-debug "show-table with heads = ~s, vals = ~s, name = ~s and create-heads = ~s" heads vals name create-heads)
   ; later, put the two JS includes in the header, with a way to tell templatize that they are needed?

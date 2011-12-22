@@ -299,13 +299,47 @@ static SCM g_capture_resume(SCM conf_smob)
     return SCM_UNSPECIFIED;
 }
 
+static SCM unset_sym;
+static SCM pcap_sym;
+static SCM csv_sym;
+static SCM paused_sym;
+static SCM filetype_sym;
+static SCM max_pkts_sym;
+static SCM max_size_sym;
+static SCM max_secs_sym;
+static SCM cap_len_sym;
+static SCM rotation_sym;
+static SCM nb_pkts_sym;
+static SCM fsize_sym;
+static SCM fnum_sym;
+
+static struct ext_function sg_capture_stats;
+static SCM g_capture_stats(SCM conf_smob)
+{
+    struct capture_conf *conf = (struct capture_conf *)SCM_SMOB_DATA(conf_smob);
+    return scm_list_n(
+            scm_cons(paused_sym,   scm_from_bool(conf->paused)),
+            scm_cons(filetype_sym, conf->method == PCAP ? pcap_sym : csv_sym),
+            scm_cons(max_pkts_sym, conf->max_pkts ? scm_from_uint(conf->max_pkts) : unset_sym),
+            scm_cons(max_size_sym, conf->max_size ? scm_from_uint(conf->max_size) : unset_sym),
+            scm_cons(max_secs_sym, conf->max_secs ? scm_from_uint(conf->max_secs) : unset_sym),
+            scm_cons(cap_len_sym,  conf->cap_len  ? scm_from_uint(conf->cap_len)  : unset_sym),
+            scm_cons(rotation_sym, conf->rotation ? scm_from_uint(conf->rotation) : unset_sym),
+            scm_cons(nb_pkts_sym,  conf->capfile ? scm_from_uint(conf->capfile->nb_pkts) : unset_sym),
+            scm_cons(fsize_sym,    conf->capfile ? scm_from_size_t(conf->capfile->file_size) : unset_sym),
+            scm_cons(fnum_sym,     conf->capfile ? scm_from_uint(conf->capfile->file_num) : unset_sym),
+            SCM_UNDEFINED);
+
+    scm_remember_upto_here_1(conf_smob);
+}
+
 /*
  * Init
  */
 
 // Extension of the command line:
 static struct cli_opt writer_opts[] = {
-    { { "file", NULL },     true, "name of the capture file (or stdout)",     CLI_DUP_STR,  { .str = &cli_conf.file } },
+    { { "file", NULL },     true, "name of the capture file",                 CLI_DUP_STR,  { .str = &cli_conf.file } },
     { { "method", NULL },   true, "pcap|csv",                                 CLI_SET_ENUM, { .uint = &cli_conf.method } },
     { { "match", NULL },    true, "save only packets matching this "
                                   "regular expression",                       CLI_CALL,     { .call = &cli_match } },
@@ -325,6 +359,20 @@ void on_load(void)
     cli_register("Writer plugin", writer_opts, NB_ELEMS(writer_opts));
     LIST_INIT(&capture_confs);
     mutex_ctor(&confs_lock, "capture_confs");
+
+	unset_sym    = scm_permanent_object(scm_from_latin1_symbol("unset"));
+	pcap_sym     = scm_permanent_object(scm_from_latin1_symbol("PCAP"));
+	csv_sym      = scm_permanent_object(scm_from_latin1_symbol("CSV"));
+	paused_sym   = scm_permanent_object(scm_from_latin1_symbol("paused"));
+	filetype_sym = scm_permanent_object(scm_from_latin1_symbol("file-type"));
+	max_pkts_sym = scm_permanent_object(scm_from_latin1_symbol("max-pkts"));
+	max_size_sym = scm_permanent_object(scm_from_latin1_symbol("max-size"));
+	max_secs_sym = scm_permanent_object(scm_from_latin1_symbol("max-secs"));
+	cap_len_sym  = scm_permanent_object(scm_from_latin1_symbol("cap-size"));
+	rotation_sym = scm_permanent_object(scm_from_latin1_symbol("rotation"));
+	nb_pkts_sym  = scm_permanent_object(scm_from_latin1_symbol("current-nb-pkts"));
+	fsize_sym    = scm_permanent_object(scm_from_latin1_symbol("current-file-size"));
+	fnum_sym     = scm_permanent_object(scm_from_latin1_symbol("current-file-num"));
 
     // Init SMOB type
     conf_tag = scm_make_smob_type("capture-conf", sizeof (struct capture_conf));
@@ -359,6 +407,10 @@ void on_load(void)
         "capture-resume", 1, 0, 0, g_capture_resume,
         "(capture-resume capture): resume the capture\n"
         "See also (? 'capture-pause)\n");
+
+    ext_function_ctor(&sg_capture_stats,
+        "capture-stats", 1, 0, 0, g_capture_stats,
+        "(capture-stats capture): return some infos & stats\n");
 }
 
 void on_unload(void)
