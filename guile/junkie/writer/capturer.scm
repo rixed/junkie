@@ -52,7 +52,7 @@
 
 ; TODO: additional actions for download, pause/resume, ... del should not be a special action, but an alist of label->action should be allowed.
 (define (register)
-  (register-crudable (make-crudable "capture" capture-names capture-fields #f capture-new capture-del)))
+  (register-crudable (make-crudable "capture" capture-names capture-fields #f capture-new `((Del . ,capture-del)))))
 
 (export register)
 

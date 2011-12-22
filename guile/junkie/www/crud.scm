@@ -23,7 +23,7 @@
 ;; creator: a function taking some parameters and returning nothing.
 ;;
 
-(define-record-type crudable (fields name keys reader writer creator deletor))
+(define-record-type crudable (fields name keys reader writer creator actions))
 (export make-crudable)
 
 ; We have a global registry of crudables so that we can retrieve them by name
@@ -52,7 +52,7 @@
 
 ; values must start with a non-editable key. writer-url should be an url or #f
 ; TODO: all numeric columns must have a min/max/sum/avg at the end
-(define* (show-table vals heads name create-heads #:key writer-url creator-url deletor-url)
+(define* (show-table vals heads name create-heads actions #:key writer-url creator-url actions-url)
   (slog log-debug "show-table with heads = ~s, vals = ~s, name = ~s and create-heads = ~s" heads vals name create-heads)
   ; later, put the two JS includes in the header, with a way to tell templatize that they are needed?
   `(,@(if heads
@@ -72,11 +72,11 @@
                                                            (id . ,h))
                                                         ,h))
                                                  heads)
-                                          ,(if deletor-url `(th "") '()))))
+                                          ,(if (not (null? actions)) `(th "") '()))))
                    (tfoot ,(if heads `(tr ,@(map (lambda (h)
                                                    `(th ,h))
                                                  heads)
-                                          ,(if deletor-url `(th "") '()))))
+                                          ,(if (not (null? actions)) `(th "") '()))))
                    (tbody
                      ,@(map (lambda (l)
                               (let ((key  (car l))
@@ -86,10 +86,13 @@
                                      ,@(map (lambda (v h)
                                               `(td ,(val->string v)))
                                             vals (cdr heads))
-                                     ,(if deletor-url
-                                          `(th (a (@ (href . ,(string-append deletor-url "?key=" (uri-encode key)))
-                                                     (class . "editor_del"))
-                                                  "Del"))
+                                     ,(if (not (null? actions))
+                                          `(th ,@(map (lambda (action)
+                                                        (let ((label (symbol->string (car action))))
+                                                          `(a (@ (href . ,(string-append actions-url "/" label "?key=" (uri-encode key)))
+                                                                 (class . "editor_action"))
+                                                              ,label)))
+                                                      actions))
                                           '()))))
                             vals))))
           `((p (@ (class . "err")) ,(string-append "No " name " yet"))))
@@ -129,7 +132,7 @@
   (let* ((name          (crudable-name crudable))
          (writer        (crudable-writer crudable))
          (creator       (crudable-creator crudable))
-         (deletor       (crudable-deletor crudable))
+         (actions       (crudable-actions crudable))
          (heads         #f)
          (create-heads  (if creator (fun-params creator) '()))
          (alist->keys   (lambda (al) (map car al)))
@@ -140,10 +143,10 @@
                                      (set! heads (alist->keys vals)))
                                  (alist->values vals)))
                              ((crudable-keys crudable)))))
-    (show-table vals heads name create-heads
+    (show-table vals heads name create-heads actions
                 #:writer-url (and writer (string-append "/crud/write/" name))
                 #:creator-url (and creator (string-append "/crud/new/" name))
-                #:deletor-url (and deletor (string-append "/crud/del/" name)))))
+                #:actions-url (string-append "/crud/action/" name))))
 
 (export show-crudable)
 
@@ -210,19 +213,20 @@
                  (begin
                    (slog log-debug "No crudable for name ~a" name)
                    (respond (error-page (simple-format #f "No such object ~a" name)))))))
-          (("crud" "del" name)
+          (("crud" "action" name action-label)
            (let ((crudable (crudable-find name)))
              (if crudable
-                 (let ((deletor (crudable-deletor crudable))
-                       (key     (assq-ref params 'key)))
-                   (slog log-debug "Delete ~a which key is ~s" name key)
+                 (let* ((key        (assq-ref params 'key))
+                        (actions    (crudable-actions crudable))
+                        (action-fun (cdr (assq-ref actions (string->symbol action-label)))))
+                   (slog log-debug "Perform ~a on ~a which key is ~s" action-label name key)
                    (catch #t
                           (lambda ()
-                            (deletor key)
+                            (action-fun key)
                             (respond (add-menu (show-crudable crudable) name)
                                      #:title name))
                           (lambda (key . args)
-                            (slog log-err "Deleting crudable resulted in error ~s ~s" key args)
+                            (slog log-err "Performing ~a on crudable ~a resulted in error ~s ~s" action-label name key args)
                             (respond (error-page (simple-format #f "Error ~s ~s" key args))))))
                  (begin
                    (slog log-debug "No crudable for name ~a" name)

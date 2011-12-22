@@ -147,7 +147,7 @@ table.sortable thead th.sortdesc:after {
 	content: " ↓";
 }
 
-table.editable a.editor_cancel, table.editable a.editor_del, input[type="submit"] {
+table.editable a.editor_cancel, table.editable a.editor_action, input[type="submit"] {
 	text-decoration: none;
 	font-size: 0.75em;
 	color: black;
