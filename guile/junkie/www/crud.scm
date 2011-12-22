@@ -88,7 +88,7 @@
                                             vals (cdr heads))
                                      ,(if (not (null? actions))
                                           `(th ,@(map (lambda (action)
-                                                        (let ((label (symbol->string (car action))))
+                                                        (let ((label (car action)))
                                                           `(a (@ (href . ,(string-append actions-url "/" label "?key=" (uri-encode key)))
                                                                  (class . "editor_action"))
                                                               ,label)))
@@ -218,7 +218,7 @@
              (if crudable
                  (let* ((key        (assq-ref params 'key))
                         (actions    (crudable-actions crudable))
-                        (action-fun (cdr (assq-ref actions (string->symbol action-label)))))
+                        (action-fun (assoc-ref actions action-label)))
                    (slog log-debug "Perform ~a on ~a which key is ~s" action-label name key)
                    (catch #t
                           (lambda ()

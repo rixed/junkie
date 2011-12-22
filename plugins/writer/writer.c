@@ -262,6 +262,7 @@ static SCM g_make_capture_conf(SCM file_, SCM method_, SCM match_, SCM max_pkts_
 static struct ext_function sg_capture_start;
 static SCM g_capture_start(SCM conf_smob)
 {
+    scm_assert_smob_type(conf_tag, conf_smob);
     struct capture_conf *conf = (struct capture_conf *)SCM_SMOB_DATA(conf_smob);
     conf_capture_start(conf);
 
@@ -273,6 +274,7 @@ static SCM g_capture_start(SCM conf_smob)
 static struct ext_function sg_capture_stop;
 static SCM g_capture_stop(SCM conf_smob)
 {
+    scm_assert_smob_type(conf_tag, conf_smob);
     struct capture_conf *conf = (struct capture_conf *)SCM_SMOB_DATA(conf_smob);
     conf_capture_stop(conf);
 
@@ -284,6 +286,7 @@ static SCM g_capture_stop(SCM conf_smob)
 static struct ext_function sg_capture_pause;
 static SCM g_capture_pause(SCM conf_smob)
 {
+    scm_assert_smob_type(conf_tag, conf_smob);
     struct capture_conf *conf = (struct capture_conf *)SCM_SMOB_DATA(conf_smob);
     conf->paused = true;
     scm_remember_upto_here_1(conf_smob);
@@ -293,6 +296,7 @@ static SCM g_capture_pause(SCM conf_smob)
 static struct ext_function sg_capture_resume;
 static SCM g_capture_resume(SCM conf_smob)
 {
+    scm_assert_smob_type(conf_tag, conf_smob);
     struct capture_conf *conf = (struct capture_conf *)SCM_SMOB_DATA(conf_smob);
     conf->paused = false;
     scm_remember_upto_here_1(conf_smob);
@@ -316,6 +320,7 @@ static SCM fnum_sym;
 static struct ext_function sg_capture_stats;
 static SCM g_capture_stats(SCM conf_smob)
 {
+    scm_assert_smob_type(conf_tag, conf_smob);
     struct capture_conf *conf = (struct capture_conf *)SCM_SMOB_DATA(conf_smob);
     return scm_list_n(
             scm_cons(paused_sym,   scm_from_bool(conf->paused)),
@@ -370,9 +375,9 @@ void on_load(void)
 	max_secs_sym = scm_permanent_object(scm_from_latin1_symbol("max-secs"));
 	cap_len_sym  = scm_permanent_object(scm_from_latin1_symbol("cap-size"));
 	rotation_sym = scm_permanent_object(scm_from_latin1_symbol("rotation"));
-	nb_pkts_sym  = scm_permanent_object(scm_from_latin1_symbol("current-nb-pkts"));
-	fsize_sym    = scm_permanent_object(scm_from_latin1_symbol("current-file-size"));
-	fnum_sym     = scm_permanent_object(scm_from_latin1_symbol("current-file-num"));
+	nb_pkts_sym  = scm_permanent_object(scm_from_latin1_symbol("nb-pkts"));
+	fsize_sym    = scm_permanent_object(scm_from_latin1_symbol("file-size"));
+	fnum_sym     = scm_permanent_object(scm_from_latin1_symbol("file-num"));
 
     // Init SMOB type
     conf_tag = scm_make_smob_type("capture-conf", sizeof (struct capture_conf));
