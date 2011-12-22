@@ -212,8 +212,11 @@
                    (slog log-debug "Perform ~a on ~a which key is ~s" action-label name key)
                    (catch #t
                           (lambda ()
-                            (action-fun key)
-                            (respond (show-crudable crudable)))
+                            ; action-fun is allowed to answer itself
+                            (let ((res (action-fun key)))
+                              (if (list? res)
+                                  res
+                                  (respond (show-crudable crudable)))))
                           (lambda (key . args)
                             (slog log-err "Performing ~a on crudable ~a resulted in error ~s ~s" action-label name key args)
                             (respond (error-page (simple-format #f "Error ~s ~s" key args))))))

@@ -5,7 +5,8 @@
 
 (use-modules (junkie defs)
              (junkie runtime)
-             (junkie www crud))
+             (junkie www crud)
+             (junkie www server))
 
 ;; We keep a list of all created capture-conf
 (define captures '())
@@ -56,13 +57,23 @@
         (capture-resume cap)
         (capture-pause cap))))
 
+(define (download name)
+  (slog log-debug "Download capture for ~s" name)
+  (let* ((cap      (assoc-ref captures name)) ; both to check that we do not atempt to download an arbitrary file and got the rotation
+         (stats    (capture-stats cap))
+         (rotation (assq-ref stats 'rotation)))
+    (if (number? rotation)
+        (throw 'todo)
+        (respond-file name))))
+
 ;; Register our crudable
 
 ; TODO: additional actions for download, pause/resume, ... del should not be a special action, but an alist of label->action should be allowed.
 (define (register)
   (register-crudable (make-crudable "capture" capture-names capture-fields #f capture-new
                                     `(("Del" . ,capture-del)
-                                      ("Pause/Resume" . ,pause-resume)))))
+                                      ("Pause|Resume" . ,pause-resume)
+                                      ("Get" . ,download)))))
 
 (export register)
 

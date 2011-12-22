@@ -84,7 +84,7 @@
 
 (export respond)
 
-(define* (respond-raw bv #:optional body #:key
+(define* (respond-raw bv #:key
                       (status 200)
                       (content-type-params '((charset . "utf-8")))
                       (content-type 'text/html)
@@ -95,11 +95,7 @@
                  #:headers `((content-type
                                . (,content-type ,@content-type-params))
                              ,@extra-headers))
-               bv
-               #;(lambda (port)
-                 (set-port-encoding! port "ISO-8859-1")
-                 (slog log-debug "port is now in ~s mode" (port-transcoder port))
-                 (put-bytevector port bv))))
+               bv))
 
 (export respond-raw)
 
@@ -124,19 +120,27 @@
   (let ((ext (string->symbol (car (reverse (string-split fname #\.))))))
     (slog log-debug "What's the content-type of a file which extension is ~s?" ext)
     (case ext
-      ((ico) 'image/x-icon)
-      ((css) 'text/css)
-      (else 'text/plain))))
+      ((ico)  'image/x-icon)
+      ((css)  'text/css)
+      ((pcap) 'application/vnd.tcpdump.pcap)
+      (else   'text/plain))))
+
+(define (respond-file file)
+  (let ((input-port (open-file-input-port file)))
+    (respond-raw (get-bytevector-all input-port)
+                 #:content-type (content-type-of-filename file)
+                 #:content-type-params '()
+                 #:extra-headers `((content-disposition  . ,(string-append "attachment; filename=" (basename file)))))))
+
+(export respond-file)
 
 (define (static-dispatch path params)
   (match path
          ((path)
           (catch #t
                  (lambda ()
-                   (let* ((full-path  (string-append wwwdir "/" path))
-                          (input-port (open-file-input-port full-path)))
-                     (respond-raw (get-bytevector-all input-port)
-                                  #:content-type (content-type-of-filename path) #:content-type-params '())))
+                   (let* ((full-path  (string-append wwwdir "/" path)))
+                     (respond-file full-path)))
                  (lambda (key . args)
                    (slog log-err "Cannot serve ~s: ~s ~s" path key args)
                    #f)))
@@ -224,9 +228,13 @@
 ;       or compilation fails. So, we must not use the short version for div ids if we want to match them!
 (define *current-path* (make-fluid))
 (define (add-menu label href tree)
-  (let* ((current-path (string-join (fluid-ref *current-path*) "/"))
-         (selected (string=? (string-append "/" current-path) href)))
-    (slog log-debug "Adding menu for href=~s, when current-path=~s" href current-path)
+  (let* (; try to find the 'effective-path' of the current path (ie what page we are going to draw, ie what menu is active)
+         (effective-path (match (fluid-ref *current-path*)
+                                (("home")            "/home")
+                                (("crud" _ name . _) (string-append "/crud/read/" name))
+                                (l                   (string-append "/" (string-join l "/")))))
+         (selected       (string=? effective-path href)))
+    (slog log-debug "Adding menu for href=~s, when effective-path=~s" href effective-path)
     (sxml-match tree
                 [(html ,pre-body ... (body (div (@ (id "title")) ,title)
                                            (div (@ (id "menu")) ,m ...)
