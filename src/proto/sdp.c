@@ -33,6 +33,7 @@
 #include "junkie/proto/udp.h"
 #include "junkie/proto/ip.h"
 #include "junkie/proto/rtp.h"
+#include "junkie/proto/cnxtrack.h"
 #include "proto/liner.h"
 #include "proto/sdper.h"
 
@@ -168,25 +169,12 @@ static int sdp_extract_port(unsigned unused_ cmd, struct liner *liner, void *inf
     return 0;
 }
 
-static void spawn_subparsers(struct ip_addr const *this_host, uint16_t this_port, struct ip_addr const *other_host, uint16_t other_port, struct proto_info *parent, struct timeval const *now)
+static void spawn_subparsers(struct ip_addr const *this_host, uint16_t this_port, struct ip_addr const *other_host, uint16_t other_port, struct timeval const *now, struct proto *requestor)
 {
-    ASSIGN_INFO_CHK(ip, parent, );
-
     SLOG(LOG_DEBUG, "Spawning RT(C)P parsers for %s:%"PRIu16"<->%s:%"PRIu16, ip_addr_2_str(this_host), this_port, ip_addr_2_str(other_host), other_port);
 
-    unsigned way2;
-    struct mux_subparser *udp_subparser =
-        ip_subparser_lookup(ip->info.parser, proto_udp, NULL, IPPROTO_UDP, this_host, other_host, &way2, now);
-
-    if (! udp_subparser) return;
-
-    // Notice that we request RT(C)P on behalf of our parent
-    struct mux_subparser *rtp = udp_subparser_and_parser_new(udp_subparser->parser, proto_rtp,  parent->parser->proto, this_port,   other_port,   way2, now); // rtp conntrack
-    mux_subparser_unref(rtp);
-    struct mux_subparser *rtcp = udp_subparser_and_parser_new(udp_subparser->parser, proto_rtcp, parent->parser->proto, this_port+1, other_port+1, way2, now); // rtcp conntrack
-    mux_subparser_unref(rtcp);
-
-    mux_subparser_unref(udp_subparser);
+    (void)cnxtrack_ip_new(IPPROTO_UDP, this_host, this_port,   other_host, other_port,   false, proto_rtp,  now, requestor);
+    (void)cnxtrack_ip_new(IPPROTO_UDP, this_host, this_port+1, other_host, other_port+1, false, proto_rtcp, now, requestor);
 }
 
 static enum proto_parse_status sdp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
@@ -233,8 +221,9 @@ static enum proto_parse_status sdp_parse(struct parser *parser, struct proto_inf
                 sdp_parser->sender_set = false;
             }
         } else if (0 != ip_addr_cmp(&sdp_parser->host, &info.host)) {
-            // Start conntracking between the advertized hosts
-            spawn_subparsers(&sdp_parser->host, sdp_parser->port, &info.host, info.port, parent, now);
+            /* Start conntracking between the advertized hosts
+             * Notice that we request RT(C)P on behalf of our parent! */
+            spawn_subparsers(&sdp_parser->host, sdp_parser->port, &info.host, info.port, now, parent->parser->proto);
 
             ASSIGN_INFO_OPT(ip, parent);
             bool may_use_stun[2] = {
@@ -243,15 +232,15 @@ static enum proto_parse_status sdp_parse(struct parser *parser, struct proto_inf
             };
             // If the sender IP was different from the advertized host, start conntracking on this socket also
             if (may_use_stun[0]) {
-                spawn_subparsers(&sdp_parser->sender, sdp_parser->port, &info.host, info.port, parent, now);
+                spawn_subparsers(&sdp_parser->sender, sdp_parser->port, &info.host, info.port, now, parent->parser->proto);
             }
             // If _this_ sender IP is different from this advertized host, start conntracking on this socket as well
             if (may_use_stun[1]) {
-                spawn_subparsers(&sdp_parser->host, sdp_parser->port, &ip->key.addr[0], info.port, parent, now);
+                spawn_subparsers(&sdp_parser->host, sdp_parser->port, &ip->key.addr[0], info.port, now, parent->parser->proto);
             }
             // If both senders IP were different from advertized ones then start conntracking between these two senders IP as well
             if (may_use_stun[0] && may_use_stun[1]) {
-                spawn_subparsers(&sdp_parser->sender, sdp_parser->port, &ip->key.addr[0], info.port, parent, now);
+                spawn_subparsers(&sdp_parser->sender, sdp_parser->port, &ip->key.addr[0], info.port, now, parent->parser->proto);
             }
 
             // TODO: terminate this parser. meanwhile, reset its state :

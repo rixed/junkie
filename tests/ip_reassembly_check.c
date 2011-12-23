@@ -9,11 +9,13 @@
 #include <junkie/tools/timeval.h>
 #include <junkie/tools/mallocer.h>
 #include <junkie/tools/ext.h>
+#include <junkie/tools/hash.h>
 #include <junkie/proto/pkt_wait_list.h>
 #include <junkie/proto/cap.h>
 #include <junkie/proto/eth.h>
 #include <junkie/proto/ip.h>
 #include <junkie/proto/udp.h>
+#include <junkie/proto/cnxtrack.h>
 #include "lib.h"
 
 /*
@@ -345,6 +347,8 @@ int main(void)
     mutex_init();
     ext_init();
     mallocer_init();
+    hash_init();
+    cnxtrack_init();
     pkt_wait_list_init();
     ref_init();
     cap_init();
@@ -369,6 +373,8 @@ int main(void)
     cap_fini();
     ref_fini();
     pkt_wait_list_fini();
+    cnxtrack_fini();
+    hash_fini();
     mallocer_fini();
     ext_fini();
     mutex_fini();

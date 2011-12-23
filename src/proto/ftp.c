@@ -25,6 +25,7 @@
 #include "junkie/proto/tcp.h"
 #include "junkie/proto/ip.h"
 #include "junkie/proto/ftp.h"
+#include "junkie/proto/cnxtrack.h"
 
 static char const Id[] = "$Id: e723dedac9d286da4b57e9dc2f4f01109c8e7ca3 $";
 
@@ -100,29 +101,8 @@ static void check_for_pasv(struct ip_proto_info const *ip, struct proto *request
 
     SLOG(LOG_DEBUG, "New passive cnx to %s:%"PRIu16, ip_addr_2_str(&new_addr), new_port);
 
-    // So we are looking for a cnx between this ip and port and the current packet
-    // source ip and port (since this message comes from the server).
-    unsigned way;
-    struct mux_subparser *tcp_parser = ip_subparser_lookup(
-        ip->info.parser, proto_tcp, NULL, ip->key.protocol,
-        ip->key.addr+1, // client
-        &new_addr,      // advertised passive server's IP
-        &way,           // the way corresponding to client->server
-        now);
-    // ip_subparser_lookup() either created a TCP parser that will receive all traffic between these IP addresses
-    // (in either way), or returned us a previously created TCP parser already registered for these addresses.
-    // The way returned is the one that will match what we asked for (here client -> server)
-    if (tcp_parser) {
-        // So we must now add to this TCP parser a FTP subparser that will receive all traffic with this server
-        // port (client port will be bound when first packet will be received).
-        // Notice that we must take into account the way that will be used by the IP parser.
-        uint16_t const clt_port = 0;
-        uint16_t const srv_port = new_port;
-        struct mux_subparser *ftp_parser = tcp_subparser_and_parser_new(tcp_parser->parser, proto_ftp, requestor, clt_port, srv_port, way, now);
-
-        mux_subparser_unref(ftp_parser);
-        mux_subparser_unref(tcp_parser);
-    }
+    // So we are looking for a cnx between the client (dest IP here) and the given ip/port.
+    (void)cnxtrack_ip_new(IPPROTO_TCP, &new_addr, new_port, ip->key.addr+1, PORT_UNKNOWN, false, proto_ftp, now, requestor);
 #   undef PASV
 }
 
@@ -142,27 +122,8 @@ static void check_for_port(struct ip_proto_info const *ip, struct tcp_proto_info
 
     SLOG(LOG_DEBUG, "New client data link on %s:%"PRIu16, ip_addr_2_str(&usr_addr), usr_port);
 
-    // So we are looking for a cnx from the destinator IP, port 20, and this IP and port.
-    unsigned way;
-    struct mux_subparser *tcp_parser = ip_subparser_lookup(
-        ip->info.parser, proto_tcp, NULL, ip->key.protocol,
-        ip->key.addr+1, // the actual FTP server IP
-        &usr_addr,      // advertised new user IP
-        &way,           // the way corresponding to client->server
-        now);
-    // ip_subparser_lookup() either created a TCP parser that will receive all traffic between these IP addresses
-    // (in either way), or returned us a previously created TCP parser already registered for these addresses.
-    // The way returned is the one that will match what we asked for (here client -> server)
-    if (tcp_parser) {
-        // So we must now add to this TCP parser a FTP subparser that will receive all traffic from this server
-        // port minus 1 to this port of the FTP user.
-        // Notice that we must take into account the way that will be used by the IP parser.
-        uint16_t const ftp_port = tcp->key.port[1]-1;
-        struct mux_subparser *ftp_parser = tcp_subparser_and_parser_new(tcp_parser->parser, proto_ftp, requestor, ftp_port, usr_port, way, now);
-
-        mux_subparser_unref(ftp_parser);
-        mux_subparser_unref(tcp_parser);
-    }
+    // So we are looking for a cnx from the destinator IP, port 20, and the advertised IP and port.
+    (void)cnxtrack_ip_new(IPPROTO_TCP, &usr_addr, usr_port, ip->key.addr+1, tcp->key.port[1]-1, false, proto_ftp, now, requestor);
 }
 
 static enum proto_parse_status ftp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)

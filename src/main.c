@@ -62,6 +62,7 @@
 #include "junkie/proto/sdp.h"
 #include "junkie/proto/sql.h"
 #include "junkie/proto/port_muxer.h"
+#include "junkie/proto/cnxtrack.h"
 #include "proto/fuzzing.h"
 #include "pkt_source.h"
 #include "plugins.h"
@@ -79,7 +80,7 @@ static struct {
 #   define I(x) { x##_init, x##_fini }
     I(log),           I(ext),         I(redim_array),
     I(mallocer),      I(mutex),       I(plugins),
-    I(hash),          I(proto),       I(fuzzing),
+    I(hash),          I(cnxtrack),    I(proto),       I(fuzzing),
     I(pkt_wait_list), I(ref),         I(port_muxer),
     I(cap),           I(eth),         I(arp),
     I(ip6),           I(ip),          I(gre),

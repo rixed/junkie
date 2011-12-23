@@ -6,12 +6,14 @@
 #include <time.h>
 #include <junkie/cpp.h>
 #include <junkie/tools/ext.h>
+#include <junkie/tools/mutex.h>
 #include <junkie/proto/pkt_wait_list.h>
 #include <junkie/proto/cap.h>
 #include <junkie/proto/eth.h>
 #include <junkie/proto/ip.h>
 #include <junkie/proto/udp.h>
 #include <junkie/proto/tcp.h>
+#include <junkie/proto/cnxtrack.h>
 #include "lib.h"
 #include "proto/sip.c"
 
@@ -138,10 +140,12 @@ struct proto *proto_sdp;
 int main(void)
 {
     log_init();
+    mutex_init();
     ext_init();
     mallocer_init();
     hash_init();
     proto_init();
+    cnxtrack_init();
     pkt_wait_list_init();
     ref_init();
     cap_init();
@@ -169,10 +173,12 @@ int main(void)
     cap_fini();
     ref_fini();
     pkt_wait_list_fini();
+    cnxtrack_fini();
     proto_fini();
     hash_fini();
     mallocer_fini();
     ext_fini();
+    mutex_fini();
     log_fini();
     return EXIT_SUCCESS;
 }

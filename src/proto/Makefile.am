@@ -19,7 +19,8 @@ libproto_la_SOURCES = \
 	gre.c \
 	pkt_wait_list.c \
 	streambuf.c \
-	cursor.c
+	cursor.c \
+	cnxtrack.c
 
 libproto_la_LIBADD = ../tools/libtools.la
 libproto_la_LDFLAGS = -export-dynamic

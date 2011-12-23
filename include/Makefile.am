@@ -28,6 +28,7 @@ pkginclude_HEADERS = \
 	junkie/proto/pkt_wait_list.h \
 	junkie/proto/streambuf.h \
 	junkie/proto/cursor.h \
+	junkie/proto/cnxtrack.h \
 	junkie/tools/ext.h \
 	junkie/tools/mutex.h \
 	junkie/tools/files.h \
