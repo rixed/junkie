@@ -1,6 +1,26 @@
 For a detailed Changelog, see git logs.
 Here are only reported the most visible changes.
 
+New in 1.4.0 (since 1.3.0)
+--------------------------
+
+* Basic HTTP server (for those unhappy with the parentheses)
+  Activate at your own risk!
+
+* Writer plugin can now be scripted from guile
+
+* New connection tracking, simpler with fewer bugs
+
+* Packet deduplication is now done per vlan and/or per ifaces
+  (unless these are collapsed of course)
+
+* You can use the same loging facility from guile than from C
+
+* A way to send parsed infos to another program via socket
+
+* When replaying a pcap file, can now patch timestamp with current time
+
+
 New in 1.3.0 (since 1.2.0)
 --------------------------
 
