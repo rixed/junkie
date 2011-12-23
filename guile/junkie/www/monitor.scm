@@ -11,6 +11,39 @@
              (junkie www server)
              (junkie www crud))
 
+(define (seq start stop)
+  (if (>= start stop)
+      '()
+      (cons start (seq (1+ start) stop))))
+
+; id should be a hash of the values instead to work also when several users are editing the conf
+(define (make-id-of f)
+  (lambda ()
+    (map number->string (seq 0 (length (f))))))
+
+(define (create-port-using f)
+  (lambda (proto port-min port-max)
+    (let ((param->int (lambda (str)
+                        (if (string=? str "")
+                            0
+                            (string->number str)))))
+      (f proto (param->int port-min) (param->int port-max)))))
+
+(define (del-port-of f del)
+  (lambda (id)
+    (let ((stats ((stats-from-id f) id)))
+      (del (assq-ref stats 'proto)
+           (assq-ref stats 'port-min)
+           (assq-ref stats 'port-max)))))
+
+(define (stats-from-id f)
+  (lambda (id)
+    (list-ref (f) (string->number id))))
+
+(define (rev f)
+  (lambda ()
+    (reverse (f))))
+
 ;; A disptach function takes a broken down path and an alist of HTTP parameters
 ;; It should return a response or #f if the request was not answered yet (so that we can chain
 ;; dispatchers and ultimately return a 404).
@@ -29,6 +62,12 @@
   (register-crudable (make-crudable "mallocer" mallocer-names mallocer-stats #f #f '()))
   (register-crudable (make-crudable "hash" hash-names hash-stats #f #f '()))
   (register-crudable (make-crudable "waitlist" wait-list-names wait-list-stats #f #f '()))
+  (register-crudable (make-crudable "tcp-ports" (make-id-of (rev tcp-ports)) (stats-from-id (rev tcp-ports)) #f
+                                    (create-port-using tcp-add-port)
+                                    `(("Del" . ,(del-port-of (rev tcp-ports) tcp-del-port)))))
+  (register-crudable (make-crudable "udp-ports" (make-id-of (rev udp-ports)) (stats-from-id (rev udp-ports)) #f
+                                    (create-port-using udp-add-port)
+                                    `(("Del" . ,(del-port-of (rev udp-ports) udp-del-port)))))
   (register-crudable (make-crudable "config" parameter-names
                                     (lambda (n) `((value . ,(get-parameter-value n))))
                                     (lambda (n f v)

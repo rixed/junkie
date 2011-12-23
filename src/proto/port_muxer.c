@@ -47,6 +47,7 @@ static unsigned range_size(struct port_muxer const *muxer)
 void port_muxer_ctor(struct port_muxer *muxer, struct port_muxer_list *muxers, uint16_t port_min, uint16_t port_max, struct proto *proto)
 {
     SLOG(LOG_DEBUG, "Adding proto %s for ports between %"PRIu16" and %"PRIu16, proto->name, port_min, port_max);
+    if (port_max == 0) port_max = port_min;
     muxer->port_min = MIN(port_min, port_max);
     muxer->port_max = MAX(port_min, port_max);
     muxer->proto = proto;
@@ -169,7 +170,7 @@ SCM g_port_muxer_del(struct port_muxer_list *muxers, SCM name_, SCM port_min_, S
             break;
         }
     }
-    mutex_unlock(&muxers->mutex);
+    mutex_unlock(&muxers->mutex);   // FIXME: so someone else may delete it concurrently?
 
     if (! muxer) return SCM_BOOL_F;
 
