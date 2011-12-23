@@ -22,6 +22,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <signal.h>
 #include <sys/types.h>
 #include "junkie/config.h"
 #include "junkie/tools/log.h"
