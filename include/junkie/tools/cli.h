@@ -23,10 +23,16 @@ struct cli_opt {
     char const *arg[2];
     bool need_argument;
     char const *help;
-    enum cli_action { CLI_CALL, CLI_SET_UINT, CLI_SET_BOOL, CLI_DUP_STR } action;
+    enum cli_action {
+        CLI_CALL,       // will call u.call
+        CLI_SET_UINT,   // will write into u.uint
+        CLI_SET_BOOL,   // will write into u.boolean
+        CLI_DUP_STR,    // will write a copy of the string in u.str
+        CLI_SET_ENUM,   // will write the int enum value in u.uint. values are known from the help, which must be "opt1|opt2|...|optN"
+    } action;
     union {
         int (*call)(char const *option);   // return 0 or error code
-        unsigned *uint;
+        unsigned *uint; // used by both CLI_SET_UINT and CLI_SET_ENUM
         bool *boolean;
         char **str;
     } u;

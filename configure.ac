@@ -74,7 +74,11 @@ AC_CONFIG_FILES([
 	plugins/serializer/Makefile
 	config/Makefile
 	guile/Makefile
+	guile/srfi/Makefile
 	guile/junkie/Makefile
+	guile/junkie/www/Makefile
+	guile/junkie/www/static_files/Makefile
+	guile/junkie/writer/Makefile
 	tests/Makefile
 ])
 AC_OUTPUT

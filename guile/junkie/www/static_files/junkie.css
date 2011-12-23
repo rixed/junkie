@@ -1,0 +1,174 @@
+/* Colors:
+#FF6600 #996633 #993300 #FFCC66 #FFFFCC
+*/
+
+* {
+	font-family: Verdana, sans-serif;
+	margin: 0;
+	padding: 0;
+}
+
+body {
+	margin: auto;
+	background-color: #996633;
+	color: black;
+}
+
+/* Menu */
+
+div#title {
+	height: 64px;
+	background: #FFCC66 url("/logo.png") no-repeat left;
+	border-width: 0 0 3px 0;
+	border-style: solid;
+	border-color: white;
+}
+
+div#title p {
+	font-family: fantasy;
+	font-variant: small-caps;
+	font-size: 30px;
+	padding-left: 80px;
+	padding-top: 20px;
+}
+
+div#menu a {
+	font-family: fantasy;
+	font-variant: small-caps;
+	font-size: 1.5em;
+	text-decoration: none;
+	background-color: #FF6600;
+	display: float;
+	float: left;
+	-moz-border-radius: 0 0 1em 1em;
+	border-radius: 0 0 1em 1em;
+	border-style: solid;
+	border-color: white;
+	border-width: 0 2px 2px 2px;
+	padding: 0.5em 1em 0.5em 1em;
+	margin: -1px;
+	color: black;
+}
+
+div#menu a:hover {
+	background-color: #FFCC66;
+	padding-top: 0.8em;
+}
+
+div#menu a.selected {
+	background-color: #FFFFCC;
+	color: black;
+	padding-top: 1em;
+	border-color: #FFCC66;
+}
+
+/* Page */
+
+div#page {
+	clear: left;
+}
+
+/* Editable tables (tableKit) */
+
+table {
+	margin-left: 1em;
+	border-collapse: collapse;
+}
+
+table caption, p.err {
+	font-weight: bold;
+	font-size: 1.5em;
+	font-variant: small-caps;
+	padding: 2em 0 2em 0;
+}
+
+table.resizable td {
+	border-left: 1px dashed #993300;
+}
+
+table.resizable thead th, table.resizable tfoot th {
+	border-right: 3px solid #993300;
+	padding: 0.5em 2em 0.5em 2em;
+}
+
+table.resizable thead th.resize-handle-active {
+	cursor: e-resize;
+}
+
+div.resize-handle {
+	cursor: e-resize;
+	width: 0px;
+	border-right: 2px dashed #FFF;
+	background-color: red;
+	position: absolute;
+	top: 0;
+	left: 0;
+}
+
+table td {
+	padding: 0.2em 1em 0.2em 1em;
+	text-align: center;
+}
+
+table tbody th {
+	font-weight: bold;
+	text-align: right;
+	padding-right: 1em;
+}
+
+table thead, table tfoot {
+	background-color: #FFCC66;
+}
+
+table tr.rowodd {
+	background-color: #996633;
+}
+table tr.rowodd:hover {
+	background-color: #A97643;
+}
+
+table tr.roweven {
+	background-color: #993300;
+}
+table tr.roweven:hover {
+	background-color: #A94310;
+}
+
+/* highlight the column header used for sorting */
+table.sortable thead th.sortdesc, table.sortable thead th.sortasc {
+	background-color: #FF6600;
+}
+
+/* display an arrow indicating the sort order */
+table.sortable thead th.sortasc:after {
+	content: " ↑";
+}
+table.sortable thead th.sortdesc:after {
+	content: " ↓";
+}
+
+table.editable a.editor_cancel, table.editable a.editor_action, input[type="submit"] {
+	text-decoration: none;
+	font-size: 0.75em;
+	color: black;
+	background-color: #FF6600;
+	margin: 0em 0.4em 0em 0.4em;
+	padding: 0.3em;
+	border: 1px solid white;
+	-moz-border-radius: 0.2em;
+	border-radius: 0.2em;
+}
+
+form.creator {
+	margin: auto;
+	margin-top: 1em;
+}
+
+/* Footer */
+
+div#footer {
+	font-size: 10px;
+	position: fixed;
+	bottom: 0;
+	right: 0;
+}

@@ -1,1 +1,1 @@
-SUBDIRS = junkie
+SUBDIRS = junkie srfi 

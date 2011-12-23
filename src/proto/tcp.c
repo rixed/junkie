@@ -412,7 +412,7 @@ void tcp_init(void)
 
     ext_function_ctor(&sg_tcp_del_port,
         "tcp-del-port", 2, 1, 0, g_tcp_del_port,
-        "(udp-del-port \"proto\" port [port-max]): ask TCP to stop trying this proto for this port [range].\n"
+        "(tcp-del-port \"proto\" port [port-max]): ask TCP to stop trying this proto for this port [range].\n"
         "See also (? 'tcp-add-port)");
 }
 

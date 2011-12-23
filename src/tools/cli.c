@@ -171,11 +171,49 @@ int cli_parse(unsigned nb_args, char **args)
             *opt->u.str = strdup(args[1]);
             err = *opt->u.str == NULL ? -1:0;
             break;
+        case CLI_SET_ENUM:
+            assert(opt->need_argument);
+            unsigned v = 0;
+            size_t opt_len = strlen(args[1]);
+            char const *c;
+            for (c = opt->help; *c; c++) {
+                if (*c == '|') {
+                    v ++;
+                } else if (
+                    (c == opt->help || c[-1] == '|') &&
+                    0 == strncasecmp(c, args[1], opt_len)
+                ) {
+                    break;
+                }
+            }
+            if (*c == '\0') {
+                fprintf(stderr, "Cannot parse enum value '%s'\n", args[1]);
+            } else {
+                *opt->u.uint = v;
+                err = 0;
+            }
+            break;
     }
 
     if (err) return err;
     unsigned const shift = opt->need_argument ? 2:1;
     return cli_parse(nb_args - shift, args + shift);
+}
+
+static char *cli_enum_2_str(unsigned v, char const *values)
+{
+    char const *start = values;
+    while (v-- > 0) {
+        // skip a value
+        while (*start && *start != '|') start++;
+        if (*start == '|') start++;
+    }
+
+    if (! *start) return NULL;
+
+    char const *stop = start;
+    while (*stop && *stop != '|') stop++;
+    return tempstr_printf("%.*s", (int)(stop-start), start);
 }
 
 int cli_2_enum(bool case_sensitive, char const *value, ...)
@@ -221,6 +259,9 @@ static void print_tabuled(struct cli_opt const *opt, int margin)
             break;
         case CLI_DUP_STR:
             if (*opt->u.str) printf(" (default: %s)", *opt->u.str);
+            break;
+        case CLI_SET_ENUM:
+            printf(" (default: %s)", cli_enum_2_str(*opt->u.uint, opt->help));
             break;
     }
     puts("");

@@ -1,3 +1,5 @@
+SUBDIRS = www writer
+
 guilelibdir = @GUILELIBDIR@/junkie
 dist_guilelib_DATA = \
 	instvars.scm \
@@ -12,6 +14,7 @@ instvars.scm: Makefile
 	@echo '(define-public libdir "$(libdir)")' >> $@
 	@echo '(define-public pkglibdir "$(pkglibdir)")' >> $@
 	@echo '(define-public confdir "$(pkgsysconfdir)")' >> $@
+	@echo '(define-public wwwdir "$(pkglibdir)/www")' >> $@
 
 clean-local:
 	@rm -f instvars.scm
