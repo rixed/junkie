@@ -20,7 +20,7 @@ output=`mktemp tmp.XXXXXXXXXX`
 
 for pcap in $PCAPS ; do
 	echo "-- $pcap --" | tee -a $output
-	../src/junkie -p ../plugins/dumper/.libs/dumper.so -r "$pcap" | filter >> $output
+	../src/junkie -p ../plugins/dumper/.libs/dumper.so -e "$CMDLINE" -r "$pcap" | filter >> $output
 done
 
 if ! diff "$OUTPUT" "$output"; then

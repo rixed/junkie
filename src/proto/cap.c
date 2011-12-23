@@ -40,7 +40,7 @@ static char const Id[] = "$Id: 51a18a0ad76ab10ef1fcc9cee870304e884cdc44 $";
 
 LOG_CATEGORY_DEF(proto_capture);
 
-static bool collapse_ifaces = true;
+bool collapse_ifaces = true;
 EXT_PARAM_RW(collapse_ifaces, "collapse-ifaces", bool, "Set to true if packets from distinct ifaces share the same address range");
 static const uint8_t zero = 0; // When collapsing devices we use this fake device id
 

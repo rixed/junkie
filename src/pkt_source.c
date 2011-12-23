@@ -161,7 +161,7 @@ static int frame_mirror_drop(struct frame *frame)
     uint8_t digest[DIGEST_SIZE];
     digest_frame(digest, frame->cap_len, frame->data);
 
-    switch (digest_queue_find(digests, digest, &frame->tv, dup_detection_delay)) {
+    switch (digest_queue_find(digests, digest, frame->pkt_source->dev_id, &frame->tv, dup_detection_delay)) {
         case DIGEST_MATCH:
             update_dedup_stats(1, 0, 0);
             return 1;

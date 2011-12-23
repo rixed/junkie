@@ -55,6 +55,9 @@ char const *eth_addr_2_str(unsigned char const addr[ETH_ADDR_LEN]);
 /// Tells whether an address is the broadcast address
 bool eth_addr_is_broadcast(unsigned char const addr[ETH_ADDR_LEN]);
 
+/// Wether or not vlans must be ignored
+bool collapse_vlans;
+
 void eth_init(void);
 void eth_fini(void);
 

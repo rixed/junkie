@@ -1,0 +1,12 @@
+#!/bin/sh
+
+NAME="Deduplication Configuration"
+PCAPS="pcap/eth/various_vlans.pcap"
+filter() {
+	grep '^Ethernet'
+}
+# As we do not collapse vlans anymore then we must see the three packets
+CMDLINE="(set-collapse-vlans #f)"
+OUTPUT="dedup_conf2.out"
+
+. ./dump_test
