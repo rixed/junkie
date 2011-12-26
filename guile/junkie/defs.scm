@@ -392,7 +392,7 @@
                             (cur-udp (assq-ref (proto-stats "UDP") 'nb-parsers)))
                         (if (> cur-tcp max-tcp) (set! max-tcp cur-tcp))
                         (if (> cur-udp max-udp) (set! max-udp cur-udp))
-                        (slog log-info "Current TCP:~a UDP:~a total:~a / Max TCP:~a UDP:~a total:~a"
+                        (simple-format #t "Current TCP:~a UDP:~a total:~a / Max TCP:~a UDP:~a total:~a~%"
                               cur-tcp cur-udp (+ cur-tcp cur-udp)
                               max-tcp max-udp (+ max-tcp max-udp))
                         (sleep period)
