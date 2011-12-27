@@ -37,8 +37,6 @@
 #include "proto/liner.h"
 #include "proto/sdper.h"
 
-static char const Id[] = "$Id: e9dc9dbf074ba863e946d13272c7f7ea15581dd6 $";
-
 #undef LOG_CAT
 #define LOG_CAT proto_sdp_log_category
 

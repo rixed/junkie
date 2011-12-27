@@ -68,8 +68,6 @@
 #include "pkt_source.h"
 #include "plugins.h"
 
-static char const Id[] = "$Id: 0fd857db0dc7d9cc14d4c3bb21d3095225379cf2 $";
-
 /*
  * Initialize all components
  */

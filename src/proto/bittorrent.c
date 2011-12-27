@@ -30,8 +30,6 @@
 #include "junkie/proto/bittorrent.h"
 #include "junkie/tools/log.h"
 
-static char const bittorrent_Id[] = "$Id: bb54fce9fbd42ea3ac1130ba0d0f994a3deaae1a $";
-
 #undef LOG_CAT
 #define LOG_CAT proto_bittorrent_log_category
 

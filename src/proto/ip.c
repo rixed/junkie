@@ -36,8 +36,6 @@
 #include "junkie/proto/pkt_wait_list.h"
 #include "proto/ip_hdr.h"
 
-static char const Id[] = "$Id: 003ae93bbf458d21ffd9582b447feb9019b93405 $";
-
 #undef LOG_CAT
 #define LOG_CAT proto_ip_log_category
 

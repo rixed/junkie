@@ -25,8 +25,6 @@
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/serialize.h"
 
-static char const Id[] = "$Id: ca2697009ffd184a7562c03c166f837e9c732021 $";
-
 extern inline bool timeval_is_set(struct timeval const *);
 
 extern inline void timeval_reset(struct timeval *);

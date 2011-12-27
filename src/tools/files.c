@@ -33,8 +33,6 @@
 #include "junkie/tools/log.h"
 #include "junkie/tools/mallocer.h"
 
-static char const Id[] = "$Id: 149f17cbcc369a7832303bf390c768771b93b5ce $";
-
 int mkdir_all(char const *path, bool is_filename)
 {
     SLOG(LOG_DEBUG, "mkdir %s", path);

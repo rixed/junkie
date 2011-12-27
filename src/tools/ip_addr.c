@@ -31,8 +31,6 @@
 #include "junkie/tools/log.h"
 #include "junkie/tools/serialize.h"
 
-static char const Id[] = "$Id: 10f0ed302127e3cba365297a48a6d011a88f41a5 $";
-
 void ip_addr_ctor_from_ip4(struct ip_addr *ip_addr, uint32_t ip4)
 {
     memset(ip_addr, 0, sizeof(*ip_addr));

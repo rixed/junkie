@@ -31,8 +31,6 @@
 #include "junkie/tools/log.h"
 #include "junkie/tools/ext.h"
 
-static char const Id[] = "$Id: 95a67137f8731eff13f99892ff17970aa6f224b8 $";
-
 char version_string[1024];
 
 struct ext_functions ext_functions = SLIST_HEAD_INITIALIZER(ext_functions);

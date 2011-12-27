@@ -41,8 +41,6 @@
 #include "proto/liner.h"
 #include "proto/httper.h"
 
-static char const Id[] = "$Id: de51c32f9992fe12b61752bf374468184b1a952d $";
-
 #undef LOG_CAT
 #define LOG_CAT proto_sip_log_category
 

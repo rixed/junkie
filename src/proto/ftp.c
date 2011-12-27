@@ -27,8 +27,6 @@
 #include "junkie/proto/ftp.h"
 #include "junkie/proto/cnxtrack.h"
 
-static char const Id[] = "$Id: e723dedac9d286da4b57e9dc2f4f01109c8e7ca3 $";
-
 #undef LOG_CAT
 #define LOG_CAT proto_ftp_log_category
 

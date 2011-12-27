@@ -31,8 +31,6 @@
 #include "junkie/proto/udp.h"
 #include "proto/ip_hdr.h"
 
-static char const udp_Id[] = "$Id: 0d4dcb20e67fb576b956de6ca7a66a15ccb9d583 $";
-
 #undef LOG_CAT
 #define LOG_CAT proto_udp_log_category
 

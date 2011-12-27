@@ -35,8 +35,6 @@
 #include "junkie/tools/mutex.h"
 #include "junkie/tools/ext.h"
 
-static char const Id[] = "$Id: 52f0ab48ebbc1c5ea1bfbb807f830aeda7b80275 $";
-
 bool use_syslog = false;
 
 struct log_categories log_categories = SLIST_HEAD_INITIALIZER(log_categories);

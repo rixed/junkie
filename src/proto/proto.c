@@ -32,8 +32,6 @@
 #include "junkie/proto/proto.h"
 #include "proto/fuzzing.h"
 
-static char const Id[] = "$Id: 177ba6f85a03ac706a2bade616ed149d9394784d $";
-
 static unsigned nb_fuzzed_bits = 0;
 EXT_PARAM_RW(nb_fuzzed_bits, "nb-fuzzed-bits", uint, "Max number of bits to fuzz by protocolar layer (0 to disable fuzzing).")
 

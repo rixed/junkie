@@ -27,8 +27,6 @@
 #include "junkie/proto/icmp.h"
 #include "proto/ip_hdr.h"
 
-static char const Id[] = "$Id: cec9e9e404a6e9491b912c6adb58350490d49047 $";
-
 #undef LOG_CAT
 #define LOG_CAT proto_icmp_log_category
 

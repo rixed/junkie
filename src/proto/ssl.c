@@ -30,8 +30,6 @@
 #include "junkie/cpp.h"
 #include "junkie/tools/log.h"
 
-static char const ssl_Id[] = "$Id: ff47704a50c73c27351f09b954f78b1fff8aeda4 $";
-
 #undef LOG_CAT
 #define LOG_CAT proto_ssl_log_category
 

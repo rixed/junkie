@@ -26,8 +26,6 @@
 #include "junkie/tools/ext.h"
 #include "plugins.h"
 
-static char const Id[] = "$Id: f64d604a02d098feec7f6f1ad4a7f3a641107ac4 $";
-
 struct mutex plugins_mutex;
 
 struct plugins plugins = LIST_HEAD_INITIALIZER(plugins);

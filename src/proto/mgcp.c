@@ -29,8 +29,6 @@
 #include "junkie/proto/mgcp.h"
 #include "proto/liner.h"
 
-static char const Id[] = "$Id: a29b66d469dfd3519df7242ba7ab092d4330a4cf $";
-
 #undef LOG_CAT
 #define LOG_CAT proto_mgcp_log_category
 

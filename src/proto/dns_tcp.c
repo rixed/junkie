@@ -29,8 +29,6 @@
 #include "junkie/proto/tcp.h"
 
 
-static char const Id[] = "$Id: da1898e810e979d6a571be386ad1ac6163b7af5f $";
-
 #undef LOG_CAT
 #define LOG_CAT proto_dns_log_category
 

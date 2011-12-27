@@ -28,8 +28,6 @@
 #include "junkie/tools/mallocer.h"
 #include "junkie/tools/mutex.h"
 
-static char const Id[] = "$Id: ad2fe95c8bace3f7f278f0b1bcfde0f0639cf1ba $";
-
 struct mallocers mallocers = SLIST_HEAD_INITIALIZER(mallocers);
 struct mutex mallocers_lock;
 

@@ -29,8 +29,6 @@
 #include "junkie/proto/udp.h"
 #include "junkie/proto/dns.h"
 
-static char const Id[] = "$Id: 37812fa0f43e01eeaf93d649ebc8f11fa64aa3c0 $";
-
 #undef LOG_CAT
 #define LOG_CAT proto_dns_log_category
 

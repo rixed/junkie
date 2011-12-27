@@ -26,8 +26,6 @@
 #include "junkie/proto/netbios.h"
 #include "junkie/proto/cifs.h"
 
-static char const Id[] = "$Id: 9ceb049707094753513467be6533a0d5f6b886bb $";
-
 #undef LOG_CAT
 #define LOG_CAT proto_netbios_log_category
 

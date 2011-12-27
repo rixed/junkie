@@ -26,8 +26,6 @@
 #include "junkie/proto/proto.h"
 #include "proto/liner.h"
 
-static char const Id[] = "$Id: b9348a21349c6b6101f8818e0f9ba93cfd31251e $";
-
 #undef LOG_CAT
 #define LOG_CAT proto_log_category
 

@@ -28,8 +28,6 @@
 #include "junkie/tools/miscmacs.h"
 #include "junkie/tools/hash.h"
 
-static char const Id[] = "$Id: 2775161eeb7e10bfb48b6f4567b0060a4de15779 $";
-
 struct hashes hashes = LIST_HEAD_INITIALIZER(hashes);
 
 MALLOCER_DEF(hashes);

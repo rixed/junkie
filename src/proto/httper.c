@@ -25,8 +25,6 @@
 #include "junkie/proto/http.h"
 #include "httper.h"
 
-static char const Id[] = "$Id: 54219ace954440929240814509fbfe7977403a52 $";
-
 #undef LOG_CAT
 #define LOG_CAT proto_http_log_category
 

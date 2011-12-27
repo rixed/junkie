@@ -26,8 +26,6 @@
 #include "junkie/proto/proto.h"
 #include "junkie/proto/rtp.h"
 
-static char const Id[] = "$Id: 7730ab99426100f6032d4a006fe59b9a5c492958 $";
-
 #undef LOG_CAT
 #define LOG_CAT proto_rtp_log_category
 

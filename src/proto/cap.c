@@ -33,8 +33,6 @@
 #include "junkie/tools/ext.h"
 #include "pkt_source.h"
 
-static char const Id[] = "$Id: 51a18a0ad76ab10ef1fcc9cee870304e884cdc44 $";
-
 #undef LOG_CAT
 #define LOG_CAT proto_capture_log_category
 

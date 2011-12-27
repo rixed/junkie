@@ -36,8 +36,6 @@
 #include "junkie/proto/tcp.h"
 #include "proto/ip_hdr.h"
 
-static char const Id[] = "$Id: f1e4973c1763a7a217c77b2e7a667edf3f209eb7 $";
-
 #undef LOG_CAT
 #define LOG_CAT proto_tcp_log_category
 

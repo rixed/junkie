@@ -39,8 +39,6 @@
 #include "plugins.h"
 #include "digest_queue.h"
 
-static char const Id[] = "$Id: 39b7df38bd54e40f37c33511c3ab617d6b719437 $";
-
 static LIST_HEAD(pkt_sources, pkt_source) pkt_sources = LIST_HEAD_INITIALIZER(pkt_sources);
 static struct mutex pkt_sources_lock;
 static volatile sig_atomic_t terminating = 0;
