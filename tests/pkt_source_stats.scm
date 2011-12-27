@@ -4,8 +4,10 @@
 
 (display "Testing packet source statistics\n")
 
+(false-if-exception (delete-file "pkt_source_stats.log"))
 (set-log-file "pkt_source_stats.log")
 (set-log-level 7)
+(set-log-level 3 "mutex")
 
 ; We cannot play a pcap and then when it's done read the statistics since the
 ; statistics would be automatically deleted when the pcap is read in full.

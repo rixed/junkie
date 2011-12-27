@@ -4,8 +4,10 @@
 
 (display "Testing packet source device id uniqueness\n")
 
+(false-if-exception (delete-file "pkt_source_dev_id.log"))
 (set-log-file "pkt_source_dev_id.log")
 (set-log-level 7)
+(set-log-level 3 "mutex")
 
 ; First a tool
 (define (uniq? l)

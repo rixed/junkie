@@ -8,6 +8,7 @@
 (false-if-exception (delete-file logfile))
 (set-log-file logfile)
 (set-log-level 7)
+(set-log-level 3 "mutex")
 
 (set-quit-when-done #f)
 

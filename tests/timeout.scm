@@ -7,6 +7,7 @@
 (false-if-exception (delete-file "timeout.log"))
 (set-log-file "timeout.log")
 (set-log-level 7)
+(set-log-level 3 "mutex")
 
 (set-quit-when-done #f)
 
@@ -25,7 +26,7 @@
 (let loop ((time-elapsed 0))
   (let* ((nb-muxers (nb-tot-muxers)))
     (simple-format #t "~a multiplexers left after ~as~%" nb-muxers time-elapsed)
-    (if (> nb-muxers 2) ; should be 0 but for some reason we have 1 or 2 IPv4 parsers left (FIXME)
+    (if (> nb-muxers 3) ; should be 1 (Capture) but for some reason we have 1 or 2 IPv4 parsers left (FIXME)
         (begin
           (if (> time-elapsed 10)
               (begin
