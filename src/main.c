@@ -35,7 +35,6 @@
 #include "junkie/cpp.h"
 #include "junkie/capfile.h"
 // For initers/finiters
-#include "junkie/proto/serialize.h"
 #include "junkie/proto/proto.h"
 #include "junkie/proto/pkt_wait_list.h"
 #include "junkie/proto/cap.h"
@@ -86,7 +85,6 @@ static struct {
     I(sdp),           I(postgres),    I(mysql),
     I(tns),
     I(pkt_source),    I(capfile),
-    I(serialize),
 #   undef I
 };
 

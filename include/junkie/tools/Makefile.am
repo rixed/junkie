@@ -16,5 +16,6 @@ thisinclude_HEADERS = \
 	redim_array.h \
 	cli.h \
 	ref.h \
-	sock.h
+	sock.h \
+	serialization.h
 

@@ -23,7 +23,7 @@
 #include <time.h>
 #include "junkie/tools/timeval.h"
 #include "junkie/tools/tempstr.h"
-#include "junkie/proto/serialize.h"
+#include "junkie/tools/serialization.h"
 
 extern inline bool timeval_is_set(struct timeval const *);
 

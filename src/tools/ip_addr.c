@@ -29,7 +29,7 @@
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/ip_addr.h"
 #include "junkie/tools/log.h"
-#include "junkie/proto/serialize.h"
+#include "junkie/tools/serialization.h"
 
 void ip_addr_ctor_from_ip4(struct ip_addr *ip_addr, uint32_t ip4)
 {

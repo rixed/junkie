@@ -20,19 +20,6 @@
 #include <stdlib.h>
 #include "junkie/proto/serialize.h"
 
-extern inline void serialize_1(uint8_t **buf, unsigned v);
-extern inline void serialize_2(uint8_t **buf, unsigned v);
-extern inline void serialize_3(uint8_t **buf, unsigned v);
-extern inline void serialize_4(uint8_t **buf, unsigned v);
-extern inline void serialize_n(uint8_t **buf, void const *src, size_t n);
-extern inline void serialize_str(uint8_t **buf, char const *s);
-extern inline unsigned deserialize_1(uint8_t const **buf);
-extern inline uint16_t deserialize_2(uint8_t const **buf);
-extern inline uint32_t deserialize_3(uint8_t const **buf);
-extern inline uint32_t deserialize_4(uint8_t const **buf);
-extern inline void deserialize_n(uint8_t const **buf, void *dst, size_t n);
-extern inline void deserialize_str(uint8_t const **buf, char *dst, size_t max_len);
-
 /*
  * Serialization
  */
@@ -168,6 +155,3 @@ int deserialize_proto_stack(uint8_t const **buf, int (*okfn)(struct proto_info *
     return ret;
 }
 
-// we need junkie to call a symbol from this compilation unit
-void serialize_init(void) {}
-void serialize_fini(void) {}
