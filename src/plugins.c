@@ -94,10 +94,12 @@ void plugin_del_all(void)
 {
     SLOG(LOG_DEBUG, "Unloading all plugins");
 
+    mutex_lock(&plugins_mutex);
     struct plugin *plugin;
     while (NULL != (plugin = LIST_FIRST(&plugins))) {
         plugin_del(plugin);
     }
+    mutex_unlock(&plugins_mutex);
 }
 
 static struct ext_function sg_load_plugin;

@@ -139,7 +139,7 @@ static void loop(void)
                         static uint_least32_t prev_lost = 0;
                         if (nb_lost_msgs != prev_lost) {
                             prev_lost = nb_lost_msgs;
-                            fprintf(stderr, "lost %"PRIuLEAST32" msgs\n", nb_lost_msgs);
+                            fprintf(stderr, "nark: lost %"PRIuLEAST32" msgs\n", nb_lost_msgs);
                         }
                         break;
                     default:
