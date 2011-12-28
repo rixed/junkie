@@ -28,8 +28,6 @@
 #include "junkie/tools/log.h"
 #include "junkie/tools/sock.h"
 
-static char const Id[] = "$Id$";
-
 #undef LOG_CAT
 #define LOG_CAT sock_log_category
 LOG_CATEGORY_DEF(sock);

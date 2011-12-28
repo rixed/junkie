@@ -23,8 +23,6 @@
 #include "junkie/tools/log.h"
 #include "junkie/tools/ref.h"
 
-static char const Id[] = "$Id$";
-
 LOG_CATEGORY_DEF(ref)
 #undef LOG_CAT
 #define LOG_CAT ref_log_category

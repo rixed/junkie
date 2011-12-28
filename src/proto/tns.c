@@ -30,8 +30,6 @@
 #include "junkie/proto/streambuf.h"
 #include "junkie/proto/cursor.h"
 
-static char const Id[] = "$Id$";
-
 #undef LOG_CAT
 #define LOG_CAT proto_tns_log_category
 

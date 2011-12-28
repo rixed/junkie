@@ -32,8 +32,6 @@
 #include "junkie/proto/cap.h"
 #include "junkie/capfile.h"
 
-static char const Id[] = "$Id$";
-
 #undef LOG_CAT
 #define LOG_CAT capfile_log_category
 

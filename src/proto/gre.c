@@ -33,8 +33,6 @@
 #include "junkie/proto/eth.h"
 #include "junkie/proto/gre.h"
 
-static char const Id[] = "$Id$";
-
 #undef LOG_CAT
 #define LOG_CAT proto_gre_log_category
 

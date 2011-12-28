@@ -30,8 +30,6 @@
 #include "junkie/tools/ext.h"   // for version_string
 #include "junkie/tools/cli.h"
 
-static char const Id[] = "$Id$";
-
 struct cli_bloc {
     TAILQ_ENTRY(cli_bloc) entry;
     char const *name;

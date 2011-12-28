@@ -25,8 +25,6 @@
 #include "junkie/tools/mallocer.h"
 #include "junkie/tools/ext.h"
 
-static char const Id[] = "$Id$";
-
 #undef LOG_CAT
 #define LOG_CAT pkt_wait_list_log_category
 

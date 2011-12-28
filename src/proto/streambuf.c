@@ -24,8 +24,6 @@
 #include "junkie/tools/mallocer.h"
 #include "junkie/proto/streambuf.h"
 
-static char const Id[] = "$Id$";
-
 /*
  * Construction
  */

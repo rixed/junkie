@@ -31,8 +31,6 @@
 #include "junkie/cpp.h"
 #include "digest_queue.h"
 
-static char const Id[] = "$Id$";
-
 #define NB_QUEUES (CPU_MAX < 256 ? CPU_MAX : 256)   /* Must not be greater that 256 since we use only one byte from digest to hash */
 
 struct digest_queue {

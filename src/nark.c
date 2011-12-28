@@ -55,7 +55,6 @@
 #include "junkie/proto/sdp.h"
 #include "junkie/proto/sql.h"
 
-static char const Id[] = "$Id$";
 static char *opt_port =  "28999";
 static struct sock sock;
 static uint_least32_t nb_rcvd_msgs, nb_lost_msgs;

@@ -31,8 +31,6 @@
 #include "junkie/tools/ext.h"
 #include "junkie/tools/timeval.h"
 
-static char const Id[] = "$Id$";
-
 LOG_CATEGORY_DEF(mutex)
 #undef LOG_CAT
 #define LOG_CAT mutex_log_category
