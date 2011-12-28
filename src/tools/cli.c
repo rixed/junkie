@@ -307,15 +307,23 @@ static struct cli_opt help_opts[] = {
     { { "help", "h" }, false, "display help", CLI_CALL, { .call = help_cb } },
 };
 
+static unsigned inited;
 void cli_init(void)
 {
+    if (inited++) return;
+    mutex_init();
+
     mutex_ctor(&cli_mutex, "CLI");
     cli_register(NULL, help_opts, NB_ELEMS(help_opts));
 }
 
 void cli_fini(void)
 {
+    if (--inited) return;
+
     cli_unregister(help_opts);
     mutex_dtor(&cli_mutex);
+
+    mutex_fini();
 }
 

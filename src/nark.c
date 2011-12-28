@@ -28,9 +28,8 @@
 #include "junkie/proto/serialize.h"
 #include "junkie/tools/sock.h"
 #include "junkie/tools/ext.h"
+#include "junkie/tools/ref.h"
 #include "junkie/tools/mallocer.h"
-#include "junkie/tools/redim_array.h"
-#include "junkie/tools/mutex.h"
 #include "junkie/tools/hash.h"
 #include "junkie/cpp.h"
 #include "junkie/proto/pkt_wait_list.h"
@@ -75,9 +74,6 @@ static struct {
     void (*fini)(void);
 } initers[] = {
 #   define I(x) { x##_init, x##_fini }
-    I(log),           I(ext),         I(redim_array),
-    I(mallocer),      I(mutex),
-    I(hash),
     I(pkt_wait_list), I(port_muxer),
     I(cap),           I(eth),         I(arp),
     I(ip6),           I(ip),          I(gre),
@@ -88,12 +84,19 @@ static struct {
     I(dns_tcp),       I(ftp),         I(mgcp),
     I(sdp),           I(postgres),    I(mysql),
     I(tns),
-    I(cli),      I(sock)
 #   undef I
 };
 
 static void all_init(void)
 {
+    log_init();
+    cli_init();
+    ext_init();
+    sock_init();
+    mallocer_init();    // as all users do not init it...
+    ref_init(); // as all users do not init it...
+    hash_init();    // as all users do not init it...
+
     for (unsigned i = 0; i < NB_ELEMS(initers); i++) {
         initers[i].init();
     }
@@ -106,6 +109,14 @@ static void all_fini(void)
     for (unsigned i = NB_ELEMS(initers); i > 0; ) {
         initers[--i].fini();
     }
+
+    hash_init();
+    mallocer_fini();
+    ref_fini();
+    sock_fini();
+    ext_fini();
+    cli_fini();
+    log_fini();
 }
 
 /*

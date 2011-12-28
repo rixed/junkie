@@ -236,8 +236,13 @@ static SCM g_primitive_log(SCM priority_, SCM filename_, SCM funcname_, SCM msg_
     return SCM_UNSPECIFIED;
 }
 
+static unsigned inited;
 void log_init(void)
 {
+    if (inited++) return;
+    files_init();
+    ext_init();
+
     log_category_global_init();
     log_category_guile_init();
 
@@ -276,6 +281,11 @@ void log_init(void)
 
 void log_fini(void)
 {
+    if (--inited) return;
+
     log_category_guile_fini();
     log_category_global_fini();
+
+    ext_fini();
+    files_fini();
 }

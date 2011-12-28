@@ -366,8 +366,13 @@ static SCM g_capfile_names(void)
     return ret;
 }
 
+static unsigned inited;
 void capfile_init(void)
 {
+    if (inited++) return;
+    ext_init();
+    mutex_init();
+
     log_category_capfile_init();
     ext_param_max_capture_files_init();
     mutex_ctor(&capfiles_lock, "capfiles");
@@ -380,8 +385,9 @@ void capfile_init(void)
 
 void capfile_fini(void)
 {
-    mutex_lock(&capfiles_lock);
+    if (--inited) return;
 
+    mutex_lock(&capfiles_lock);
     if (! LIST_EMPTY(&capfiles)) {
         SLOG(LOG_WARNING, "Some capture files are still opened (first is '%s')", LIST_FIRST(&capfiles)->path);
     }
@@ -390,4 +396,7 @@ void capfile_fini(void)
     mutex_dtor(&capfiles_lock);
     ext_param_max_capture_files_fini();
     log_category_capfile_fini();
+
+    mutex_fini();
+    ext_fini();
 }

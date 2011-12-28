@@ -179,6 +179,7 @@ int parse_callback(struct proto_info const *info, size_t unused_ cap_len, uint8_
 
 void on_load(void)
 {
+    hash_init();
     SLOG(LOG_INFO, "Loading arpgraph");
     cli_register("Arpgraph plugin", arpgraph_opts, NB_ELEMS(arpgraph_opts));
     HASH_INIT(&edges, 103, "arpgraph edges");
@@ -189,5 +190,6 @@ void on_unload(void)
     SLOG(LOG_INFO, "Unloading arpgraph");
     cli_unregister(arpgraph_opts);
     HASH_DEINIT(&edges);
+    hash_fini();
 }
 

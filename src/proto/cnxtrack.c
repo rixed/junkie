@@ -195,8 +195,16 @@ done:
  * Init
  */
 
+static unsigned inited;
 void cnxtrack_init(void)
 {
+    if (inited++) return;
+    log_init();
+    ext_init();
+    mutex_init();
+    mallocer_init();
+    hash_init();
+
     log_category_cnxtrack_init();
     ext_param_cnxtrack_timeout_init();
 
@@ -208,6 +216,8 @@ void cnxtrack_init(void)
 
 void cnxtrack_fini(void)
 {
+    if (--inited) return;
+
     struct cnxtrack_ip *ct;
     mutex_lock(&cnxtracker_lock);
     while (NULL != (ct = TAILQ_FIRST(&cnxtrack_ips))) {
@@ -220,4 +230,10 @@ void cnxtrack_fini(void)
     mutex_dtor(&cnxtracker_lock);
     ext_param_cnxtrack_timeout_fini();
     log_category_cnxtrack_fini();
+
+    hash_fini();
+    mallocer_fini();
+    mutex_fini();
+    ext_fini();
+    log_fini();
 }

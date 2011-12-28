@@ -139,8 +139,14 @@ static SCM g_plugins(void)
     return ret;
 }
 
+static unsigned inited;
 void plugins_init(void)
 {
+    if (inited++) return;
+    ext_init();
+    mutex_init();
+    mallocer_init();
+
     if (0 != lt_dlinit()) {
         DIE("Cannot init ltdl: %s", lt_dlerror());
     }
@@ -164,7 +170,13 @@ void plugins_init(void)
 
 void plugins_fini(void)
 {
+    if (--inited) return;
+
     mutex_dtor(&plugins_mutex);
     ext_param_really_unload_plugins_fini();
     lt_dlexit();
+
+    mallocer_fini();
+    mutex_fini();
+    ext_fini();
 }
