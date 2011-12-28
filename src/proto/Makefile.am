@@ -23,5 +23,5 @@ libproto_la_SOURCES = \
 	cnxtrack.c \
 	serialize.c
 
-libproto_la_LIBADD = ../tools/libtools.la
+libproto_la_LIBADD = ../tools/libjunkietools.la
 libproto_la_LDFLAGS = -export-dynamic
