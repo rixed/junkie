@@ -20,7 +20,8 @@ libproto_la_SOURCES = \
 	pkt_wait_list.c \
 	streambuf.c \
 	cursor.c \
-	cnxtrack.c
+	cnxtrack.c \
+	serialize.c
 
 libproto_la_LIBADD = ../tools/libtools.la
 libproto_la_LDFLAGS = -export-dynamic
