@@ -18,7 +18,7 @@
  * along with Junkie.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <stdlib.h>
-#include "junkie/tools/serialize.h"
+#include "junkie/proto/serialize.h"
 
 extern inline void serialize_1(uint8_t **buf, unsigned v);
 extern inline void serialize_2(uint8_t **buf, unsigned v);

@@ -25,7 +25,7 @@
 #include "junkie/tools/ext.h"
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/log.h"
-#include "junkie/tools/serialize.h"
+#include "junkie/proto/serialize.h"
 #include "junkie/proto/cnxtrack.h"
 #include "junkie/proto/ip.h"
 #include "junkie/proto/udp.h"

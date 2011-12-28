@@ -31,7 +31,7 @@
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/hash.h"
 #include "junkie/tools/mutex.h"
-#include "junkie/tools/serialize.h"
+#include "junkie/proto/serialize.h"
 #include "junkie/proto/ip.h"
 #include "junkie/proto/tcp.h"
 #include "junkie/proto/udp.h"

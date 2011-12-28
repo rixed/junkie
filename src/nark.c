@@ -25,7 +25,7 @@
 #include "junkie/config.h"
 #include "junkie/tools/log.h"
 #include "junkie/tools/cli.h"
-#include "junkie/tools/serialize.h"
+#include "junkie/proto/serialize.h"
 #include "junkie/tools/sock.h"
 #include "junkie/tools/ext.h"
 #include "junkie/tools/mallocer.h"

@@ -27,7 +27,7 @@
 #include "junkie/tools/ip_addr.h"
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/mallocer.h"
-#include "junkie/tools/serialize.h"
+#include "junkie/proto/serialize.h"
 #include "junkie/proto/rtcp.h"
 #include "junkie/proto/sdp.h"
 #include "junkie/proto/udp.h"

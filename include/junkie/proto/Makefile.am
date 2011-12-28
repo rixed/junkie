@@ -27,5 +27,6 @@ thisinclude_HEADERS = \
 	pkt_wait_list.h \
 	streambuf.h \
 	cursor.h \
-	cnxtrack.h
+	cnxtrack.h \
+	serialize.h
 

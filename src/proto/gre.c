@@ -27,7 +27,7 @@
 #include "junkie/tools/mallocer.h"
 #include "junkie/tools/mutex.h"
 #include "junkie/tools/queue.h"
-#include "junkie/tools/serialize.h"
+#include "junkie/proto/serialize.h"
 #include "junkie/proto/proto.h"
 #include "junkie/proto/ip.h"
 #include "junkie/proto/eth.h"
