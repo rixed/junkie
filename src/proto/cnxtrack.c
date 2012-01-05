@@ -71,20 +71,26 @@ struct cnxtrack_ip *cnxtrack_ip_new(unsigned ip_proto, struct ip_addr const *ip_
     return ct;
 }
 
+// Caller must own cnxtracker_lock
 static void cnxtrack_ip_dtor(struct cnxtrack_ip *ct)
 {
     SLOG(LOG_DEBUG, "Destruct cnxtrack_ip@%p", ct);
 
-    mutex_lock(&cnxtracker_lock);
     HASH_REMOVE(&cnxtrack_ips_h, ct, h_entry);
     TAILQ_REMOVE(&cnxtrack_ips, ct, used_entry);
-    mutex_unlock(&cnxtracker_lock);
+}
+
+static void cnxtrack_ip_del_locked(struct cnxtrack_ip *ct)
+{
+    cnxtrack_ip_dtor(ct);
+    FREE(ct);
 }
 
 void cnxtrack_ip_del(struct cnxtrack_ip *ct)
 {
-    cnxtrack_ip_dtor(ct);
-    FREE(ct);
+    mutex_lock(&cnxtracker_lock);
+    cnxtrack_ip_del_locked(ct);
+    mutex_unlock(&cnxtracker_lock);
 }
 
 /*
@@ -98,7 +104,7 @@ static void cnxtrack_ip_timeout(struct timeval const *now)
     while (NULL != (ct = TAILQ_LAST(&cnxtrack_ips, cnxtrack_ips))) {
         if (timeval_sub(now, &ct->last_used) <= cnxtrack_timeout) break;
         SLOG(LOG_DEBUG, "Timeouting cnxtrack_ip@%p", ct);
-        cnxtrack_ip_del(ct);
+        cnxtrack_ip_del_locked(ct);
     }
 }
 
@@ -177,7 +183,7 @@ done:
             ct->last_used = *now;
         } else {
             // delete him
-            cnxtrack_ip_del(ct);
+            cnxtrack_ip_del_locked(ct);
         }
     }
 
@@ -203,9 +209,11 @@ void cnxtrack_init(void)
 void cnxtrack_fini(void)
 {
     struct cnxtrack_ip *ct;
+    mutex_lock(&cnxtracker_lock);
     while (NULL != (ct = TAILQ_FIRST(&cnxtrack_ips))) {
-        cnxtrack_ip_del(ct);
+        cnxtrack_ip_del_locked(ct);
     }
+    mutex_unlock(&cnxtracker_lock);
 
     HASH_DEINIT(&cnxtrack_ips_h);
 
