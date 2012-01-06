@@ -38,6 +38,8 @@
                  "#include <assert.h>\n"
                  "#include <junkie/tools/netmatch.h>\n"
                  "#include <junkie/tools/miscmacs.h>\n"
+                 "#include <junkie/tools/ip_addr.h>\n"
+                 "#include <junkie/tools/timeval.h>\n"
                  "#include <junkie/proto/proto.h>\n"
                  ,@(map (lambda (proto) (string-append "#include <junkie/proto/" (symbol->string proto) ".h>\n")) (headers-for *all-protos*))
                  "\n\n")))
@@ -192,7 +194,7 @@
 ;;; But what if we want to implement some indexes of walkers? This can be done before calling the matchers
 ;;; since the index can easily be build on any regfile structure, given the regfile is actually an array of npc_registers.
 
-; Given an alist of name->matches (a match being a list of triplets (proto, can-skip, test-expr)),
+; Given an alist of name->match (a match being a list of triplets (proto, can-skip, test-expr)),
 ; return the code of all matching functions, as well as the length of the npc_register array.
 (define (matches->C matches)
   (let* ((headers   C-header)
@@ -215,7 +217,11 @@
          (tmp       (extract-regnames functions))
          (regnames  (car tmp))
          (nb-regs   (cdr tmp)))
-    (cons (string-append headers regnames functions "/* end */")
+    (cons (string-append
+            headers
+            regnames
+            (type:stub-code functions)
+            "/* end */")
           nb-regs)))
 
 (export matches->C) ; what for?

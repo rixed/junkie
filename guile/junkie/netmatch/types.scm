@@ -60,13 +60,32 @@
   (make-stub
     ""
     (string-append "regfile[" regname "].value")
-    '(regname)))
+    (list regname)))
 
 (define (unboxed-bind regname value)
   (make-stub
     (string-append
       (stub-code value)
       "    regfile[" regname "].value = " (stub-result value) ";\n")
+    (string-append "regfile[" regname "].value")
+    (cons regname (stub-regnames value))))
+
+(define (boxed-ref regname)
+  (make-stub
+    ""
+    (string-append "regfile[" regname "].value")
+    (list regname)))
+
+(define (boxed-bind regname value)
+  (make-stub
+    (string-append
+      (stub-code value)
+      "    if (regfile[" regname "].value) {\n"
+      "        free(regfile[" regname "].value);\n"
+      "    }\n"
+      "    regfile[" regname "].value = malloc(sizeof(*" (stub-result value) "));\n"
+      "    assert(regfile[" regname "].value);\n" ; aren't assertions as good as proper error checks? O:-)
+      "    memcpy(regfile[" regname "].value, " (stub-result value) ", sizeof(*" (stub-result value) "));\n")
     (string-append "regfile[" regname "].value")
     (cons regname (stub-regnames value))))
 
@@ -118,7 +137,6 @@
 
 (export bool)
 
-
 ;;; Unsigned ints (less then 64 bits wide)
 
 (define uint
@@ -139,6 +157,28 @@
     unboxed-bind))
 
 (export uint)
+
+;;; Timestamps
+
+(define timestamp
+  (make-type
+    'timestamp
+    (lambda (v) ; imm
+      #f)
+    (lambda (proto field) ; fetch (TODO: factorize with other types)
+      (let* ((tmp (gensymC (string-append proto "_info")))
+             (res (gensymC (string-append field "_field"))))
+        (make-stub
+          (string-append
+            "    struct " proto "_proto_info const *" tmp " = DOWNCAST(info, info, " proto "_proto_info);\n"
+            "    struct timeval const *" res " = &" tmp "->" field ";\n")
+          res
+          '())))
+    boxed-ref
+    boxed-bind))
+
+(export timestamp)
+
 
 
 ;;; Logical Operators
@@ -161,7 +201,7 @@
             "        " res " = " (stub-result v2) ";\n"
             "    }\n")
           res
-          '())))))
+          (append (stub-regnames v1) (stub-regnames v2)))))))
 
 (hashq-set! operators '| log-or)
 (hashq-set! operators '|| log-or)
@@ -184,7 +224,7 @@
             "        " res " = " (stub-result v2) ";\n"
             "    }\n")
           res
-          '())))))
+          (append (stub-regnames v1) (stub-regnames v2)))))))
 
 (hashq-set! operators '& log-and)
 (hashq-set! operators '&& log-and)
@@ -203,7 +243,7 @@
             (stub-code v)
             "    bool " res " = ! (" (stub-result v) ");\n")
           res
-          '())))))
+          (append (stub-regnames v)))))))
 
 (hashq-set! operators '! log-not)
 (hashq-set! operators 'not log-not)
@@ -221,7 +261,7 @@
           (stub-code v2)
           "    " C-otype " " res " = " (stub-result v1) " " C-op " " (stub-result v2) ";\n")
         res
-        '()))))
+        (append (stub-regnames v1) (stub-regnames v2))))))
 
 (define add
   (make-op '+ uint (list uint uint) (simple-binary-op "+" "uint_least64_t")))
