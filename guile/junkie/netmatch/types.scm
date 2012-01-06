@@ -2,7 +2,8 @@
 
 (define-module (junkie netmatch types))
 
-(use-modules (rnrs records syntactic)
+(use-modules (ice-9 regex)
+             (rnrs records syntactic)
              (ice-9 format)
              (junkie tools))
 
@@ -12,29 +13,41 @@
 ;;; register, and applying various operators on them.
 ;;;
 ;;; For each, we need a few basic operations:
-;;; - imm v: returns an immediate value (from its representation as a guile value);
+;;; - imm v: returns an immediate value as a stub (from its representation as a guile value);
 ;;; - fetch p n i: returns the code stub that fetch the field n (string) from info at
 ;;;   address i (string) for the proto named p (string);
-;;; - ref n f: return the code stub to reach the value bound to register named n (string)
-;;;   from register file named f (string);
-;;; - bind n s f: return the code stub to bind stub s (stub) to register named n (string)
-;;;   of regfile named f (string).
+;;; - ref n: returns the code stub to reach the value bound to register named n (string)
+;;; - bind n s: returns the code stub to bind stub s (stub) to register named n (string)
 ;;;
-;;; Then some operators:
+;;; Then we have the operators:
 ;;; - binary-op op s1 s2: return the code stub to perform this operation and the name of the
 ;;;   result;
 ;;; - unary-op op s: return the code stub to perform this operation and the name of the
 ;;;   result.
 ;;;
+;;; All these operators are typed (by type-assertions that will fail when generating the code)
 
-(define-record-type type (fields name imm fetch ref bind binary-op unary-op))
-(export type-name type-imm type-fetch type-ref type-bind type-binary-op type-unary-op)
+; we take the type rather than the type name because one day we may want to try implicit convertion?
+(define (check t1 t2)
+  (if (not (eq? t1 t2))
+      (throw 'type-error (type-name t1) (type-name t2))))
+
+(export check)
+
+(define-record-type type (fields name imm fetch ref bind))
+(export type-name type-imm type-fetch type-ref type-bind)
 
 ;;; But what's a code stub? It's the code required to compute a value, this value's name,
 ;;; and the list of used register(s).
 
 (define-record-type stub (fields code result regnames))
-(export stub-code stub-result stub-regnames)
+(export make-stub stub-code stub-result stub-regnames)
+
+;;; Operators (itypes is the list of input types and thus gives the number of parameters as
+;;; well as their types)
+
+(define-record-type op (fields name otype itypes function))
+(export make-op op-name op-otype op-itypes op-function)
 
 ;;; Tools
 ;;; By convention, and to aleviate the code from unnecessary closures, we will assume that:
@@ -63,52 +76,28 @@
       (set! c (1+ c))
       (string-append "npc__" prefix (number->string c)))))
 
-(define ident-charset (char-set-union char-set:ascii char-set:letter))
-(define (string->ident str)
-  (list->string (map (lambda (c)
-                       (if (char-set-contains? ident-charset c)
-                           c
-                           #\_))
-                     (string->list str))))
+(export gensymC)
+
+(define (indent-more str)
+  (regexp-substitute/global #f (make-regexp "^ {4}" regexp/newline) str 'pre "        " 'post))
+
+;;; The unit type
+
+;(define ignored #f)
+;(define make-empty-stub
+;  (lambda dummy (make-stub "" "" '())))
+;(set! ignored
+;  (make-type
+;    'ignored
+;    make-empty-stub   ; imm
+;    make-empty-stub   ; fetch
+;    make-empty-stub   ; ref
+;    make-empty-stub)) ; bind
+;
+;(export ignored)
 
 
 ;;; Booleans
-
-(define (bool-binary-op op v1 v2)
-  (let ((res (gensymC "result")))
-    (case op
-      ((or)  (make-stub
-               (string-append
-                 (stub-code v1)
-                 "    bool " res " = true;\n"
-                 "    if (! (" (stub-result v1) ")) {\n"
-                 "        " (stub-code v2)
-                 "        " res " = " (stub-result v2) ";\n"
-                 "    }\n")
-               res
-               '()))
-      ((and) (make-stub
-               (string-append
-                 (stub-code v1)
-                 "    bool " res " = false;\n"
-                 "    if (" (stub-result v1) ") {\n"
-                 "        " (stub-code v2)
-                 "        " res " = " (stub-result v2) ";\n"
-                 "    }\n")
-               res
-               '()))
-      (else (throw 'invalid-bin-op `(,op bool))))))
-
-(define (bool-unary-op op v)
-  (let ((res (gensymC "result")))
-    (case op
-      ((not) (make-stub
-               (string-append
-                 (stub-code v)
-                 "    bool " res " = ! (" (stub-result v) ");\n")
-               res
-               '()))
-      (else (throw 'invalid-unary-op `(,op bool))))))
 
 (define bool
   (make-type
@@ -117,7 +106,7 @@
       (make-stub "" (if v "true" "false") '()))
     (lambda (proto field) ; fetch
       (let* ((tmp (gensymC (string-append proto "_info")))
-             (res (gensymC (string-append (string->ident field) "_field"))))
+             (res (gensymC (string-append field "_field"))))
         (make-stub
           (string-append
             "    struct " proto "_proto_info const *" tmp " = DOWNCAST(info, info, " proto "_proto_info);\n"
@@ -125,71 +114,166 @@
           res
           '())))
     unboxed-ref
-    unboxed-bind
-    bool-binary-op
-    bool-unary-op))
+    unboxed-bind))
 
 (export bool)
 
 
 ;;; Unsigned ints (less then 64 bits wide)
 
-(define (uint-binary-op->C op v1 v2)
-  (case op
-    ((+)   (string-append v1 " + " v2))
-    ((-)   (string-append v1 " - " v2))
-    ((*)   (string-append v1 " * " v2))
-    ((/)   (string-append v1 " / " v2))
-    ((mod) (string-append v1 " % " v2))
-    (else (throw 'invalid-bin-op `(,op uint)))))
-
-(define (uint-unary-op->C op v)
-  (case op
-    ((not) (string-append "!" v))
-    (else (throw 'invalid-unary-op `(,op uint)))))
-
 (define uint
   (make-type
     'uint
     (lambda (v) ; imm
       (make-stub "" (format #f "~d" v) '()))
-    (lambda (proto field) ; fetch
+    (lambda (proto field) ; fetch (TODO: factorize with other types)
       (let* ((tmp (gensymC (string-append proto "_info")))
-             (res (gensymC (string-append (string->ident field) "_field"))))
+             (res (gensymC (string-append field "_field"))))
         (make-stub
           (string-append
-            "    struct " proto "_proto_info const *" field " = DOWNCAST(info, info, " proto "_proto_info);\n"
+            "    struct " proto "_proto_info const *" tmp " = DOWNCAST(info, info, " proto "_proto_info);\n"
             "    uint_least64_t " res " = " tmp "->" field ";\n")
           res
           '())))
     unboxed-ref
-    unboxed-bind
-    (lambda (op v1 v2) ; binary-op
-      (let* ((res (gensymC "result")))
+    unboxed-bind))
+
+(export uint)
+
+
+;;; Logical Operators
+
+(define operators (make-hash-table 31))
+
+(define log-or
+  (make-op
+    'or
+    bool
+    (list bool bool)
+    (lambda (v1 v2)
+      (let ((res (gensymC "result")))
         (make-stub
           (string-append
             (stub-code v1)
-            (stub-code v2)
-            "    uint_least64_t " res " = " (uint-binary-op->C op (stub-result v1) (stub-result v2)) ";\n")
+            "    bool " res " = true;\n"
+            "    if (! (" (stub-result v1) ")) {\n"
+            (indent-more (stub-code v2))
+            "        " res " = " (stub-result v2) ";\n"
+            "    }\n")
           res
-          '())))
-    (lambda (op v) ; unary-op
-      (let* ((res (gensymC "result")))
+          '())))))
+
+(hashq-set! operators '| log-or)
+(hashq-set! operators '|| log-or)
+(hashq-set! operators 'or log-or)
+(hashq-set! operators 'log-or log-or)
+
+(define log-and
+  (make-op
+    'and
+    bool
+    (list bool bool)
+    (lambda (v1 v2)
+      (let ((res (gensymC "result")))
+        (make-stub
+          (string-append
+            (stub-code v1)
+            "    bool " res " = false;\n"
+            "    if (" (stub-result v1) ") {\n"
+            (indent-more (stub-code v2))
+            "        " res " = " (stub-result v2) ";\n"
+            "    }\n")
+          res
+          '())))))
+
+(hashq-set! operators '& log-and)
+(hashq-set! operators '&& log-and)
+(hashq-set! operators 'and log-and)
+(hashq-set! operators 'log-and log-and)
+
+(define log-not
+  (make-op
+    'not
+    bool
+    (list bool)
+    (lambda (v)
+      (let ((res (gensymC "result")))
         (make-stub
           (string-append
             (stub-code v)
-            "    uint_least64_t " res " = " (uint-unary-op->C op (stub-result v)) ";\n")
+            "    bool " res " = ! (" (stub-result v) ");\n")
           res
           '())))))
-(export uint)
 
-;;; Tests
+(hashq-set! operators '! log-not)
+(hashq-set! operators 'not log-not)
 
-(define (check)
-  (let* ((expr1 ((type-binary-op bool)
-                 'or
-                 ((type-unary-op bool)
-                   'not ((type-imm bool) #t))
-                 ((type-imm bool) #f))))
-    expr1))
+(export log-or log-and log-not)
+
+;;; Arithmetic Operators
+
+(define (simple-binary-op C-op C-otype)
+  (lambda (v1 v2)
+    (let ((res (gensymC "result")))
+      (make-stub
+        (string-append
+          (stub-code v1)
+          (stub-code v2)
+          "    " C-otype " " res " = " (stub-result v1) " " C-op " " (stub-result v2) ";\n")
+        res
+        '()))))
+
+(define add
+  (make-op '+ uint (list uint uint) (simple-binary-op "+" "uint_least64_t")))
+
+(define sub
+  (make-op '- uint (list uint uint) (simple-binary-op "-" "uint_least64_t")))
+
+(define mult
+  (make-op '* uint (list uint uint) (simple-binary-op "*" "uint_least64_t")))
+
+(define div
+  (make-op '/ uint (list uint uint) (simple-binary-op "/" "uint_least64_t")))
+
+(define mod
+  (make-op 'mod uint (list uint uint) (simple-binary-op "%" "uint_least64_t")))
+
+(define gt
+  (make-op '> bool (list uint uint) (simple-binary-op ">" "bool")))
+
+(define ge
+  (make-op '>= bool (list uint uint) (simple-binary-op ">=" "bool")))
+
+(define lt
+  (make-op '< bool (list uint uint) (simple-binary-op "<" "bool")))
+
+(define le
+  (make-op '<= bool (list uint uint) (simple-binary-op "<=" "bool")))
+
+(define eq
+  (make-op '= bool (list uint uint) (simple-binary-op "==" "bool")))
+
+(hashq-set! operators '+ add)
+(hashq-set! operators '- sub)
+(hashq-set! operators '* mult)
+(hashq-set! operators '/ div)
+(hashq-set! operators 'mod mod)
+(hashq-set! operators '% mod)
+(hashq-set! operators '> gt)
+(hashq-set! operators '>= ge)
+(hashq-set! operators '< lt)
+(hashq-set! operators '<= le)
+(hashq-set! operators '= eq)
+
+(export add sub mult div mod gt ge lt le eq)
+
+;;; TODO: operations on IP addresses, on strings...
+
+
+;;; Mapping from symbols to operators
+
+(define (symbol->op sym)
+  (hashq-ref operators sym))
+
+(export symbol->op)
 
