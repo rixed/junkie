@@ -3,8 +3,9 @@
 (define-module (junkie netmatch compiler))
 
 (use-modules (ice-9 match)
+             (srfi srfi-1) ; for fold
              ((junkie netmatch types) :renamer (symbol-prefix-proc 'type:))
-;             ((junkie netmatch ll-compiler) :renamer (symbol-prefix-proc 'll:))
+             ((junkie netmatch ll-compiler) :renamer (symbol-prefix-proc 'll:))
              (junkie tools))
 
 ;;; This takes terse expressions like:
@@ -51,13 +52,13 @@
 (define (expr->stub proto expr expected-type)
   (let ((perform-op (lambda (op-name params)
                       (let* ((op (or (type:symbol->op op-name)
-                                     (throw 'you-must-be-jocking (simple-format #f "operator ~s?" op-name))))
+                                     (throw 'you-must-be-joking (simple-format #f "operator ~s?" op-name))))
                              (itypes  (type:op-itypes op))
                              (otype   (type:op-otype op)))
                         (simple-format #t "expr->stub of ~a outputing a ~a~%" op-name (type:type-name otype))
                         (type:check otype expected-type)
                         (if (not (eqv? (length itypes) (length params)))
-                            (throw 'you-must-be-jocking
+                            (throw 'you-must-be-joking
                                    (simple-format #f "bad number of parameters for ~a: ~a instead of ~a" op-name (length params) (length itypes))))
                         (apply
                           (type:op-function op)
@@ -71,12 +72,12 @@
       ((list? expr)
        (match expr
               (()
-               (throw 'you-must-be-jocking "what's the empty list for?"))
+               (throw 'you-must-be-joking "what's the empty list for?"))
               ; Try first to handle some few special forms (only (x as y) for now
               ((x 'as name)
                (let ((x-stub (expr->stub proto x expected-type)))
                  (or (symbol? name)
-                     (throw 'you-must-be-jocking (simple-format #f "register name must be a symbol not ~s" name)))
+                     (throw 'you-must-be-joking (simple-format #f "register name must be a symbol not ~s" name)))
                  ((type:type-bind expected-type) (string->C-ident (symbol->string name)) x-stub)))
               ((? (lambda (expr) (is-infix (cadr expr))) (v1 op-name v2))
                (simple-format #t "Infix operator ~s~%" op-name)
@@ -104,7 +105,8 @@
                              (case expr
                                ((dev-id device dev) 'dev_id)
                                ((timestamp ts) 'tv)
-                               (else expr)))))
+                               (else expr)))
+                            (else expr)))
                     ; then we have a few generic transformation regardless of the proto
                     (expr (case expr
                             ((header-size header-length header-len) 'info.head_len)
@@ -113,22 +115,71 @@
                             (else expr))))
                ((type:type-fetch expected-type) (symbol->string proto) (symbol->string expr))))))
       (else
-        (throw 'you-must-be-jocking
+        (throw 'you-must-be-joking
                (simple-format #f "~a? you really mean it?" expr))))))
 
 (export expr->stub)
 
 ;;; Also, for complete matches, transform this:
 ;;;
-;;; '(("node1" . (match (first cap with (|| #f $client-is-connected))
-;;;                     (find ip with (= tos 2))))
+;;; '(("node1" . ((cap with (#f || $client-is-connected))
+;;;               (next ip with (tos = 2))))
 ;;;   ("node2" . ...))
 ;;;
 ;;; into this:
 ;;;
-;;; (("node1" . ((cap #f ((op-function log-or) ((type-imm bool) #f)
-;;;                                            ((type-ref bool) 'client-is-connected)))
-;;;              (ip #t ((op-function =) ((type-fetch "ip" 'tos)) ((type-imm uint) 2)))))
+;;; (("node1" .  ((next ip #t ((op-function =) ((type-fetch "ip" 'tos)) ((type-imm uint) 2)))
+;;;               (next cap #f ((op-function log-or) ((type-imm bool) #f)
+;;;                                                  ((type-ref bool) 'client-is-connected))))))
 ;;;  ("node2" . ...))
 ;;;
+;;; note: then means skip-flag=#f, whereas next means skip-flag=#t.
+;;; note: notice how we go from outer to inner proto (first->last) to last->first since
+;;;       this is what we have. This implies that the first cap is allowed not to be
+;;;       the outest protocol, contrary to what the expression specifies ("cap with...."
+;;;       rather than "next cap with..."). Not a big deal in practice.
 
+; returns the new expression
+(define (test-expr>ll-test-expr expr can-skip)
+  (match expr
+         (('then proto 'with ex)
+          `(,proto can-skip . ,(expr->stub proto ex type:bool)))
+         (('then proto)
+          `(,proto can-skip . ,(expr->stub proto #t type:bool)))
+         ((proto 'with ex)
+          `(,proto can-skip . ,(expr->stub proto ex type:bool)))
+         ((proto)
+          `(,proto can-skip . ,(expr->stub proto #t type:bool)))
+         (('next proto 'with ex)
+          `(,proto can-skip . ,(expr->stub proto ex type:bool)))
+         (('next proto)
+          `(,proto can-skip . ,(expr->stub proto #t type:bool)))
+         (_
+          (throw 'you-must-be-joking (simple-format #f "Cannot get my head around ~s" expr)))))
+
+(define (match->ll-match match)
+  (let loop ((next-can-skip   #t)
+             (remaining-tests match)
+             (new-match       '()))
+    (if (null? remaining-tests)
+        new-match
+        (let* ((test    (car remaining-tests))
+               (can-skip (cadr test)))
+          (loop
+            can-skip
+            (cdr remaining-tests)
+            (cons (test-expr>ll-test-expr test next-can-skip) new-match))))))
+
+(define (matches->ll-matches matches)
+  (map (lambda (r)
+         (let ((n     (car r))
+               (match (cdr r)))
+           (cons n (match->ll-match match))))
+       matches))
+
+(define (make-so matches)
+  (let ((ll-matches (matches->ll-matches matches)))
+    (simple-format #t "~s~%translated into:~%~s~%" matches ll-matches)
+    (ll:matches->so ll-matches)))
+
+(export make-so)

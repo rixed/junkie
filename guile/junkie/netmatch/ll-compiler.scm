@@ -44,11 +44,11 @@
                  "\n\n")))
     (apply string-append lines)))
 
-;;; A match being a list of triplets (proto can-skip . test-expr):
+;;; A match being a list of test, a test being a triplet (proto can-skip . test-expr):
 
-(define match-proto car)
-(define match-can-skip cadr)
-(define match-test cddr)
+(define test-proto car)
+(define test-can-skip cadr)
+(define match-expr cddr)
 
 ;;; A test expression (or merely test) is any (untyped!) scheme expression returning a code stub.
 
@@ -98,18 +98,16 @@
 ; takes the proto name, a flag telling if we are allowed to skip some layers, the name of
 ; the function performing the layer test.
 ; returns the code and the name of the variable storing the matching proto_info or NULL.
-; Note that we match from first proto layer to last, using the next proto_info pointer to
-; be defined (also usefull to have "nth next field" in addition to "nth last field".
 (define (find-next-matching-proto proto can-skip test)
   (let ((res (type:gensymC "info")))
     (type:make-stub
       (string-append
         "    struct proto_info const *" res ";\n"
-        "    for (" res " = info; " res "; " res " = " res "->next) {\n"
+        "    for (" res " = info; " res "; " res " = " res "->parent) {\n"
         "        if (! " res "->parser->proto != proto_" (symbol->string proto) ") continue;\n"
         "        if (" (type:stub-result test) "(" res ", regfile)) break;\n"
         (if (not can-skip)
-            "        res = NULL;\n"
+            (string-append "        " res " = NULL;\n")
             "")
         "    }\n")
       res
@@ -141,9 +139,9 @@
             fun-name
             regnames)
           (let* ((test      (car remaining-tests))
-                 (proto     (match-proto test))
-                 (can-skip  (match-can-skip test))
-                 (test-expr (test->function (match-test test)))
+                 (proto     (test-proto test))
+                 (can-skip  (test-can-skip test))
+                 (test-expr (test->function (match-expr test)))
                  (match-one (find-next-matching-proto proto can-skip test-expr))
                  (next-info (type:stub-result match-one)))
             (loop (cdr remaining-tests)
@@ -225,7 +223,7 @@
 
 (export matches->C) ; what for?
 
-; Given an alist of name->matches, return the name of the dynlib containing the required functions, and the length of the regfile
+; Given an alist of name->match, return the name of the dynlib containing the required functions, and the length of the regfile
 (define (matches->so matches)
   (let* ((srcname     (string-copy "/tmp/netmatch-ll.c.XXXXXX"))
          (libname     (string-copy "/tmp/netmatch-ll.so.XXXXXX"))
@@ -233,6 +231,7 @@
          (tmp         (matches->C matches))
          (code        (car tmp))
          (nb-varnames (cdr tmp)))
+    (simple-format #t "Output C in ~s~%" srcname)
     (display code srcport)
     (close-port srcport)
     (let* ((cc       (or (getenv "CC")      "gcc")) ; FIXME: insert here the CC used to compile junkie?
@@ -243,7 +242,7 @@
            (status   (system cmd)))
       (if (eqv? 0 (status:exit-val status))
           (begin
-            (delete-file srcname)
+            ;(delete-file srcname)
             (cons libname nb-varnames))
           (begin
             (simple-format
