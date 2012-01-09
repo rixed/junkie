@@ -708,8 +708,15 @@ static SCM g_reset_dedup_stats(void)
 }
 
 // The first thing to do when quitting is to stop parsing traffic
+static unsigned inited;
 void pkt_source_init(void)
 {
+    if (inited++) return;
+    mutex_init();
+    ext_init();
+    mallocer_init();
+    ref_init();
+
 #   ifdef WITH_GIANT_LOCK
     mutex_ctor(&giant_lock, "Giant Lock");
 #   endif
@@ -798,6 +805,8 @@ void pkt_source_init(void)
 
 void pkt_source_fini(void)
 {
+    if (--inited) return;
+
     mutex_lock(&pkt_sources_lock);
     terminating = 1;
     pkt_source_terminate_all();
@@ -829,4 +838,9 @@ void pkt_source_fini(void)
     ext_param_nb_digests_fini();
     ext_param_dup_detection_delay_fini();
     ext_param_quit_when_done_fini();
+
+    ref_fini();
+    mutex_fini();
+    ext_fini();
+    mallocer_fini();
 }

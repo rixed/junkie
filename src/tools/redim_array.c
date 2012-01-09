@@ -194,8 +194,12 @@ static SCM g_array_stats(SCM name_)
         scm_cons(entry_size_sym, scm_from_size_t(array->entry_size)));
 }
 
+static unsigned inited;
 void redim_array_init(void)
 {
+    if (inited++) return;
+    ext_init();
+
     nb_entries_sym = scm_permanent_object(scm_from_latin1_symbol("nb-entries"));
     alloc_size_sym = scm_permanent_object(scm_from_latin1_symbol("alloc-size"));
     entry_size_sym = scm_permanent_object(scm_from_latin1_symbol("entry-size"));
@@ -213,4 +217,7 @@ void redim_array_init(void)
 
 void redim_array_fini(void)
 {
+    if (--inited) return;
+
+    ext_fini();
 }

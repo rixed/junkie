@@ -322,6 +322,7 @@ int main(void)
     tcp_init();
     http_init();
     log_set_level(LOG_DEBUG, NULL);
+    log_set_level(LOG_ERR, "mutex");
     log_set_file("tcp_reorder_check.log");
 
     simple_check();

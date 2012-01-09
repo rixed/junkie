@@ -22,7 +22,7 @@
 #include <string.h>
 #include <inttypes.h>
 #include "junkie/tools/tempstr.h"
-#include "junkie/tools/serialize.h"
+#include "junkie/proto/serialize.h"
 #include "junkie/proto/ip.h"
 #include "junkie/proto/icmp.h"
 #include "proto/ip_hdr.h"

@@ -24,7 +24,7 @@
 #include <arpa/inet.h>
 #include "junkie/cpp.h"
 #include "junkie/tools/tempstr.h"
-#include "junkie/tools/serialize.h"
+#include "junkie/proto/serialize.h"
 #include "junkie/proto/rtcp.h"
 
 #undef LOG_CAT

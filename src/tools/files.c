@@ -348,3 +348,17 @@ int chdir_for_file(char const *dir, bool is_filename)
 
     return 0;
 }
+
+static unsigned inited;
+void files_init(void)
+{
+    if (inited++) return;
+    mallocer_init();
+}
+
+void files_fini(void)
+{
+    if (--inited) return;
+
+    mallocer_fini();
+}

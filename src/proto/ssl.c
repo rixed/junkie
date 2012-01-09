@@ -23,7 +23,7 @@
 #include <stdio.h>
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/miscmacs.h"
-#include "junkie/tools/serialize.h"
+#include "junkie/proto/serialize.h"
 #include "junkie/proto/proto.h"
 #include "junkie/proto/tcp.h"
 #include "junkie/proto/ssl.h"

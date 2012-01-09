@@ -217,8 +217,13 @@ static SCM g_mallocer_blocks(SCM name_)
     return next_block(SCM_EOL, LIST_FIRST(&mallocer->blocks));
 }
 
+static unsigned inited;
 void mallocer_init(void)
 {
+    if (inited++) return;
+    mutex_init();
+    ext_init();
+
     mutex_ctor(&mallocers_lock, "mallocers");
 
     sbrked_bytes_sym        = scm_permanent_object(scm_from_latin1_symbol("sbrked-bytes"));
@@ -261,5 +266,10 @@ void mallocer_init(void)
 
 void mallocer_fini(void)
 {
+    if (--inited) return;
+
     mutex_dtor(&mallocers_lock);
+
+    ext_fini();
+    mutex_fini();
 }

@@ -64,6 +64,9 @@ AS_IF([test "x$CONFDIR" = x], [CONFDIR="$sysconfdir/junkie"])
 AC_CONFIG_FILES([
 	Makefile
 	include/Makefile
+	include/junkie/Makefile
+	include/junkie/tools/Makefile
+	include/junkie/proto/Makefile
 	src/Makefile
 	src/tools/Makefile
 	src/proto/Makefile

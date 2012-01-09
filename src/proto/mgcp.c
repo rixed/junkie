@@ -23,7 +23,7 @@
 #include <ctype.h>
 #include "junkie/tools/mallocer.h"
 #include "junkie/tools/tempstr.h"
-#include "junkie/tools/serialize.h"
+#include "junkie/proto/serialize.h"
 #include "junkie/proto/udp.h"
 #include "junkie/proto/sdp.h"
 #include "junkie/proto/mgcp.h"

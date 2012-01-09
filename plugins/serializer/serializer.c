@@ -26,7 +26,7 @@
 #include "junkie/capfile.h"
 #include "junkie/tools/cli.h"
 #include "junkie/tools/sock.h"
-#include "junkie/tools/serialize.h"
+#include "junkie/proto/serialize.h"
 #include "junkie/tools/mutex.h"
 #include "junkie/proto/proto.h"
 

@@ -16,11 +16,11 @@ junkie_SOURCES = \
 	plugins.h \
 	capfile.c
 
-junkie_LDADD = proto/libproto.la tools/libtools.la
+junkie_LDADD = proto/libproto.la tools/libjunkietools.la
 junkie_LDFLAGS = -export-dynamic
 
 nark_SOURCES = \
 	nark.c
 
-nark_LDADD = proto/libproto.la tools/libtools.la
+nark_LDADD = proto/libproto.la tools/libjunkietools.la
 

@@ -103,8 +103,26 @@ static void *doomer_thread(void unused_ *dummy)
     return NULL;
 }
 
+extern inline void ref_ctor(struct ref *, void (*del)(struct ref *));
+extern inline void ref_dtor(struct ref *);
+extern inline void *ref(struct ref *);
+extern inline void *unref(struct ref *);
+
+void doomer_stop(void)
+{
+    acquire(pthread_rwlock_rdlock); // wait for doomer-thread to finish its run
+    (void)pthread_cancel(doomer_pth);
+    (void)pthread_join(doomer_pth, NULL);
+    release();
+    SLOG(LOG_DEBUG, "doomer thread was cancelled");
+}
+
+static unsigned inited;
 void ref_init(void)
 {
+    if (inited++) return;
+    mutex_init();
+
     mutex_ctor(&death_row_mutex, "death row");
     SLIST_INIT(&death_row);
     log_category_ref_init();
@@ -123,23 +141,14 @@ void ref_init(void)
     }
 }
 
-void doomer_stop(void)
-{
-    acquire(pthread_rwlock_rdlock); // wait for doomer-thread to finish its run
-    (void)pthread_cancel(doomer_pth);
-    (void)pthread_join(doomer_pth, NULL);
-    release();
-    SLOG(LOG_DEBUG, "doomer thread was cancelled");
-}
-
 void ref_fini(void)
 {
+    if (--inited) return;
+
     pthread_rwlock_destroy(&rwlock);
     mutex_dtor(&death_row_mutex);
     log_category_ref_fini();
+
+    mutex_fini();
 }
 
-extern inline void ref_ctor(struct ref *, void (*del)(struct ref *));
-extern inline void ref_dtor(struct ref *);
-extern inline void *ref(struct ref *);
-extern inline void *unref(struct ref *);

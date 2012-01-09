@@ -1,16 +1,10 @@
 // -*- c-basic-offset: 4; c-backslash-column: 79; indent-tabs-mode: nil -*-
 // vim:sw=4 ts=4 sts=4 expandtab
-#ifndef SERIALIZE_H_111031
-#define SERIALIZE_H_111031
+#ifndef SERIALIZATION_H_111031
+#define SERIALIZATION_H_111031
 #include <stdint.h>
-#include "junkie/proto/proto.h"
-#include "junkie/tools/timeval.h"
-#include "junkie/tools/ip_addr.h"
-
-#define MSG_MAX_SIZE 5000
-#define MSG_PROTO_INFO 1
-#define MSG_PROTO_STATS 2
-#define DATAGRAM_MAX_SIZE 65535
+#include <assert.h>
+#include <string.h>
 
 static inline void serialize_1(uint8_t **buf, unsigned v)
 {
@@ -86,11 +80,5 @@ static inline void deserialize_str(uint8_t const **buf, char *dst, size_t max_le
     deserialize_n(buf, (uint8_t *)dst, n);
     dst[n] = '\0';
 }
-
-void serialize_proto_stack(uint8_t **buf, struct proto_info const *last);
-int deserialize_proto_stack(uint8_t const **buf, int (*okfn)(struct proto_info *));
-
-void serialize_init(void);
-void serialize_fini(void);
 
 #endif

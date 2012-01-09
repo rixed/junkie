@@ -71,4 +71,7 @@ int file_foreach_line(char const *filename, int (*cb)(char *line, size_t len, va
  */
 int chdir_for_file(char const *dir, bool is_filename);
 
+void files_init(void);
+void files_fini(void);
+
 #endif

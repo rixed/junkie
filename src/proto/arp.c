@@ -23,7 +23,7 @@
 #include "junkie/cpp.h"
 #include "junkie/tools/log.h"
 #include "junkie/tools/ip_addr.h"
-#include "junkie/tools/serialize.h"
+#include "junkie/proto/serialize.h"
 #include "junkie/proto/proto.h"
 #include "junkie/proto/eth.h"   // for eth_addr_2_str()
 #include "junkie/proto/arp.h"

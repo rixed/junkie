@@ -26,7 +26,7 @@
 #include "junkie/cpp.h"
 #include "junkie/tools/log.h"
 #include "junkie/tools/tempstr.h"
-#include "junkie/tools/serialize.h"
+#include "junkie/proto/serialize.h"
 #include "junkie/proto/proto.h"
 #include "junkie/proto/eth.h"
 #include "junkie/proto/cap.h"

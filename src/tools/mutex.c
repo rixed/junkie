@@ -279,8 +279,12 @@ static SCM g_set_thread_name(SCM name_)
  * Init
  */
 
+static unsigned inited;
 void mutex_init(void)
 {
+    if (inited++) return;
+    ext_init();
+
     log_category_mutex_init();
 
     ext_function_ctor(&sg_set_thread_name,
@@ -290,5 +294,9 @@ void mutex_init(void)
 
 void mutex_fini(void)
 {
+    if (--inited) return;
+
     log_category_mutex_fini();
+
+    ext_fini();
 }

@@ -26,7 +26,7 @@
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/mallocer.h"
 #include "junkie/tools/mutex.h"
-#include "junkie/tools/serialize.h"
+#include "junkie/proto/serialize.h"
 #include "junkie/proto/tcp.h"
 #include "junkie/proto/http.h"
 #include "junkie/proto/streambuf.h"

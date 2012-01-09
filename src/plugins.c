@@ -94,10 +94,12 @@ void plugin_del_all(void)
 {
     SLOG(LOG_DEBUG, "Unloading all plugins");
 
+    mutex_lock(&plugins_mutex);
     struct plugin *plugin;
     while (NULL != (plugin = LIST_FIRST(&plugins))) {
         plugin_del(plugin);
     }
+    mutex_unlock(&plugins_mutex);
 }
 
 static struct ext_function sg_load_plugin;
@@ -137,8 +139,14 @@ static SCM g_plugins(void)
     return ret;
 }
 
+static unsigned inited;
 void plugins_init(void)
 {
+    if (inited++) return;
+    ext_init();
+    mutex_init();
+    mallocer_init();
+
     if (0 != lt_dlinit()) {
         DIE("Cannot init ltdl: %s", lt_dlerror());
     }
@@ -162,7 +170,13 @@ void plugins_init(void)
 
 void plugins_fini(void)
 {
+    if (--inited) return;
+
     mutex_dtor(&plugins_mutex);
     ext_param_really_unload_plugins_fini();
     lt_dlexit();
+
+    mallocer_fini();
+    mutex_fini();
+    ext_fini();
 }

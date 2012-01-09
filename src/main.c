@@ -26,20 +26,15 @@
 #include <sys/types.h>
 #include "junkie/config.h"
 #include "junkie/tools/log.h"
-#include "junkie/tools/files.h"
-#include "junkie/tools/mutex.h"
 #include "junkie/tools/ext.h"
+#include "junkie/tools/cli.h"
+#include "junkie/tools/files.h"
 #include "junkie/tools/ref.h"
+#include "junkie/tools/mallocer.h"
+#include "junkie/tools/hash.h"
 #include "junkie/cpp.h"
 #include "junkie/capfile.h"
 // For initers/finiters
-#include "junkie/tools/redim_array.h"
-#include "junkie/tools/mallocer.h"
-#include "junkie/tools/mutex.h"
-#include "junkie/tools/hash.h"
-#include "junkie/tools/cli.h"
-#include "junkie/tools/sock.h"
-#include "junkie/tools/serialize.h"
 #include "junkie/proto/proto.h"
 #include "junkie/proto/pkt_wait_list.h"
 #include "junkie/proto/cap.h"
@@ -77,10 +72,9 @@ static struct {
     void (*fini)(void);
 } initers[] = {
 #   define I(x) { x##_init, x##_fini }
-    I(log),           I(ext),         I(redim_array),
-    I(mallocer),      I(mutex),       I(plugins),
-    I(hash),          I(cnxtrack),    I(proto),       I(fuzzing),
-    I(pkt_wait_list), I(ref),         I(port_muxer),
+    I(plugins),
+    I(cnxtrack),    I(proto),       I(fuzzing),
+    I(pkt_wait_list), I(port_muxer),
     I(cap),           I(eth),         I(arp),
     I(ip6),           I(ip),          I(gre),
     I(udp),           I(icmpv6),      I(tcp),
@@ -90,13 +84,20 @@ static struct {
     I(dns_tcp),       I(ftp),         I(mgcp),
     I(sdp),           I(postgres),    I(mysql),
     I(tns),
-    I(pkt_source),    I(cli),         I(capfile),
-    I(sock),          I(serialize),
+    I(pkt_source),    I(capfile),
 #   undef I
 };
 
 static void all_init(void)
 {
+    log_init();
+    files_init();
+    ext_init();
+    cli_init();
+    mallocer_init();    // as all users do not init it...
+    ref_init(); // as all users do not init it...
+    hash_init();    // as all users do not init it...
+
     for (unsigned i = 0; i < NB_ELEMS(initers); i++) {
         initers[i].init();
     }
@@ -112,6 +113,14 @@ static void all_fini(void)
     for (unsigned i = NB_ELEMS(initers); i > 0; ) {
         initers[--i].fini();
     }
+
+    hash_fini();
+    mallocer_fini();
+    ref_fini();
+    cli_fini();
+    ext_fini();
+    files_fini();
+    log_fini();
 }
 
 /*

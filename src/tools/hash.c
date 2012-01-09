@@ -76,8 +76,13 @@ static SCM g_hash_stats(SCM name_)
         scm_cons(nb_rehash_sym, scm_from_uint(hash->nb_rehash)));
 }
 
+static unsigned inited;
 void hash_init(void)
 {
+    if (inited++) return;
+    ext_init();
+    mallocer_init();
+
     MALLOCER_INIT(hashes);
 
     nb_lists_sym       = scm_permanent_object(scm_from_latin1_symbol("nb-lists"));
@@ -98,4 +103,8 @@ void hash_init(void)
 
 void hash_fini(void)
 {
+    if (--inited) return;
+
+    mallocer_fini();
+    ext_fini();
 }

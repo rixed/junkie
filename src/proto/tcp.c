@@ -29,7 +29,7 @@
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/log.h"
 #include "junkie/tools/queue.h"
-#include "junkie/tools/serialize.h"
+#include "junkie/proto/serialize.h"
 #include "junkie/proto/cnxtrack.h"
 #include "junkie/proto/pkt_wait_list.h"
 #include "junkie/proto/ip.h"

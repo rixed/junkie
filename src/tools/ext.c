@@ -250,8 +250,11 @@ static SCM g_help(SCM topic)
  * Init
  */
 
+static unsigned inited;
 void ext_init(void)
 {
+    if (inited++) return;
+
     if (SUCCESS != scm_with_guile(init_scm_extensions, NULL)) exit(EXIT_FAILURE);
 
     ext_function_ctor(&sg_parameter_names,
@@ -279,4 +282,5 @@ void ext_init(void)
 
 void ext_fini(void)
 {
+    if (--inited) return;
 }
