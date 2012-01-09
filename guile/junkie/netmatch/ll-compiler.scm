@@ -29,7 +29,7 @@
 
 (define C-header ; TODO: make this a function of the required protos?
   (let ((lines `("// -*- c-basic-offset: 4; c-backslash-column: 79; indent-tabs-mode: nil -*-\n" ; just in case someone is crazy enough to edit these
-                 "// vim:sw=4 ts=4 sts=4 expandtab\n"
+                 "// vim:sw=4 ts=4 sts=4 expandtab syntax=c filetype=c\n"
                  "#include <stdlib.h>\n"
                  "#include <stddef.h>\n"
                  "#include <stdbool.h>\n"
@@ -104,7 +104,7 @@
       (string-append
         "    struct proto_info const *" res ";\n"
         "    for (" res " = info; " res "; " res " = " res "->parent) {\n"
-        "        if (! " res "->parser->proto != proto_" (symbol->string proto) ") continue;\n"
+        "        if (! " res "->parser->proto->code != PROTO_CODE_" (string-upcase! (string-copy (symbol->string proto))) ") continue;\n"
         "        if (" (type:stub-result test) "(" res ", regfile)) break;\n"
         (if (not can-skip)
             (string-append "        " res " = NULL;\n")
@@ -226,8 +226,8 @@
 ; Given an alist of name->match, return the name of the dynlib containing the required functions, and the length of the regfile
 (define (matches->so matches)
   (let* ((srcname     (string-copy "/tmp/netmatch-ll.c.XXXXXX"))
-         (libname     (string-copy "/tmp/netmatch-ll.so.XXXXXX"))
          (srcport     (mkstemp! srcname))
+         (libname     (string-append srcname ".so"))
          (tmp         (matches->C matches))
          (code        (car tmp))
          (nb-varnames (cdr tmp)))
@@ -238,7 +238,7 @@
            (cppflags (or (getenv "CPPFLAGS") "")) ; FIXME: insert here the cppflags used to compile junkie?
            (cflags   (or (getenv "CFLAGS")   "-std=c99 -O0 -ggdb3 -D_GNU_SOURCE")) ; FIXME: you got it
            (ldflags  (or (getenv "LDFLAGS")  ""))
-           (cmd      (string-append cc " " cppflags " " cflags " " ldflags " -o " libname " -xc " srcname))
+           (cmd      (string-append cc " " cppflags " " cflags " " ldflags " -shared -o " libname " -xc " srcname))
            (status   (system cmd)))
       (if (eqv? 0 (status:exit-val status))
           (begin
