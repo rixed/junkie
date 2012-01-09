@@ -2,8 +2,7 @@
 
 (define-module (junkie netmatch ll-compiler))
 
-;;; We generate untyped C from untyped s-expressions.
-;;; Supposedly, the typing was already done before this step, and the operators that are used correspond to the used values.
+;;; We generate untyped C from untyped code stubs.
 
 ;;; (fetch field) -> returns the code that fetch the given field (given a proto and a layer)
 ;;; (imm value) -> returns the immediate value
@@ -98,7 +97,7 @@
 
 ; takes the proto name, a flag telling if we are allowed to skip some layers, the name of
 ; the function performing the layer test.
-; returns the code and the name of the variable storing the matching proto_info of NULL.
+; returns the code and the name of the variable storing the matching proto_info or NULL.
 ; Note that we match from first proto layer to last, using the next proto_info pointer to
 ; be defined (also usefull to have "nth next field" in addition to "nth last field".
 (define (find-next-matching-proto proto can-skip test)
@@ -107,7 +106,7 @@
       (string-append
         "    struct proto_info const *" res ";\n"
         "    for (" res " = info; " res "; " res " = " res "->next) {\n"
-        "        if (! " res "->parser->proto != proto_" proto ") continue;\n"
+        "        if (! " res "->parser->proto != proto_" (symbol->string proto) ") continue;\n"
         "        if (" (type:stub-result test) "(" res ", regfile)) break;\n"
         (if (not can-skip)
             "        res = NULL;\n"

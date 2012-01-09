@@ -14,8 +14,8 @@
 ;;;
 ;;; For each, we need a few basic operations:
 ;;; - imm v: returns an immediate value as a stub (from its representation as a guile value);
-;;; - fetch p n i: returns the code stub that fetch the field n (string) from info at
-;;;   address i (string) for the proto named p (string);
+;;; - fetch p n: returns the code stub that fetch the field n (string) from info at
+;;;   address "info" for the proto named p (string);
 ;;; - ref n: returns the code stub to reach the value bound to register named n (string)
 ;;; - bind n s: returns the code stub to bind stub s (stub) to register named n (string)
 ;;;
