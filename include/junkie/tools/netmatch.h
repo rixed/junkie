@@ -10,4 +10,6 @@ struct npc_register {
     size_t size;
 };
 
+typedef bool npc_match_fn(struct proto_info const *info, struct npc_register *regfile);
+
 #endif

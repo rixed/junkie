@@ -84,6 +84,7 @@
   (let ((res (type:gensymC "test_fun")))
     (type:make-stub
       (string-append
+        "static npc_match_fn " res "; /* just to typecheck */\n"
         "static bool " res "(struct proto_info const *info, struct npc_register *regfile)\n"
         "{\n"
         (type:stub-code test)
