@@ -53,14 +53,14 @@ int main(void)
     ip_init();
     ip6_init();
     tcp_init();
-    postgres_init();
+    pgsql_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("postgres_check.log");
 
     fetch_nb_rows_check();
 
     doomer_stop();
-    postgres_fini();
+    pgsql_fini();
     tcp_fini();
     ip6_fini();
     ip_fini();

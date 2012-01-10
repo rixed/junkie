@@ -10,7 +10,7 @@
  * @brief Database protocol informations
  */
 
-extern struct proto *proto_postgres;
+extern struct proto *proto_pgsql;
 extern struct proto *proto_mysql;
 extern struct proto *proto_tns;
 
@@ -64,8 +64,8 @@ void const *sql_info_addr(struct proto_info const *, size_t *);
 void sql_serialize(struct proto_info const *, uint8_t **buf);
 void sql_deserialize(struct proto_info *, uint8_t const **buf);
 
-void postgres_init(void);
-void postgres_fini(void);
+void pgsql_init(void);
+void pgsql_fini(void);
 void mysql_init(void);
 void mysql_fini(void);
 void tns_init(void);
