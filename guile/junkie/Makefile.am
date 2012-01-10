@@ -1,4 +1,4 @@
-SUBDIRS = www writer
+SUBDIRS = www writer netmatch
 
 guilelibdir = @GUILELIBDIR@/junkie
 dist_guilelib_DATA = \

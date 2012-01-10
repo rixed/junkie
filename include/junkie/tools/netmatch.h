@@ -4,6 +4,7 @@
 #define NETMATCH_H_111229
 
 #include <stdint.h>
+#include <junkie/proto/proto.h>
 
 struct npc_register {
     intptr_t value;
