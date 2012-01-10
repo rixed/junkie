@@ -36,10 +36,12 @@
                  "#include <stdbool.h>\n"
                  "#include <stdint.h>\n"
                  "#include <assert.h>\n"
+                 "#include <string.h>\n"
                  "#include <junkie/tools/netmatch.h>\n"
                  "#include <junkie/tools/miscmacs.h>\n"
                  "#include <junkie/tools/ip_addr.h>\n"
                  "#include <junkie/tools/timeval.h>\n"
+                 "#include <junkie/tools/ip_addr.h>\n"
                  "#include <junkie/proto/proto.h>\n"
                  ,@(map (lambda (proto) (string-append "#include <junkie/proto/" (symbol->string proto) ".h>\n")) (headers-for *all-protos*))
                  "\n\n")))
@@ -49,7 +51,8 @@
 
 (define test-proto car)
 (define test-can-skip cadr)
-(define match-expr cddr)
+(define test-expr cddr)
+(export test-proto test-can-skip test-expr)
 
 ;;; A test expression (or merely test) is any (untyped!) scheme expression returning a code stub.
 
@@ -88,6 +91,8 @@
         "static npc_match_fn " res "; /* just to typecheck */\n"
         "static bool " res "(struct proto_info const *info, struct npc_register *regfile)\n"
         "{\n"
+        "    (void)info;\n"
+        "    (void)regfile;\n"
         (type:stub-code test)
         "    return " (type:stub-result test) ";\n}\n\n")
       res
@@ -106,11 +111,15 @@
       (string-append
         "    struct proto_info const *" res ";\n"
         "    for (" res " = info; " res "; " res " = " res "->parent) {\n"
-        "        if (" res "->parser->proto->code != PROTO_CODE_" (string-upcase! (string-copy (symbol->string proto))) ") continue;\n"
-        "        if (" (type:stub-result test) "(" res ", regfile)) break;\n"
-        (if (not can-skip)
-            (string-append "        " res " = NULL;\n")
-            "")
+        "        if (" res "->parser->proto->code == PROTO_CODE_" (string-upcase! (string-copy (symbol->string proto))) " &&\n"
+        "            " (type:stub-result test) "(" res ", regfile)) {\n"
+        "            break;\n"
+        "        }\n"
+        (if can-skip
+            ""
+            (string-append
+              "        " res " = NULL;\n"
+              "        break;\n"))
         "    }\n")
       res
       (type:stub-regnames test))))
@@ -129,7 +138,9 @@
                                   " */\n\n"))
                (main-code       (string-append
                                   "static bool " fun-name "(struct proto_info const *info, struct npc_register *regfile)\n"
-                                  "{\n"))
+                                  "{\n"
+                                  "    (void)info;\n"
+                                  "    (void)regfile;\n"))
                (regnames '()))
       (if (null? remaining-tests)
           (type:make-stub
@@ -143,7 +154,7 @@
           (let* ((test      (car remaining-tests))
                  (proto     (test-proto test))
                  (can-skip  (test-can-skip test))
-                 (test-expr (test->function (match-expr test)))
+                 (test-expr (test->function (test-expr test)))
                  (match-one (find-next-matching-proto proto can-skip test-expr))
                  (next-info (type:stub-result match-one)))
             (loop (cdr remaining-tests)
@@ -240,7 +251,7 @@
            (cppflags (or (getenv "NETMATCH_CPPFLAGS") (string-append build-cppflags " -I" includedir " -D_GNU_SOURCE")))
            (cflags   (or (getenv "NETMATCH_CFLAGS")   (string-append "-std=c99 " build-cflags)))
            (ldflags  (or (getenv "NETMATCH_LDFLAGS")  build-ldflags))
-           (cmd      (string-append cc " " cppflags " " cflags " " ldflags " -shared -o " libname " -xc " srcname))
+           (cmd      (string-append cc " " cppflags " " cflags " " ldflags " -fPIC -shared -o " libname " -xc " srcname))
            (status   (system cmd)))
       (if (eqv? 0 (status:exit-val status))
           (begin

@@ -14,6 +14,10 @@ extern struct proto *proto_pgsql;
 extern struct proto *proto_mysql;
 extern struct proto *proto_tns;
 
+#define pgsql_proto_info sql_proto_info
+#define mysql_proto_info sql_proto_info
+#define tns_proto_info sql_proto_info
+
 /// Description of a sql message
 struct sql_proto_info {
     struct proto_info info;             ///< Generic infos

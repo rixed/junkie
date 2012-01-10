@@ -39,6 +39,18 @@
 ; return the code stub corresponding to the expression, given its expected type.
 ; proto is the layer we are at (fields will be fetched from this structure).
 
+; Note regarding unset values
+; ---------------------------
+; We have several options to deal with unset fields:
+; - handle the situation in fetch and fetch a default value instead
+; - add a flag to every value telling if it's set or not (a la wireshark)
+; - add a set? operator to the language and either let the user deal with it or handle it
+;   automatically (ie. adding set? checks to protect the preceding bool/bind operator).
+;
+; This last option seams the best both for implementor and user.
+; But ww want to be able to write (set? dbname) for instance, ie use the name
+; of an info field. set? must then be a special form and not an operator, converting
+; (set? dbname) to "bool result = info->set_values & "(flags-for-field proto dbname).
 
 (define (expr->stub proto expr expected-type)
   (let ((perform-op (lambda (op-name params)
@@ -64,12 +76,40 @@
                              ; transform known fields we must/want make friendlier
                              ((or ('cap 'dev-id) ('cap 'device) ('cap 'dev))                   "dev_id")
                              ((or ('cap 'timestamp) ('cap 'ts))                                "tv")
+                             ((or ('eth 'vlan) ('eth 'vlan-id))                                "vlan_id")
+                             ((or ('eth 'src) ('eth 'source))                                  "addr[0]")
+                             ((or ('eth 'dst) ('eth 'dest))                                    "addr[1]")
+                             (('eth 'proto)                                                    "protocol")
+                             ((or ('ip 'src) ('ip 'source))                                    "key.addr[0]")
+                             ((or ('ip 'dst) ('ip 'dest))                                      "key.addr[1]")
+                             ((or ('ip 'proto) ('ip 'protocol))                                "key.protocol")
                              ((or ('tcp 'src-port) ('tcp 'source) ('tcp 'src))                 "key.port[0]")
                              ((or ('tcp 'dst-port) ('tcp 'dest-port) ('tcp 'dest) ('tcp 'dst)) "key.port[1]")
                              ((or ('udp 'src-port) ('udp 'source) ('udp 'src))                 "key.port[0]")
                              ((or ('udp 'dst-port) ('udp 'dest-port) ('udp 'dest) ('udp 'dst)) "key.port[1]")
+                             (('dns 'txid)                                                     "transaction_id")
+                             (('dns 'err-code)                                                 "error_code")
+                             (('dns 'class)                                                    "dns_class")
+                             (('dns 'type)                                                     "request_type")
+                             ((or ('http 'err-code) ('http 'status))                           "code")
+                             ((or ('sip 'via-proto) ('sip 'via-protocol))                      "via.protocol")
+                             ((or ('sip 'via-addr) ('sip 'via-ip))                             "via.addr")
+                             (('sip 'via-port)                                                 "via.port")
+                             ((or ('pgsql 'sql) ('mysql 'sql) ('tns 'sql))                     "u.query.sql")
+                             ((or ('pgsql 'nb-rows) ('mysql 'nb-rows) ('tns 'nb-rows))         "u.query.nb_rows")
+                             ((or ('pgsql 'numrows) ('mysql 'numrows) ('tns 'numrows))         "u.query.nb_rows")
+                             ((or ('pgsql 'nb-fields) ('mysql 'nb-fields) ('tns 'nb-fields))   "u.query.nb_fields")
+                             ((or ('pgsql 'numfields) ('mysql 'numfields) ('tns 'numfields))   "u.query.nb_fields")
+                             ((or ('pgsql 'nb-cols) ('mysql 'nb-cols) ('tns 'nb-cols))         "u.query.nb_fields")
+                             ((or ('pgsql 'numcols) ('mysql 'numcols) ('tns 'numcols))         "u.query.nb_fields")
+                             ((or ('pgsql 'user) ('mysql 'user) ('tns 'user))                  "u.startup.user")
+                             ((or ('pgsql 'dbuser) ('mysql 'dbuser) ('tns 'dbuser))            "u.startup.user")
+                             ((or ('pgsql 'dbname) ('mysql 'dbname) ('tns 'dbname))            "u.startup.dbname")
+                             ((or ('pgsql 'passwd) ('mysql 'passwd) ('tns 'passwd))            "u.startup.passwd")
+                             ((or ('pgsql 'pwd) ('mysql 'pwd) ('tns 'pwd))                     "u.startup.passwd")
+                             ((or ('pgsql 'query?) ('mysql 'query?) ('tns 'query?))            "is_query")
                              ; then we have a few generic transformation regardless of the proto
-                             ((or (_ 'header-size) (_ 'header-length) (_ 'header-len))                 "info.head_len")
+                             ((or (_ 'header-size) (_ 'header-length) (_ 'header-len) (_ 'head-len))   "info.head_len")
                              ((or (_ 'payload-size) (_ 'payload-length) (_ 'payload-len) (_ 'payload)) "info.payload")
                              ; but in the general case field name is the same
                              ((_ f)               (type:string->C-ident (symbol->string f)))))))
@@ -84,21 +124,23 @@
                  (or (symbol? name)
                      (throw 'you-must-be-joking (simple-format #f "register name must be a symbol not ~s" name)))
                  ((type:type-bind expected-type) (type:string->C-ident (symbol->string name)) x-stub)))
-              ((? (lambda (expr) (is-infix (cadr expr))) (v1 op-name v2))
-               (simple-format #t "Infix operator ~s~%" op-name)
+              ((and (v1 op-name v2) (? (lambda (expr) (is-infix (cadr expr)))))
                (perform-op op-name (list v1 v2)))
               ; Now that we have ruled out the empty list and special forms we must face an operator
               ((op-name . params)
                (perform-op op-name params))))
       ((boolean? expr)
-       (simple-format #t "expr->stub of the boolean ~a~%" expr)
        (type:check type:bool expected-type)
        ((type:type-imm type:bool) expr))
       ((number? expr)
        (type:check type:uint expected-type)
        ((type:type-imm type:uint) expr))
+      ((string? expr)
+       (type:check type:str expected-type)
+       ((type:type-imm type:str) expr))
       ((symbol? expr)
        ; field names are spelled without percent sign prefix
+       ; TODO: a way to have some precomputed, already available constants (for giving a name to some protocol constants)
        (let* ((str        (symbol->string expr))
               (is-regname (eqv? (string-ref str 0) #\%)))
          (if is-regname
@@ -131,36 +173,40 @@
 ;;;       the outest protocol, contrary to what the expression specifies ("cap with...."
 ;;;       rather than "next cap with..."). Not a big deal in practice.
 
-; returns the new expression
-(define (test-expr>ll-test-expr expr can-skip)
-  (match expr
+(define (test->ll-test test)
+  (match test
          (('then proto 'with ex)
-          `(,proto can-skip . ,(expr->stub proto ex type:bool)))
+          `(,proto #f . ,(expr->stub proto ex type:bool)))
          (('then proto)
-          `(,proto can-skip . ,(expr->stub proto #t type:bool)))
+          `(,proto #f . ,(expr->stub proto #t type:bool)))
          ((proto 'with ex)
-          `(,proto can-skip . ,(expr->stub proto ex type:bool)))
+          `(,proto #t . ,(expr->stub proto ex type:bool)))
          ((proto)
-          `(,proto can-skip . ,(expr->stub proto #t type:bool)))
+          `(,proto #t . ,(expr->stub proto #t type:bool)))
          (('next proto 'with ex)
-          `(,proto can-skip . ,(expr->stub proto ex type:bool)))
+          `(,proto #t . ,(expr->stub proto ex type:bool)))
          (('next proto)
-          `(,proto can-skip . ,(expr->stub proto #t type:bool)))
+          `(,proto #t . ,(expr->stub proto #t type:bool)))
          (_
-          (throw 'you-must-be-joking (simple-format #f "Cannot get my head around ~s" expr)))))
+          (throw 'you-must-be-joking (simple-format #f "Cannot get my head around ~s" test)))))
 
 (define (match->ll-match match)
-  (let loop ((next-can-skip   #t)
-             (remaining-tests match)
-             (new-match       '()))
-    (if (null? remaining-tests)
-        new-match
-        (let* ((test    (car remaining-tests))
-               (can-skip (cadr test)))
-          (loop
-            can-skip
-            (cdr remaining-tests)
-            (cons (test-expr>ll-test-expr test next-can-skip) new-match))))))
+  (let* ((patch-skip (lambda (test can-skip) ; as we revert the list of tests in a match, we have to propagate can-skip the other way around
+                       `(,(ll:test-proto test)
+                          ,can-skip .
+                          ,(ll:test-expr test))))
+         ; first compile each test into a ll-test and reverse the list
+         (ll-match   (fold (lambda (test rev-list)
+                             (cons (test->ll-test test) rev-list))
+                           '()
+                           match))
+         ; then update the can-skip flags since we reverted the order of tests
+         (ll-match   (map (lambda (test prev-skip)
+                            `(,(ll:test-proto test)
+                               ,prev-skip .
+                               ,(ll:test-expr test)))
+                          ll-match (cons #t (map ll:test-can-skip ll-match))))) ; FIXME: the inner specified proto is always allowed to not be the inner reported
+    ll-match))
 
 (define (matches->ll-matches matches)
   (map (lambda (r)

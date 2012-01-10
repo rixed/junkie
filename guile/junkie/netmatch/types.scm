@@ -169,9 +169,48 @@
 
 (export uint)
 
+;;; Strings
+
+(define str ; the stub-result will be a pointer to the nul terminated string
+  (make-type
+    'str
+    (lambda (v) ; imm
+      (let ((res (gensymC "str")))
+        (make-stub
+          (string-append "    char " res "[] = \"" v "\";\n")
+          res
+          '())))
+    (lambda (proto field) ; fetch (TODO: factorize with other types)
+      (let* ((tmp (gensymC (string-append proto "_info")))
+             (res (gensymC (string-append (string->C-ident field) "_field"))))
+        (make-stub
+          (string-append
+            "    struct " proto "_proto_info const *" tmp " = DOWNCAST(info, info, " proto "_proto_info);\n"
+            "    char const *" res " = " tmp "->" field ";\n")
+          res
+          '())))
+    boxed-ref
+    (lambda (regname value) ; bind needs special attention since sizeof(*res) won't work, we need strlen(*res)
+      (let ((tmp (gensymC)))
+        (make-stub
+          (string-append
+            (stub-code value)
+            "    /* " (stub-result value) " is supposed to point to a null terminated string */\n"
+            "    size_t " tmp " = strlen(" (stub-result value) ");\n"
+            "    if (regfile[" regname "].value) {\n"
+            "        free(regfile[" regname "].value);\n"
+            "    }\n"
+            "    regfile[" regname "].value = malloc(" tmp ");\n"
+            "    assert(regfile[" regname "].value);\n" ; aren't assertions as good as proper error checks? O:-)
+            "    memcpy(regfile[" regname "].value, " (stub-result value) ", " tmp ");\n")
+          (string-append "regfile[" regname "].value")
+          (cons regname (stub-regnames value)))))))
+
+(export str)
+
 ;;; Timestamps
 
-(define timestamp
+(define timestamp ; the stub-result will be a pointer to a struct timeval
   (make-type
     'timestamp
     (lambda (v) ; imm
@@ -190,6 +229,49 @@
 
 (export timestamp)
 
+
+;;; Eth addresses
+
+(define mac ; the stub-result will be a pointer to an array of ETH_ADDR_LEN chars
+  (make-type
+    'mac
+    (lambda (v) ; imm
+      #f)
+    (lambda (proto field) ; fetch (TODO: factorize with other types)
+      (let* ((tmp (gensymC (string-append proto "_info")))
+             (res (gensymC (string-append (string->C-ident field) "_field"))))
+        (make-stub
+          (string-append
+            "    struct " proto "_proto_info const *" tmp " = DOWNCAST(info, info, " proto "_proto_info);\n"
+            "    char const (*" res ")[ETH_ADDR_LEN] = &" tmp "->" field ";\n")
+          res
+          '())))
+    boxed-ref
+    boxed-bind))
+
+(export mac) ; TODO: a constructor
+
+
+;;; IP addresses
+
+(define ip ; the stub-result will be a pointer to a struct ip_addr
+  (make-type
+    'ip
+    (lambda (v) ; imm
+      #f)
+    (lambda (proto field) ; fetch (TODO: factorize with other types)
+      (let* ((tmp (gensymC (string-append proto "_info")))
+             (res (gensymC (string-append (string->C-ident field) "_field"))))
+        (make-stub
+          (string-append
+            "    struct " proto "_proto_info const *" tmp " = DOWNCAST(info, info, " proto "_proto_info);\n"
+            "    struct ip_addr const *" res " = &" tmp "->" field ";\n")
+          res
+          '())))
+    boxed-ref
+    boxed-bind))
+
+(export ip)
 
 
 ;;; Logical Operators
@@ -318,7 +400,143 @@
 
 (export add sub mult div mod gt ge lt le eq)
 
-;;; TODO: operations on IP addresses, on strings...
+;;; Timestamp manipulation
+
+(define make-timestamp ; build a timestamp from a UNIX timestamp (as uint)
+  (make-op 'make-timestamp timestamp (list uint)
+           (lambda (ts)
+             (let ((res (gensymC "timestamp")))
+               (make-stub
+                 (string-append
+                   (stub-code ts)
+                   "    struct timeval " res " = { .tv_sec = " (stub-result ts) "; .tv_usec = 0; };\n")
+                 res
+                 (stub-regnames ts))))))
+
+(hashq-set! operators 'make-timestamp make-timestamp)
+
+(define now ; build a timestamp based from current local time
+  (make-op 'now timestamp '()
+           (lambda ()
+             (let ((res (gensymC "now")))
+               (make-stub
+                 (string-append
+                   "    struct timeval " res ";\n"
+                   "    timeval_set_now(&" res ");\n")
+                 res
+                 '())))))
+
+(hashq-set! operators 'now now)
+
+(define age ; returns the number of microsecs between now and a given timestamp from the past (since result is unsigned)
+  (make-op 'age uint (list timestamp)
+           (lambda (ts)
+             (let ((res (gensymC "now")))
+               (make-stub
+                 (string-append
+                   (stub-code ts)
+                   "    int64_t " res " = timeval_age(&" (stub-result ts) ");\n")
+                 res
+                 (stub-regnames ts))))))
+
+(hashq-set! operators 'age age)
+
+(define timestamp-sub ; returns the number of microseconds between two timestamps (first minus second, must be positive!)
+  (make-op 'timestamp-sub uint (list timestamp timestamp)
+           (lambda (ts1 ts2)
+             (let ((res (gensymC "ts_diff")))
+               (make-stub
+                 (string-append
+                   (stub-code ts1)
+                   (stub-code ts2)
+                   "    int64_t " res " = timeval_sub(&" (stub-result ts1) ", &" (stub-result ts2) ");\n")
+                 res
+                 (append (stub-regnames ts1) (stub-regnames ts2)))))))
+
+(hashq-set! operators 'timestamp-sub timestamp-sub)
+(hashq-set! operators 'sub-timestamp timestamp-sub)
+(hashq-set! operators '-TS timestamp-sub)
+
+(export make-timestamp now age timestamp-sub)
+
+;; IP addresses manipulation
+
+(define make-ip ; build an ip addr from a string
+  (make-op 'make-ip ip (list str)
+           (lambda (s)
+             (let ((res (gensymC "ts_diff")))
+               (make-stub
+                 (string-append
+                   (stub-code s)
+                   "    struct ip_addr " res ";\n"
+                   "    ip_addr_ctor_from_str_any(&" res ", " (stub-result s) ");\n")
+                 res
+                 (stub-regnames s))))))
+
+(hashq-set! operators 'make-ip make-ip)
+
+(define routable?
+  (make-op 'routable? bool (list ip)
+           (lambda (ip)
+             (let ((res (gensymC "is_routable")))
+               (make-stub
+                 (string-append
+                   (stub-code ip)
+                   "    bool " res " = ip_addr_is_routable(&" (stub-result ip) ");\n")
+                 res
+                 (stub-regnames ip))))))
+
+(hashq-set! operators 'routable? routable?)
+(hashq-set! operators 'is-routable routable?)
+
+(define broadcast?
+  (make-op 'broadcast? bool (list ip)
+           (lambda (ip)
+             (let ((res (gensymC "is_broadcast")))
+               (make-stub
+                 (string-append
+                   (stub-code ip)
+                   "    bool " res " = ip_addr_is_broadcast(&" (stub-result ip) ");\n")
+                 res
+                 (stub-regnames ip))))))
+
+(hashq-set! operators 'broadcast? broadcast?)
+(hashq-set! operators 'is-broadcast broadcast?)
+
+(export make-ip routable? broadcast?)
+
+;; String manipulation
+
+(define str-null?
+  (make-op 'str-null? bool (list str)
+           (lambda (str)
+             (let ((res (gensymC "null_len")))
+               (make-stub
+                 (string-append
+                   (stub-code str)
+                   "    bool " res " = " (stub-result str) "[0] == '\\0';\n")
+                 res
+                 (stub-regnames str))))))
+
+(hashq-set! operators 'str-null? str-null?)
+
+(define str-eq?
+  (make-op 'str-eq? bool (list str str)
+           (lambda (s1 s2)
+             (let ((res (gensymC "str_eq")))
+               (make-stub
+                 (string-append
+                   (stub-code s1)
+                   (stub-code s2)
+                   "    bool " res " = 0 == strcmp(" (stub-result s1) ", " (stub-result s2) ");\n")
+                 res
+                 (append (stub-regnames s1) (stub-regnames s2)))))))
+
+(hashq-set! operators 'str-eq? str-eq?)
+(hashq-set! operators '=S str-eq?)
+(hashq-set! operators '=s str-eq?)
+
+(export str-null? str-eq?)
 
 
 ;;; Mapping from symbols to operators
