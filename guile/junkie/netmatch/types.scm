@@ -139,8 +139,8 @@
              (res (gensymC (string-append (string->C-ident field) "_field"))))
         (make-stub
           (string-append
-            "    struct " proto "_proto_info const *" tmp " = DOWNCAST(info, info, " proto "_proto_info);\n"
-            "    bool " res " = " tmp "->" field ";\n")
+            "    struct " proto "_proto_info const *const " tmp " = DOWNCAST(info, info, " proto "_proto_info);\n"
+            "    bool const " res " = " tmp "->" field ";\n")
           res
           '())))
     unboxed-ref

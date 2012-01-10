@@ -198,7 +198,7 @@ void sql_serialize(struct proto_info const *info_, uint8_t **buf)
     proto_info_serialize(info_, buf);
     serialize_1(buf, info->is_query);
     serialize_1(buf, info->msg_type);
-    serialize_1(buf, info->set_values);
+    serialize_2(buf, info->set_values);
     if (info->set_values & SQL_VERSION) {
         serialize_1(buf, info->version_maj);
         serialize_1(buf, info->version_min);
@@ -232,7 +232,7 @@ void sql_deserialize(struct proto_info *info_, uint8_t const **buf)
     proto_info_deserialize(info_, buf);
     info->is_query = deserialize_1(buf);
     info->msg_type = deserialize_1(buf);
-    info->set_values = deserialize_1(buf);
+    info->set_values = deserialize_2(buf);
     if (info->set_values & SQL_VERSION) {
         info->version_maj = deserialize_1(buf);
         info->version_min = deserialize_1(buf);

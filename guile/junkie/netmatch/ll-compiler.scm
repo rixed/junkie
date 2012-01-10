@@ -83,6 +83,19 @@
         "\n\n")
       idx)))
 
+; given a proto, field and flag names, return the stub for the bool test of the set_values
+(define (set? proto field flag)
+  (let ((tmp (type:gensymC (string-append proto "_info")))
+        (res (type:gensymC "test_set")))
+    (type:make-stub
+      (string-append
+        "    struct " proto "_proto_info const *const " tmp " = DOWNCAST(info, info, " proto "_proto_info);\n"
+        "    bool const " res " = " tmp "->set_values & " flag ";\n")
+      res
+      '())))
+
+(export set?)
+
 ; given the stub for a test, return the stub for a function performing the test
 (define (test->function test)
   (let ((res (type:gensymC "test_fun")))
