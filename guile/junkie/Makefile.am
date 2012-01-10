@@ -16,6 +16,11 @@ instvars.scm: Makefile
 	@echo '(define-public pkglibdir "$(pkglibdir)")' >> $@
 	@echo '(define-public confdir "$(pkgsysconfdir)")' >> $@
 	@echo '(define-public wwwdir "$(pkglibdir)/www")' >> $@
+	@echo '(define-public includedir "$(includedir)")' >> $@
+	@echo '(define-public build-cc "$(CC)")' >> $@
+	@echo '(define-public build-cppflags "$(CPPFLAGS)")' >> $@
+	@echo '(define-public build-cflags "$(CFLAGS)")' >> $@
+	@echo '(define-public build-ldflags "$(LDFLAGS)")' >> $@
 
 clean-local:
 	@rm -f instvars.scm

@@ -15,7 +15,8 @@
 (use-modules (ice-9 format)
              (srfi srfi-1)
              ((junkie netmatch types) :renamer (symbol-prefix-proc 'type:))
-             (junkie tools))
+             (junkie tools)
+             (junkie instvars))
 
 ; TODO: a fluid for the indent level
 
@@ -105,7 +106,7 @@
       (string-append
         "    struct proto_info const *" res ";\n"
         "    for (" res " = info; " res "; " res " = " res "->parent) {\n"
-        "        if (! " res "->parser->proto->code != PROTO_CODE_" (string-upcase! (string-copy (symbol->string proto))) ") continue;\n"
+        "        if (" res "->parser->proto->code != PROTO_CODE_" (string-upcase! (string-copy (symbol->string proto))) ") continue;\n"
         "        if (" (type:stub-result test) "(" res ", regfile)) break;\n"
         (if (not can-skip)
             (string-append "        " res " = NULL;\n")
@@ -235,10 +236,10 @@
     (simple-format #t "Output C in ~s~%" srcname)
     (display code srcport)
     (close-port srcport)
-    (let* ((cc       (or (getenv "CC")      "gcc")) ; FIXME: insert here the CC used to compile junkie?
-           (cppflags (or (getenv "CPPFLAGS") "")) ; FIXME: insert here the cppflags used to compile junkie?
-           (cflags   (or (getenv "CFLAGS")   "-std=c99 -O0 -ggdb3 -D_GNU_SOURCE")) ; FIXME: you got it
-           (ldflags  (or (getenv "LDFLAGS")  ""))
+    (let* ((cc       (or (getenv "NETMATCH_CC")       build-cc))
+           (cppflags (or (getenv "NETMATCH_CPPFLAGS") (string-append build-cppflags " -I" includedir " -D_GNU_SOURCE")))
+           (cflags   (or (getenv "NETMATCH_CFLAGS")   (string-append "-std=c99 " build-cflags)))
+           (ldflags  (or (getenv "NETMATCH_LDFLAGS")  build-ldflags))
            (cmd      (string-append cc " " cppflags " " cflags " " ldflags " -shared -o " libname " -xc " srcname))
            (status   (system cmd)))
       (if (eqv? 0 (status:exit-val status))

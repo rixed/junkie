@@ -32,15 +32,6 @@
 ;;; For other parameters than symbols, we use the operation signature to typecheck.
 ;;;
 
-(define string->C-ident
-  (let ((ident-charset (char-set-intersection char-set:ascii char-set:letter)))
-    (lambda (str)
-      (list->string (map (lambda (c)
-                           (if (char-set-contains? ident-charset c)
-                               c
-                               #\_))
-                         (string->list str))))))
-
 ; If "Any sufficiently complicated C program contains an ad-hoc, informally-specified,
 ; bug-ridden, slow implementation of half of lisp", then any sufficiently complicated
 ; list program contains an ad-hoc, etc, slow implementation of a type checker. This is
@@ -67,7 +58,21 @@
                       (lambda (op)
                         (and (symbol? op)
                              (char-set-contains? prefix-chars (string-ref (symbol->string op) 0))
-                             (false-if-exception (type:symbol->op op)))))))
+                             (false-if-exception (type:symbol->op op))))))
+        (field->C   (lambda x
+                      (match x
+                             ; transform known fields we must/want make friendlier
+                             ((or ('cap 'dev-id) ('cap 'device) ('cap 'dev))                   "dev_id")
+                             ((or ('cap 'timestamp) ('cap 'ts))                                "tv")
+                             ((or ('tcp 'src-port) ('tcp 'source) ('tcp 'src))                 "key.port[0]")
+                             ((or ('tcp 'dst-port) ('tcp 'dest-port) ('tcp 'dest) ('tcp 'dst)) "key.port[1]")
+                             ((or ('udp 'src-port) ('udp 'source) ('udp 'src))                 "key.port[0]")
+                             ((or ('udp 'dst-port) ('udp 'dest-port) ('udp 'dest) ('udp 'dst)) "key.port[1]")
+                             ; then we have a few generic transformation regardless of the proto
+                             ((or (_ 'header-size) (_ 'header-length) (_ 'header-len))                 "info.head_len")
+                             ((or (_ 'payload-size) (_ 'payload-length) (_ 'payload-len) (_ 'payload)) "info.payload")
+                             ; but in the general case field name is the same
+                             ((_ f)               (type:string->C-ident (symbol->string f)))))))
     (cond
       ((list? expr)
        (match expr
@@ -78,7 +83,7 @@
                (let ((x-stub (expr->stub proto x expected-type)))
                  (or (symbol? name)
                      (throw 'you-must-be-joking (simple-format #f "register name must be a symbol not ~s" name)))
-                 ((type:type-bind expected-type) (string->C-ident (symbol->string name)) x-stub)))
+                 ((type:type-bind expected-type) (type:string->C-ident (symbol->string name)) x-stub)))
               ((? (lambda (expr) (is-infix (cadr expr))) (v1 op-name v2))
                (simple-format #t "Infix operator ~s~%" op-name)
                (perform-op op-name (list v1 v2)))
@@ -97,23 +102,10 @@
        (let* ((str        (symbol->string expr))
               (is-regname (eqv? (string-ref str 0) #\%)))
          (if is-regname
-             ((type:type-ref expected-type) (string->C-ident (substring str 1)))
+             ((type:type-ref expected-type) (type:string->C-ident (substring str 1)))
              ; else we have to fetch this field from current proto
-             (let* ((expr (case proto
-                            ; transform known fields we must/want make friendlier
-                            ((cap)
-                             (case expr
-                               ((dev-id device dev) 'dev_id)
-                               ((timestamp ts) 'tv)
-                               (else expr)))
-                            (else expr)))
-                    ; then we have a few generic transformation regardless of the proto
-                    (expr (case expr
-                            ((header-size header-length header-len) 'info.head_len)
-                            ((payload-size payload-length payload-len payload) 'info.payload)
-                            ; but in the general case field name is the same
-                            (else expr))))
-               ((type:type-fetch expected-type) (symbol->string proto) (symbol->string expr))))))
+             ((type:type-fetch expected-type) (type:string->C-ident (symbol->string proto))
+                                              (field->C proto expr)))))
       (else
         (throw 'you-must-be-joking
                (simple-format #f "~a? you really mean it?" expr))))))

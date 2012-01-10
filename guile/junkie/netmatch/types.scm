@@ -97,6 +97,17 @@
 
 (export gensymC)
 
+(define string->C-ident
+  (let ((ident-charset (char-set-intersection char-set:ascii char-set:letter)))
+    (lambda (str)
+      (list->string (map (lambda (c)
+                           (if (char-set-contains? ident-charset c)
+                               c
+                               #\_))
+                         (string->list str))))))
+
+(export string->C-ident)
+
 (define (indent-more str)
   (regexp-substitute/global #f (make-regexp "^ {4}" regexp/newline) str 'pre "        " 'post))
 
@@ -125,7 +136,7 @@
       (make-stub "" (if v "true" "false") '()))
     (lambda (proto field) ; fetch
       (let* ((tmp (gensymC (string-append proto "_info")))
-             (res (gensymC (string-append field "_field"))))
+             (res (gensymC (string-append (string->C-ident field) "_field"))))
         (make-stub
           (string-append
             "    struct " proto "_proto_info const *" tmp " = DOWNCAST(info, info, " proto "_proto_info);\n"
@@ -146,7 +157,7 @@
       (make-stub "" (format #f "~d" v) '()))
     (lambda (proto field) ; fetch (TODO: factorize with other types)
       (let* ((tmp (gensymC (string-append proto "_info")))
-             (res (gensymC (string-append field "_field"))))
+             (res (gensymC (string-append (string->C-ident field) "_field"))))
         (make-stub
           (string-append
             "    struct " proto "_proto_info const *" tmp " = DOWNCAST(info, info, " proto "_proto_info);\n"
@@ -167,7 +178,7 @@
       #f)
     (lambda (proto field) ; fetch (TODO: factorize with other types)
       (let* ((tmp (gensymC (string-append proto "_info")))
-             (res (gensymC (string-append field "_field"))))
+             (res (gensymC (string-append (string->C-ident field) "_field"))))
         (make-stub
           (string-append
             "    struct " proto "_proto_info const *" tmp " = DOWNCAST(info, info, " proto "_proto_info);\n"

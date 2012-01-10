@@ -253,22 +253,24 @@ static int cli_match_re(char const *value)
 // Called by the CLI parser to set cli_conf.ft_u.netmatch
 static int cli_netmatch(char const *value)
 {
+    scm_dynwind_begin(0);
+    int err = -1;
+
     /* value is an expression that we are supposed to compile with (@ (junkie netmatch compiler) make-so) as
      * a matching function named "match" */
     char *cmd = tempstr_printf("((@ (junkie netmatch compiler) make-so) '((\"match\" . %s)))", value);
     SLOG(LOG_DEBUG, "Evaluating scheme string '%s'", cmd);
     SCM pair = scm_c_eval_string(cmd);
 
-    if (! scm_pair_p(pair)) return -1;
-
-    scm_dynwind_begin(0);
-    char *libname = scm_to_locale_string(SCM_CAR(pair));
-    scm_dynwind_free(libname);
-    unsigned nb_regs = scm_to_uint(SCM_CDR(pair));
+    if (scm_is_pair(pair)) {
+        char *libname = scm_to_locale_string(SCM_CAR(pair));
+        scm_dynwind_free(libname);
+        unsigned nb_regs = scm_to_uint(SCM_CDR(pair));
  
-    int err = set_netmatch(&cli_conf, libname, nb_regs);
-    scm_dynwind_end();
+        err = set_netmatch(&cli_conf, libname, nb_regs);
+    }
 
+    scm_dynwind_end();
     return err;
 }
 
@@ -392,7 +394,7 @@ static SCM g_make_capture_conf(SCM file_, SCM method_, SCM match_, SCM max_pkts_
             scm_throw(scm_from_latin1_symbol("cannot-use-regex"), scm_list_1(match_));
             assert(!"Not reached");
         }
-    } else if (SCM_BNDP(match_) && scm_pair_p(match_)) {
+    } else if (SCM_BNDP(match_) && scm_is_pair(match_)) {
         char *libname = scm_to_locale_string(SCM_CAR(match_));
         scm_dynwind_free(libname);
         unsigned nb_regs = scm_to_uint(SCM_CDR(match_));
