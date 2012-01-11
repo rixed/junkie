@@ -257,7 +257,6 @@
          (tmp         (matches->C matches))
          (code        (car tmp))
          (nb-varnames (cdr tmp)))
-    (simple-format #t "Output C in ~s~%" srcname)
     (display code srcport)
     (close-port srcport)
     (let* ((cc       (or (getenv "NETMATCH_CC")       build-cc))

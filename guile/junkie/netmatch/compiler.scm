@@ -126,7 +126,6 @@
                                      (throw 'you-must-be-joking (simple-format #f "operator ~s?" op-name))))
                              (itypes  (type:op-itypes op))
                              (otype   (type:op-otype op)))
-                        (simple-format #t "expr->stub of ~a outputing a ~a~%" op-name (type:type-name otype))
                         (type:check otype expected-type)
                         (if (not (eqv? (length itypes) (length params)))
                             (throw 'you-must-be-joking
@@ -350,7 +349,6 @@
 
 (define (make-so matches)
   (let ((ll-matches (matches->ll-matches matches)))
-    (simple-format #t "~s~%translated into:~%~s~%" matches ll-matches)
     (ll:matches->so ll-matches)))
 
 (export make-so)
