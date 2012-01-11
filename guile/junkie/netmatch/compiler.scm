@@ -314,7 +314,7 @@
           `(,proto #f . ,(expr->stub proto #t type:bool)))
          ((proto 'with ex)
           `(,proto #t . ,(expr->stub proto ex type:bool)))
-         ((proto)
+         ((or (? symbol? proto) (proto))
           `(,proto #t . ,(expr->stub proto #t type:bool)))
          (('next proto 'with ex)
           `(,proto #t . ,(expr->stub proto ex type:bool)))
