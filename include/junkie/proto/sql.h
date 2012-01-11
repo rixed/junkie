@@ -10,9 +10,13 @@
  * @brief Database protocol informations
  */
 
-extern struct proto *proto_postgres;
+extern struct proto *proto_pgsql;
 extern struct proto *proto_mysql;
 extern struct proto *proto_tns;
+
+#define pgsql_proto_info sql_proto_info
+#define mysql_proto_info sql_proto_info
+#define tns_proto_info sql_proto_info
 
 /// Description of a sql message
 struct sql_proto_info {
@@ -24,18 +28,18 @@ struct sql_proto_info {
         SQL_QUERY,                      ///< Query
         SQL_EXIT,                       ///< Terminating the connection
     } msg_type;
-#   define SQL_VERSION     0x01
+#   define SQL_VERSION     0x001
     // Set values for SQL_STARTUP
-#   define SQL_SSL_REQUEST 0x02
-#   define SQL_USER        0x04
-#   define SQL_DBNAME      0x08
-#   define SQL_PASSWD      0x10
-#   define SQL_AUTH_STATUS 0x20
+#   define SQL_SSL_REQUEST 0x002
+#   define SQL_USER        0x004
+#   define SQL_DBNAME      0x008
+#   define SQL_PASSWD      0x010
+#   define SQL_AUTH_STATUS 0x020
     // Set values for SQL_QUERY
-#   define SQL_SQL         0x02
-#   define SQL_STATUS      0x04
-#   define SQL_NB_ROWS     0x08
-#   define SQL_NB_FIELDS   0x10
+#   define SQL_SQL         0x040
+#   define SQL_STATUS      0x080
+#   define SQL_NB_ROWS     0x100
+#   define SQL_NB_FIELDS   0x200
     unsigned set_values;
     unsigned version_maj, version_min;  ///< Version of the protocol
     union {
@@ -64,8 +68,8 @@ void const *sql_info_addr(struct proto_info const *, size_t *);
 void sql_serialize(struct proto_info const *, uint8_t **buf);
 void sql_deserialize(struct proto_info *, uint8_t const **buf);
 
-void postgres_init(void);
-void postgres_fini(void);
+void pgsql_init(void);
+void pgsql_fini(void);
 void mysql_init(void);
 void mysql_fini(void);
 void tns_init(void);

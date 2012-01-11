@@ -5,6 +5,7 @@
 
 (use-modules (junkie defs)
              (junkie runtime)
+             (junkie netmatch compiler)
              (junkie www crud)
              (junkie www server))
 

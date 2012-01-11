@@ -79,8 +79,9 @@ static void plugin_dtor(struct plugin *plugin)
     if (on_unload) on_unload();
 
     if (really_unload_plugins) {
-        int err = lt_dlclose(plugin->handle);
-        if (err) SLOG(LOG_ERR, "Cannot unload plugin %s: %s", plugin->libname, lt_dlerror());
+        if (lt_dlclose(plugin->handle)) {
+            SLOG(LOG_ERR, "Cannot unload plugin %s: %s", plugin->libname, lt_dlerror());
+        }
     }
 }
 

@@ -17,5 +17,6 @@ thisinclude_HEADERS = \
 	cli.h \
 	ref.h \
 	sock.h \
-	serialization.h
+	serialization.h \
+	netmatch.h
 

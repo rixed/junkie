@@ -112,7 +112,7 @@ static void fetch_ip(struct ip_addr *ip, unsigned prot_addr_fmt, uint8_t const *
     }
 }
 
-static void fetch_hw(uint8_t *mac, unsigned hard_addr_fmt, uint8_t const *ptr)
+static void fetch_hw(unsigned char *mac, unsigned hard_addr_fmt, uint8_t const *ptr)
 {
     if (hard_addr_fmt == 1) {
         memcpy(mac, ptr, ETH_ADDR_LEN);

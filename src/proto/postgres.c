@@ -34,11 +34,11 @@
 #include "junkie/proto/cursor.h"
 
 #undef LOG_CAT
-#define LOG_CAT proto_postgres_log_category
+#define LOG_CAT proto_pgsql_log_category
 
-LOG_CATEGORY_DEF(proto_postgres);
+LOG_CATEGORY_DEF(proto_pgsql);
 
-struct postgres_parser {
+struct pgsql_parser {
     struct parser parser;
     struct mutex mutex;     // Essentially to protect the streambuf
     unsigned c2s_way;       // The way when traffic is going from client to server (~0U for unset)
@@ -48,14 +48,14 @@ struct postgres_parser {
 
 static parse_fun pg_sbuf_parse;
 
-static int pg_parser_ctor(struct postgres_parser *pg_parser, struct proto *proto)
+static int pg_parser_ctor(struct pgsql_parser *pg_parser, struct proto *proto)
 {
-    assert(proto == proto_postgres);
+    assert(proto == proto_pgsql);
     if (0 != parser_ctor(&pg_parser->parser, proto)) return -1;
     pg_parser->phase = NONE;
     pg_parser->c2s_way = ~0U;    // unset
     if (0 != streambuf_ctor(&pg_parser->sbuf, pg_sbuf_parse, 30000)) return -1;
-    mutex_ctor(&pg_parser->mutex, "postgresql");
+    mutex_ctor(&pg_parser->mutex, "pgsqlql");
 
     return 0;
 }
@@ -63,7 +63,7 @@ static int pg_parser_ctor(struct postgres_parser *pg_parser, struct proto *proto
 static struct parser *pg_parser_new(struct proto *proto)
 {
     MALLOCER(pg_parsers);
-    struct postgres_parser *pg_parser = MALLOC(pg_parsers, sizeof(*pg_parser));
+    struct pgsql_parser *pg_parser = MALLOC(pg_parsers, sizeof(*pg_parser));
     if (! pg_parser) return NULL;
 
     if (-1 == pg_parser_ctor(pg_parser, proto)) {
@@ -74,7 +74,7 @@ static struct parser *pg_parser_new(struct proto *proto)
     return &pg_parser->parser;
 }
 
-static void pg_parser_dtor(struct postgres_parser *pg_parser)
+static void pg_parser_dtor(struct pgsql_parser *pg_parser)
 {
     parser_dtor(&pg_parser->parser);
     streambuf_dtor(&pg_parser->sbuf);
@@ -83,7 +83,7 @@ static void pg_parser_dtor(struct postgres_parser *pg_parser)
 
 static void pg_parser_del(struct parser *parser)
 {
-    struct postgres_parser *pg_parser = DOWNCAST(parser, parser, postgres_parser);
+    struct pgsql_parser *pg_parser = DOWNCAST(parser, parser, pgsql_parser);
     pg_parser_dtor(pg_parser);
     FREE(pg_parser);
 }
@@ -198,7 +198,7 @@ void sql_serialize(struct proto_info const *info_, uint8_t **buf)
     proto_info_serialize(info_, buf);
     serialize_1(buf, info->is_query);
     serialize_1(buf, info->msg_type);
-    serialize_1(buf, info->set_values);
+    serialize_2(buf, info->set_values);
     if (info->set_values & SQL_VERSION) {
         serialize_1(buf, info->version_maj);
         serialize_1(buf, info->version_min);
@@ -232,7 +232,7 @@ void sql_deserialize(struct proto_info *info_, uint8_t const **buf)
     proto_info_deserialize(info_, buf);
     info->is_query = deserialize_1(buf);
     info->msg_type = deserialize_1(buf);
-    info->set_values = deserialize_1(buf);
+    info->set_values = deserialize_2(buf);
     if (info->set_values & SQL_VERSION) {
         info->version_maj = deserialize_1(buf);
         info->version_min = deserialize_1(buf);
@@ -303,7 +303,7 @@ static enum proto_parse_status cursor_read_msg(struct cursor *cursor, uint8_t *t
     return PROTO_OK;
 }
 
-static enum proto_parse_status pg_parse_init(struct postgres_parser *pg_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status pg_parse_init(struct pgsql_parser *pg_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     info->msg_type = SQL_STARTUP;
 
@@ -367,7 +367,7 @@ static enum proto_parse_status pg_parse_init(struct postgres_parser *pg_parser, 
     return proto_parse(NULL, &info->info, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
 }
 
-static enum proto_parse_status pg_parse_startup(struct postgres_parser *pg_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status pg_parse_startup(struct pgsql_parser *pg_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     info->msg_type = SQL_STARTUP;
 
@@ -427,7 +427,7 @@ static enum proto_parse_status fetch_nb_rows(char const *result, unsigned *nb_ro
     return PROTO_OK;
 }
 
-static enum proto_parse_status pg_parse_query(struct postgres_parser *pg_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status pg_parse_query(struct pgsql_parser *pg_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     enum proto_parse_status status;
     info->msg_type = SQL_QUERY;
@@ -506,7 +506,7 @@ static enum proto_parse_status pg_parse_query(struct postgres_parser *pg_parser,
 
 static enum proto_parse_status pg_sbuf_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
 {
-    struct postgres_parser *pg_parser = DOWNCAST(parser, parser, postgres_parser);
+    struct pgsql_parser *pg_parser = DOWNCAST(parser, parser, pgsql_parser);
 
     // If this is the first time we are called, init c2s_way
     if (pg_parser->c2s_way == ~0U) {
@@ -532,7 +532,7 @@ static enum proto_parse_status pg_sbuf_parse(struct parser *parser, struct proto
 
 static enum proto_parse_status pg_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
 {
-    struct postgres_parser *pg_parser = DOWNCAST(parser, parser, postgres_parser);
+    struct pgsql_parser *pg_parser = DOWNCAST(parser, parser, pgsql_parser);
 
     mutex_lock(&pg_parser->mutex);
     enum proto_parse_status const status = streambuf_add(&pg_parser->sbuf, parser, parent, way, payload, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
@@ -545,13 +545,13 @@ static enum proto_parse_status pg_parse(struct parser *parser, struct proto_info
  * Construction/Destruction
  */
 
-static struct proto proto_postgres_;
-struct proto *proto_postgres = &proto_postgres_;
+static struct proto proto_pgsql_;
+struct proto *proto_pgsql = &proto_pgsql_;
 static struct port_muxer pg_tcp_muxer;
 
-void postgres_init(void)
+void pgsql_init(void)
 {
-    log_category_proto_postgres_init();
+    log_category_proto_pgsql_init();
 
     static struct proto_ops const ops = {
         .parse       = pg_parse,
@@ -562,13 +562,13 @@ void postgres_init(void)
         .serialize   = sql_serialize,
         .deserialize = sql_deserialize,
     };
-    proto_ctor(&proto_postgres_, &ops, "PostgreSQL", PROTO_CODE_PGSQL);
-    port_muxer_ctor(&pg_tcp_muxer, &tcp_port_muxers, 5432, 5432, proto_postgres);
+    proto_ctor(&proto_pgsql_, &ops, "PostgreSQL", PROTO_CODE_PGSQL);
+    port_muxer_ctor(&pg_tcp_muxer, &tcp_port_muxers, 5432, 5432, proto_pgsql);
 }
 
-void postgres_fini(void)
+void pgsql_fini(void)
 {
     port_muxer_dtor(&pg_tcp_muxer, &tcp_port_muxers);
-    proto_dtor(&proto_postgres_);
-    log_category_proto_postgres_fini();
+    proto_dtor(&proto_pgsql_);
+    log_category_proto_pgsql_fini();
 }

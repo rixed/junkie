@@ -98,7 +98,7 @@ static int deserialize_proto_info_rec(unsigned depth, uint8_t const **buf, struc
         struct sdp_proto_info sdp;
         struct sip_proto_info sip;
         struct sql_proto_info tns;
-        struct sql_proto_info postgres;
+        struct sql_proto_info pgsql;
         struct sql_proto_info mysql;
         struct bittorrent_proto_info bittorrent;
         struct netbios_proto_info netbios;
@@ -118,7 +118,7 @@ static int deserialize_proto_info_rec(unsigned depth, uint8_t const **buf, struc
         CASE(GRE, gre); CASE(HTTP, http); CASE(ICMP, icmp);
         CASE(MGCP, mgcp); CASE(RTCP, rtcp); CASE(RTP, rtp);
         CASE(SDP, sdp); CASE(SIP, sip); CASE(TNS, tns);
-        CASE(PGSQL, postgres); CASE(MYSQL, mysql); CASE(BITTORRENT, bittorrent);
+        CASE(PGSQL, pgsql); CASE(MYSQL, mysql); CASE(BITTORRENT, bittorrent);
         CASE(NETBIOS, netbios); CASE(SSL, ssl);
 #       undef CASE
         case PROTO_CODE_DUMMY:
