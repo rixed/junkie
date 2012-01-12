@@ -12,6 +12,7 @@
              (web uri)
              (rnrs lists)
              (junkie defs) ; for slog
+             (junkie tools) ; for assert
              (junkie www server))
 
 ;;
