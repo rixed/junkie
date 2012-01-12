@@ -125,12 +125,9 @@
                       (pop (cdr l) (- n 1))))))
 
 (define (fun-params fun)
-  (let ((bindings (program-bindings fun))
-        (arity    (arity:nreq (car (program-arities fun)))))
-    (slog log-debug "bindings for this fun: ~s (taking the first ~a)" bindings arity)
-    (map (lambda (binding)
-           (val->string (binding:name binding)))
-         (pop bindings arity))))
+  (let* ((args          (program-arguments-alist fun))
+         (required-args (assq-ref args 'required)))
+    (map symbol->string required-args)))
 
 (define (show-crudable crudable)
   (let* ((name          (crudable-name crudable))
