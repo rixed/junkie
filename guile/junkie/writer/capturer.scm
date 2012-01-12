@@ -5,7 +5,6 @@
 
 (use-modules (junkie defs)
              (junkie runtime)
-             (junkie netmatch compiler)
              (junkie www crud)
              (junkie www server))
 
@@ -24,14 +23,15 @@
   (let ((cap (assoc-ref captures name)))
     (capture-stats cap)))
 
-(define (capture-new filename rotation regex max-pkts max-size max-secs caplen)
+(define (capture-new filename rotation regexp netmatch max-pkts max-size max-secs caplen)
   (slog log-debug "New capture for ~s" filename)
   (let* ((param->int (lambda (str)
                        (if (string=? str "")
                            0
                            (string->number str))))
          (cap (make-capture-conf filename 'pcap
-                                 regex
+                                 regexp
+                                 netmatch
                                  (param->int max-pkts)
                                  (param->int max-size)
                                  (param->int max-secs)
