@@ -58,6 +58,8 @@ static enum proto_parse_status bittorrent_parse(struct parser *parser, struct pr
 {
     if (! is_bittorrent(packet, cap_len)) return PROTO_PARSE_ERR;
 
+    SLOG(LOG_DEBUG, "New BitTorrent packet");   // not much to say here
+
     struct bittorrent_proto_info info;
     proto_info_ctor(&info.info, parser, parent, 0, wire_len);
 

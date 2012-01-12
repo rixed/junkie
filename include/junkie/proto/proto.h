@@ -252,11 +252,17 @@ struct proto_info const *proto_info_get(
 
 #define ASSIGN_INFO_CHK(proto, last, err) \
     ASSIGN_INFO_OPT(proto, last); \
-    if (! proto) return err;
+    if (! proto) { \
+        SLOG(LOG_DEBUG, "Can't find proto " #proto); \
+        return err; \
+    }
 
 #define ASSIGN_INFO_CHK2(proto, proto_alt, last, err) \
     ASSIGN_INFO_OPT2(proto, proto_alt, last); \
-    if (! proto && ! proto_alt) return err;
+    if (! proto && ! proto_alt) { \
+        SLOG(LOG_DEBUG, "Can't find neither " #proto " nor " #proto_alt); \
+        return err; \
+    }
 
 /*
  * Parsers
