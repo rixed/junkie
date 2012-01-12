@@ -32,6 +32,7 @@
 #include "junkie/tools/ref.h"
 #include "junkie/tools/mallocer.h"
 #include "junkie/tools/hash.h"
+#include "junkie/tools/redim_array.h"
 #include "junkie/cpp.h"
 #include "junkie/capfile.h"
 // For initers/finiters
@@ -73,7 +74,7 @@ static struct {
 } initers[] = {
 #   define I(x) { x##_init, x##_fini }
     I(plugins),
-    I(cnxtrack),    I(proto),       I(fuzzing),
+    I(cnxtrack),      I(proto),       I(fuzzing),
     I(pkt_wait_list), I(port_muxer),
     I(cap),           I(eth),         I(arp),
     I(ip6),           I(ip),          I(gre),
@@ -97,6 +98,7 @@ static void all_init(void)
     mallocer_init();    // as all users do not init it...
     ref_init(); // as all users do not init it...
     hash_init();    // as all users do not init it...
+    redim_array_init(); // if there are no users then some ext functions used by the www interface won't be defined
 
     for (unsigned i = 0; i < NB_ELEMS(initers); i++) {
         initers[i].init();
@@ -114,6 +116,7 @@ static void all_fini(void)
         initers[--i].fini();
     }
 
+    redim_array_fini();
     hash_fini();
     mallocer_fini();
     ref_fini();
