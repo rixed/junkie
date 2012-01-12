@@ -193,14 +193,32 @@ static int set_match_re(struct capture_conf *conf, char const *value)
     return 0;
 }
 
-static int set_netmatch(struct capture_conf *conf, char const *libname, unsigned nb_regs)
+static int set_netmatch(struct capture_conf *conf, char const *value)
 {
     assert(! conf->netmatch_set);
 
-    if (0 != netmatch_filter_ctor(&conf->netmatch, libname, nb_regs)) return -1;
+    scm_dynwind_begin(0);
+    int err = -1;
 
-    conf->netmatch_set = true;
-    return 0;
+    /* value is an expression that we are supposed to compile with (@ (junkie netmatch compiler) make-so) as
+     * a matching function named "match" */
+    char *cmd = tempstr_printf("((@ (junkie netmatch compiler) make-so) '((\"match\" . %s)))", value);
+    SLOG(LOG_DEBUG, "Evaluating scheme string '%s'", cmd);
+    SCM pair = scm_c_eval_string(cmd);
+
+    if (scm_is_pair(pair)) {
+        char *libname = scm_to_locale_string(SCM_CAR(pair));
+        scm_dynwind_free(libname);
+        unsigned nb_regs = scm_to_uint(SCM_CDR(pair));
+ 
+        if (0 == netmatch_filter_ctor(&conf->netmatch, libname, nb_regs)) {
+            conf->netmatch_set = true;
+            err = 0;
+        }
+    }
+
+    scm_dynwind_end();
+    return err;
 }
 
 static void conf_capture_start(struct capture_conf *conf)
@@ -250,25 +268,7 @@ static int cli_match_re(char const *value)
 // Called by the CLI parser to set cli_conf.netmatch
 static int cli_netmatch(char const *value)
 {
-    scm_dynwind_begin(0);
-    int err = -1;
-
-    /* value is an expression that we are supposed to compile with (@ (junkie netmatch compiler) make-so) as
-     * a matching function named "match" */
-    char *cmd = tempstr_printf("((@ (junkie netmatch compiler) make-so) '((\"match\" . %s)))", value);
-    SLOG(LOG_DEBUG, "Evaluating scheme string '%s'", cmd);
-    SCM pair = scm_c_eval_string(cmd);
-
-    if (scm_is_pair(pair)) {
-        char *libname = scm_to_locale_string(SCM_CAR(pair));
-        scm_dynwind_free(libname);
-        unsigned nb_regs = scm_to_uint(SCM_CDR(pair));
- 
-        err = set_netmatch(&cli_conf, libname, nb_regs);
-    }
-
-    scm_dynwind_end();
-    return err;
+    return set_netmatch(&cli_conf, value);
 }
 
 /*
@@ -351,7 +351,7 @@ static int print_conf(SCM conf_smob, SCM port, scm_print_state unused_ *pstate)
 }
 
 static struct ext_function sg_make_capture_conf;
-static SCM g_make_capture_conf(SCM file_, SCM method_, SCM match_, SCM max_pkts_, SCM max_size_, SCM max_secs_, SCM caplen_, SCM rotation_)
+static SCM g_make_capture_conf(SCM file_, SCM method_, SCM match_re_, SCM netmatch_, SCM max_pkts_, SCM max_size_, SCM max_secs_, SCM caplen_, SCM rotation_)
 {
     scm_dynwind_begin(0);
     char *file = scm_to_locale_string(file_);
@@ -385,18 +385,18 @@ static SCM g_make_capture_conf(SCM file_, SCM method_, SCM match_, SCM max_pkts_
     SCM smob;
     SCM_NEWSMOB(smob, conf_tag, conf);
 
-    if (SCM_BNDP(match_) && scm_string_p(match_)) {
-        char *match = scm_to_locale_string(match_);
+    if (SCM_BNDP(match_re_)) {
+        char *match = scm_to_locale_string(match_re_);
         if (0 != set_match_re(conf, match)) {
-            scm_throw(scm_from_latin1_symbol("cannot-use-regex"), scm_list_1(match_));
+            scm_throw(scm_from_latin1_symbol("cannot-use-regex"), scm_list_1(match_re_));
             assert(!"Not reached");
         }
-    } else if (SCM_BNDP(match_) && scm_is_pair(match_)) {
-        char *libname = scm_to_locale_string(SCM_CAR(match_));
-        scm_dynwind_free(libname);
-        unsigned nb_regs = scm_to_uint(SCM_CDR(match_));
-        if (0 != set_netmatch(conf, libname, nb_regs)) {
-            scm_throw(scm_from_latin1_symbol("cannot-use-netmatch"), scm_list_1(match_));
+    }
+    
+    if (SCM_BNDP(netmatch_)) {
+        char *netmatch = scm_to_locale_string(netmatch_);
+        if (0 != set_netmatch(conf, netmatch)) {
+            scm_throw(scm_from_latin1_symbol("cannot-use-netmatch"), scm_list_1(netmatch_));
             assert(!"Not reached");
         }
     }
@@ -538,10 +538,11 @@ void on_load(void)
     scm_set_smob_free(conf_tag, free_conf);
     scm_set_smob_print(conf_tag, print_conf);
     ext_function_ctor(&sg_make_capture_conf,
-        "make-capture-conf", 1, 7, 0, g_make_capture_conf,
+        "make-capture-conf", 1, 8, 0, g_make_capture_conf,
         "(make-capture-conf \"some/file\"\n"
         "                   'csv ; method, either 'csv or 'pcap\n"
-        "                   \"some regex\" ; optional, regular expression if string, (so-file . nb-registers) if pair.\n"
+        "                   \"some regex\" ; optional, regular expression\n"
+        "                   \"some netmatch filter\" : optional, netmatch filter\n"
         "                   max-pkts max-size max-secs caplen rotation) ; optional as well\n"
         "                   : create a capture configuration (but does not start it).\n"
         "See also (? 'capture-start) for actually starting the capture.\n");
