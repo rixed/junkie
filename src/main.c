@@ -60,6 +60,7 @@
 #include "junkie/proto/sql.h"
 #include "junkie/proto/port_muxer.h"
 #include "junkie/proto/cnxtrack.h"
+#include "junkie/proto/serialize.h"
 #include "proto/fuzzing.h"
 #include "pkt_source.h"
 #include "plugins.h"
@@ -85,7 +86,7 @@ static struct {
     I(dns_tcp),       I(ftp),         I(mgcp),
     I(sdp),           I(pgsql),       I(mysql),
     I(tns),
-    I(pkt_source),    I(capfile),
+    I(pkt_source),    I(capfile),     I(serialize)
 #   undef I
 };
 

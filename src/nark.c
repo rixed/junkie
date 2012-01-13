@@ -53,6 +53,7 @@
 #include "junkie/proto/mgcp.h"
 #include "junkie/proto/sdp.h"
 #include "junkie/proto/sql.h"
+#include "junkie/proto/serialize.h"
 
 static char *opt_port =  "28999";
 static struct sock sock;
@@ -83,7 +84,7 @@ static struct {
     I(ssl),           I(dns),         I(rtcp),
     I(dns_tcp),       I(ftp),         I(mgcp),
     I(sdp),           I(pgsql),       I(mysql),
-    I(tns),
+    I(tns),           I(serialize)
 #   undef I
 };
 

@@ -155,3 +155,12 @@ int deserialize_proto_stack(uint8_t const **buf, int (*okfn)(struct proto_info *
     return ret;
 }
 
+/* Calling this empty constructor is the simplest way to have this whole module included in junkie
+ * (the alternative would be to fix automake or libtool). */
+void serialize_init(void)
+{
+}
+
+void serialize_fini(void)
+{
+}
