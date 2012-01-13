@@ -28,5 +28,6 @@ thisinclude_HEADERS = \
 	streambuf.h \
 	cursor.h \
 	cnxtrack.h \
-	serialize.h
+	serialize.h \
+	capfile.h
 

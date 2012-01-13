@@ -18,7 +18,14 @@
  * along with Junkie.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <stdlib.h>
+#include <pthread.h>
+#include "junkie/tools/ext.h"
+#include "junkie/tools/sock.h"
+#include "junkie/tools/queue.h"
+#include "junkie/tools/mallocer.h"
+#include "junkie/tools/tempstr.h"
 #include "junkie/proto/serialize.h"
+#include "plugins.h"
 
 /*
  * Serialization
@@ -155,12 +162,341 @@ int deserialize_proto_stack(uint8_t const **buf, int (*okfn)(struct proto_info *
     return ret;
 }
 
-/* Calling this empty constructor is the simplest way to have this whole module included in junkie
- * (the alternative would be to fix automake or libtool). */
+/*
+ * Extentions: ability to open/close/list (de)serializers
+ */
+
+MALLOCER_DEF(deserializers);
+
+struct deserializer_source {
+    LIST_ENTRY(deserializer_source) entry;
+    uint32_t id;
+    uint64_t nb_rcvd_msgs, nb_lost_msgs;
+};
+
+struct deserializer {
+    LIST_ENTRY(deserializer) entry;
+    struct sock sock;
+    pthread_t server_pth;
+    bool running;   // set to false when the thread exits
+    unsigned nb_sources;    // how many sources did we ever saw
+    LIST_HEAD(sources, deserializer_source) sources;
+};
+
+static LIST_HEAD(deserializers, deserializer) deserializers;    // FIXME: a mutex should not be necessary in practice but won't hurt either
+
+static int deserializer_source_ctor(struct deserializer_source *source, struct deserializer *deser, uint32_t id)
+{
+    source->id = id;
+    source->nb_rcvd_msgs = source->nb_lost_msgs = 0;
+    LIST_INSERT_HEAD(&deser->sources, source, entry);
+    return 0;
+}
+
+static struct deserializer_source *deserializer_source_new(struct deserializer *deser, uint32_t id)
+{
+    struct deserializer_source *source = MALLOC(deserializers, sizeof(*source));
+    if (! source) return NULL;
+    if (0 != deserializer_source_ctor(source, deser, id)) {
+        FREE(source);
+        return NULL;
+    }
+    return source;
+}
+
+// we not normally deletes any sources
+static void deserializer_source_dtor(struct deserializer_source *source)
+{
+    LIST_REMOVE(source, entry);
+}
+
+static void unused_ deserializer_source_del(struct deserializer_source *source)
+{
+    deserializer_source_dtor(source);
+}
+
+static struct deserializer_source *deserializer_source_lookup(struct deserializer *deser, uint32_t id)
+{
+    struct deserializer_source *source;
+    // shortcut for the most probable case, that the first source is the one we're looking for
+    if (! LIST_EMPTY(&deser->sources) && LIST_FIRST(&deser->sources)->id == id) {
+        return LIST_FIRST(&deser->sources);
+    }
+
+    LIST_FOREACH(source, &deser->sources, entry) {
+        if (source->id == id) break;
+    }
+    if (! source) {
+        source = deserializer_source_new(deser, id);
+        if (! source) return NULL;
+    }
+
+    // promotes this source
+    LIST_REMOVE(source, entry);
+    LIST_INSERT_HEAD(&deser->sources, source, entry);
+
+    return source;
+}
+
+static int callback_plugins(struct proto_info *info)
+{
+    return parser_callbacks(info, 0, NULL);
+}
+
+// The thread serving the deserializer port
+static void *deserializer_thread(void *deser_)
+{
+    struct deserializer *deser = deser_;
+
+    static uint8_t buf[DATAGRAM_MAX_SIZE];
+
+    deser->running = true;
+
+    while (sock_is_opened(&deser->sock)) {
+        uint32_t src_id;
+        struct deserializer_source *source;
+        ssize_t s = sock_recv(&deser->sock, buf, sizeof(buf));
+        uint8_t const *ptr = buf;
+        if (s > 0) {
+            while (ptr < buf+s) {
+                switch (*ptr++) {
+                    case MSG_PROTO_INFO:;
+                        src_id = deserialize_4(&ptr);
+                        source = deserializer_source_lookup(deser, src_id);
+                        if (! source) break;
+                        (void)deserialize_proto_stack(&ptr, callback_plugins);
+                        source->nb_rcvd_msgs ++;
+                        break;
+                    case MSG_PROTO_STATS:;
+                        src_id = deserialize_4(&ptr);
+                        uint64_t nb_sent_msgs = deserialize_4(&ptr);
+                        source = deserializer_source_lookup(deser, src_id);
+                        if (! source) break;
+                        uint64_t new_lost = nb_sent_msgs - source->nb_rcvd_msgs;   // 2-complement rules!
+                        if (source->nb_lost_msgs != new_lost) {
+                            source->nb_lost_msgs = new_lost;
+                            fprintf(stderr, "deserializer: lost %"PRIu64" msgs from source %"PRIu32"\n", source->nb_lost_msgs, src_id);
+                        }
+                        break;
+                    default:
+                        SLOG(LOG_ERR, "Unknown message of type %"PRIu8, ptr[-1]);
+                        break;
+                }
+            }
+        } else {
+            break;  // exit the thread on error
+        }
+    }
+
+    deser->running = false;
+    return NULL;
+}
+
+
+static int deserializer_ctor(struct deserializer *deser, char const *service)
+{
+    if (0 != sock_ctor_server(&deser->sock, service)) return -1;
+
+    deser->running = false;
+    LIST_INIT(&deser->sources);
+
+    int err = pthread_create(&deser->server_pth, NULL, deserializer_thread, deser);
+    if (err) {
+        SLOG(LOG_ERR, "Cannot start server thread: %s", strerror(err));
+        sock_dtor(&deser->sock);
+        return -1;
+    }
+
+    LIST_INSERT_HEAD(&deserializers, deser, entry);
+
+    return 0;
+}
+
+static struct deserializer *deserializer_new(char const *service)
+{
+    struct deserializer *deser = MALLOC(deserializers, sizeof(*deser));
+    if (! deser) return NULL;
+
+    if (0 != deserializer_ctor(deser, service)) {
+        FREE(deser);
+        return NULL;
+    }
+
+    return deser;
+}
+
+static void deserializer_dtor(struct deserializer *deser)
+{
+    LIST_REMOVE(deser, entry);
+    int err = pthread_cancel(deser->server_pth);
+    if (err) {
+        SLOG(LOG_ERR, "Cannot cancel server thread: %s", strerror(err));
+        (void)pthread_detach(deser->server_pth);
+    } else {
+        err = pthread_join(deser->server_pth, NULL);
+        if (err) {
+            SLOG(LOG_ERR, "Cannot join server thread: %s", strerror(err));
+            // so be it
+        }
+    }
+    sock_dtor(&deser->sock);
+}
+
+static void deserializer_del(struct deserializer *deser)
+{
+    deserializer_dtor(deser);
+    FREE(deser);
+}
+
+static struct ext_function sg_open_deserializer;
+static SCM g_open_deserializer(SCM port_)
+{
+    SCM ret = SCM_BOOL_F;
+    scm_dynwind_begin(0);
+    char *service = SERIALIZER_DEFAULT_SERVICE;
+    if (!SCM_UNBNDP(port_)) {
+        if (scm_is_string(port_)) {
+            service = scm_to_locale_string(port_);
+            scm_dynwind_free(service);
+        } else { // we assume a number then
+            service = tempstr_printf("%u", scm_to_uint(port_));
+        }
+    }
+
+    struct deserializer *deser = deserializer_new(service);
+    if (deser) {
+        ret = scm_from_latin1_string(deser->sock.name);
+    }
+
+    scm_dynwind_end();
+    return ret;
+}
+
+static struct deserializer *deserializer_of_scm(SCM name_)
+{
+    char *name = scm_to_tempstr(name_);
+
+    struct deserializer *deser;
+    LIST_FOREACH(deser, &deserializers, entry) {
+        if (0 == strcmp(deser->sock.name, name)) break;
+    }
+
+    return deser;
+}
+
+static struct ext_function sg_close_deserializer;
+static SCM g_close_deserializer(SCM name_)
+{
+    SCM ret = SCM_BOOL_F;
+
+    struct deserializer *deser = deserializer_of_scm(name_);
+    if (deser) {
+        deserializer_del(deser);
+        ret = SCM_BOOL_T;
+    }
+
+    return ret;
+}
+
+static struct ext_function sg_deserializer_names;
+static SCM g_deserializer_names(void)
+{
+    SCM ret = SCM_EOL;
+
+    struct deserializer *deser;
+    LIST_FOREACH(deser, &deserializers, entry) {
+        SCM name = scm_from_latin1_string(deser->sock.name);
+        ret = scm_cons(name, ret);
+    }
+
+    return ret;
+}
+
+static SCM nb_rcvd_msgs_sym;
+static SCM nb_lost_msgs_sym;
+
+static SCM deserializer_source_stats(struct deserializer_source *source)
+{
+    return scm_list_2(
+        scm_cons(nb_rcvd_msgs_sym,  scm_from_uint64(source->nb_rcvd_msgs)),
+        scm_cons(nb_lost_msgs_sym,  scm_from_uint64(source->nb_lost_msgs)));
+}
+
+static SCM name_sym;
+static SCM running_sym;
+static SCM sources_sym;
+
+static struct ext_function sg_deserializer_stats;
+static SCM g_deserializer_stats(SCM name_)
+{
+    struct deserializer *deser = deserializer_of_scm(name_);
+    if (! deser) return SCM_BOOL_F;
+
+    SCM srcs = SCM_EOL;
+    struct deserializer_source *source;
+    LIST_FOREACH(source, &deser->sources, entry) {
+        srcs = scm_cons(
+            scm_cons(scm_from_uint32(source->id), deserializer_source_stats(source)),
+            srcs);
+    }
+
+    return scm_list_3(
+        scm_cons(name_sym,          scm_from_latin1_string(deser->sock.name)),
+        scm_cons(running_sym,       scm_from_bool(deser->running)),
+        scm_cons(sources_sym,       srcs));
+}
+
+
+/*
+ * Init
+ */
+
+static unsigned inited;
 void serialize_init(void)
 {
+    if (inited++) return;
+    mallocer_init();
+    ext_init();
+    sock_init();
+
+    name_sym         = scm_permanent_object(scm_from_latin1_symbol("name"));
+    running_sym      = scm_permanent_object(scm_from_latin1_symbol("running?"));
+    nb_rcvd_msgs_sym = scm_permanent_object(scm_from_latin1_symbol("nb-rcvd-msgs"));
+    nb_lost_msgs_sym = scm_permanent_object(scm_from_latin1_symbol("nb-lost-msgs"));
+    sources_sym      = scm_permanent_object(scm_from_latin1_symbol("sources"));
+
+    MALLOCER_INIT(deserializers);
+    LIST_INIT(&deserializers);
+
+    ext_function_ctor(&sg_open_deserializer,
+        "open-deserializer", 0, 1, 0, g_open_deserializer,
+        "(open-deserializer): listen on default port (" SERIALIZER_DEFAULT_SERVICE ") and supply received frames info to local plugins.\n"
+        "(open-deserializer 28100): listen on alternate port.\n"
+        "Will return the name of the deserializer or #f if the operation fails.\n"
+        "See also (? 'close-deserializer) and (? 'deserializers).\n");
+
+    ext_function_ctor(&sg_close_deserializer,
+        "close-deserializer", 0, 0, 0, g_close_deserializer,
+        "Will return #t if this deserializer was successfully closed.\n"
+        "(close-deserializer \"name\"): closes this deserializer.\n"
+        "See also (? 'open-deserializer) and (? 'deserializers).\n");
+
+    ext_function_ctor(&sg_deserializer_names,
+        "deserializer-names", 0, 0, 0, g_deserializer_names,
+        "(deserializer-names): list all currently opened deserializers.\n"
+        "See also (? 'open-deserializer) and (? 'close-deserializer).\n");
+
+    ext_function_ctor(&sg_deserializer_stats,
+        "deserializer-stats", 1, 0, 0, g_deserializer_stats,
+        "(deserializer-stats \"name\"): return some stats about this deserializer.\n"
+        "See also (? 'deserializer-names)\n");
 }
 
 void serialize_fini(void)
 {
+    if (--inited) return;
+
+    ext_fini();
+    sock_fini();
+    mallocer_fini();
 }

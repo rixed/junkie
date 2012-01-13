@@ -132,17 +132,6 @@ static char const *pkt_source_guile_name(struct pkt_source *pkt_source)
  * For now both iface and files are treated the same.
  */
 
-static int parser_callbacks(struct proto_info const *last, size_t tot_cap_len, uint8_t const *tot_packet)
-{
-    struct plugin *plugin;
-    mutex_lock(&plugins_mutex);
-    LIST_FOREACH(plugin, &plugins, entry) {
-        if (plugin->parse_callback) plugin->parse_callback(last, tot_cap_len, tot_packet);
-    }
-    mutex_unlock(&plugins_mutex);
-    return 0;
-}
-
 // caller must own nb_digests lock
 static void update_dedup_stats(unsigned dup_found, unsigned nodup_found, unsigned eol_found)
 {

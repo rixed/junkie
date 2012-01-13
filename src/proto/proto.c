@@ -825,7 +825,7 @@ static void *timeouter_thread(void unused_ *dummy)
         LIST_FOREACH(mux_proto, &mux_protos, entry) {
             mux_proto_timeout(mux_proto, &now);
         }
-        
+
         sleep(1);
     }
     return NULL;

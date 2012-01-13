@@ -4,10 +4,9 @@
 set -e
 
 junkie="../src/junkie"
-nark="../src/nark"
 
-if ! test -x $junkie || ! test -x $nark ; then
-    echo "Missing executable $junkie or $nark"
+if ! test -x $junkie ; then
+    echo "Missing executable $junkie"
     exit 1
 fi
 
@@ -18,33 +17,36 @@ fi
 
 echo "Testing serialization"
 
-dumplog="serialize_check.dump"
-narklog="serialize_check.nark"
+serlog="serialize_check.ser"
+deserlog="serialize_check.deser"
 
-rm -f $dumplog $narklog
+rm -f $serlog $deserlog
 
-echo "Running nark"
-stdbuf -oL $nark > $narklog &
-narkpid=$!
-#disown $narkpid
-sleep 1 # wait for nark to be ready
+echo "Running deserializer"
+$junkie > $deserlog \
+    -e '(open-deserializer)' \
+    -p ../plugins/dumper/.libs/dumper.so &
+deserpid=$!
+#disown $deserpid
+sleep 1 # wait for junkie to be ready
 
-echo "Running junkie"
-$junkie > $dumplog \
+echo "Running serializer"
+$junkie > $serlog \
         -p ../plugins/dumper/.libs/dumper.so \
         -p ../plugins/serializer/.libs/serializer.so \
         -e '(set-quit-when-done #f)' \
         -e '(for-each-file-in "pcap" (lambda (sub) (for-each-file-in sub open-pcap)))' \
         -e '(exit)' || true
 
-echo "Killing nark"
-sleep 1 # wait for nark to print everything
-kill $narkpid
+echo "Killing deserializer"
+sleep 1 # wait for junkie to print everything
+kill $deserpid
 
-if diff $dumplog $narklog > /dev/null ; then
-    rm -f $dumplog $narklog
+if diff $serlog $deserlog > /dev/null ; then
+    rm -f $serlog $deserlog
     exit 0
 else
-    echo "Output differs! See $dumplog and $narklog for details."
+    echo "Output differs! See $serlog and $deserlog for details."
     exit 1
 fi
+

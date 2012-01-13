@@ -2,5 +2,4 @@ SUBDIRS = tools proto
 
 pkginclude_HEADERS = \
 	config.h \
-	cpp.h \
-	capfile.h
+	cpp.h

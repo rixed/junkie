@@ -30,7 +30,7 @@
 #include "junkie/tools/ext.h"
 #include "junkie/tools/mutex.h"
 #include "junkie/proto/cap.h"
-#include "junkie/capfile.h"
+#include "junkie/proto/capfile.h"
 
 #undef LOG_CAT
 #define LOG_CAT capfile_log_category

@@ -167,13 +167,16 @@ bool sock_is_opened(struct sock *s)
     return s->fd >= 0;
 }
 
-// We need junkie to call at least one function of this module so that it's not skipped when linking
+static unsigned inited;
 void sock_init(void)
 {
+    if (inited++) return;
     log_category_sock_init();
 }
 
 void sock_fini(void)
 {
+    if (--inited) return;
+
     log_category_sock_fini();
 }

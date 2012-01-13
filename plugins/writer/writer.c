@@ -24,13 +24,13 @@
 #include <regex.h>
 #include <ltdl.h>
 #include "junkie/cpp.h"
-#include "junkie/capfile.h"
 #include "junkie/tools/cli.h"
 #include "junkie/tools/ext.h"
 #include "junkie/tools/queue.h"
 #include "junkie/tools/mutex.h"
 #include "junkie/tools/netmatch.h"
 #include "junkie/tools/mallocer.h"
+#include "junkie/proto/capfile.h"
 #include "junkie/proto/proto.h"
 #include "junkie/proto/cap.h"
 
@@ -210,7 +210,7 @@ static int set_netmatch(struct capture_conf *conf, char const *value)
         char *libname = scm_to_locale_string(SCM_CAR(pair));
         scm_dynwind_free(libname);
         unsigned nb_regs = scm_to_uint(SCM_CDR(pair));
- 
+
         if (0 == netmatch_filter_ctor(&conf->netmatch, libname, nb_regs)) {
             conf->netmatch_set = true;
             err = 0;
@@ -392,7 +392,7 @@ static SCM g_make_capture_conf(SCM file_, SCM method_, SCM match_re_, SCM netmat
             assert(!"Not reached");
         }
     }
-    
+
     if (SCM_BNDP(netmatch_)) {
         char *netmatch = scm_to_locale_string(netmatch_);
         if (0 != set_netmatch(conf, netmatch)) {
@@ -577,7 +577,7 @@ void on_unload(void)
 {
     SLOG(LOG_INFO, "Unloading writer");
     cli_unregister(writer_opts);
-    
+
     capture_conf_dtor(&cli_conf);
     struct capture_conf *conf;
     while (NULL != (conf = LIST_FIRST(&capture_confs))) {

@@ -34,8 +34,8 @@
 #include "junkie/tools/hash.h"
 #include "junkie/tools/redim_array.h"
 #include "junkie/cpp.h"
-#include "junkie/capfile.h"
 // For initers/finiters
+#include "junkie/proto/capfile.h"
 #include "junkie/proto/proto.h"
 #include "junkie/proto/pkt_wait_list.h"
 #include "junkie/proto/cap.h"
@@ -121,8 +121,8 @@ static void all_fini(void)
     hash_fini();
     mallocer_fini();
     ref_fini();
-    cli_fini();
     ext_fini();
+    cli_fini();
     files_fini();
     log_fini();
 }
@@ -247,7 +247,7 @@ int main(int nb_args, char **args)
     openlog("junkie", LOG_CONS | LOG_NOWAIT | LOG_PID, LOG_USER);
 
     // The log file is easier to read if distinct sessions are clearly separated :
-    SLOG(LOG_INFO, "-----  Starting  -----");
+    SLOG(LOG_INFO, "-----  Junkie Starting  -----");
 
     if (! some_conffile_loaded) {
         load_if_exist(STRIZE(SYSCONFDIR) "/junkie.scm");

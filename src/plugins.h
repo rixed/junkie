@@ -20,6 +20,7 @@ struct plugin {
 };
 
 void plugin_del_all(void);
+int parser_callbacks(struct proto_info const *, size_t tot_cap_len, uint8_t const *tot_packet);
 
 void plugins_init(void);
 void plugins_fini(void);

@@ -21,7 +21,8 @@ libproto_la_SOURCES = \
 	streambuf.c \
 	cursor.c \
 	cnxtrack.c \
-	serialize.c
+	serialize.c \
+	capfile.c
 
 libproto_la_LIBADD = ../tools/libjunkietools.la
 libproto_la_LDFLAGS = -export-dynamic

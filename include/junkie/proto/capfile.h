@@ -43,7 +43,7 @@ struct capfile *capfile_new_pcap(
     size_t max_size,    ///< If >0 then stop the capture after this file size
     unsigned max_secs,  ///< If >0 then stop the capture after this time
     size_t caplen,      ///< If >0 then limit the packet size to this
-    unsigned rotation   ///< If >0 then a numeric prefix will be appended to file names and when a file is stopped a new file will be created, up to this number then wrap 
+    unsigned rotation   ///< If >0 then a numeric prefix will be appended to file names and when a file is stopped a new file will be created, up to this number then wrap
 );
 
 struct capfile *capfile_new_csv(char const *path, unsigned max_pkts, size_t max_size, unsigned max_secs, size_t caplen, unsigned rotation);

@@ -21,14 +21,15 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <sys/types.h>
+#include <unistd.h> // for getpid()
 #include <regex.h>
 #include "junkie/cpp.h"
-#include "junkie/capfile.h"
 #include "junkie/tools/cli.h"
 #include "junkie/tools/sock.h"
-#include "junkie/proto/serialize.h"
 #include "junkie/tools/mutex.h"
+#include "junkie/proto/serialize.h"
 #include "junkie/proto/proto.h"
+#include "junkie/proto/capfile.h"
 
 static char *opt_dest_name = "localhost";
 static char *opt_dest_port = "28999";
@@ -39,7 +40,8 @@ static bool inited = false;
  * this buffer is larger than the corresponding info stack. */
 static uint8_t *ser_buf;
 static unsigned ser_cursor;
-static uint_least32_t ser_nb_msgs;
+static uint64_t ser_nb_msgs;
+static uint32_t ser_source;
 static struct mutex ser_buf_lock;   // protect ser_buf and ser_cursor
 
 static void ser_send(void)
@@ -53,6 +55,7 @@ static void ser_send(void)
 static void ser_init(void)
 {
     if (inited) return;
+    ser_source = getpid();
     (void)sock_ctor_client(&sock, opt_dest_name, opt_dest_port);
     ASSERT_COMPILE(MSG_MAX_SIZE <= DATAGRAM_MAX_SIZE);
     if (opt_msg_size < MSG_MAX_SIZE) {
@@ -95,11 +98,13 @@ int parse_callback(struct proto_info const *info, size_t unused_ cap_len, uint8_
 
     uint8_t *ptr = ser_buf + ser_cursor;
     serialize_1(&ptr, MSG_PROTO_INFO);
+    serialize_4(&ptr, ser_source);
     serialize_proto_stack(&ptr, info);
     ser_nb_msgs ++;
-    if (0 == (ser_nb_msgs % 32)) {  // from time to time, insert some stats about how many packets were sent
+    if (0 == (ser_nb_msgs % 32)) {  // from time to time, insert some stats about how many packets were sent by this source
         serialize_1(&ptr, MSG_PROTO_STATS);
-        serialize_4(&ptr, ser_nb_msgs);
+        serialize_4(&ptr, ser_source);
+        serialize_8(&ptr, ser_nb_msgs);
     }
     ser_cursor = ptr - ser_buf;
     SLOG(LOG_DEBUG, "New buffer cursor = %u", ser_cursor);

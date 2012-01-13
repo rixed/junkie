@@ -103,6 +103,17 @@ void plugin_del_all(void)
     mutex_unlock(&plugins_mutex);
 }
 
+int parser_callbacks(struct proto_info const *last, size_t tot_cap_len, uint8_t const *tot_packet)
+{
+    struct plugin *plugin;
+    mutex_lock(&plugins_mutex);
+    LIST_FOREACH(plugin, &plugins, entry) {
+        if (plugin->parse_callback) plugin->parse_callback(last, tot_cap_len, tot_packet);
+    }
+    mutex_unlock(&plugins_mutex);
+    return 0;
+}
+
 static struct ext_function sg_load_plugin;
 static SCM g_load_plugin(SCM filename)
 {
