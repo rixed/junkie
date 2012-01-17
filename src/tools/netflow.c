@@ -19,10 +19,11 @@
  */
 #include <stdlib.h>
 #include <arpa/inet.h>  // for ntohs()
+#include "junkie/cpp.h"
 #include "junkie/tools/log.h"
 #include "junkie/tools/ip_addr.h"
-#include "junkie/cpp.h"
 #include "junkie/tools/netflow.h"
+#include "junkie/tools/sock.h"
 
 #undef LOG_CAT
 #define LOG_CAT netflow_log_category
@@ -126,6 +127,43 @@ ssize_t netflow_decode_msg(struct nf_msg *msg, void const *src, size_t size)
 }
 
 /*
+ * Netflow collector
+ */
+
+#define MAX_NETFLOW_PDU 8096
+
+int netflow_listen(char const *service, int (*cb)(struct nf_msg const *, struct nf_flow const *))
+{
+    int err = -1;
+
+    struct sock sock;
+    if (0 != sock_ctor_server(&sock, service)) return -1;
+
+    while (sock_is_opened(&sock)) {
+        uint8_t buf[MAX_NETFLOW_PDU];
+        ssize_t sz = sock_recv(&sock, buf, sizeof(buf));
+        if (sz < 0) goto quit;
+        if (sz == sizeof(buf)) {
+            SLOG(LOG_ERR, "Received a PDU that's bigger than expected. Bailing out!");
+            goto quit;
+        }
+
+        struct nf_msg msg;
+        if (0 != netflow_decode_msg(&msg, buf, sz)) goto quit;
+
+        for (unsigned f = 0; f < msg.nb_flows; f++) {
+            err = cb(&msg, msg.flows+f);
+            if (err < 0) goto quit;
+        }
+    }
+
+    err = 0;
+quit:
+    sock_dtor(&sock);
+    return err;
+}
+
+/*
  * Init
  */
 
@@ -133,13 +171,16 @@ static unsigned inited;
 void netflow_init(void)
 {
     if (inited++) return;
+
     log_category_netflow_init();
+    sock_init();
 }
 
 void netflow_fini(void)
 {
     if (--inited) return;
 
+    sock_fini();
     log_category_netflow_fini();
 }
 
