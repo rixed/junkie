@@ -38,6 +38,11 @@ static int plugin_ctor(struct plugin *plugin, char const *libname)
     SLOG(LOG_DEBUG, "Loading plugin %s", libname);
     mutex_lock(&plugins_mutex);
     plugin->handle = lt_dlopen(libname);
+    if (! plugin->handle && libname[0] != '/') {
+        // Try to load the plugin from PKGLIBDIR
+        char *fullpath = tempstr_printf("%s/%s", STRIZE(PKGLIBDIR), libname);
+        plugin->handle = lt_dlopen(fullpath);
+    }
     if (! plugin->handle) {
         mutex_unlock(&plugins_mutex);
         SLOG(LOG_CRIT, "Cannot load plugin %s: %s", libname, lt_dlerror());
@@ -167,12 +172,13 @@ void plugins_init(void)
 
     ext_function_ctor(&sg_load_plugin,
         "load-plugin", 1, 0, 0, g_load_plugin,
-        "(load-plugin \"path/to/libplugin.so\"): load the given plugin into junkie\n"
+        "(load-plugin \"path/to/plugin.so\"): load the given plugin into junkie\n"
+        "(load-plugin \"plugin.so\"): load the plugin from " STRIZE(PKGLIBDIR) "\n"
         "Returns false if the load failed.");
 
     ext_function_ctor(&sg_unload_plugin,
         "unload-plugin", 1, 0, 0, g_unload_plugin,
-        "(unload-plugin \"path/to/libplugin.so\"): unload the give plugin from junkie\n"
+        "(unload-plugin \"path/to/libplugin.so\"): unload the given plugin from junkie\n"
         "Returns false if the unload failed.");
 
     ext_function_ctor(&sg_plugins,
