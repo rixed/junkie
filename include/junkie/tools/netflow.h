@@ -3,6 +3,7 @@
 #ifndef NETFLOW_H_120117
 #define NETFLOW_H_120117
 #include <stdint.h>
+#include <junkie/tools/ip_addr.h>
 
 /** @file
  * @brief Tools to encode/decode netflow messages
