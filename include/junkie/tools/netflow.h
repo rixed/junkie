@@ -17,7 +17,7 @@ struct nf_flow {
     uint_least32_t in_iface, out_iface;
     uint_least32_t packets;
     uint_least32_t bytes;
-    uint_least32_t first_ts, last_ts;
+    uint_least32_t first_ts, last_ts;   // in milliseconds
     unsigned tcp_flags;
     unsigned ip_proto, ip_tos;
     unsigned as[2];
