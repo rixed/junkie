@@ -151,7 +151,7 @@ int netflow_listen(char const *service, int (*cb)(struct nf_msg const *, struct 
         }
 
         struct nf_msg msg;
-        if (0 != netflow_decode_msg(&msg, buf, sz)) goto quit;
+        if (netflow_decode_msg(&msg, buf, sz) < 0) goto quit;
 
         for (unsigned f = 0; f < msg.nb_flows; f++) {
             err = cb(&msg, msg.flows+f);
