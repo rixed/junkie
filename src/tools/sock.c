@@ -132,6 +132,8 @@ int sock_ctor_server(struct sock *s, char const *service)
 
 void sock_dtor(struct sock *s)
 {
+    SLOG(LOG_DEBUG, "Destruct sock %s", s->name);
+
     if (s->fd < 0) return;
     int err = close(s->fd);
     s->fd = -1;
@@ -143,7 +145,7 @@ void sock_dtor(struct sock *s)
 
 int sock_send(struct sock *s, void const *buf, size_t len)
 {
-    SLOG(LOG_DEBUG, "Sending %zu bytes to %s", len, s->name);
+    SLOG(LOG_DEBUG, "Sending %zu bytes to %s (fd %d)", len, s->name, s->fd);
 
     if (-1 == sendto(s->fd, buf, len, MSG_DONTWAIT, &s->srv_addr, s->srv_addrlen)) {
         // FIXME: limit the rate of this error!
@@ -155,10 +157,14 @@ int sock_send(struct sock *s, void const *buf, size_t len)
 
 ssize_t sock_recv(struct sock *s, void *buf, size_t maxlen)
 {
+    SLOG(LOG_DEBUG, "Reading on socket %s (fd %d)", s->name, s->fd);
+
     ssize_t r = recv(s->fd, buf, maxlen, 0);
     if (r < 0) {
         SLOG(LOG_ERR, "Cannot receive datagram: %s", strerror(errno));
     }
+
+    SLOG(LOG_DEBUG, "read %zd bytes ou of %s", r, s->name);
     return r;
 }
 

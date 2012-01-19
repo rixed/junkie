@@ -103,6 +103,8 @@ static int nf_msg_head_decode(struct nf_msg *msg, void const *src)
 
 ssize_t netflow_decode_msg(struct nf_msg *msg, void const *src, size_t size)
 {
+    SLOG(LOG_DEBUG, "Decoding a netflow msg of %zu bytes", size);
+
     if (size < sizeof(struct nf_msg_ll)) {
         SLOG(LOG_INFO, "Cannot decode netflow msg: too few bytes (%zu < %zu)", size, sizeof(struct nf_msg_ll));
         return -1;
@@ -159,6 +161,7 @@ int netflow_listen(char const *service, int (*cb)(struct nf_msg const *, struct 
 
     err = 0;
 quit:
+    SLOG(LOG_NOTICE, "Quitting netflow listener (err=%d)", err);
     sock_dtor(&sock);
     return err;
 }
