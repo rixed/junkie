@@ -167,7 +167,7 @@ ssize_t sock_recv(struct sock *s, void *buf, size_t maxlen)
         SLOG(LOG_ERR, "Cannot receive datagram: %s", strerror(errno));
     }
 
-    SLOG(LOG_DEBUG, "read %zd bytes ou of %s", r, s->name);
+    SLOG(LOG_DEBUG, "read %zd bytes out of %s", r, s->name);
     return r;
 }
 
