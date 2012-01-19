@@ -95,8 +95,11 @@ int sock_ctor_server(struct sock *s, char const *service)
     SLOG(LOG_DEBUG, "Construct sock for serving %s", service);
 
     struct addrinfo *info;
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_flags = AI_PASSIVE;    // listen any interface
 
-    int err = getaddrinfo(NULL, service, NULL, &info);
+    int err = getaddrinfo(NULL, service, &hints, &info);
     if (err) {
         SLOG(LOG_ERR, "Cannot getaddrinfo(service=%s): %s", service, gai_strerror(err));
         // freeaddrinfo ?
