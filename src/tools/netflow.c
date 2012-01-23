@@ -81,8 +81,8 @@ static int nf_flow_decode(struct nf_flow *flow, struct nf_msg const *head, void 
     /* The first/last fields of the netflow are the uptime at the first/last pkt of the flow.
      * We find a timestamp more interesting, so we get it from sysuptime and localtime of the header.
      * But this imply trusting the netflow header localtime. */
-    SLOG(LOG_DEBUG, "Decoding a flow which sys_uptime=%"PRIu32", first=%u, last=%u",
-        head->sys_uptime, ntohl(flow_ll->first), ntohl(flow_ll->last));
+    SLOG(LOG_DEBUG, "Decoding a flow which sys_uptime=%"PRIu32", now=%s, first=%u, last=%u",
+        head->sys_uptime, timeval_2_str(&head->ts), ntohl(flow_ll->first), ntohl(flow_ll->last));
     flow->first = head->ts;
     timeval_sub_usec(&flow->first, (int64_t)(head->sys_uptime - ntohl(flow_ll->first)) * 1000);
     flow->last = head->ts;
@@ -101,7 +101,7 @@ static int nf_msg_head_decode(struct nf_msg *msg, void const *src)
     CONV_16(msg, nb_flows);
     CONV_32(msg, sys_uptime);
     msg->ts.tv_sec  = ntohl(msg_ll->ts_sec);
-    msg->ts.tv_usec = 1000 * ntohl(msg_ll->ts_nsec);
+    msg->ts.tv_usec = ntohl(msg_ll->ts_nsec) / 1000;
     CONV_32(msg, seqnum);
     CONV_8(msg, engine_type);
     CONV_8(msg, engine_id);
