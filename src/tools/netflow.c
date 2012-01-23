@@ -18,6 +18,7 @@
  * along with Junkie.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <stdlib.h>
+#include <inttypes.h>
 #include <arpa/inet.h>  // for ntohs()
 #include "junkie/cpp.h"
 #include "junkie/tools/log.h"
@@ -80,10 +81,13 @@ static int nf_flow_decode(struct nf_flow *flow, struct nf_msg const *head, void 
     /* The first/last fields of the netflow are the uptime at the first/last pkt of the flow.
      * We find a timestamp more interesting, so we get it from sysuptime and localtime of the header.
      * But this imply trusting the netflow header localtime. */
+    SLOG(LOG_DEBUG, "Decoding a flow which sys_uptime=%"PRIu32", first=%u, last=%u",
+        head->sys_uptime, ntohl(flow_ll->first), ntohl(flow_ll->last));
     flow->first = head->ts;
-    timeval_sub_usec(&flow->first, (int64_t)(flow_ll->first - head->sys_uptime) * 1000);
+    timeval_sub_usec(&flow->first, (int64_t)(head->sys_uptime - ntohl(flow_ll->first)) * 1000);
     flow->last = head->ts;
-    timeval_sub_usec(&flow->last, (int64_t)(flow_ll->last - head->sys_uptime) * 1000);
+    timeval_sub_usec(&flow->last, (int64_t)(head->sys_uptime - ntohl(flow_ll->last)) * 1000);
+    SLOG(LOG_DEBUG, "...yielding: %s->%s", timeval_2_str(&flow->first), timeval_2_str(&flow->last));
 
     return 0;
 }
