@@ -22,6 +22,7 @@
 #include "junkie/cpp.h"
 #include "junkie/tools/log.h"
 #include "junkie/tools/ip_addr.h"
+#include "junkie/tools/timeval.h"
 #include "junkie/tools/netflow.h"
 #include "junkie/tools/sock.h"
 
@@ -47,8 +48,8 @@ struct nf_flow_ll {
     uint16_t in_iface, out_iface;
     uint32_t packets;
     uint32_t bytes;
-    uint32_t first_ts;
-    uint32_t last_ts;
+    uint32_t first; // sysuptime at the first packet
+    uint32_t last;  // sysuptime at the last packet
     uint16_t port[2];
     uint8_t padding;
     uint8_t tcp_flags;
@@ -65,7 +66,7 @@ struct nf_flow_ll {
 #define CONV_8(s, x)  s->x = s##_ll->x
 
 // Decode the flow in src into flow. We already checked there are enough bytes to read in src.
-static int nf_flow_decode(struct nf_flow *flow, void const *src)
+static int nf_flow_decode(struct nf_flow *flow, struct nf_msg const *head, void const *src)
 {
     struct nf_flow_ll const *flow_ll = src; // FIXME: won't work if not properly aligned
 
@@ -73,10 +74,16 @@ static int nf_flow_decode(struct nf_flow *flow, void const *src)
     CONV_16(flow, port[0]);   CONV_16(flow, port[1]);
     CONV_16(flow, in_iface);  CONV_16(flow, out_iface);
     CONV_32(flow, packets);   CONV_32(flow, bytes);
-    CONV_32(flow, first_ts);  CONV_32(flow, last_ts);
     CONV_8(flow, tcp_flags);  CONV_8(flow, ip_proto);    CONV_8(flow, ip_tos);
     CONV_16(flow, as[0]);     CONV_16(flow, as[1]);
     CONV_8(flow, mask[0]);    CONV_8(flow, mask[1]);
+    /* The first/last fields of the netflow are the uptime at the first/last pkt of the flow.
+     * We find a timestamp more interesting, so we get it from sysuptime and localtime of the header.
+     * But this imply trusting the netflow header localtime. */
+    flow->first = head->ts;
+    timeval_sub_usec(&flow->first, (int64_t)(flow_ll->first - head->sys_uptime) * 1000);
+    flow->last = head->ts;
+    timeval_sub_usec(&flow->last, (int64_t)(flow_ll->last - head->sys_uptime) * 1000);
 
     return 0;
 }
@@ -121,7 +128,7 @@ ssize_t netflow_decode_msg(struct nf_msg *msg, void const *src, size_t size)
     }
 
     for (unsigned f = 0; f < msg->nb_flows; f++) {
-        if (0 != nf_flow_decode(msg->flows+f, ptr)) return -1;
+        if (0 != nf_flow_decode(msg->flows+f, msg, ptr)) return -1;
         ptr += sizeof(struct nf_flow_ll);
     }
 
