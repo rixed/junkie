@@ -100,7 +100,7 @@ static int nf_msg_head_decode(struct nf_msg *msg, void const *src)
     unsigned const version = ntohs(msg_ll->version);
     if (version != 5) {
         SLOG(LOG_DEBUG, "Skip netflow version %u", version);
-        return 0;
+        return -1;
     }
 
     CONV_16(msg, version);
@@ -169,7 +169,10 @@ int netflow_listen(char const *service, int (*cb)(struct ip_addr const *, struct
         }
 
         struct nf_msg msg;
-        if (netflow_decode_msg(&msg, buf, sz) < 0) goto quit;
+        if (netflow_decode_msg(&msg, buf, sz) < 0) {
+            SLOG(LOG_DEBUG, "Skipping netflow msg");
+            continue;
+        }
 
         for (unsigned f = 0; f < msg.nb_flows; f++) {
             err = cb(&sender, &msg, msg.flows+f);
