@@ -97,6 +97,12 @@ static int nf_msg_head_decode(struct nf_msg *msg, void const *src)
 {
     struct nf_msg_ll const *msg_ll = src;   // FIXME: won't work if not properly aligned
 
+    unsigned const version = ntohs(msg_ll->version);
+    if (version != 5) {
+        SLOG(LOG_DEBUG, "Skip netflow version %u", version);
+        return 0;
+    }
+
     CONV_16(msg, version);
     CONV_16(msg, nb_flows);
     CONV_32(msg, sys_uptime);
