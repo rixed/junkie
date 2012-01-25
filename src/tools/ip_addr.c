@@ -94,6 +94,35 @@ int ip_addr_ctor_from_str_any(struct ip_addr *ip, char const *str)
     return -1;
 }
 
+int ip_addr_ctor_from_sockaddr(struct ip_addr *ip, struct sockaddr const *addr, socklen_t addrlen)
+{
+    switch (addr->sa_family) {
+        case AF_INET:
+            {
+                struct sockaddr_in *ip_addr = (struct sockaddr_in *)addr;
+                if (addrlen < sizeof(*ip_addr)) {
+                    SLOG(LOG_NOTICE, "Invalid AF_INET sockaddr of size %zu", (size_t)addrlen);
+                    return -1;
+                }
+                ip_addr_ctor_from_ip4(ip, ip_addr->sin_addr.s_addr);
+                return 0;
+            }
+        case AF_INET6:
+            {
+                struct sockaddr_in6 *ip_addr = (struct sockaddr_in6 *)addr;
+                if (addrlen < sizeof(*ip_addr)) {
+                    SLOG(LOG_NOTICE, "Invalid AF_INET6 sockaddr of size %zu", (size_t)addrlen);
+                    return -1;
+                }
+                ip_addr_ctor_from_ip6(ip, &ip_addr->sin6_addr);
+                return 0;
+            }
+    }
+
+    SLOG(LOG_DEBUG, "Unknown sockaddr family %u", (unsigned)addr->sa_family);
+    return -1;
+}
+
 static int saturate(int v)
 {
     if (v == 0) return 0;

@@ -27,6 +27,7 @@ int ip_addr_ctor_from_str(struct ip_addr *, char const *, size_t, int);
 int ip_addr_ctor_from_str_any(struct ip_addr *, char const *);
 void ip_addr_ctor_from_ip4(struct ip_addr *, uint32_t);
 void ip_addr_ctor_from_ip6(struct ip_addr *, struct in6_addr const *);
+int ip_addr_ctor_from_sockaddr(struct ip_addr *, struct sockaddr const *, socklen_t);
 int ip_addr_cmp(struct ip_addr const *, struct ip_addr const *);
 bool ip_addr_is_v6(struct ip_addr const *);
 char const *ip_addr_2_str(struct ip_addr const *);

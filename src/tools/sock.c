@@ -158,16 +158,28 @@ int sock_send(struct sock *s, void const *buf, size_t len)
     return 0;
 }
 
-ssize_t sock_recv(struct sock *s, void *buf, size_t maxlen)
+ssize_t sock_recv(struct sock *s, void *buf, size_t maxlen, struct ip_addr *sender)
 {
     SLOG(LOG_DEBUG, "Reading on socket %s (fd %d)", s->name, s->fd);
 
-    ssize_t r = recv(s->fd, buf, maxlen, 0);
+    struct sockaddr src_addr;
+    socklen_t addrlen = sizeof(src_addr);
+    ssize_t r = recvfrom(s->fd, buf, maxlen, 0, &src_addr, &addrlen);
     if (r < 0) {
         SLOG(LOG_ERR, "Cannot receive datagram: %s", strerror(errno));
     }
+    if (sender) {
+        if (addrlen > sizeof(src_addr)) {
+            SLOG(LOG_ERR, "Cannot set sender address: size too big (%zu > %zu)", (size_t)addrlen, sizeof(src_addr));
+            ip_addr_ctor_from_ip4(sender, 0);
+        } else {
+            if (0 != ip_addr_ctor_from_sockaddr(sender, &src_addr, addrlen)) {
+                ip_addr_ctor_from_ip4(sender, 0);
+            }
+        }
+    }
 
-    SLOG(LOG_DEBUG, "read %zd bytes out of %s", r, s->name);
+    SLOG(LOG_DEBUG, "read %zd bytes from %s out of %s", r, sender ? ip_addr_2_str(sender) : "unknown", s->name);
     return r;
 }
 

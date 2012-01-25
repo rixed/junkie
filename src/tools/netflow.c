@@ -151,7 +151,7 @@ ssize_t netflow_decode_msg(struct nf_msg *msg, void const *src, size_t size)
 
 #define MAX_NETFLOW_PDU 8096
 
-int netflow_listen(char const *service, int (*cb)(struct nf_msg const *, struct nf_flow const *))
+int netflow_listen(char const *service, int (*cb)(struct ip_addr const *, struct nf_msg const *, struct nf_flow const *))
 {
     int err = -1;
 
@@ -160,7 +160,8 @@ int netflow_listen(char const *service, int (*cb)(struct nf_msg const *, struct 
 
     while (sock_is_opened(&sock)) {
         uint8_t buf[MAX_NETFLOW_PDU];
-        ssize_t sz = sock_recv(&sock, buf, sizeof(buf));
+        struct ip_addr sender;
+        ssize_t sz = sock_recv(&sock, buf, sizeof(buf), &sender);
         if (sz < 0) goto quit;
         if (sz == sizeof(buf)) {
             SLOG(LOG_ERR, "Received a PDU that's bigger than expected. Bailing out!");
@@ -171,7 +172,7 @@ int netflow_listen(char const *service, int (*cb)(struct nf_msg const *, struct 
         if (netflow_decode_msg(&msg, buf, sz) < 0) goto quit;
 
         for (unsigned f = 0; f < msg.nb_flows; f++) {
-            err = cb(&msg, msg.flows+f);
+            err = cb(&sender, &msg, msg.flows+f);
             if (err < 0) goto quit;
         }
     }

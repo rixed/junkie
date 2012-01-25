@@ -255,7 +255,7 @@ static void *deserializer_thread(void *deser_)
     while (sock_is_opened(&deser->sock)) {
         uint32_t src_id;
         struct deserializer_source *source;
-        ssize_t s = sock_recv(&deser->sock, buf, sizeof(buf));
+        ssize_t s = sock_recv(&deser->sock, buf, sizeof(buf), NULL);
         uint8_t const *ptr = buf;
         if (s > 0) {
             while (ptr < buf+s) {

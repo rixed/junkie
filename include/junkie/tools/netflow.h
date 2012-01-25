@@ -43,7 +43,7 @@ ssize_t netflow_decode_msg(struct nf_msg *, void const *src, size_t size);
 
 /** Start a listener on this port and call the given function for each flow */
 // @note stops as soon as the callback returns any negative value.
-int netflow_listen(char const *service, int (*cb)(struct nf_msg const *, struct nf_flow const *));
+int netflow_listen(char const *service, int (*cb)(struct ip_addr const *, struct nf_msg const *, struct nf_flow const *));
 
 void netflow_init(void);
 void netflow_fini(void);
