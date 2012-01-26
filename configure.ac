@@ -75,6 +75,7 @@ AC_CONFIG_FILES([
 	plugins/rater/Makefile
 	plugins/arpgraph/Makefile
 	plugins/serializer/Makefile
+	plugins/nettrack/Makefile
 	config/Makefile
 	guile/Makefile
 	guile/srfi/Makefile
