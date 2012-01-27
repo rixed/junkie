@@ -57,6 +57,9 @@ void ext_function_ctor(struct ext_function *ef, char const *name, int req, int o
 char *scm_to_tempstr(SCM value)
 {
     char *str = tempstr();
+    if (scm_is_symbol(value)) {
+        value = scm_symbol_to_string(value);
+    }
     size_t len = scm_to_locale_stringbuf(value, str, TEMPSTR_SIZE);
     str[MIN(len, TEMPSTR_SIZE-1)] = '\0';
     return str;

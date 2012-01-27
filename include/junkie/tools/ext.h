@@ -57,7 +57,7 @@ int ext_eval(char const *);
  * @return -1 on error, 0 on success. */
 int ext_rebind(void);
 
-/// Utility to convert from guile to a tempstr (@see tempstr.h).
+/// Utility to convert from guile string/symbol to a tempstr (@see tempstr.h).
 char *scm_to_tempstr(SCM value);
 
 #define SCM_BNDP(x) (! SCM_UNBNDP(x))
