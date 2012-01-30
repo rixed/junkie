@@ -132,6 +132,8 @@ static int nt_vertex_ctor(struct nt_vertex *vertex, struct nt_graph *graph, stru
         SLOG(LOG_ERR, "Cannot find match function %s", match_fn_name);
         return -1;
     }
+    vertex->from = from;
+    vertex->to = to;
     vertex->spawn = spawn;
     vertex->grab = grab;
     vertex->death_range = death_range;
@@ -257,13 +259,16 @@ static void add_edge(struct nt_graph *graph, SCM edge_)
     if (! edge) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_1(name_));
 }
 
+// Will create the edge with default attributes if not found
 static struct nt_edge *nt_edge_lookup(struct nt_graph *graph, char const *name)
 {
     struct nt_edge *edge;
     LIST_FOREACH(edge, &graph->edges, same_graph) {
-        if (0 == strcmp(name, edge->name)) break;
+        if (0 == strcmp(name, edge->name)) return edge;
     }
-    return edge;
+
+    // Create a new one
+    return nt_edge_new(name, graph);
 }
 
 static SCM spawn_sym;
@@ -278,11 +283,11 @@ static void add_vertex(struct nt_graph *graph, SCM vertex_)
     vertex_ = scm_cdr(vertex_);
 
     struct nt_edge *from = nt_edge_lookup(graph, scm_to_tempstr(scm_car(vertex_)));
-    if (! from) scm_throw(scm_from_latin1_symbol("unknown-edge"), scm_list_1(scm_car(vertex_)));
+    if (! from) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_1(scm_car(vertex_)));
     vertex_ = scm_cdr(vertex_);
 
     struct nt_edge *to   = nt_edge_lookup(graph, scm_to_tempstr(scm_car(vertex_)));
-    if (! to) scm_throw(scm_from_latin1_symbol("unknown-edge"), scm_list_1(scm_car(vertex_)));
+    if (! to) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_1(scm_car(vertex_)));
     vertex_ = scm_cdr(vertex_);
 
     bool spawn = false;
@@ -320,10 +325,24 @@ static int print_graph_smob(SCM graph_smob, SCM port, scm_print_state unused_ *p
 {
     struct nt_graph *graph = (struct nt_graph *)SCM_SMOB_DATA(graph_smob);
 
-    scm_puts("#<nettrack-graph ", port);
-    scm_puts(graph->name, port);
-    scm_display(scm_from_uint(graph->nb_registers), port);
-    scm_puts(" regs>", port);
+    char const *head = tempstr_printf("#<nettrack-graph %s with %u regs", graph->name, graph->nb_registers);
+    scm_puts(head, port);
+
+    struct nt_edge *edge;
+    LIST_FOREACH(edge, &graph->edges, same_graph) {
+        char const *l = tempstr_printf("\n  edge %s%s%s", edge->name,
+            LIST_EMPTY(&edge->outgoing_vertices)? " noOut":"",
+            LIST_EMPTY(&edge->incoming_vertices)? " noIn":"");
+        scm_puts(l, port);
+    }
+
+    struct nt_vertex *vertex;
+    LIST_FOREACH(vertex, &graph->vertices, same_graph) {
+        char const *l = tempstr_printf("\n  vertex %s -> %s", vertex->from->name, vertex->to->name);
+        scm_puts(l, port);
+    }
+
+    scm_puts(" >", port);
 
     return 1;   // success
 }
@@ -354,7 +373,6 @@ static SCM g_make_nettrack(SCM name_, SCM libname_, SCM nb_registers_, SCM edges
     }
 
     // build the smob
-    // TODO
     SCM smob;
     SCM_NEWSMOB(smob, graph_tag, graph);
 
@@ -383,13 +401,13 @@ void nt_graph_init(void)
     ext_function_ctor(&sg_make_nettrack,
         "make-nettrack", 5, 0, 0, g_make_nettrack,
         "(make-nettrack \"sample graph\" \"/tmp/libfile.so\" nb-registers\n"
-        "  ; list of edges\n"
+        "  ; list of edges (optional)\n"
         "  '((root)\n"
         "    (tcp-syn) ; merely the names. Later: timeout, etc...\n"
         "    (etc...))\n"
         "  ; list of vertices\n"
-        "  '((match-fun1 root tcp-syn spawn (kill 2))\n"
-        "    (match-fun2 root blabla ...)\n"
+        "  '((\"match-fun1\" root tcp-syn spawn (kill 2))\n"
+        "    (\"match-fun2\" root blabla ...)\n"
         "    (etc...))) : create a nettrack graph.\n"
         "Note: you are not supposed to use this directly.\n");
 }

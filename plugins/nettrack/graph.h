@@ -22,7 +22,7 @@ struct nt_edge {
     char *name;
     LIST_ENTRY(nt_edge) same_graph;
     struct nt_states states; // the states currently waiting in this node
-    LIST_HEAD(nt_vertices, nt_vertex) outgoing_vertices;
+     LIST_HEAD(nt_vertices, nt_vertex) outgoing_vertices;
     struct nt_vertices incoming_vertices;
     // User defined actions
     // TODO timeout, etc
@@ -30,6 +30,7 @@ struct nt_edge {
 
 struct nt_vertex {
     LIST_ENTRY(nt_vertex) same_graph;
+    struct nt_edge *from , *to;
     LIST_ENTRY(nt_vertex) same_from, same_to;
     npc_match_fn *match_fn;
     // what to do when taken

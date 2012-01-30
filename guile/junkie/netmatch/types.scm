@@ -29,7 +29,9 @@
 
 ; we take the type rather than the type name because one day we may want to try implicit convertion?
 (define (check t1 t2)
-  (if (not (eq? t1 t2))
+  (if (and (not (eq? t1 t2))
+           (not (eq? t1 any))
+           (not (eq? t2 any)))
       (throw 'type-error (type-name t1) (type-name t2))))
 
 (export check)
@@ -41,7 +43,15 @@
 ;;; and the list of used register(s).
 
 (define-record-type stub (fields code result regnames))
-(export make-stub stub-code stub-result stub-regnames)
+
+; additionally, this is useful to concat two stubs
+(define (stub-concat s1 s2)
+  (make-stub
+    (string-append (stub-code s1) (stub-code s2))
+    (stub-result s2)
+    (append (stub-regnames s1) (stub-regnames s2))))
+
+(export make-stub stub-code stub-result stub-regnames stub-concat)
 
 ;;; Operators (itypes is the list of input types and thus gives the number of parameters as
 ;;; well as their types)
@@ -126,6 +136,21 @@
 ;
 ;(export ignored)
 
+;;; The any type that can be used in some cases for bypass typecheck. Cannot be used.
+
+(define any
+  (make-type
+    'any
+    (lambda (v) ; imm
+      (throw 'type-error "No immediate of type any"))
+    (lambda (proto field) ; fetch
+      (throw 'type-error "Cannot fetch without type"))
+    (lambda (regname) ; ref
+      (throw 'type-error "Cannot reference without type"))
+    (lambda (regname value) ; bind
+      (throw 'type-error "Cannot bind without type"))))
+
+(export any)
 
 ;;; Booleans
 
@@ -274,9 +299,13 @@
 (export ip)
 
 
-;;; Logical Operators
+;;;
+;;; Operators
+;;;
 
 (define operators (make-hash-table 31))
+
+;;; Logical Operators
 
 (define log-or
   (make-op
@@ -397,6 +426,7 @@
 (hashq-set! operators '< lt)
 (hashq-set! operators '<= le)
 (hashq-set! operators '= eq)
+(hashq-set! operators '== eq)
 
 (export add sub mult div mod gt ge lt le eq)
 

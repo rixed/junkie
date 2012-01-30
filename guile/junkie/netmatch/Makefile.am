@@ -1,5 +1,6 @@
 guilelibdir = @GUILELIBDIR@/junkie/netmatch
 dist_guilelib_DATA = \
-	compiler.scm \
+	netmatch.scm \
 	ll-compiler.scm \
-	types.scm
+	types.scm \
+	nettrack.scm
