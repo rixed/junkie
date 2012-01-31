@@ -64,6 +64,7 @@
 #include "proto/fuzzing.h"
 #include "pkt_source.h"
 #include "plugins.h"
+#include "nettrack.h"
 
 /*
  * Initialize all components
@@ -74,7 +75,7 @@ static struct {
     void (*fini)(void);
 } initers[] = {
 #   define I(x) { x##_init, x##_fini }
-    I(plugins),
+    I(plugins),       I(nettrack),
     I(cnxtrack),      I(proto),       I(fuzzing),
     I(pkt_wait_list), I(port_muxer),
     I(cap),           I(eth),         I(arp),

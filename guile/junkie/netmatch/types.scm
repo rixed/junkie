@@ -90,10 +90,11 @@
   (make-stub
     (string-append
       (stub-code value)
-      "    if (regfile[" regname "].value) {\n"
+      "    if (regfile[" regname "].value) {\n" ; FIXME: check size since we may have enough room to avoid a free/malloc
       "        free(regfile[" regname "].value);\n"
       "    }\n"
       "    regfile[" regname "].value = malloc(sizeof(*" (stub-result value) "));\n"
+      "    regfile[" regname "].size = sizeof(*" (stub-result value) ");\n"
       "    assert(regfile[" regname "].value);\n" ; aren't assertions as good as proper error checks? O:-)
       "    memcpy(regfile[" regname "].value, " (stub-result value) ", sizeof(*" (stub-result value) "));\n")
     (string-append "regfile[" regname "].value")
@@ -222,12 +223,13 @@
             (stub-code value)
             "    /* " (stub-result value) " is supposed to point to a null terminated string */\n"
             "    size_t " tmp " = strlen(" (stub-result value) ");\n"
-            "    if (regfile[" regname "].value) {\n"
-            "        free(regfile[" regname "].value);\n"
+            "    if (regfile[" regname "].value) {\n" ; FIXME: same as above
+            "        free((void *)regfile[" regname "].value);\n"
             "    }\n"
             "    regfile[" regname "].value = malloc(" tmp ");\n"
+            "    regfile[" regname "].size = " tmp ";\n"
             "    assert(regfile[" regname "].value);\n" ; aren't assertions as good as proper error checks? O:-)
-            "    memcpy(regfile[" regname "].value, " (stub-result value) ", " tmp ");\n")
+            "    memcpy((void *)regfile[" regname "].value, " (stub-result value) ", " tmp ");\n")
           (string-append "regfile[" regname "].value")
           (cons regname (stub-regnames value)))))))
 
@@ -440,7 +442,7 @@
                  (string-append
                    (stub-code ts)
                    "    struct timeval " res " = { .tv_sec = " (stub-result ts) "; .tv_usec = 0; };\n")
-                 res
+                 (string-append "&" res)
                  (stub-regnames ts))))))
 
 (hashq-set! operators 'make-timestamp make-timestamp)
@@ -452,8 +454,8 @@
                (make-stub
                  (string-append
                    "    struct timeval " res ";\n"
-                   "    timeval_set_now(&" res ");\n")
-                 res
+                   "    timeval_set_now(" res ");\n")
+                 (string-append "&" res)
                  '())))))
 
 (hashq-set! operators 'now now)
@@ -465,7 +467,7 @@
                (make-stub
                  (string-append
                    (stub-code ts)
-                   "    int64_t " res " = timeval_age(&" (stub-result ts) ");\n")
+                   "    int64_t " res " = timeval_age(" (stub-result ts) ");\n")
                  res
                  (stub-regnames ts))))))
 
@@ -479,7 +481,7 @@
                  (string-append
                    (stub-code ts1)
                    (stub-code ts2)
-                   "    int64_t " res " = timeval_sub(&" (stub-result ts1) ", &" (stub-result ts2) ");\n")
+                   "    int64_t " res " = timeval_sub(" (stub-result ts1) ", " (stub-result ts2) ");\n")
                  res
                  (append (stub-regnames ts1) (stub-regnames ts2)))))))
 
@@ -500,7 +502,7 @@
                    (stub-code s)
                    "    struct ip_addr " res ";\n"
                    "    ip_addr_ctor_from_str_any(&" res ", " (stub-result s) ");\n")
-                 res
+                 (string-append "&" res)
                  (stub-regnames s))))))
 
 (hashq-set! operators 'make-ip make-ip)
@@ -512,7 +514,7 @@
                (make-stub
                  (string-append
                    (stub-code ip)
-                   "    bool " res " = ip_addr_is_routable(&" (stub-result ip) ");\n")
+                   "    bool " res " = ip_addr_is_routable(" (stub-result ip) ");\n")
                  res
                  (stub-regnames ip))))))
 
@@ -526,12 +528,27 @@
                (make-stub
                  (string-append
                    (stub-code ip)
-                   "    bool " res " = ip_addr_is_broadcast(&" (stub-result ip) ");\n")
+                   "    bool " res " = ip_addr_is_broadcast(" (stub-result ip) ");\n")
                  res
                  (stub-regnames ip))))))
 
 (hashq-set! operators 'broadcast? broadcast?)
 (hashq-set! operators 'is-broadcast broadcast?)
+
+(define ip-eq?
+  (make-op 'ip-eq? bool (list ip ip)
+           (lambda (ip1 ip2)
+             (let ((res (gensymC "same_ips")))
+               (make-stub
+                 (string-append
+                   (stub-code ip1)
+                   (stub-code ip2)
+                   "    bool " res " = 0 == ip_addr_cmp(" (stub-result ip1) ", " (stub-result ip2) ");\n")
+                 res
+                 (append (stub-regnames ip1) (stub-regnames ip2)))))))
+
+(hashq-set! operators '=I ip-eq?)
+(hashq-set! operators '=i ip-eq?)
 
 (export make-ip routable? broadcast?)
 

@@ -1,62 +1,146 @@
 // -*- c-basic-offset: 4; c-backslash-column: 79; indent-tabs-mode: nil -*-
 // vim:sw=4 ts=4 sts=4 expandtab
+/* Copyright 2010, SecurActive.
+ *
+ * This file is part of Junkie.
+ *
+ * Junkie is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Junkie is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with Junkie.  If not, see <http://www.gnu.org/licenses/>.
+ */
+/* Here we handle the evolution of states in a graph which vertices
+ * are predicates over previous state + new proto info (ie. match functions).
+ */
+#include <stdlib.h>
+#include <stdio.h>
 #include <assert.h>
 #include <string.h>
-#include "nettrack.h"
-#include "graph.h"
+#include "junkie/proto/proto.h"
+#include "junkie/cpp.h"
 #include "junkie/tools/ext.h"
 #include "junkie/tools/mallocer.h"
+#include "nettrack.h"
 
-static MALLOCER_DEF(nt_graph);
+LOG_CATEGORY_DEF(nettrack);
+#undef LOG_CAT
+#define LOG_CAT nettrack_log_category
+
+static MALLOCER_DEF(nettrack);
+
+/*
+ * Register Files
+ */
+
+static struct npc_register *npc_regfile_new(unsigned nb_registers)
+{
+    size_t size = sizeof(struct npc_register) * nb_registers;
+    struct npc_register *regfile = MALLOC(nettrack, size);
+    if (! regfile) return NULL;
+
+    memset(regfile, 0, size);
+    return regfile;
+}
+
+static void npc_regfile_del(struct npc_register *regfile, unsigned nb_registers)
+{
+    for (unsigned r = 0; r < nb_registers; r++) {
+        if (regfile[r].value && regfile[r].size>0) {
+            free((void *)regfile[r].value); // beware that individual registers are mallocated with malloc not MALLOC
+        }
+    }
+    FREE(regfile);
+}
+
+static struct npc_register *npc_regfile_copy(struct npc_register *regfile, unsigned nb_registers)
+{
+    struct npc_register *copy = npc_regfile_new(nb_registers);
+    if (! copy) return NULL;
+
+    for (unsigned r = 0; r < nb_registers; r++) {
+        copy[r].size = regfile[r].size;
+        if (regfile[r].value && regfile[r].size>0) {
+            copy[r].value = (uintptr_t)malloc(copy[r].size);
+            assert(copy[r].value);  // FIXME
+            memcpy((void *)copy[r].value, (void *)regfile[r].value, copy[r].size);
+        } else {
+            copy[r].value = regfile[r].value;
+        }
+    }
+
+    return copy;
+}
 
 /*
  * States
  */
 
-static int nt_state_ctor(struct nt_state *state, struct nt_state *parent, struct nt_graph *graph, struct nt_edge *edge)
+static int nt_state_ctor(struct nt_state *state, struct nt_state *parent, struct nt_edge *edge, struct npc_register *regfile)
 {
-    SLOG(LOG_DEBUG, "Construct state@%p", state);
+    SLOG(LOG_DEBUG, "Construct state@%p from state@%p, in edge %s", state, parent, edge->name);
 
-    memset(state->regfile, 0, sizeof(*state->regfile) * graph->nb_registers);
+    state->regfile = regfile;
     state->parent = parent;
-    LIST_INSERT_HEAD(&parent->children, state, siblings);
+    if (parent) LIST_INSERT_HEAD(&parent->children, state, siblings);
     LIST_INSERT_HEAD(&edge->states, state, same_edge);
     LIST_INIT(&state->children);
 
     return 0;
 }
 
-struct nt_state *nt_state_new(struct nt_state *parent, struct nt_graph *graph, struct nt_edge *edge)
+static struct nt_state *nt_state_new(struct nt_state *parent, struct nt_edge *edge, struct npc_register *regfile)
 {
-    struct nt_state *state = MALLOC(nt_graph, sizeof(*state) + graph->nb_registers * sizeof(struct npc_register));
+    struct nt_state *state = MALLOC(nettrack, sizeof(*state));
     if (! state) return NULL;
-    if (0 != nt_state_ctor(state, parent, graph, edge)) {
+    if (0 != nt_state_ctor(state, parent, edge, regfile)) {
         FREE(state);
         return NULL;
     }
     return state;
 }
 
-static void nt_state_dtor(struct nt_state *state)
+static void nt_state_del(struct nt_state *, struct nt_graph *);
+static void nt_state_dtor(struct nt_state *state, struct nt_graph *graph)
 {
     SLOG(LOG_DEBUG, "Destruct state@%p", state);
 
     // start by killing our children so that they can make use of us
     struct nt_state *child;
     while (NULL != (child = LIST_FIRST(&state->children))) {
-        nt_state_del(child);
+        nt_state_del(child, graph);
     }
 
-    LIST_REMOVE(state, siblings);
+    if (state->parent) {
+        LIST_REMOVE(state, siblings);
+        state->parent = NULL;
+    }
     LIST_REMOVE(state, same_edge);
 
-    // FIXME: how to delete a npc_register? We have to free it in some cases!
+    if (state->regfile) {
+        npc_regfile_del(state->regfile, graph->nb_registers);
+        state->regfile = NULL;
+    }
 }
 
-void nt_state_del(struct nt_state *state)
+static void nt_state_del(struct nt_state *state, struct nt_graph *graph)
 {
-    nt_state_dtor(state);
+    nt_state_dtor(state, graph);
     FREE(state);
+}
+
+static void nt_state_move(struct nt_state *state, struct nt_edge *edge)
+{
+    SLOG(LOG_DEBUG, "Moving state@%p to edge %s", state, edge->name);
+    LIST_REMOVE(state, same_edge);
+    LIST_INSERT_HEAD(&edge->states, state, same_edge);
 }
 
 /*
@@ -67,18 +151,28 @@ static int nt_edge_ctor(struct nt_edge *edge, char const *name, struct nt_graph 
 {
     SLOG(LOG_DEBUG, "Construct new edge %s", name);
 
-    edge->name = STRDUP(nt_graph, name);
+    edge->name = STRDUP(nettrack, name);
     LIST_INIT(&edge->outgoing_vertices);
     LIST_INIT(&edge->incoming_vertices);
     LIST_INIT(&edge->states);
     LIST_INSERT_HEAD(&graph->edges, edge, same_graph);
 
+    // An edge named "root" starts with a nul state
+    if (0 == strcmp("root", name)) {
+        struct npc_register *regfile = npc_regfile_new(graph->nb_registers);
+        if (! regfile) return -1;
+        if (! nt_state_new(NULL, edge, regfile)) {
+            npc_regfile_del(regfile, graph->nb_registers);
+            return -1;
+        }
+    }
+
     return 0;
 }
 
-struct nt_edge *nt_edge_new(char const *name, struct nt_graph *graph)
+static struct nt_edge *nt_edge_new(char const *name, struct nt_graph *graph)
 {
-    struct nt_edge *edge = MALLOC(nt_graph, sizeof(*edge));
+    struct nt_edge *edge = MALLOC(nettrack, sizeof(*edge));
     if (! edge) return NULL;
     if (0 != nt_edge_ctor(edge, name, graph)) {
         FREE(edge);
@@ -87,14 +181,15 @@ struct nt_edge *nt_edge_new(char const *name, struct nt_graph *graph)
     return edge;
 }
 
-static void nt_edge_dtor(struct nt_edge *edge)
+static void nt_vertex_del(struct nt_vertex *);
+static void nt_edge_dtor(struct nt_edge *edge, struct nt_graph *graph)
 {
     SLOG(LOG_DEBUG, "Destruct edge %s", edge->name);
 
     // Delete all our states
     struct nt_state *state;
     while (NULL != (state = LIST_FIRST(&edge->states))) {
-        nt_state_del(state);
+        nt_state_del(state, graph);
     }
 
     // Then all the vertices using us
@@ -112,9 +207,9 @@ static void nt_edge_dtor(struct nt_edge *edge)
     edge->name = NULL;
 }
 
-void nt_edge_del(struct nt_edge *edge)
+static void nt_edge_del(struct nt_edge *edge, struct nt_graph *graph)
 {
-    nt_edge_dtor(edge);
+    nt_edge_dtor(edge, graph);
     FREE(edge);
 }
 
@@ -137,6 +232,7 @@ static int nt_vertex_ctor(struct nt_vertex *vertex, struct nt_graph *graph, stru
     vertex->spawn = spawn;
     vertex->grab = grab;
     vertex->death_range = death_range;
+    vertex->nb_matches = vertex->nb_tries = 0;
     LIST_INSERT_HEAD(&from->outgoing_vertices, vertex, same_from);
     LIST_INSERT_HEAD(&to->incoming_vertices, vertex, same_to);
     LIST_INSERT_HEAD(&graph->vertices, vertex, same_graph);
@@ -144,9 +240,9 @@ static int nt_vertex_ctor(struct nt_vertex *vertex, struct nt_graph *graph, stru
     return 0;
 }
 
-struct nt_vertex *nt_vertex_new(struct nt_graph *graph, struct nt_edge *from, struct nt_edge *to, char const *match_fn_name, bool spawn, bool grab, unsigned death_range)
+static struct nt_vertex *nt_vertex_new(struct nt_graph *graph, struct nt_edge *from, struct nt_edge *to, char const *match_fn_name, bool spawn, bool grab, unsigned death_range)
 {
-    struct nt_vertex *vertex = MALLOC(nt_graph, sizeof(*vertex));
+    struct nt_vertex *vertex = MALLOC(nettrack, sizeof(*vertex));
     if (! vertex) return NULL;
     if (0 != nt_vertex_ctor(vertex, graph, from, to, match_fn_name, spawn, grab, death_range)) {
         FREE(vertex);
@@ -166,7 +262,7 @@ static void nt_vertex_dtor(struct nt_vertex *vertex)
     vertex->match_fn = NULL;
 }
 
-void nt_vertex_del(struct nt_vertex *vertex)
+static void nt_vertex_del(struct nt_vertex *vertex)
 {
     nt_vertex_dtor(vertex);
     FREE(vertex);
@@ -175,6 +271,8 @@ void nt_vertex_del(struct nt_vertex *vertex)
 /*
  * Graph
  */
+
+static LIST_HEAD(nt_graphs, nt_graph) started_graphs;
 
 static int nt_graph_ctor(struct nt_graph *graph, char const *name, char const *libname, unsigned nb_registers)
 {
@@ -186,7 +284,9 @@ static int nt_graph_ctor(struct nt_graph *graph, char const *name, char const *l
         SLOG(LOG_ERR, "Cannot load netmatch shared object %s: %s", libname, lt_dlerror());
         return -1;
     }
-    graph->name = STRDUP(nt_graph, name);
+    graph->name = STRDUP(nettrack, name);
+    graph->started = false;
+    graph->nb_frames = 0;
 
     LIST_INIT(&graph->edges);
     LIST_INIT(&graph->vertices);
@@ -194,9 +294,9 @@ static int nt_graph_ctor(struct nt_graph *graph, char const *name, char const *l
     return 0;
 }
 
-struct nt_graph *nt_graph_new(char const *name, char const *libname, unsigned nb_registers)
+static struct nt_graph *nt_graph_new(char const *name, char const *libname, unsigned nb_registers)
 {
-    struct nt_graph *graph = MALLOC(nt_graph, sizeof(*graph));
+    struct nt_graph *graph = MALLOC(nettrack, sizeof(*graph));
     if (! graph) return NULL;
     if (0 != nt_graph_ctor(graph, name, libname, nb_registers)) {
         FREE(graph);
@@ -205,14 +305,32 @@ struct nt_graph *nt_graph_new(char const *name, char const *libname, unsigned nb
     return graph;
 }
 
+static void nt_graph_start(struct nt_graph *graph)
+{
+    if (graph->started) return;
+    SLOG(LOG_DEBUG, "Starting nettracking with graph %s", graph->name);
+    graph->started = true;
+    LIST_INSERT_HEAD(&started_graphs, graph, entry);
+}
+
+static void nt_graph_stop(struct nt_graph *graph)
+{
+    if (! graph->started) return;
+    SLOG(LOG_DEBUG, "Stopping nettracking with graph %s", graph->name);
+    graph->started = false;
+    LIST_REMOVE(graph, entry);
+}
+
 static void nt_graph_dtor(struct nt_graph *graph)
 {
     SLOG(LOG_DEBUG, "Destruct graph %s", graph->name);
 
+    nt_graph_stop(graph);
+
     // Delete all our edges
     struct nt_edge *edge;
     while (NULL != (edge = LIST_FIRST(&graph->edges))) {
-        nt_edge_del(edge);
+        nt_edge_del(edge, graph);
     }
     // Then we are not supposed to have any vertex left
     assert(LIST_EMPTY(&graph->vertices));
@@ -224,10 +342,69 @@ static void nt_graph_dtor(struct nt_graph *graph)
     graph->name = NULL;
 }
 
-void nt_graph_del(struct nt_graph *graph)
+static void nt_graph_del(struct nt_graph *graph)
 {
     nt_graph_dtor(graph);
     FREE(graph);
+}
+
+/*
+ * Update graph with proto_infos
+ */
+
+static int nt_graph_update(struct nt_graph *graph, struct proto_info const *last, size_t cap_len, uint8_t const *packet)
+{
+    SLOG(LOG_DEBUG, "Updating graph %s", graph->name);
+    (void)cap_len;
+    (void)packet;
+
+    graph->nb_frames ++;
+
+    // Simple method: loop over all vertices, then over all states from the departure region
+    struct nt_vertex *vertex;
+    LIST_FOREACH(vertex, &graph->vertices, same_graph) {
+        struct nt_state *state;
+        LIST_FOREACH(state, &vertex->from->states, same_edge) {
+            SLOG(LOG_DEBUG, "Testing state from edge %s for %s into %s",
+                vertex->from->name,
+                vertex->spawn ? "spawn":"move",
+                vertex->to->name);
+            vertex->nb_tries ++;
+            // do the match with a copy of the regfile (FIXME: delayed bindings + prevent use of new bindings in same expression would be much faster)
+            struct npc_register *tmp_regfile = npc_regfile_copy(state->regfile, graph->nb_registers);
+            if (! tmp_regfile) return -1;
+            if (vertex->match_fn(last, tmp_regfile)) {
+                SLOG(LOG_DEBUG, "Match!");
+                vertex->nb_matches ++;
+                // TODO: actually spawn/move the state
+                if (vertex->spawn) {
+                    if (! nt_state_new(state, vertex->to, tmp_regfile)) {
+                        npc_regfile_del(tmp_regfile, graph->nb_registers);
+                    }
+                } else {    // move the whole state
+                    npc_regfile_del(state->regfile, graph->nb_registers);
+                    state->regfile = tmp_regfile;
+                    nt_state_move(state, vertex->to);
+                }
+                if (vertex->grab) goto quit;
+            } else {
+                SLOG(LOG_DEBUG, "No match");
+                npc_regfile_del(tmp_regfile, graph->nb_registers);
+            }
+        }
+    }
+quit:
+
+    return 0;
+}
+
+int nettrack_callbacks(struct proto_info const *last, size_t cap_len, uint8_t const *packet)
+{
+    struct nt_graph *graph;
+    LIST_FOREACH(graph, &started_graphs, entry) {
+        if (0 != nt_graph_update(graph, last, cap_len, packet)) return -1;
+    }
+    return 0;
 }
 
 /*
@@ -380,19 +557,41 @@ static SCM g_make_nettrack(SCM name_, SCM libname_, SCM nb_registers_, SCM edges
     return smob;
 }
 
+static struct ext_function sg_nettrack_start;
+static SCM g_nettrack_start(SCM graph_smob)
+{
+    scm_assert_smob_type(graph_tag, graph_smob);
+    struct nt_graph *graph = (struct nt_graph *)SCM_SMOB_DATA(graph_smob);
+    nt_graph_start(graph);
+    return SCM_UNSPECIFIED;
+}    
 
+static struct ext_function sg_nettrack_stop;
+static SCM g_nettrack_stop(SCM graph_smob)
+{
+    scm_assert_smob_type(graph_tag, graph_smob);
+    struct nt_graph *graph = (struct nt_graph *)SCM_SMOB_DATA(graph_smob);
+    nt_graph_stop(graph);
+    return SCM_UNSPECIFIED;
+}    
+    
 /*
  * Init
  */
 
-void nt_graph_init(void)
+static unsigned inited;
+void nettrack_init(void)
 {
+    if (inited++) return;
+    log_category_nettrack_init();
 	ext_init();
     mallocer_init();
-    MALLOCER_INIT(nt_graph);
+    MALLOCER_INIT(nettrack);
     spawn_sym = scm_permanent_object(scm_from_latin1_symbol("spawn"));
     grab_sym  = scm_permanent_object(scm_from_latin1_symbol("grab"));
     kill_sym  = scm_permanent_object(scm_from_latin1_symbol("kill"));
+
+    LIST_INIT(&started_graphs);
 
     // Create a SMOB for nt_graph
     graph_tag = scm_make_smob_type("nettrack-graph", sizeof(struct nt_graph));
@@ -410,10 +609,23 @@ void nt_graph_init(void)
         "    (\"match-fun2\" root blabla ...)\n"
         "    (etc...))) : create a nettrack graph.\n"
         "Note: you are not supposed to use this directly.\n");
+
+    ext_function_ctor(&sg_nettrack_start,
+        "nettrack-start", 1, 0, 0, g_nettrack_start,
+        "(nettrack-start graph): start listening events for this graph.\n"
+        "See also (? 'nettrack-stop)\n");
+
+    ext_function_ctor(&sg_nettrack_stop,
+        "nettrack-stop", 1, 0, 0, g_nettrack_stop,
+        "(nettrack-stop graph): stop listening events for this graph.\n"
+        "See also (? 'nettrack-start)\n");
 }
 
-void nt_graph_fini(void)
+void nettrack_fini(void)
 {
+    if (--inited) return;
+
     mallocer_fini();
 	ext_fini();
+    log_category_nettrack_fini();
 }

@@ -37,6 +37,7 @@
 #include "junkie/proto/proto.h"
 #include "junkie/tools/ext.h"
 #include "plugins.h"
+#include "nettrack.h"
 #include "digest_queue.h"
 
 static LIST_HEAD(pkt_sources, pkt_source) pkt_sources = LIST_HEAD_INITIALIZER(pkt_sources);

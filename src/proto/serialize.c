@@ -25,7 +25,7 @@
 #include "junkie/tools/mallocer.h"
 #include "junkie/tools/tempstr.h"
 #include "junkie/proto/serialize.h"
-#include "plugins.h"
+#include "pkt_source.h"
 
 /*
  * Serialization
@@ -261,7 +261,7 @@ static void *deserializer_thread(void *deser_)
                         src_id = deserialize_4(&ptr);
                         source = deserializer_source_lookup(deser, src_id);
                         if (! source) break;
-                        deserialize_proto_stack(&ptr);
+                        (void)deserialize_proto_stack(&ptr);
                         source->nb_rcvd_msgs ++;
                         break;
                     case MSG_PROTO_STATS:;

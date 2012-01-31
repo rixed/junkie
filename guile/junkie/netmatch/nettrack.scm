@@ -21,15 +21,16 @@
   [(root web-syn
          ((ip with  (do
                       (src as ip-client)
-                      (dst as ip-server)))
-          (tcp with (and (set? syn)
-                         (dst-port = 80)
-                         (do (src-port as client-port)))))
+                      (dst as ip-server)
+                      #t))
+          (tcp with (and syn
+                         (dst-port == 80)
+                         (do (src-port as client-port) #t))))
          spawn)
    (web-syn http-answer
-            ((ip with   ((src == $ip-server) && (dst == $ip-client)))
-             (tcp with  ((src-port == 80) && (dst-port == $client-port)))
-             (http with ((set? status) && ((status as $http-status) >= 0))))
+            ((ip with   ((src =i %ip-server) && (dst =i %ip-client)))
+             (tcp with  ((src-port == 80) && (dst-port == %client-port)))
+             (http with ((set? (status as %http-status)))))
             kill)])
 )
 ;;; We want to gather from it the list of matches:

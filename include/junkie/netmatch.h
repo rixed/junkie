@@ -7,8 +7,8 @@
 #include <junkie/proto/proto.h>
 
 struct npc_register {
-    intptr_t value;
-    size_t size;
+    uintptr_t value;
+    size_t size;    // 0 if value is unboxed, malloced size otherwise (may be > to required size)
 };
 
 typedef bool npc_match_fn(struct proto_info const *info, struct npc_register *regfile);

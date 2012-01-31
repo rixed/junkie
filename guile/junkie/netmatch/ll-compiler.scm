@@ -10,7 +10,7 @@
 ;;; (unary-op operator value) -> returns the code that computes that
 ;;; (bind name value) -> generate the code that memoize the given value in the given register
 ;;; (ref var) -> return the value of the given register
-;;; (bind-unboxed name value) -> copy value, casted to intptr_t, into the register
+;;; (bind-unboxed name value) -> copy value, casted to uintptr_t, into the register
 
 (use-modules (ice-9 format)
              (srfi srfi-1)
@@ -37,7 +37,7 @@
                  "#include <stdint.h>\n"
                  "#include <assert.h>\n"
                  "#include <string.h>\n"
-                 "#include <junkie/tools/netmatch.h>\n"
+                 "#include <junkie/netmatch.h>\n"
                  "#include <junkie/tools/miscmacs.h>\n"
                  "#include <junkie/tools/ip_addr.h>\n"
                  "#include <junkie/tools/timeval.h>\n"
@@ -72,7 +72,7 @@
     (cons
       (string-append
         (hash-fold (lambda (regname dummy code)
-                     ; note: these are indexes into an array of struct npc_register { intptr_t value; size_t size; }
+                     ; note: these are indexes into an array of struct npc_register { uintptr_t value; size_t size; }
                      (let ((res (string-append
                                   code
                                   "#define " regname " " (number->string idx) "\n")))
@@ -270,12 +270,12 @@
             ;(delete-file srcname)
             (cons libname nb-varnames))
           (begin
-            (simple-format
-              (current-error-port) "Cannot exec ~s: exit-val=~s, term-sig=~s stop-sig=~s~%"
-              cmd
-              (status:exit-val status)
-              (status:term-sig status)
-              (status:stop-sig status))
+            (throw 'compilation-error
+                   (simple-format #f "Cannot exec ~s: exit-val=~s, term-sig=~s stop-sig=~s~%"
+                                  cmd
+                                  (status:exit-val status)
+                                  (status:term-sig status)
+                                  (status:stop-sig status)))
             #f)))))
 
 (export matches->so)

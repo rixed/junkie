@@ -164,6 +164,7 @@
            (('dns 'query) type:bool)
            (('dns 'name) type:str)
            ((or ('eth 'src) ('eth 'dst)) type:6bytes)
+           ((or ('ip 'src) ('ip 'dst)) type:ip)
            ((or ('http 'mime-type) ('http 'host) ('http 'url)) type:str)
            ((or ('icmp 'src) ('icmp 'dst)) type:ip)
            (('mgcp 'response) type:bool)
@@ -267,8 +268,35 @@
           (fluid-set! expected-type t))
         (type:check t et))))
 
+(define (explode-op op s params)
+  (slog log-debug "explode operation ~a with params ~s" op params)
+  (if (eqv? s (length params))
+      `(,op ,@params)
+      (let ((firsts (drop-right params (- s 1)))
+            (lasts  (take-right params (- s 1))))
+        `(,op ,(explode-op op s firsts) ,@lasts))))
+
+(define register-types (make-fluid))
+(define (reset-register-types)
+  (fluid-set! register-types (make-hash-table)))
+(define (set-register-type regname type)
+  (let ((prev-type (hash-ref (fluid-ref register-types) regname)))
+    (slog log-debug "register ~a is now known to be of type ~a (previously a ~a)" regname (type:type-name type) prev-type)
+    (if prev-type
+        ; check this is not incompatible with a previous information
+        (if (not (eq? prev-type type))
+            (throw 'cannot-type (simple-format #f "register ~a was a ~a but is now a ~a"
+                                               regname (type:type-name prev-type) (type:type-name type))))
+        ; else record it for future checks
+        (hash-set! (fluid-ref register-types) regname type))))
+(define (get-register-type regname)
+  (hash-ref (fluid-ref register-types) regname))
+(define (register->type regname)
+  (or (get-register-type regname)
+      (throw 'cannot-type regname)))
+
 (define (expr->stub proto expr)
-  (slog log-debug "compiling expression ~a, which should be of type ~a" expr (type:type-name (fluid-ref expected-type)))
+  (slog log-debug "compiling expression ~s, which should be of type ~a" expr (type:type-name (fluid-ref expected-type)))
   (let ((perform-op (lambda (op-name params)
                       (let* ((op (or (type:symbol->op op-name)
                                      (throw 'you-must-be-joking (simple-format #f "operator ~s?" op-name))))
@@ -277,14 +305,21 @@
                         (slog log-debug " compiling operator ~a, taking ~a and returning a ~a"
                               (type:op-name op) (map type:type-name itypes) (type:type-name otype))
                         (type:check otype (fluid-ref expected-type))
-                        (if (not (eqv? (length itypes) (length params))) ; TODO: allow params to have more params than specified?
-                            (throw 'you-must-be-joking
-                                   (simple-format #f "bad number of parameters for ~a: ~a instead of ~a" op-name (length params) (length itypes))))
-                        (apply
-                          (type:op-function op)
-                          (map (lambda (p t)
-                                 (with-expected-type t (lambda () (expr->stub proto p))))
-                               params itypes)))))
+                        (if (eqv? (length params) (length itypes))
+                            (apply
+                              (type:op-function op)
+                              (map (lambda (p t)
+                                     (with-expected-type t (lambda () (expr->stub proto p))))
+                                   params itypes))
+                            ; In some occasions we automatically transform (op a b c d) to (op (op (op a b) c) d), or
+                            ; in the general case, when op require n<m arguments:
+                            ; (op a1 .. am) -> (op (op (... (op a1 .. an) an+1 .. a2n) a2n+1 .. a3n) ...)
+                            ; so we suppose that op is left associative.
+                            (if (and (> (length params) (length itypes)) ; if we have params in excess
+                                     (every (lambda (t) (eqv? otype t)) itypes)) ; and they are all of the same type = the output type
+                                (expr->stub proto (explode-op op-name (length itypes) params))
+                                (throw 'you-must-be-joking
+                                       (simple-format #f "bad number of parameters for ~a: ~a instead of ~a" op-name (length params) (length itypes))))))))
         (is-infix   (let ((prefix-chars (string->char-set "!@#$%^&*-+=|~/:><")))
                       (lambda (op)
                         (and (symbol? op)
@@ -309,11 +344,14 @@
                           flag)))
               ((x 'as name) ; binding operation
                (slog log-debug " compiling special form 'bind' for expr ~a to register ~a" x name)
-               (let ((x-stub (expr->stub proto x))) ; should set expected-type if unset yet
-                 (or (symbol? name)
-                     (throw 'you-must-be-joking (simple-format #f "register name must be a symbol not ~s" name)))
+               (or (symbol? name)
+                   (throw 'you-must-be-joking (simple-format #f "register name must be a symbol not ~s" name)))
+               (let* ((x-stub  (expr->stub proto x)) ; should set expected-type if unset yet
+                      (regname (type:string->C-ident (symbol->string name)))
+                      (e-type  (fluid-ref expected-type)))
                  (slog log-debug " compiling actual bind")
-                 ((type:type-bind (fluid-ref expected-type)) (type:string->C-ident (symbol->string name)) x-stub)))
+                 (set-register-type regname e-type)
+                 ((type:type-bind e-type) regname x-stub)))
               ; Sequencing operator (special typing)
               (('do v1) ; easy one
                (expr->stub proto v1))
@@ -323,8 +361,8 @@
                  (with-expected-type type:any (lambda () (expr->stub proto v1)))
                  (expr->stub proto (cons 'do v2))))
               ; Now that we have ruled out the empty list and special forms we must face an operator, which can be infix or prefix
-              ((and (v1 op-name v2) (? (lambda (expr) (is-infix (cadr expr))))) ; TODO: support infix operators with more than 2 params a la ML?
-               (perform-op op-name (list v1 v2)))
+              ((and (v1 op-name . rest) (? (lambda (expr) (is-infix (cadr expr)))))
+               (perform-op op-name (cons v1 rest)))
               ((op-name . params)
                (perform-op op-name params))))
       ((boolean? expr)
@@ -346,12 +384,23 @@
        ; - a well-known constant
        ; - otherwise, a field name
        (let* ((str (symbol->string expr)))
-         ; If we don't know the type it's time to think about it.
-         ; We can extract type info from well-known constant and field name, but can't from a register.
-         ; This is not a problem: we are merely not allowed to use a register when it wouldn't make much sense anyway.
-         (or (and (regname? str)
-                  ((type:type-ref (fluid-ref expected-type)) (type:string->C-ident (substring str 1))))
-             (and=> (cst->stub proto expr) (lambda (x) expr->stub proto x))
+         ; Notice: if we don't know the type yet it's time to think about it.
+         (cond
+           ((regname? str)
+            ; fetch from a register
+            (let* ((regname     (type:string->C-ident (substring str 1)))
+                   (e-type      (fluid-ref expected-type)))
+              (if (eq? (fluid-ref expected-type) type:any)
+                  (let ((actual-type (register->type regname)))
+                    (slog log-debug "set expteced type of register ~a: ~a" regname (type:type-name actual-type))
+                    (fluid-set! expected-type actual-type))
+                  ; check the type we expect is not incompatible with a previously known type for this regname (or set it)
+                  (set-register-type regname e-type))
+              ((type:type-ref (fluid-ref expected-type)) regname)))
+           ((cst->stub proto expr) =>
+            ; or convert named constant
+            (lambda (x) expr->stub proto x))
+           (else
              ; else we have to fetch this field from current proto
              (let ((canon-name (fieldname proto expr)))
                (if (eq? (fluid-ref expected-type) type:any)
@@ -359,7 +408,7 @@
                      (slog log-debug "set expteced type of field ~a: ~a" canon-name (type:type-name actual-type))
                      (fluid-set! expected-type actual-type)))
                ((type:type-fetch (fluid-ref expected-type)) (type:string->C-ident (symbol->string proto))
-                                                            (field->C proto canon-name))))))
+                                                            (field->C proto canon-name)))))))
       (else
         (throw 'you-must-be-joking
                (simple-format #f "~a? you really mean it?" expr))))))
@@ -429,6 +478,7 @@
        matches))
 
 (define (compile matches)
+  (reset-register-types)
   (let ((ll-matches (matches->ll-matches matches)))
     (ll:matches->so ll-matches)))
 

@@ -28,11 +28,11 @@
 #include "junkie/tools/ext.h"
 #include "junkie/tools/queue.h"
 #include "junkie/tools/mutex.h"
-#include "junkie/tools/netmatch.h"
 #include "junkie/tools/mallocer.h"
 #include "junkie/proto/capfile.h"
 #include "junkie/proto/proto.h"
 #include "junkie/proto/cap.h"
+#include "junkie/netmatch.h"
 
 #undef LOG_CAT
 #define LOG_CAT writer_log_category

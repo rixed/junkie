@@ -10,6 +10,7 @@
 #include <pthread.h>
 #include "junkie/tools/queue.h"
 #include "junkie/tools/mutex.h"
+#include "junkie/proto/proto.h"
 
 /** A Packet Source is something that gives us packets (with libpcap).
  * So basically it can be either a real interface or a file.
@@ -40,6 +41,9 @@ struct frame {
     struct pkt_source const *pkt_source;  ///< the pkt_source this packet was read from
     uint8_t /*const*/ *data;    ///< the packet itself (FIXME: fix digest_frame then restore const)
 };
+
+// Call every interrested parties
+int parser_callbacks(struct proto_info const *last, size_t tot_cap_len, uint8_t const *tot_packet);
 
 void pkt_source_init(void);
 void pkt_source_fini(void);
