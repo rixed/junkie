@@ -218,10 +218,11 @@
 ;;; since the index can easily be build on any regfile structure, given the regfile is actually an array of npc_registers.
 
 ; Given an alist of name->match (a match being a list of triplets (proto, can-skip, test-expr)),
-; return the code of all matching functions, as well as the length of the npc_register array.
-(define (matches->C matches)
+; and a list of actions (ie. name->expression to return),
+; returns the code of all matching functions, as well as the length of the npc_register array.
+(define (matches->C matches actions)
   (let* ((headers   C-header)
-         (functions (fold (lambda (entry prev)
+         (mth-stubs (fold (lambda (entry prev)
                             (let* ((match-name (car entry))
                                    (match      (cdr entry))
                                    (stub       (match->stub match)))
@@ -237,20 +238,34 @@
                                 (append (type:stub-regnames stub) (type:stub-regnames prev)))))
                           (type:make-stub "/* Functions */\n\n" "" '())
                           matches))
-         (tmp       (extract-regnames functions))
+         (act-stubs (fold (lambda (entry prev)
+                            (let* ((action-name (car entry))
+                                   (action-expr (cdr entry)))
+                              (type:make-stub
+                                (string-append
+                                  (type:stub-code prev)
+                                  "void " action-name "(struct npc_register *regfile)\n"
+                                  "{\n"
+                                  (type:stub-code action-expr)
+                                  "}\n\n")
+                                action-name
+                                (type:stub-regnames action-expr))))
+                          (type:make-stub "/* Actions */\n\n" "" '())
+                          actions))
+         (stubs     (type:stub-concat mth-stubs act-stubs))
+         (tmp       (extract-regnames stubs))
          (regnames  (car tmp))
          (nb-regs   (cdr tmp)))
     (cons (string-append
             headers
             regnames
-            (type:stub-code functions)
+            (type:stub-code stubs)
             "/* end */")
           nb-regs)))
 
-(export matches->C) ; what for?
-
-; Given an alist of name->match, return the name of the dynlib containing the required functions, and the length of the regfile
-(define (matches->so matches)
+; Given an alist of name->match and an alist of name->expression, returns the name of the dynlib containing the required functions,
+; and the length of the required regfile
+(define (matches->so matches actions)
   (let* ((srcname     (string-copy "/tmp/netmatch-ll.c.XXXXXX"))
          (srcport     (mkstemp! srcname))
          (libname     (string-append srcname ".so"))

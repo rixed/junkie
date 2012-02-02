@@ -360,7 +360,7 @@ static int nt_graph_update(struct nt_graph *graph, struct proto_info const *last
 
     graph->nb_frames ++;
 
-    // Simple method: loop over all vertices, then over all states from the departure region
+    // Simple method: loop over all vertices, then over all states from the departure edge
     struct nt_vertex *vertex;
     LIST_FOREACH(vertex, &graph->vertices, same_graph) {
         struct nt_state *state;
@@ -370,7 +370,10 @@ static int nt_graph_update(struct nt_graph *graph, struct proto_info const *last
                 vertex->spawn ? "spawn":"move",
                 vertex->to->name);
             vertex->nb_tries ++;
-            // do the match with a copy of the regfile (FIXME: delayed bindings + prevent use of new bindings in same expression would be much faster)
+            /* Do the match with a copy of the regfile.
+             * FIXME: Delayed bindings + prevent use of new bindings in same expression would be much faster.
+             *        Note that dereferencing a register in the same expression where it's bound is unsafe
+             *        anyway since order of evaluation is not guaranteed to be the one that's expected. */
             struct npc_register *tmp_regfile = npc_regfile_copy(state->regfile, graph->nb_registers);
             if (! tmp_regfile) return -1;
             if (vertex->match_fn(last, tmp_regfile)) {

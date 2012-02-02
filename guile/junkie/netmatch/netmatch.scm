@@ -413,8 +413,6 @@
         (throw 'you-must-be-joking
                (simple-format #f "~a? you really mean it?" expr))))))
 
-(export expr->stub)
-
 ;;; Also, for complete matches, transform this:
 ;;;
 ;;; '(("node1" . ((cap with (#f || $client-is-connected))
@@ -472,14 +470,23 @@
 
 (define (matches->ll-matches matches)
   (map (lambda (r)
-         (let ((n     (car r))
+         (let ((name  (car r))
                (match (cdr r)))
-           (cons n (match->ll-match match))))
+           (cons name (match->ll-match match))))
        matches))
 
-(define (compile matches)
+; an action is a procedure that compute an expression and returns nothing (usefull for regfile update, calling external functions...
+(define (actions->ll-actions actions)
+  (map (lambda (r)
+         (let ((name   (car r))
+               (action (cdr r)))
+           (cons name (expr->stub 'none action))))
+       actions))
+
+(define (compile matches actions)
   (reset-register-types)
-  (let ((ll-matches (matches->ll-matches matches)))
-    (ll:matches->so ll-matches)))
+  (let ((ll-matches (matches->ll-matches matches))
+        (ll-actions (actions->ll-actions actions)))
+    (ll:matches->so ll-matches ll-actions)))
 
 (export compile)

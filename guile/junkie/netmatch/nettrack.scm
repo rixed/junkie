@@ -15,8 +15,8 @@
 ;;;
 ;;; For instance, let's consider this nettrack expression:
 #;(
-(; edges
-  [] ; notice that edges are filled with default attributes as required
+(; edges (notice that edges are filled with default attributes as required)
+  [(http-answer (call-scm print-int %http-status))] ; an action to perform whenever the http-answer node is entered
   ; vertices
   [(root web-syn
          ((ip with  (do
@@ -65,6 +65,7 @@
   (let ((edges       (car expr))
         (vertices    (cadr expr))
         (matches     '())
+        (actions     '())
         (vertices-ll '()))
     (for-each
       (lambda (v)
@@ -75,7 +76,13 @@
                 (set! vertices-ll
                   (cons new-v vertices-ll)))))
       vertices)
-    (match (match:compile matches)
+    (for-each
+      (lambda (e)
+        (match e
+               ((name code)
+                (set! actions (cons (cons (string-append "entry_" name) code) actions)))
+               (_ #f))))
+    (match (match:compile matches actions)
            ((so-name . nb-regs)
             (make-nettrack name so-name nb-regs edges vertices-ll)))))
 
