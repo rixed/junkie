@@ -214,7 +214,7 @@ static unsigned fragment_offset(struct ip_hdr const *ip)
 // We overload the mux_subparser to fit the pkt_wait_list required for IP reassembly
 struct ip_subparser {
     /* We may have a list per IP id, but we do not want to create a pkt_list whenever a new id is encountered.
-     * So we only creates a list if either the MoreFrag flag is set or the offset is > 0 (if for first to last fragments).
+     * So we only creates a list if either the MoreFrag flag is set or the offset is > 0 (ie for first to last fragments).
      * Also, we check in the list iff this condition holds.
      * Each IP subparser can have at most 4 packets reassembled simultaneously, which should be more than
      * enought in all 'normal' situations. */

@@ -67,11 +67,12 @@ no_command:
     unsigned nb_hdr_lines = 0;
     while (true) {
         // Next line
+        bool const has_newline = liner.delim_size > 0;
         liner_next(&liner);
         if (liner_eof(&liner)) {
             // As an accommodation to old HTTP implementations, we allow a single line command
             // FIXME: check line termination with "*/x.y" ?
-            if (nb_hdr_lines == 0) break;
+            if (nb_hdr_lines == 0 && has_newline) break;
             return PROTO_TOO_SHORT;
         }
 

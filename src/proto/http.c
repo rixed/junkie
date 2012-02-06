@@ -48,17 +48,30 @@ struct http_parser {
     struct streambuf sbuf;
     struct http_state {
         enum http_phase {
-            NONE,   // before initial header was met
-            BODY,   // while scanning body
-            LOST,   // when we have lost the message boundaries because of uncaptured bytes
+            HEAD,       // while waiting for/scanning header
+            BODY,       // while scanning body
+            CHUNK_HEAD, // while scanning a chunk header
+            CHUNK,      // while scanning a body chunk
         } phase;
-#       define UNKNOWN_REM_CONTENT ((size_t)((ssize_t)-1))
-        size_t remaining_content;   // nb bytes before next header (or (ssize_t)-1 if unknown). Only relevant when phase=BODY.
-        // FIXME: store the last query command, and take it into account to skip body in answer to HEADs
+#       define CONTENT_UP_TO_END ((size_t)((ssize_t)-1))
+        size_t remaining_content;   // nb bytes before next header (or (ssize_t)-1 if unknown). Only relevant when phase=BODY|CHUNK.
+        // Store the last query command, to be taken it into account to skip body in answer to HEADs
+        enum http_method last_method;
         // FIXME: parse transfert-encoding: chunked
         // FIXME: take into account http-range?
     } state[2];    // One per direction (depending on "way", ie. 0 will be smaller IP)
 };
+
+static char const *http_parser_phase_2_str(enum http_phase phase)
+{
+    switch (phase) {
+        case HEAD: return "waiting/scanning headers";
+        case BODY: return "scanning body";
+        case CHUNK: return "scanning chunk content";
+        case CHUNK_HEAD: return "scanning chunk header";
+    }
+    assert(!"Unknown HTTP pase");
+}
 
 static parse_fun http_sbuf_parse;
 
@@ -68,8 +81,10 @@ static int http_parser_ctor(struct http_parser *http_parser, struct proto *proto
 
     assert(proto == proto_http);
     if (0 != parser_ctor(&http_parser->parser, proto)) return -1;
-    http_parser->state[0].phase = NONE;
-    http_parser->state[1].phase = NONE;
+    http_parser->state[0].phase = HEAD;
+    http_parser->state[1].phase = HEAD;
+    http_parser->state[0].last_method = ~0U;
+    http_parser->state[1].last_method = ~0U;
     http_parser->c2s_way = ~0U;
 #   define HTTP_MAX_HDR_SIZE 10000   // in bytes
     if (0 != streambuf_ctor(&http_parser->sbuf, http_sbuf_parse, HTTP_MAX_HDR_SIZE)) return -1;
@@ -144,11 +159,13 @@ static char const *http_info_2_str(struct proto_info const *info_)
 {
     struct http_proto_info const *info = DOWNCAST(info_, info, http_proto_info);
     char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, method=%s, code=%s, content_length=%s, mime_type=%s, host=%s, url=%s",
+    snprintf(str, TEMPSTR_SIZE, "%s, method=%s, code=%s, content_length=%s, transfert_encoding=%s, mime_type=%s, host=%s, url=%s",
         proto_info_2_str(info_),
         info->set_values & HTTP_METHOD_SET   ? http_method_2_str(info->method)            : "unset",
         info->set_values & HTTP_CODE_SET     ? tempstr_printf("%u", info->code)           : "unset",
         info->set_values & HTTP_LENGTH_SET   ? tempstr_printf("%u", info->content_length) : "unset",
+        info->set_values & HTTP_TRANSFERT_ENCODING_SET ?
+                                               (info->chunked_encoding ? "chunked":"set") : "unset",
         info->set_values & HTTP_MIME_SET     ? info->mime_type                            : "unset",
         info->set_values & HTTP_HOST_SET     ? info->host                                 : "unset",
         info->set_values & HTTP_URL_SET      ? info->url                                  : "unset");
@@ -163,6 +180,7 @@ static void http_serialize(struct proto_info const *info_, uint8_t **buf)
     if (info->set_values & HTTP_METHOD_SET) serialize_1(buf, info->method);
     if (info->set_values & HTTP_CODE_SET) serialize_2(buf, info->code);
     if (info->set_values & HTTP_LENGTH_SET) serialize_4(buf, info->content_length);
+    if (info->set_values & HTTP_TRANSFERT_ENCODING_SET) serialize_1(buf, info->chunked_encoding);
     if (info->set_values & HTTP_MIME_SET) serialize_str(buf, info->mime_type);
     if (info->set_values & HTTP_HOST_SET) serialize_str(buf, info->host);
     if (info->set_values & HTTP_URL_SET) serialize_str(buf, info->url);
@@ -176,6 +194,7 @@ static void http_deserialize(struct proto_info *info_, uint8_t const **buf)
     if (info->set_values & HTTP_METHOD_SET) info->method = deserialize_1(buf);
     if (info->set_values & HTTP_CODE_SET) info->code = deserialize_2(buf);
     if (info->set_values & HTTP_LENGTH_SET) info->content_length = deserialize_4(buf);
+    if (info->set_values & HTTP_TRANSFERT_ENCODING_SET) info->chunked_encoding = deserialize_1(buf);
     if (info->set_values & HTTP_MIME_SET) deserialize_str(buf, info->mime_type, sizeof(info->mime_type));
     if (info->set_values & HTTP_HOST_SET) deserialize_str(buf, info->host, sizeof(info->host));
     if (info->set_values & HTTP_URL_SET) deserialize_str(buf, info->url, sizeof(info->url));
@@ -229,9 +248,9 @@ static int http_extract_content_type(unsigned unused_ field, struct liner *liner
 
 static int http_extract_transfert_encoding(unsigned unused_ field, struct liner unused_ *liner, void *info_)
 {
-    // Actually we don't care about the exact transfert encoding, bu we need to know whether it's set or not
     struct http_proto_info *info = info_;
     info->set_values |= HTTP_TRANSFERT_ENCODING_SET;
+    info->chunked_encoding = 0 == strncasecmp(liner->start, "chunked", 7);
     return 0;
 }
 
@@ -245,6 +264,8 @@ static int http_extract_host(unsigned unused_ field, struct liner *liner, void *
 
 static enum proto_parse_status http_parse_header(struct http_parser *http_parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
+    assert(http_parser->state[way].phase == HEAD);
+
     // Sanity checks + Parse
     static struct httper_command const commands[] = {
         [HTTP_METHOD_GET]      = { "GET",      3, http_set_method },
@@ -277,48 +298,74 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
     size_t httphdr_len;
     enum proto_parse_status status = httper_parse(&httper, &httphdr_len, packet, cap_len, &info);
     if (status == PROTO_PARSE_ERR) return PROTO_PARSE_ERR;
+
+    // Save some values into our http_parser
+    http_parser->state[way].last_method =
+        info.set_values & HTTP_METHOD_SET ? info.method : ~0U;
+
+    // Handle short capture
     if (status == PROTO_TOO_SHORT) {
         // Are we going to receive the end eventually?
         if (wire_len == cap_len) {
+            // So header end must be in next packet(s)
             status = proto_parse(NULL, parent, way, NULL, 0, 0, now, tot_cap_len, tot_packet);    // ack what we had so far
-            streambuf_set_restart(&http_parser->sbuf, way, packet, true);
+            streambuf_set_restart(&http_parser->sbuf, way, packet, true);   // retry later with (hopefully) complete header this time
             return PROTO_OK;
-        } else {    // No, the header was truncated. We want to report as much as we can
-            // Notice that we have no idea of the actual size of header and payload, by we want to report all bytes,
-            // ie that out header+payload = wire_len.
-            http_proto_info_ctor(&info, http_parser, parent, cap_len, wire_len - cap_len);
+        } else {
+            // No, the header was truncated. We want to report as much as we can.
+            http_proto_info_ctor(&info, http_parser, parent, cap_len, 0);
             return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
-            // We are going to look for another header in the next packet, hoping for the best.
+            // We are going to look for another header at the start of the next packet, hoping for the best.
         }
     }
 
-    /* Now we have several possible cases :
-     * - all the remaining of this packet belongs to the payload of this header, so the packet is fully
-     *   parsed and we are done
-     * - the next header is in this very packet, so we must restart to parse in NONE phase after having
-     *   reported this header, at once (ie. before reception of new data).
-     */
-    assert(httphdr_len <= cap_len);
-    size_t const rem_bytes = wire_len - httphdr_len;
+    /* What payload should we set? the one advertised? Or the payload of this header (ie 0),
+     * and then let the body parser report other proto_info with head_len=0 and payload set?
+     * will be definitively FIXED once we ditch this reporting policy for a hook based approach. */
+    http_proto_info_ctor(&info, http_parser, parent, httphdr_len, 0);
 
-    if ((info.set_values & HTTP_LENGTH_SET) && info.content_length < rem_bytes) {
-        // Next header to come in same packet
-        http_proto_info_ctor(&info, http_parser, parent, httphdr_len, info.content_length);
-        // but do we have it in the captured bytes ?
-        if (info.content_length >= cap_len) {
-            // we can report this message but we can't report next one.
-            http_parser->state[way].phase = LOST;
-        } else {
-            streambuf_set_restart(&http_parser->sbuf, way, packet + info.content_length, false);
+    /* "The presence of a message-body in a request is signaled by the
+     * inclusion of a Content-Length or Transfer-Encoding header field in
+     * the request's message-headers."
+     * "For response messages, whether or not a message-body is included with
+     * a message is dependent on both the request method and the response
+     * status code (section 6.1.1). All responses to the HEAD request method
+     * MUST NOT include a message-body, even though the presence of entity-
+     * header fields might lead one to believe they do. All 1xx
+     * (informational), 204 (no content), and 304 (not modified) responses
+     * MUST NOT include a message-body. All other responses do include a
+     * message-body, although it MAY be of zero length." - RFC2616 */
+    bool const have_body =
+        (
+            (info.set_values & HTTP_METHOD_SET) &&
+            (info.set_values & (HTTP_LENGTH_SET | HTTP_TRANSFERT_ENCODING_SET))
+        ) || (
+            (info.set_values & HTTP_CODE_SET) &&
+            http_parser->state[!way].last_method != HTTP_METHOD_HEAD &&
+            (info.code < 100 || (info.code > 199 && info.code != 204 && info.code != 304))
+        );
+
+    if (have_body) {
+        if (info.set_values & HTTP_LENGTH_SET) {
+            http_parser->state[way].phase = BODY;
+            http_parser->state[way].remaining_content = info.content_length;
+        } else if (info.set_values & HTTP_TRANSFERT_ENCODING_SET) {
+            if (info.chunked_encoding) {
+                http_parser->state[way].phase = CHUNK_HEAD;
+            } else {
+                // We will keep looking for header just after this one, hoping for the best.
+            }
+        } else {    // no length indication
+            http_parser->state[way].phase = BODY;
+            http_parser->state[way].remaining_content = CONTENT_UP_TO_END;
         }
     } else {
-        // Next header, if any, will come later
-        http_proto_info_ctor(&info, http_parser, parent, httphdr_len, rem_bytes);
-        bool const have_body = info.set_values & (HTTP_LENGTH_SET | HTTP_TRANSFERT_ENCODING_SET);
-        http_parser->state[way].phase = have_body ? BODY : NONE;
-        http_parser->state[way].remaining_content = info.set_values & HTTP_LENGTH_SET ? info.content_length - rem_bytes : UNKNOWN_REM_CONTENT;
+        // We stay in HEAD phase
     }
 
+    // Restart from the end of this header
+    streambuf_set_restart(&http_parser->sbuf, way, packet + httphdr_len, false);
+    // Report the header
     return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
 
@@ -328,14 +375,20 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
 
 static enum proto_parse_status http_parse_body(struct http_parser *http_parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
-    // In this phase, either we known the content length and we skip it before returning to NONE phase,
-    // or we don't know and we just skip everything.
-    SLOG(LOG_DEBUG, "Parsing body, remaining %zu bytes%s",
-        http_parser->state[way].remaining_content != UNKNOWN_REM_CONTENT ? http_parser->state[way].remaining_content : 0,
-        http_parser->state[way].remaining_content != UNKNOWN_REM_CONTENT ? "" : "(unset)");
+    assert(http_parser->state[way].phase == BODY || http_parser->state[way].phase == CHUNK);
+
+    // In this phase, either we known the content length and we skip it before returning to HEAD phase,
+    // or we know that it's going up to the end of socket and we skip eveything,
+
+    if (http_parser->state[way].remaining_content != CONTENT_UP_TO_END) {
+        SLOG(LOG_DEBUG, "Parsing body, remaining %zu bytes", http_parser->state[way].remaining_content);
+    } else {
+        SLOG(LOG_DEBUG, "Parsing body up to end of socket");
+    }
 
     size_t const body_part =    // The part of wire_len that belongs to the current body
-        http_parser->state[way].remaining_content == UNKNOWN_REM_CONTENT || http_parser->state[way].remaining_content > wire_len ?
+        http_parser->state[way].remaining_content == CONTENT_UP_TO_END ||
+        http_parser->state[way].remaining_content > wire_len ?
             wire_len :
             http_parser->state[way].remaining_content;
     SLOG(LOG_DEBUG, "%zu bytes of this payload belongs to the body", body_part);
@@ -349,20 +402,64 @@ static enum proto_parse_status http_parse_body(struct http_parser *http_parser, 
         // What to do with this partial parse status ?
     }
 
-    if (http_parser->state[way].remaining_content != UNKNOWN_REM_CONTENT) {
+    if (http_parser->state[way].remaining_content != CONTENT_UP_TO_END) {
         assert(http_parser->state[way].remaining_content >= body_part);
         http_parser->state[way].remaining_content -= body_part;
     }
 
     if (http_parser->state[way].remaining_content == 0) {
-        http_parser->state[way].phase = NONE;
+        http_parser->state[way].phase =
+            http_parser->state[way].phase == BODY ?
+                HEAD : CHUNK_HEAD;
         if (body_part == wire_len) return PROTO_OK;
         if (body_part >= cap_len) {
             // Next header was not captured :-(
             return PROTO_TOO_SHORT;
         }
-        // Else the header is already waiting for us
+        // Else the (chunk) header is already waiting for us
         streambuf_set_restart(&http_parser->sbuf, way, packet + body_part, false);
+    }
+
+    return PROTO_OK;
+}
+
+/*
+ * Parse HTTP Chunk header
+ */
+
+static enum proto_parse_status http_parse_chunk_header(struct http_parser *http_parser, unsigned way, uint8_t const *packet, size_t cap_len, size_t unused_ wire_len)
+{
+    assert(http_parser->state[way].phase == CHUNK_HEAD);
+
+    SLOG(LOG_DEBUG, "Parsing chunk header");
+    // The chunk header is composed of a mere size and optional ";" followed by some garbage up to end of line.
+    // So we need at least one line of data
+    struct liner liner;
+    liner_init(&liner, &delim_lines, (char const *)packet, cap_len);
+    if (liner_eof(&liner)) {    // not a single char to read?
+        streambuf_set_restart(&http_parser->sbuf, way, packet, true);   // more luck later
+        return PROTO_OK;
+    }
+    char *end;
+    unsigned len = strtoul(liner.start, &end, 16);
+    if (end == liner.start) {
+        return PROTO_PARSE_ERR;
+    }
+    if (end != liner.start + liner_tok_length(&liner)) {
+        streambuf_set_restart(&http_parser->sbuf, way, packet, true);   // more luck later
+        return PROTO_OK;
+    }
+    SLOG(LOG_DEBUG, "Chunk header of size %u", len);
+
+    liner_next(&liner);
+    if (len > 0) {
+        http_parser->state[way].phase = CHUNK;
+        http_parser->state[way].remaining_content = len + 2;    // for the CR+LF following the chunk (the day we will pass the body to a subparser we will need to parse these in next http_parse_chunk_header() call instead).
+        streambuf_set_restart(&http_parser->sbuf, way, (const uint8_t *)liner.start, false);
+    } else {
+        // FIXME: skip chunk trailer, ie all lines up to a blank line.
+        http_parser->state[way].phase = HEAD;
+        streambuf_set_restart(&http_parser->sbuf, way, (const uint8_t *)liner.start, false);
     }
 
     return PROTO_OK;
@@ -383,14 +480,15 @@ static enum proto_parse_status http_sbuf_parse(struct parser *parser, struct pro
     }
 
     // Now are we waiting the header, or scanning through body ?
-    SLOG(LOG_DEBUG, "Http parser@%p is %s", http_parser, http_parser->state[way].phase == NONE ? "waiting header" : "waiting end of body");
+    SLOG(LOG_DEBUG, "Http parser@%p is %s in direction %u", http_parser, http_parser_phase_2_str(http_parser->state[way].phase), way);
     switch (http_parser->state[way].phase) {
-        case NONE:  // In this mode we retry until we manage to parse a header
+        case HEAD:  // In this mode we retry until we manage to parse a header
            return http_parse_header(http_parser, parent, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
+        case CHUNK_HEAD:
+           return http_parse_chunk_header(http_parser, way, payload, cap_len, wire_len);
         case BODY:
+        case CHUNK:
            return http_parse_body(http_parser, parent, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
-        case LOST:
-           return PROTO_TOO_SHORT;
     }
 
     assert(!"Invalid http parser phase");

@@ -2,6 +2,7 @@
 // vim:sw=4 ts=4 sts=4 expandtab
 #ifndef HTTP_H_100429
 #define HTTP_H_100429
+#include <stdbool.h>
 #include <junkie/proto/proto.h>
 #include <junkie/tools/ip_addr.h>
 
@@ -31,6 +32,7 @@ struct http_proto_info {
     } method;                       ///< The method used
     unsigned code;                  ///< The response code, if the message is a response
     unsigned content_length;        ///< The Content-Length, if present
+    bool chunked_encoding;          ///< Set if the transfert encoding is chunked (only relevant if set_values&HTTP_TRANSFERT_ENCODING_SET)
     char mime_type[256];            ///< The Mime-type, if present
     char host[256];                 ///< The Host, if present
 #   define HTTP_URL_SIZE 2048

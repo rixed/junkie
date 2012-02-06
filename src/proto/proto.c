@@ -36,7 +36,7 @@ static unsigned nb_fuzzed_bits = 0;
 EXT_PARAM_RW(nb_fuzzed_bits, "nb-fuzzed-bits", uint, "Max number of bits to fuzz by protocolar layer (0 to disable fuzzing).")
 
 static unsigned mux_timeout = 120;
-EXT_PARAM_RW(mux_timeout, "mux-timeout", uint, "After how many seconds an unused multiplexer subparser may be deleted.")
+EXT_PARAM_RW(mux_timeout, "mux-timeout", uint, "After how many seconds an unused multiplexer subparser may be deleted (0 to disable timeouting).")
 
 #undef LOG_CAT
 #define LOG_CAT proto_log_category

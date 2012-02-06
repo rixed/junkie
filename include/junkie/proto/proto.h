@@ -502,8 +502,7 @@ struct mux_subparser {
  *     struct mux_parser mux_parser;
  * };
  * @endverbatim
- *
- * See for instance the SIP parser for an actual example. */
+ */
 struct mux_parser {
     struct parser parser;                                   ///< A mux_parser is a specialization of this parser
     unsigned hash_size;                                     ///< The hash size for this particular mux_parser (taken from mux_proto at creation time, constant)

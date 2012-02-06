@@ -1,0 +1,13 @@
+#!/bin/sh
+
+NAME="HTTP-chunked"
+PCAPS="pcap/http/transfert_encoding_chunked.pcap"
+filter() {
+	# We keep only the GET because:
+	# 1- it's enough to show that chunks are decoded properly
+	# 2- proto for info are likely to change in the future (now dumper works as a per-packet basis which is not perfect)
+	grep '^HTTP' | grep 'method=GET' | cut -d' ' -f 2-
+}
+OUTPUT="http-chunked.out"
+
+. ./dump_test
