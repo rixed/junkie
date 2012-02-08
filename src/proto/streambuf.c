@@ -75,8 +75,10 @@ static void streambuf_empty(struct streambuf_unidir *dir)
         if (dir->buffer_is_malloced) FREE((void*)dir->buffer);
         dir->buffer = NULL;
         dir->buffer_size = 0;
+        dir->restart_offset = 0;
     } else {
         assert(0 == dir->buffer_size);
+        assert(0 == dir->restart_offset);
     }
 }
 
@@ -89,9 +91,10 @@ static enum proto_parse_status streambuf_append(struct streambuf *sbuf, unsigned
     // FIXME: use a redim_array ?
 
     struct streambuf_unidir *dir = sbuf->dir+way;
-    assert(!dir->buffer || dir->restart_offset < dir->buffer_size);
+    assert(!dir->buffer || dir->restart_offset <= dir->buffer_size);
 
     if (! dir->buffer) {
+        assert(0 == dir->restart_offset);
         dir->buffer = packet;
         dir->buffer_size = cap_len;
         dir->buffer_is_malloced = false;
@@ -115,16 +118,17 @@ static enum proto_parse_status streambuf_append(struct streambuf *sbuf, unsigned
         } else {
             streambuf_empty(dir);
         }
+        dir->restart_offset = 0;
     }
 
-    dir->restart_offset = 0;
     return PROTO_OK;
 }
 
+// Copy the packet into a buffer for later use
 static int streambuf_keep(struct streambuf_unidir *dir)
 {
     assert(dir->buffer);
-    if (dir->buffer_is_malloced) return 0;
+    if (dir->buffer_is_malloced) return 0;  // we already own a copy, do not touch it.
 
     size_t const len = dir->buffer_size - dir->restart_offset;
     uint8_t *buf = MALLOC(streambufs, len);
@@ -132,7 +136,7 @@ static int streambuf_keep(struct streambuf_unidir *dir)
         dir->buffer = NULL; // never escape from here with buffer referencing a non malloced packet
         return -1;
     }
-    memcpy(buf, dir->buffer+dir->restart_offset, len);
+    memcpy(buf, dir->buffer + dir->restart_offset, len);
     dir->buffer = buf;
     dir->buffer_is_malloced = true;
     dir->buffer_size = len;
@@ -149,13 +153,20 @@ enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *par
     if (status != PROTO_OK) return status;
 
     struct streambuf_unidir *dir = sbuf->dir+way;
-    assert(dir->restart_offset == 0);
 
     unsigned nb_max_restart = 10;
     while (nb_max_restart--) {
         // If the user do not call streambuf_restart_offset() then this means there is no restart
+        size_t const offset = dir->restart_offset;
+        assert(offset <= dir->buffer_size);
         dir->restart_offset = dir->buffer_size;
-        status = sbuf->parse(parser, parent, way, dir->buffer, dir->buffer_size, dir->buffer_size + (wire_len-cap_len), now, tot_cap_len, tot_packet);
+        status = sbuf->parse(
+            parser, parent, way,
+            dir->buffer + offset,
+            dir->buffer_size - offset,
+            dir->buffer_size - offset + (wire_len-cap_len),
+            now, tot_cap_len, tot_packet);
+        assert(dir->restart_offset >= offset);
 
         /* 2 cases here: either the user parsed everything, and we can dispose of the buffer.
          * or the user set the restart_offset somewhere and expect more data.
