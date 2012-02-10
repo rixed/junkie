@@ -153,9 +153,9 @@ static void reset_edges(void)
     }
 }
 
-int parse_callback(struct proto_info const *info, size_t unused_ cap_len, uint8_t const unused_ *packet)
+static void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info const *info, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
-    ASSIGN_INFO_CHK(cap, info, 0);
+    ASSIGN_INFO_CHK(cap, info, );
     static time_t last_output = 0;
     if (! last_output) {
         last_output = cap->tv.tv_sec;
@@ -165,17 +165,17 @@ int parse_callback(struct proto_info const *info, size_t unused_ cap_len, uint8_
         last_output = cap->tv.tv_sec;
     }
 
-    ASSIGN_INFO_CHK(arp, info, 0);
-    if (arp->opcode != ARP_REPLY) return 0;
-    if (! arp->proto_addr_is_ip) return 0;
+    ASSIGN_INFO_CHK(arp, info, );
+    if (arp->opcode != ARP_REPLY) return;
+    if (! arp->proto_addr_is_ip) return;
 
     struct edge_key key;
     edge_key_ctor(&key, &arp->sender, &arp->target);
     (void)edge_new(&key);
     edge_key_dtor(&key);
-
-    return 0;
 }
+
+static struct proto_subscriber subscription;
 
 void on_load(void)
 {
@@ -183,11 +183,13 @@ void on_load(void)
     SLOG(LOG_INFO, "Loading arpgraph");
     cli_register("Arpgraph plugin", arpgraph_opts, NB_ELEMS(arpgraph_opts));
     HASH_INIT(&edges, 103, "arpgraph edges");
+    proto_pkt_subscriber_ctor(&subscription, pkt_callback);
 }
 
 void on_unload(void)
 {
     SLOG(LOG_INFO, "Unloading arpgraph");
+    proto_pkt_subscriber_dtor(&subscription);
     cli_unregister(arpgraph_opts);
     HASH_DEINIT(&edges);
     hash_fini();

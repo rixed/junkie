@@ -52,6 +52,6 @@ void streambuf_dtor(struct streambuf *);
 void streambuf_set_restart(struct streambuf *, unsigned way, uint8_t const *, bool wait);
 
 /// Add the new payload to the buffered payload, then call the parse callback
-enum proto_parse_status streambuf_add(struct streambuf *, struct parser *, struct proto_info *, unsigned, uint8_t const *, size_t, size_t, struct timeval const *, proto_okfn_t *, size_t tot_cap_len, uint8_t const *tot_packet);
+enum proto_parse_status streambuf_add(struct streambuf *, struct parser *, struct proto_info *, unsigned, uint8_t const *, size_t, size_t, struct timeval const *, size_t tot_cap_len, uint8_t const *tot_packet);
 
 #endif

@@ -124,7 +124,7 @@ static int session_is_tls(uint8_t const *packet, size_t packet_len)
     return packet_len > 2 && packet[0] == 23 && packet[1] == 3 && packet[2] == 1;
 }
 
-static enum proto_parse_status ssl_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status ssl_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     size_t const head_len = 3; // 3 bytes in the minimum size to tag a flow as ssl
 
@@ -148,7 +148,7 @@ static enum proto_parse_status ssl_parse(struct parser *parser, struct proto_inf
     struct ssl_proto_info info;
     ssl_proto_info_ctor(&info, parser, parent, head_len, wire_len - head_len, mode);
 
-    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
+    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
 
 /*

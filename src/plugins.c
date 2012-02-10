@@ -49,8 +49,6 @@ static int plugin_ctor(struct plugin *plugin, char const *libname)
         return -1;
     }
     snprintf(plugin->libname, sizeof(plugin->libname), "%s", libname);
-    plugin->parse_callback = lt_dlsym(plugin->handle, "parse_callback");
-    SLOG(LOG_DEBUG, "Plugin %s loaded with%s parse callback", libname, plugin->parse_callback ? "":"out");
 
     // Call the plugin initializer
     void (*on_load)(void) = lt_dlsym(plugin->handle, "on_load");
@@ -106,17 +104,6 @@ void plugin_del_all(void)
         plugin_del(plugin);
     }
     mutex_unlock(&plugins_mutex);
-}
-
-int parser_callbacks(struct proto_info const *last, size_t tot_cap_len, uint8_t const *tot_packet)
-{
-    struct plugin *plugin;
-    mutex_lock(&plugins_mutex);
-    LIST_FOREACH(plugin, &plugins, entry) {
-        if (plugin->parse_callback) plugin->parse_callback(last, tot_cap_len, tot_packet);
-    }
-    mutex_unlock(&plugins_mutex);
-    return 0;
 }
 
 static struct ext_function sg_load_plugin;

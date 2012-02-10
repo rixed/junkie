@@ -75,7 +75,7 @@ static struct parse_test {
 
 static unsigned cur_test;
 
-static int rtcp_info_check(struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
+static void rtcp_info_check(struct proto_subscriber unused_ *s, struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
     struct rtcp_proto_info const *const info = DOWNCAST(info_, info, rtcp_proto_info);
     struct expected const *const exp = &parse_tests[cur_test].exp;
@@ -89,8 +89,6 @@ static int rtcp_info_check(struct proto_info const *info_, size_t unused_ cap_le
     CHECK(ntp_ts);
 
 #undef CHECK
-
-    return 0;
 }
 
 static void parse_check(void)
@@ -99,11 +97,14 @@ static void parse_check(void)
     timeval_set_now(&now);
     struct parser *rtcp_parser = proto_rtcp->ops->parser_new(proto_rtcp);
     assert(rtcp_parser);
+    struct proto_subscriber sub;
+    proto_pkt_subscriber_ctor(&sub, rtcp_info_check);
 
     for (cur_test = 0; cur_test < NB_ELEMS(parse_tests); cur_test++) {
-        (void)rtcp_parse(rtcp_parser, NULL, 0, parse_tests[cur_test].packet, parse_tests[cur_test].size, parse_tests[cur_test].size, &now, rtcp_info_check, parse_tests[cur_test].size, parse_tests[cur_test].packet);
+        (void)rtcp_parse(rtcp_parser, NULL, 0, parse_tests[cur_test].packet, parse_tests[cur_test].size, parse_tests[cur_test].size, &now, parse_tests[cur_test].size, parse_tests[cur_test].packet);
     }
 
+    proto_pkt_subscriber_dtor(&sub);
     parser_unref(rtcp_parser);
 }
 
@@ -118,6 +119,7 @@ int main(void)
     ext_init();
     mallocer_init();
     ref_init();
+    proto_init();
     rtcp_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("rtcp_check.log");
@@ -132,6 +134,7 @@ int main(void)
 
     doomer_stop();
     rtcp_fini();
+    proto_fini();
     ref_fini();
     mallocer_fini();
     ext_fini();

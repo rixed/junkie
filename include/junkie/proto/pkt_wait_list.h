@@ -20,14 +20,10 @@
  * purpose of this list is thus to reorder and wait for missing packets,
  * according to an "offset" in the stream that can be TCP sequence number, IP
  * fragment offset, WTP sequence number...  The user callbacks will not be
- * called until the hole in the stream is completed.  When the pending packets
- * are discarded, the subparser is not called but the okfn is, which imply
- * that:
- *
- * - the callback is still called once per received packet;
- *
- * - the callback may be called for packets which cap->tv are no more
- * ascending.
+ * called until the hole in the stream is filled in.  When the pending packets
+ * are discarded, the subparser is not called but the subscribers of the last
+ * proto_info are, which imply that the subscibers may be called for packets
+ * which cap->tv are no more ascending.
  *
  * This simple scheme leads to some difficulties since, for performance
  * reasons, all data that are build by the parsers for the callbacks are stored
@@ -75,8 +71,6 @@ struct pkt_wait {
     struct proto_info *parent;
     /// Current way at the time when the packet was put on hold
     unsigned way;
-    /// Current okfn at the time when the packet was put on hold (FIXME: is it safe to store this, since the plugin might have been unpluged by the time ?)
-    proto_okfn_t *okfn;
     /// The copy of the total captured packet
     uint8_t packet[];
 };
@@ -159,7 +153,7 @@ int pkt_wait_list_ctor(
     struct timeval const *now       ///< To set the last used time
 );
 
-/// Destruct a pkt_wait_list, calling the okfn for every pending packets.
+/// Destruct a pkt_wait_list, calling the subscribers for every pending packets.
 void pkt_wait_list_dtor(struct pkt_wait_list *, struct timeval const *now);
 
 /// Enqueue a packet (or deal with it immediately if possible)
@@ -180,9 +174,8 @@ enum proto_parse_status pkt_wait_list_add(
     size_t cap_len,                 ///< It's length
     size_t wire_len,                ///< It's actual length on the wire
     struct timeval const *now,      ///< The current time
-    proto_okfn_t *okfn,             ///< The "continuation"
     size_t tot_cap_len,             ///< The capture length of the whole packet
-    uint8_t const *tot_packet       ///< The whole packet (as given to okfn)
+    uint8_t const *tot_packet       ///< The whole packet (as given to subscribers)
 );
 
 /// Tells if the wait list is complete between these two offsets.

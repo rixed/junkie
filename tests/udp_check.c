@@ -38,7 +38,7 @@ static struct parse_test {
 
 static unsigned current_test;
 
-static int udp_info_check(struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
+static void udp_info_check(struct proto_subscriber unused_ *s, struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
     // Check info against parse_tests[current_test].expected
     struct udp_proto_info const *const info = DOWNCAST(info_, info, udp_proto_info);
@@ -47,8 +47,6 @@ static int udp_info_check(struct proto_info const *info_, size_t unused_ cap_len
     assert(info->info.payload == expected->info.payload);
     assert(info->key.port[0] == expected->key.port[0]);
     assert(info->key.port[1] == expected->key.port[1]);
-
-    return 0;
 }
 
 static void parse_check(void)
@@ -57,12 +55,15 @@ static void parse_check(void)
     timeval_set_now(&now);
     struct parser *udp_parser = proto_udp->ops->parser_new(proto_udp);
     assert(udp_parser);
+    struct proto_subscriber sub;
+    proto_pkt_subscriber_ctor(&sub, udp_info_check);
 
     for (current_test = 0; current_test < NB_ELEMS(parse_tests); current_test++) {
-        int ret = udp_parse(udp_parser, NULL, 0, parse_tests[current_test].packet, parse_tests[current_test].size, parse_tests[current_test].size, &now, udp_info_check, parse_tests[current_test].size, parse_tests[current_test].packet);
+        int ret = udp_parse(udp_parser, NULL, 0, parse_tests[current_test].packet, parse_tests[current_test].size, parse_tests[current_test].size, &now, parse_tests[current_test].size, parse_tests[current_test].packet);
         assert(0 == ret);
     }
 
+    proto_pkt_subscriber_dtor(&sub);
     parser_unref(udp_parser);
 }
 
@@ -73,6 +74,7 @@ int main(void)
     mallocer_init();
     pkt_wait_list_init();
     ref_init();
+    proto_init();
     cap_init();
     eth_init();
     ip_init();
@@ -90,6 +92,7 @@ int main(void)
     ip_fini();
     eth_fini();
     cap_fini();
+    proto_fini();
     ref_fini();
     pkt_wait_list_fini();
     mallocer_fini();

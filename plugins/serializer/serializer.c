@@ -88,7 +88,7 @@ static void ser_fini(void)
     }
 }
 
-int parse_callback(struct proto_info const *info, size_t unused_ cap_len, uint8_t const unused_ *packet)
+void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info const *info, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
     mutex_lock(&ser_buf_lock);
 
@@ -114,7 +114,6 @@ int parse_callback(struct proto_info const *info, size_t unused_ cap_len, uint8_
 
 quit:
     mutex_unlock(&ser_buf_lock);
-    return 0;
 }
 
 // Extension of the command line:
@@ -124,16 +123,20 @@ static struct cli_opt serializer_opts[] = {
     { { "msg-size", NULL }, true, "max message size",         CLI_SET_UINT, { .uint = &opt_msg_size } },
 };
 
+static struct proto_subscriber subscription;
+
 void on_load(void)
 {
     SLOG(LOG_INFO, "Loading serializer");
     cli_register("Serializer plugin", serializer_opts, NB_ELEMS(serializer_opts));
     mutex_ctor(&ser_buf_lock, "Serializer buffer lock");
+    proto_pkt_subscriber_ctor(&subscription, pkt_callback);
 }
 
 void on_unload(void)
 {
     SLOG(LOG_INFO, "Unloading serializer");
+    proto_pkt_subscriber_dtor(&subscription);
     cli_unregister(serializer_opts);
     ser_fini();
     mutex_dtor(&ser_buf_lock);

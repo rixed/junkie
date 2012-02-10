@@ -348,7 +348,7 @@ static enum proto_parse_status tns_parse_data(struct tns_parser unused_ *tns_par
     return PROTO_OK;
 }
 
-static enum proto_parse_status tns_sbuf_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status tns_sbuf_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct tns_parser *tns_parser = DOWNCAST(parser, parser, tns_parser);
 
@@ -406,15 +406,15 @@ static enum proto_parse_status tns_sbuf_parse(struct parser *parser, struct prot
         cursor_drop(&cursor, pdu_len);
     }
 
-    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
+    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
 
-static enum proto_parse_status tns_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status tns_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct tns_parser *tns_parser = DOWNCAST(parser, parser, tns_parser);
 
     mutex_lock(&tns_parser->mutex);
-    enum proto_parse_status const status = streambuf_add(&tns_parser->sbuf, parser, parent, way, payload, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
+    enum proto_parse_status const status = streambuf_add(&tns_parser->sbuf, parser, parent, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
     mutex_unlock(&tns_parser->mutex);
 
     return status;

@@ -205,7 +205,7 @@ static bool looks_like_netbios(char const *name)
     return len >= 32;
 }
 
-static enum proto_parse_status dns_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status dns_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct dns_hdr *dnshdr = (struct dns_hdr *)packet;
 
@@ -257,7 +257,7 @@ static enum proto_parse_status dns_parse(struct parser *parser, struct proto_inf
     }
 
     // We don't care that much about the answer.
-    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
+    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
 
 /*

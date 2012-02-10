@@ -98,7 +98,7 @@ static struct parse_test {
 
 static unsigned current_test;
 
-static int icmp_info_check(struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
+static void icmp_info_check(struct proto_subscriber unused_ *s, struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
     struct icmp_proto_info const *const info = DOWNCAST(info_, info, icmp_proto_info);
     struct icmp_proto_info const *const expected = &parse_tests[current_test].expected;
@@ -123,7 +123,6 @@ static int icmp_info_check(struct proto_info const *info_, size_t unused_ cap_le
             assert(info->err.port[1] == expected->err.port[1]);
         }
     }
-    return 0;
 }
 
 static void parse_check(void)
@@ -134,17 +133,20 @@ static void parse_check(void)
     assert(icmp_parser);
     struct parser *icmpv6_parser = proto_icmpv6->ops->parser_new(proto_icmpv6);
     assert(icmpv6_parser);
+    struct proto_subscriber sub;
+    proto_pkt_subscriber_ctor(&sub, icmp_info_check);
 
     for (current_test = 0; current_test < NB_ELEMS(parse_tests); current_test++) {
         struct parse_test const *const test = parse_tests + current_test;
         printf("Test packet %u... ", current_test);
         int ret = test->version == 4 ?
-            icmp_parse(icmp_parser, NULL, 0, test->packet, test->size, test->size, &now, icmp_info_check, test->size, test->packet) :
-            icmpv6_parse(icmpv6_parser, NULL, 0, test->packet, test->size, test->size, &now, icmp_info_check, test->size, test->packet);
+            icmp_parse(icmp_parser, NULL, 0, test->packet, test->size, test->size, &now, test->size, test->packet) :
+            icmpv6_parse(icmpv6_parser, NULL, 0, test->packet, test->size, test->size, &now, test->size, test->packet);
         assert(0 == ret);
         printf("Ok\n");
     }
 
+    proto_pkt_subscriber_dtor(&sub);
     parser_unref(icmpv6_parser);
     parser_unref(icmp_parser);
 }

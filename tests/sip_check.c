@@ -94,7 +94,7 @@ static struct parse_test {
 
 static unsigned cur_test;
 
-static int sip_info_check(struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
+static void sip_info_check(struct proto_subscriber unused_ *s, struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
     // Check info against parse_tests[cur_test].expected
     struct sip_proto_info const *const info = DOWNCAST(info_, info, sip_proto_info);
@@ -115,8 +115,6 @@ static int sip_info_check(struct proto_info const *info_, size_t unused_ cap_len
         assert(0 == ip_addr_cmp(&info->via.addr, &expected->via.addr));
         assert(info->via.port == expected->via.port);
     }
-
-    return 0;
 }
 
 static void parse_check(void)
@@ -125,13 +123,16 @@ static void parse_check(void)
     timeval_set_now(&now);
     struct parser *sip_parser = proto_sip->ops->parser_new(proto_sip);
     assert(sip_parser);
+    struct proto_subscriber sub;
+    proto_pkt_subscriber_ctor(&sub, sip_info_check);
 
     for (cur_test = 0; cur_test < NB_ELEMS(parse_tests); cur_test++) {
         size_t const len = strlen((char *)parse_tests[cur_test].packet);
-        enum proto_parse_status ret = sip_parse(sip_parser, NULL, 0, parse_tests[cur_test].packet, len, len, &now, sip_info_check, len, parse_tests[cur_test].packet);
+        enum proto_parse_status ret = sip_parse(sip_parser, NULL, 0, parse_tests[cur_test].packet, len, len, &now, len, parse_tests[cur_test].packet);
         assert(ret == parse_tests[cur_test].ret);
     }
 
+    proto_pkt_subscriber_dtor(&sub);
     parser_unref(sip_parser);
 }
 
@@ -139,15 +140,15 @@ struct proto *proto_sdp;
 
 int main(void)
 {
+    ext_init();
     log_init();
     mutex_init();
-    ext_init();
     mallocer_init();
     hash_init();
-    proto_init();
     cnxtrack_init();
     pkt_wait_list_init();
     ref_init();
+    proto_init();
     cap_init();
     eth_init();
     ip_init();
@@ -171,15 +172,15 @@ int main(void)
     ip_fini();
     eth_fini();
     cap_fini();
+    proto_fini();
     ref_fini();
     pkt_wait_list_fini();
     cnxtrack_fini();
-    proto_fini();
     hash_fini();
     mallocer_fini();
-    ext_fini();
     mutex_fini();
     log_fini();
+    ext_fini();
     return EXIT_SUCCESS;
 }
 

@@ -198,7 +198,7 @@ static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, 
     enter_unsafe_region();
 
     assert(cap_parser);
-    (void)proto_parse(cap_parser, NULL, 0, (uint8_t *)&frame, frame.cap_len, frame.wire_len, &frame.tv, parser_callbacks, frame.cap_len, frame.data);
+    (void)proto_parse(cap_parser, NULL, 0, (uint8_t *)&frame, frame.cap_len, frame.wire_len, &frame.tv, frame.cap_len, frame.data);
 
     enter_safe_region();
 

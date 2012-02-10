@@ -172,7 +172,7 @@ struct mux_subparser *eth_subparser_and_parser_new(struct parser *parser, struct
     return mux_subparser_and_parser_new(mux_parser, proto, requestor, collapse_vlans ? &vlan_unset : &vlan_id, now);
 }
 
-static enum proto_parse_status eth_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status eth_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct eth_hdr const *ethhdr = (struct eth_hdr *)packet;
@@ -244,13 +244,13 @@ static enum proto_parse_status eth_parse(struct parser *parser, struct proto_inf
 
     assert(ethhdr_len <= cap_len);
 
-    enum proto_parse_status status = proto_parse(subparser->parser, &info.info, way, packet + ethhdr_len, frame_cap_len, frame_wire_len, now, okfn, tot_cap_len, tot_packet);
+    enum proto_parse_status status = proto_parse(subparser->parser, &info.info, way, packet + ethhdr_len, frame_cap_len, frame_wire_len, now, tot_cap_len, tot_packet);
     mux_subparser_unref(subparser);
 
     if (status == PROTO_OK) return PROTO_OK;
 
 fallback:
-    (void)proto_parse(NULL, &info.info, way, packet + ethhdr_len, frame_cap_len, frame_wire_len, now, okfn, tot_cap_len, tot_packet);
+    (void)proto_parse(NULL, &info.info, way, packet + ethhdr_len, frame_cap_len, frame_wire_len, now, tot_cap_len, tot_packet);
     return PROTO_OK;
 }
 

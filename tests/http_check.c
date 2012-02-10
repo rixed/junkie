@@ -228,7 +228,7 @@ static struct parse_test {
 static unsigned current_test;
 static unsigned current_rep;
 
-static int http_info_check(struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
+static void http_info_check(struct proto_subscriber unused_ *s, struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
     assert(current_rep < parse_tests[current_test].nb_expected);
 
@@ -244,8 +244,6 @@ static int http_info_check(struct proto_info const *info_, size_t unused_ cap_le
     if (info->set_values & HTTP_MIME_SET)   assert(0 == strcmp(info->mime_type, expected->mime_type));
     if (info->set_values & HTTP_HOST_SET)   assert(0 == strcmp(info->host,      expected->host));
     if (info->set_values & HTTP_URL_SET)    assert(0 == strcmp(info->url,       expected->url));
-
-    return 0;
 }
 
 static void parse_check(void)
@@ -254,6 +252,8 @@ static void parse_check(void)
     timeval_set_now(&now);
     struct parser *parser = proto_http->ops->parser_new(proto_http);
     assert(parser);
+    struct proto_subscriber sub;
+    proto_pkt_subscriber_ctor(&sub, http_info_check);
 
     for (current_test = 0; current_test < NB_ELEMS(parse_tests); current_test++) {
         current_rep = 0;
@@ -265,11 +265,12 @@ static void parse_check(void)
             http_parser->c2s_way = ~0U;
         }
         size_t const len = strlen(test->packet);
-        enum proto_parse_status status = http_parse(parser, NULL, 0, (uint8_t *)test->packet, len, len, &now, http_info_check, len, (uint8_t *)test->packet);
+        enum proto_parse_status status = http_parse(parser, NULL, 0, (uint8_t *)test->packet, len, len, &now, len, (uint8_t *)test->packet);
         assert(status == test->ret);
         printf("Ok\n");
     }
 
+    proto_pkt_subscriber_dtor(&sub);
     parser_unref(parser);
 }
 
@@ -302,10 +303,9 @@ void build_url_check(void)
 }
 
 static bool caplen_reported;
-static int caplen_info_check(struct proto_info const unused_ *info, size_t unused_ cap_len, uint8_t const unused_ *packet)
+static void caplen_info_check(struct proto_subscriber unused_ *s, struct proto_info const unused_ *info, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
     caplen_reported = true;
-    return 0;
 }
 
 static void caplen_check(void)
@@ -319,13 +319,17 @@ static void caplen_check(void)
     timeval_set_now(&now);
     struct parser *http_parser = proto_http->ops->parser_new(proto_http);
     assert(http_parser);
+    struct proto_subscriber sub;
+    proto_pkt_subscriber_ctor(&sub, caplen_info_check);
 
     for (size_t cap_len = 9; cap_len < strlen(msg); cap_len++) {
         caplen_reported = false;
-        int ret = http_parse(http_parser, NULL, 0, (uint8_t *)msg, cap_len, strlen(msg), &now, caplen_info_check, cap_len, (uint8_t *)msg);
+        int ret = http_parse(http_parser, NULL, 0, (uint8_t *)msg, cap_len, strlen(msg), &now, cap_len, (uint8_t *)msg);
         assert(ret == PROTO_OK);
         assert(caplen_reported);
     }
+
+    proto_pkt_subscriber_dtor(&sub);
 }
 
 int main(void)

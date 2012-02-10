@@ -99,7 +99,7 @@ struct mux_subparser *cap_subparser_and_parser_new(struct parser *parser, struct
 }
 
 // cap_len is not the length of the actual packet but the size of the data we receive, ie struct frame + what we captured from the wire.
-static enum proto_parse_status cap_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t unused_ cap_len, size_t unused_ wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status cap_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t unused_ cap_len, size_t unused_ wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct frame const *frame = (struct frame *)packet;
@@ -113,13 +113,13 @@ static enum proto_parse_status cap_parse(struct parser *parser, struct proto_inf
 
     if (! subparser) goto fallback;
 
-    enum proto_parse_status status = proto_parse(subparser->parser, &info.info, way, frame->data, frame->cap_len, frame->wire_len, now, okfn, tot_cap_len, tot_packet);
+    enum proto_parse_status status = proto_parse(subparser->parser, &info.info, way, frame->data, frame->cap_len, frame->wire_len, now, tot_cap_len, tot_packet);
     mux_subparser_unref(subparser);
 
     if (status == PROTO_OK) return PROTO_OK;
 
 fallback:
-    (void)proto_parse(NULL, &info.info, way, frame->data, frame->cap_len, frame->wire_len, now, okfn, tot_cap_len, tot_packet);
+    (void)proto_parse(NULL, &info.info, way, frame->data, frame->cap_len, frame->wire_len, now, tot_cap_len, tot_packet);
     return PROTO_OK;
 }
 

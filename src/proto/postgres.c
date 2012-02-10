@@ -303,7 +303,7 @@ static enum proto_parse_status cursor_read_msg(struct cursor *cursor, uint8_t *t
     return PROTO_OK;
 }
 
-static enum proto_parse_status pg_parse_init(struct pgsql_parser *pg_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status pg_parse_init(struct pgsql_parser *pg_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     info->msg_type = SQL_STARTUP;
 
@@ -364,10 +364,10 @@ static enum proto_parse_status pg_parse_init(struct pgsql_parser *pg_parser, str
         }
     }
 
-    return proto_parse(NULL, &info->info, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
+    return proto_parse(NULL, &info->info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
 
-static enum proto_parse_status pg_parse_startup(struct pgsql_parser *pg_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status pg_parse_startup(struct pgsql_parser *pg_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     info->msg_type = SQL_STARTUP;
 
@@ -404,7 +404,7 @@ static enum proto_parse_status pg_parse_startup(struct pgsql_parser *pg_parser, 
     }
 
     // Discard the rest of the packet
-    return proto_parse(NULL, &info->info, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
+    return proto_parse(NULL, &info->info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
 
 // nb_rows is always the last word of result
@@ -427,7 +427,7 @@ static enum proto_parse_status fetch_nb_rows(char const *result, unsigned *nb_ro
     return PROTO_OK;
 }
 
-static enum proto_parse_status pg_parse_query(struct pgsql_parser *pg_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status pg_parse_query(struct pgsql_parser *pg_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     enum proto_parse_status status;
     info->msg_type = SQL_QUERY;
@@ -461,7 +461,7 @@ static enum proto_parse_status pg_parse_query(struct pgsql_parser *pg_parser, st
             if (status == PROTO_PARSE_ERR) return status;
             else if (status == PROTO_TOO_SHORT) {
                 SLOG(LOG_DEBUG, "Payload too short for parsing message, will restart");
-                status = proto_parse(NULL, &info->info, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);    // ack what we had so far
+                status = proto_parse(NULL, &info->info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);    // ack what we had so far
                 streambuf_set_restart(&pg_parser->sbuf, way, msg_start, true);
                 return PROTO_OK;
             }
@@ -501,10 +501,10 @@ static enum proto_parse_status pg_parse_query(struct pgsql_parser *pg_parser, st
         }
     }
 
-    return proto_parse(NULL, &info->info, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
+    return proto_parse(NULL, &info->info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
 
-static enum proto_parse_status pg_sbuf_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status pg_sbuf_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct pgsql_parser *pg_parser = DOWNCAST(parser, parser, pgsql_parser);
 
@@ -521,21 +521,21 @@ static enum proto_parse_status pg_sbuf_parse(struct parser *parser, struct proto
     info.set_values = 0;
 
     switch (pg_parser->phase) {
-        case NONE:    return pg_parse_init   (pg_parser, &info, way, payload, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
-        case STARTUP: return pg_parse_startup(pg_parser, &info, way, payload, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
-        case QUERY:   return pg_parse_query  (pg_parser, &info, way, payload, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
+        case NONE:    return pg_parse_init   (pg_parser, &info, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
+        case STARTUP: return pg_parse_startup(pg_parser, &info, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
+        case QUERY:   return pg_parse_query  (pg_parser, &info, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
         case EXIT:    return PROTO_PARSE_ERR;   // we do not expect payload after a termination message
     }
 
     return PROTO_PARSE_ERR;
 }
 
-static enum proto_parse_status pg_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status pg_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct pgsql_parser *pg_parser = DOWNCAST(parser, parser, pgsql_parser);
 
     mutex_lock(&pg_parser->mutex);
-    enum proto_parse_status const status = streambuf_add(&pg_parser->sbuf, parser, parent, way, payload, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
+    enum proto_parse_status const status = streambuf_add(&pg_parser->sbuf, parser, parent, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
     mutex_unlock(&pg_parser->mutex);
 
     return status;

@@ -57,13 +57,13 @@ static void init_capture(void)
 }
 
 static bool inited = false;
-int parse_callback(struct proto_info const *info, size_t cap_len, uint8_t const *packet)
+void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info const *info, size_t cap_len, uint8_t const *packet)
 {
     static bool writing = false;
     static struct timeval start;
     static uint64_t pld_since_start;
 
-    ASSIGN_INFO_CHK(cap, info, 0);
+    ASSIGN_INFO_CHK(cap, info, );
 
     if (! inited) {
         inited = true;
@@ -93,9 +93,9 @@ int parse_callback(struct proto_info const *info, size_t cap_len, uint8_t const 
     if (writing && capfile) {
         (void)capfile->ops->write(capfile, info, cap_len, packet);
     }
-
-    return 0;
 }
+
+static struct proto_subscriber subscription;
 
 void on_load(void)
 {
@@ -104,11 +104,13 @@ void on_load(void)
     capfile = NULL;
     opt_file = NULL;
     inited = false;
+    proto_pkt_subscriber_ctor(&subscription, pkt_callback);
 }
 
 void on_unload(void)
 {
     SLOG(LOG_INFO, "Unloading rater");
+    proto_pkt_subscriber_dtor(&subscription);
     cli_unregister(rater_opts);
     if (capfile) {
         capfile->ops->del(capfile);

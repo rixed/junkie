@@ -308,12 +308,12 @@ static void parse_call_id(struct mgcp_proto_info *info, struct liner *liner)
 }
 
 // FIXME: give wire_len to liner ??
-static enum proto_parse_status mgcp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status mgcp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct mgcp_parser *mgcp_parser = DOWNCAST(parser, parser, mgcp_parser);
 
     size_t payload = 0;
-    // Parse one message (in case of piggybacking, will call ourself recursively so that okfn is called once for each msg)
+    // Parse one message (in case of piggybacking, will call ourself recursively so that subscribers are called once for each msg)
     struct mgcp_proto_info info;
 
     struct liner liner;
@@ -404,17 +404,17 @@ static enum proto_parse_status mgcp_parse(struct parser *parser, struct proto_in
         // TODO: We suppose a call is unique in the socket pair, ie. that this parser will handle only one call, so we can keep our SDP with us.
         // SO, create a mgcp_parser with an embedded sdp parser, created as soon as mgcp_parser is constructed.
         size_t const rem_len = liner_rem_length(&liner);
-        int err = proto_parse(child, &info.info, way, (uint8_t *)liner.start, rem_len, rem_len, now, okfn, tot_cap_len, tot_packet);
-        if (err) proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
+        int err = proto_parse(child, &info.info, way, (uint8_t *)liner.start, rem_len, rem_len, now, tot_cap_len, tot_packet);
+        if (err) proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
         return PROTO_OK;
     }
 
-    (void)proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
+    (void)proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 
     // In case of piggybacking, we may have further messages down there
     if (! liner_eof(&liner)) {
         size_t const rem_len = liner_rem_length(&liner);
-        return mgcp_parse(parser, parent, way, (uint8_t *)liner.start, rem_len, rem_len, now, okfn, tot_cap_len, tot_packet);
+        return mgcp_parse(parser, parent, way, (uint8_t *)liner.start, rem_len, rem_len, now, tot_cap_len, tot_packet);
     }
 
     return PROTO_OK;

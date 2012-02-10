@@ -175,7 +175,7 @@ static void spawn_subparsers(struct ip_addr const *this_host, uint16_t this_port
     (void)cnxtrack_ip_new(IPPROTO_UDP, this_host, this_port+1, other_host, other_port+1, false, proto_rtcp, now, requestor);
 }
 
-static enum proto_parse_status sdp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status sdp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct sdp_parser *sdp_parser = DOWNCAST(parser, parser, sdp_parser);
 
@@ -247,7 +247,7 @@ static enum proto_parse_status sdp_parse(struct parser *parser, struct proto_inf
         }
     }
 
-    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
+    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
 
 /*

@@ -253,7 +253,7 @@ struct mux_subparser *tcp_subparser_lookup(struct parser *parser, struct proto *
     return mux_subparser_lookup(mux_parser, proto, requestor, &key, now);
 }
 
-static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct tcp_hdr const *tcphdr = (struct tcp_hdr *)packet;
@@ -341,14 +341,14 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
 
     enum proto_parse_status err;
     /* Use the wait_list to parse this packet.
-       Notice that we do queue empty packets because subparser (or okfn) might be interested in receiving all packets in order. */
+       Notice that we do queue empty packets because subparser (or subscriber) want to receive all packets in order, including empty ones. */
     if (tcp_sub->syn[way]) {
         size_t const packet_len = wire_len - tcphdr_len;
         unsigned const offset = info.seq_num - tcp_sub->isn[way];
         unsigned const next_offset = offset + packet_len + info.syn + info.fin;
-        err = pkt_wait_list_add(tcp_sub->wl+way, offset, next_offset, true, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, packet_len, now, okfn, tot_cap_len, tot_packet);
+        err = pkt_wait_list_add(tcp_sub->wl+way, offset, next_offset, true, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, packet_len, now, tot_cap_len, tot_packet);
     } else {    // Without the ISN, the pkt_wait_list is unusable. FIXME: the pkt_wait_list should work nonetheless.
-        err = proto_parse(subparser->parser, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, wire_len - tcphdr_len, now, okfn, tot_cap_len, tot_packet);
+        err = proto_parse(subparser->parser, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, wire_len - tcphdr_len, now, tot_cap_len, tot_packet);
     }
 
     bool const term = tcp_subparser_term(tcp_sub);
@@ -363,7 +363,7 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
     if (err == PROTO_OK) return PROTO_OK;
 
 fallback:
-    (void)proto_parse(NULL, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, wire_len - tcphdr_len, now, okfn, tot_cap_len, tot_packet);
+    (void)proto_parse(NULL, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, wire_len - tcphdr_len, now, tot_cap_len, tot_packet);
     return PROTO_OK;
 }
 

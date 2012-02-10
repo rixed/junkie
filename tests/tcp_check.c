@@ -72,7 +72,7 @@ static struct parse_test {
 
 static unsigned current_test;
 
-static int tcp_info_check(struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
+static void tcp_info_check(struct proto_subscriber unused_ *s, struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
     // Check info against parse_tests[current_test].expected
     struct tcp_proto_info const *const info = DOWNCAST(info_, info, tcp_proto_info);
@@ -81,8 +81,6 @@ static int tcp_info_check(struct proto_info const *info_, size_t unused_ cap_len
     assert(info->info.payload == expected->info.payload);
     assert(info->key.port[0] == expected->key.port[0]);
     assert(info->key.port[1] == expected->key.port[1]);
-
-    return 0;
 }
 
 static void parse_check(void)
@@ -91,13 +89,16 @@ static void parse_check(void)
     timeval_set_now(&now);
     struct parser *tcp_parser = proto_tcp->ops->parser_new(proto_tcp);
     assert(tcp_parser);
+    struct proto_subscriber sub;
+    proto_pkt_subscriber_ctor(&sub, tcp_info_check);
 
     for (current_test = 0; current_test < NB_ELEMS(parse_tests); current_test++) {
         size_t const len = parse_tests[current_test].size;
-        int ret = tcp_parse(tcp_parser, NULL, 0, parse_tests[current_test].packet, len, len, &now, tcp_info_check, len, parse_tests[current_test].packet);
+        int ret = tcp_parse(tcp_parser, NULL, 0, parse_tests[current_test].packet, len, len, &now, len, parse_tests[current_test].packet);
         assert(0 == ret);
     }
 
+    proto_pkt_subscriber_dtor(&sub);
     parser_unref(tcp_parser);
 }
 
@@ -127,7 +128,7 @@ static void term_check(void)
         assert(first || mux_parser->nb_children == 1);
         first = false;
 
-        int ret = tcp_parser->proto->ops->parse(tcp_parser, NULL, way, stream.packet + 20 /* skip ip */, sz - 20, sz - 20, &now, NULL, sz, stream.packet);
+        int ret = tcp_parser->proto->ops->parse(tcp_parser, NULL, way, stream.packet + 20 /* skip ip */, sz - 20, sz - 20, &now, sz, stream.packet);
         assert(0 == ret);
     }
     assert(sz == 0);

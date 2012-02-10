@@ -106,7 +106,7 @@ static struct parse_test {
 
 static unsigned current_test;
 
-static int dns_info_check(struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
+static void dns_info_check(struct proto_subscriber unused_ *s, struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
 	struct dns_proto_info const *const info = DOWNCAST(info_, info, dns_proto_info);
 	struct dns_proto_info const *const expected = &parse_tests[current_test].expected;
@@ -120,8 +120,6 @@ static int dns_info_check(struct proto_info const *info_, size_t unused_ cap_len
 	CHECK(request_type);
 	CHECK(dns_class);
 	assert(0 == strcmp(info->name, expected->name));
-
-	return 0;
 }
 
 static void parse_check(void)
@@ -130,15 +128,18 @@ static void parse_check(void)
     timeval_set_now(&now);
     struct parser *dns_parser = proto_dns->ops->parser_new(proto_dns);
     assert(dns_parser);
+    struct proto_subscriber sub;
+    proto_pkt_subscriber_ctor(&sub, dns_info_check);
 
     for (current_test = 0; current_test < NB_ELEMS(parse_tests); current_test++) {
         struct parse_test const *test = parse_tests + current_test;
         printf("Testing packet %u...", current_test);
-        int ret = dns_parse(dns_parser, NULL, 0, test->packet, test->size, test->size, &now, dns_info_check, test->size, test->packet);
+        int ret = dns_parse(dns_parser, NULL, 0, test->packet, test->size, test->size, &now, test->size, test->packet);
         assert(0 == ret);
 		printf("Ok\n");
     }
 
+    proto_pkt_subscriber_dtor(&sub);
     parser_unref(dns_parser);
 }
 
@@ -217,6 +218,7 @@ int main(void)
     mallocer_init();
     pkt_wait_list_init();
     ref_init();
+    proto_init();
     cap_init();
     eth_init();
     ip_init();
@@ -240,6 +242,7 @@ int main(void)
     ip_fini();
     eth_fini();
     cap_fini();
+    proto_fini();
     ref_fini();
     pkt_wait_list_fini();
     mallocer_fini();

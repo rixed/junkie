@@ -400,7 +400,7 @@ static void conntrack_via(struct sip_proto_info const *info, struct timeval cons
     (void)cnxtrack_ip_new(info->via.protocol, &info->via.addr, info->via.port, ADDR_UNKNOWN, PORT_UNKNOWN, false /* only one cnx */, proto_sip, now, NULL);
 }
 
-static enum proto_parse_status sip_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t unused_ *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status sip_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     static struct httper_command const commands[] = {
         [SIP_CMD_REGISTER] = { "REGISTER", 8, sip_set_command },
@@ -485,11 +485,11 @@ static enum proto_parse_status sip_parse(struct parser *parser, struct proto_inf
 
     if (! subparser) goto fallback;
 
-    if (0 != proto_parse(subparser, &info.info, way, packet + siphdr_len, cap_len - siphdr_len, wire_len - siphdr_len, now, okfn, tot_cap_len, tot_packet)) goto fallback;
+    if (0 != proto_parse(subparser, &info.info, way, packet + siphdr_len, cap_len - siphdr_len, wire_len - siphdr_len, now, tot_cap_len, tot_packet)) goto fallback;
     return PROTO_OK;
 
 fallback:
-    (void)proto_parse(NULL, &info.info, way, packet + siphdr_len, cap_len - siphdr_len, wire_len - siphdr_len, now, okfn, tot_cap_len, tot_packet);
+    (void)proto_parse(NULL, &info.info, way, packet + siphdr_len, cap_len - siphdr_len, wire_len - siphdr_len, now, tot_cap_len, tot_packet);
     return PROTO_OK;
 }
 

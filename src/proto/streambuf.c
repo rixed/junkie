@@ -141,7 +141,7 @@ static int streambuf_keep(struct streambuf_unidir *dir)
     return 0;
 }
 
-enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     MALLOCER_INIT(streambufs);
     assert(way < 2);
@@ -155,7 +155,7 @@ enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *par
     while (nb_max_restart--) {
         // If the user do not call streambuf_restart_offset() then this means there is no restart
         dir->restart_offset = dir->buffer_size;
-        status = sbuf->parse(parser, parent, way, dir->buffer, dir->buffer_size, dir->buffer_size + (wire_len-cap_len), now, okfn, tot_cap_len, tot_packet);
+        status = sbuf->parse(parser, parent, way, dir->buffer, dir->buffer_size, dir->buffer_size + (wire_len-cap_len), now, tot_cap_len, tot_packet);
 
         /* 2 cases here: either the user parsed everything, and we can dispose of the buffer.
          * or the user set the restart_offset somewhere and expect more data.

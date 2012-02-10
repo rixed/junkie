@@ -257,6 +257,8 @@ void ext_init(void)
 
     if (SUCCESS != scm_with_guile(init_scm_extensions, NULL)) exit(EXIT_FAILURE);
 
+    log_init();
+
     ext_function_ctor(&sg_parameter_names,
         "parameter-names", 0, 0, 0, g_parameter_names,
         "(parameter-names): returns the list of junkie configuration parameters.\n");
@@ -283,4 +285,6 @@ void ext_init(void)
 void ext_fini(void)
 {
     if (--inited) return;
+
+    log_fini();
 }

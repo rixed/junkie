@@ -15,7 +15,7 @@
 #define SERIALIZER_DEFAULT_SERVICE "28999"
 
 void serialize_proto_stack(uint8_t **buf, struct proto_info const *last);
-int deserialize_proto_stack(uint8_t const **buf, int (*okfn)(struct proto_info *));
+void deserialize_proto_stack(uint8_t const **buf);
 
 void serialize_init(void);
 void serialize_fini(void);

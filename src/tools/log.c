@@ -37,7 +37,7 @@
 
 bool use_syslog = false;
 
-struct log_categories log_categories = SLIST_HEAD_INITIALIZER(log_categories);
+struct log_categories log_categories;
 
 LOG_CATEGORY_DEF(global)
 
@@ -243,6 +243,7 @@ void log_init(void)
     files_init();
     ext_init();
 
+    SLIST_INIT(&log_categories);
     log_category_global_init();
     log_category_guile_init();
 
@@ -285,6 +286,9 @@ void log_fini(void)
 
     log_category_guile_fini();
     log_category_global_fini();
+    if (! SLIST_EMPTY(&log_categories)) {
+        SLOG(LOG_DEBUG, "Log catagory %s remains", SLIST_FIRST(&log_categories)->name);
+    }
 
     ext_fini();
     files_fini();

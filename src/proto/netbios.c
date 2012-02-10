@@ -61,7 +61,7 @@ static void netbios_proto_info_ctor(struct netbios_proto_info *info, struct pars
 }
 
 
-static enum proto_parse_status netbios_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status netbios_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     /* Sanity checks */
     if (wire_len < NETBIOS_HEADER_SIZE) return PROTO_PARSE_ERR;
@@ -78,12 +78,12 @@ static enum proto_parse_status netbios_parse(struct parser *parser, struct proto
     if (! parser_cifs) goto fallback;
 
     /* List of protocols above NetBios: CIFS, SMB, ... */
-    enum proto_parse_status status = proto_parse(parser_cifs, parent, way, next_packet, cap_len - NETBIOS_HEADER_SIZE, wire_len - NETBIOS_HEADER_SIZE, now, okfn, tot_cap_len, tot_packet);
+    enum proto_parse_status status = proto_parse(parser_cifs, parent, way, next_packet, cap_len - NETBIOS_HEADER_SIZE, wire_len - NETBIOS_HEADER_SIZE, now, tot_cap_len, tot_packet);
     parser_unref(parser_cifs);
     if (status == PROTO_OK) return PROTO_OK;
 
 fallback:
-    (void)proto_parse(NULL, parent, way, next_packet, cap_len - NETBIOS_HEADER_SIZE, wire_len - NETBIOS_HEADER_SIZE, now, okfn, tot_cap_len, tot_packet);
+    (void)proto_parse(NULL, parent, way, next_packet, cap_len - NETBIOS_HEADER_SIZE, wire_len - NETBIOS_HEADER_SIZE, now, tot_cap_len, tot_packet);
     return PROTO_OK;
 }
 

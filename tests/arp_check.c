@@ -64,7 +64,7 @@ static struct parse_test {
 
 static unsigned cur_test;
 
-static int arp_info_check(struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
+static void arp_info_check(struct proto_subscriber unused_ *s, struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
     struct arp_proto_info const *const info = DOWNCAST(info_, info, arp_proto_info);
     struct expected const *const exp = &parse_tests[cur_test].expected;
@@ -81,8 +81,6 @@ static int arp_info_check(struct proto_info const *info_, size_t unused_ cap_len
     if (info->hw_addr_is_eth) {
         assert(0 == strcasecmp(eth_addr_2_str(info->hw_target), exp->hw_target));
     }
-
-    return 0;
 }
 
 static void parse_check(void)
@@ -91,13 +89,16 @@ static void parse_check(void)
     timeval_set_now(&now);
     struct parser *arp_parser = proto_arp->ops->parser_new(proto_arp);
     assert(arp_parser);
+    struct proto_subscriber sub;
+    proto_pkt_subscriber_ctor(&sub, arp_info_check);
 
     for (cur_test = 0; cur_test < NB_ELEMS(parse_tests); cur_test++) {
         struct parse_test const *const test = parse_tests + cur_test;
-        enum proto_parse_status status = arp_parse(arp_parser, NULL, 0, test->packet, test->cap_len, test->wire_len, &now, arp_info_check, test->cap_len, test->packet);
+        enum proto_parse_status status = arp_parse(arp_parser, NULL, 0, test->packet, test->cap_len, test->wire_len, &now, test->cap_len, test->packet);
         assert(status == test->status);
     }
 
+    proto_pkt_subscriber_dtor(&sub);
     parser_unref(arp_parser);
 }
 
@@ -107,6 +108,7 @@ int main(void)
     ext_init();
     mallocer_init();
     ref_init();
+    proto_init();
     eth_init();
     arp_init();
     log_set_level(LOG_DEBUG, NULL);
@@ -118,6 +120,7 @@ int main(void)
     doomer_stop();
     arp_fini();
     eth_fini();
+    proto_fini();
     ref_fini();
     mallocer_fini();
     ext_fini();

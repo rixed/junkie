@@ -36,7 +36,7 @@
  * Parse
  */
 
-static enum proto_parse_status dns_tcp_parse(struct parser unused_ *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status dns_tcp_parse(struct parser unused_ *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     size_t const hlen = 2;
     size_t offset = 0;
@@ -51,7 +51,7 @@ static enum proto_parse_status dns_tcp_parse(struct parser unused_ *parser, stru
         struct parser *dns = proto_dns->ops->parser_new(proto_dns);
         if (! dns) break;
 
-        enum proto_parse_status status = proto_parse(dns, parent, way, packet+offset, cap_len-offset, wire_len-offset, now, okfn, tot_cap_len, tot_packet);
+        enum proto_parse_status status = proto_parse(dns, parent, way, packet+offset, cap_len-offset, wire_len-offset, now, tot_cap_len, tot_packet);
         parser_unref(dns);
         if (status != PROTO_OK) break;
 

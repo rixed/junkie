@@ -234,21 +234,9 @@ static struct timeval now;
 static struct parser *eth_parser;
 static unsigned nb_okfn_calls;
 static unsigned nb_gets, nb_resps;
+static struct proto_subscriber sub;
 
-static void setup(void)
-{
-    timeval_set_now(&now);
-    eth_parser = proto_eth->ops->parser_new(proto_eth);
-    assert(eth_parser);
-    nb_okfn_calls = nb_gets = nb_resps = 0;
-}
-
-static void teardown(void)
-{
-    parser_unref(eth_parser);
-}
-
-static int okfn(struct proto_info const *last, size_t unused_ cap_len, uint8_t const unused_ *packet)
+static void okfn(struct proto_subscriber unused_ *s, struct proto_info const *last, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
     nb_okfn_calls ++;
     SLOG(LOG_INFO, "Last info [%s]: %s", last->parser->proto->name, last->parser->proto->ops->info_2_str(last));
@@ -267,8 +255,21 @@ static int okfn(struct proto_info const *last, size_t unused_ cap_len, uint8_t c
             nb_resps ++;
         }
     }
+}
 
-    return 0;
+static void setup(void)
+{
+    timeval_set_now(&now);
+    eth_parser = proto_eth->ops->parser_new(proto_eth);
+    assert(eth_parser);
+    nb_okfn_calls = nb_gets = nb_resps = 0;
+    proto_pkt_subscriber_ctor(&sub, okfn);
+}
+
+static void teardown(void)
+{
+    proto_pkt_subscriber_dtor(&sub);
+    parser_unref(eth_parser);
 }
 
 // Send all fragments in order and check we have the various HTTP informations
@@ -277,7 +278,7 @@ static void simple_check(void)
     setup();
 
     for (unsigned p = 0 ; p < NB_ELEMS(pkts); p++) {
-        assert(PROTO_OK == proto_parse(eth_parser, NULL, 0, pkts[p].payload, pkts[p].size, pkts[p].size, &now, okfn, pkts[p].size, pkts[p].payload));
+        assert(PROTO_OK == proto_parse(eth_parser, NULL, 0, pkts[p].payload, pkts[p].size, pkts[p].size, &now, pkts[p].size, pkts[p].payload));
     }
     assert(nb_okfn_calls == NB_ELEMS(pkts));
     assert(nb_gets == 2);
@@ -299,7 +300,7 @@ static void random_check(void)
         while (sent[p]) p = (p+1) % NB_ELEMS(pkts);
         sent[p] = true;
         SLOG(LOG_DEBUG, "Sending Packet %u", p);
-        assert(PROTO_OK == proto_parse(eth_parser, NULL, 0, pkts[p].payload, pkts[p].size, pkts[p].size, &now, okfn, pkts[p].size, pkts[p].payload));
+        assert(PROTO_OK == proto_parse(eth_parser, NULL, 0, pkts[p].payload, pkts[p].size, pkts[p].size, &now, pkts[p].size, pkts[p].payload));
     }
     assert(nb_okfn_calls == NB_ELEMS(pkts));
     assert(nb_gets == 2);
@@ -315,6 +316,7 @@ int main(void)
     mallocer_init();
     pkt_wait_list_init();
     ref_init();
+    proto_init();
     cap_init();
     eth_init();
     ip_init();
@@ -335,6 +337,7 @@ int main(void)
     ip_fini();
     eth_fini();
     cap_fini();
+    proto_fini();
     ref_fini();
     pkt_wait_list_fini();
     mallocer_fini();

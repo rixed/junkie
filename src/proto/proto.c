@@ -64,6 +64,7 @@ void proto_ctor(struct proto *proto, struct proto_ops const *ops, char const *na
     proto->fuzzed_times = 0;
     proto->nb_parsers = 0;
     LIST_INSERT_HEAD(&protos, proto, entry);
+    LIST_INIT(&proto->subscribers);
 
     mutex_ctor_with_type(&proto->lock, name, PTHREAD_MUTEX_RECURSIVE);
 }
@@ -100,6 +101,13 @@ void proto_dtor(struct proto *proto)
 #   if 0
     assert(proto->nb_parsers == 0);
 #   endif
+    if (! LIST_EMPTY(&proto->subscribers)) {
+        SLOG(LOG_NOTICE, "Some subscribers of %s are still registered", proto->name);
+    }
+    if (proto->nb_parsers != 0) {
+        SLOG(LOG_NOTICE, "Some parsers are still in use for %s", proto->name);
+    }
+
     LIST_REMOVE(proto, entry);
     mutex_dtor(&proto->lock);
 }
@@ -122,39 +130,122 @@ char const *proto_parse_status_2_str(enum proto_parse_status status)
     return "INVALID";
 }
 
-enum proto_parse_status proto_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static void proto_subscribers_call_ll(struct proto_subscribers *list, struct proto_info const *info, size_t tot_cap_len, uint8_t const *tot_packet)
+{
+    struct proto_subscriber *sub;
+    LIST_FOREACH(sub, list, entry) {
+        sub->cb(sub, info, tot_cap_len, tot_packet);
+    }
+}
+
+enum proto_parse_status proto_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     assert(cap_len <= wire_len);
+    enum proto_parse_status ret = PROTO_OK;
 
-    if (! parser || wire_len == 0) {
-        if (okfn) (void)okfn(parent, tot_cap_len, tot_packet);
-        return PROTO_OK;   // This is not a parse error if okfn fails.
+    bool const go_deeper = parser && wire_len > 0;  // FIXME: don't we want to call subparsers on empty payload?
+
+    if (parent) {
+        proto_subscribers_call(parent->parser->proto, !go_deeper, parent, tot_cap_len, tot_packet);
     }
 
-#   ifdef __GNUC__
-    (void)__sync_add_and_fetch(&parser->proto->nb_frames, 1);
-    (void)__sync_add_and_fetch(&parser->proto->nb_bytes, wire_len);
-#   else
-    mutex_lock(&parser->proto->lock);
-    parser->proto->nb_frames ++;
-    parser->proto->nb_bytes += wire_len;
-    mutex_unlock(&parser->proto->lock);
-#   endif
+    if (go_deeper) {
+        assert(parser);
+#       ifdef __GNUC__
+        (void)__sync_add_and_fetch(&parser->proto->nb_frames, 1);
+        (void)__sync_add_and_fetch(&parser->proto->nb_bytes, wire_len);
+#       else
+        mutex_lock(&parser->proto->lock);
+        parser->proto->nb_frames ++;
+        parser->proto->nb_bytes += wire_len;
+        mutex_unlock(&parser->proto->lock);
+#       endif
 
-    SLOG(LOG_DEBUG, "Parse packet @%p, size %zu (%zu captured), #%"PRIu64" for %s",
-        packet, wire_len, cap_len, parser->proto->nb_frames, parser_name(parser));
+        SLOG(LOG_DEBUG, "Parse packet @%p, size %zu (%zu captured), #%"PRIu64" for %s",
+            packet, wire_len, cap_len, parser->proto->nb_frames, parser_name(parser));
 
-    if (unlikely_(nb_fuzzed_bits > 0)) fuzz(parser, packet, cap_len, nb_fuzzed_bits);
+        if (unlikely_(nb_fuzzed_bits > 0)) fuzz(parser, packet, cap_len, nb_fuzzed_bits);
 
-    enum proto_parse_status ret = parser->proto->ops->parse(parser, parent, way, packet, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
+        ret = parser->proto->ops->parse(parser, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
 
-    if (ret == PROTO_TOO_SHORT) {
-        SLOG(LOG_DEBUG, "Too short for parser %s", parser_name(parser));
-        // We are missing some informations but we've done as much as possible.
-        if (okfn) (void)okfn(parent, tot_cap_len, tot_packet);
-        return PROTO_OK;   // This is not a parse error if okfn fails.
+        if (ret == PROTO_TOO_SHORT) {
+            SLOG(LOG_DEBUG, "Too short for parser %s", parser_name(parser));
+        }
     }
     return ret;
+}
+
+/*
+ * Proto subscribers
+ */
+
+static struct proto_subscribers pkt_subscribers;
+static struct mutex pkt_subscribers_lock;
+
+int proto_subscriber_ctor(struct proto_subscriber *sub, struct proto *proto, proto_cb_t *cb)
+{
+    SLOG(LOG_DEBUG, "Construct a new subscriber@%p for proto %s", sub, proto->name);
+
+    sub->cb = cb;
+    mutex_lock(&proto->lock);
+    LIST_INSERT_HEAD(&proto->subscribers, sub, entry);
+    mutex_unlock(&proto->lock);
+
+    return 0;
+}
+
+void proto_subscriber_dtor(struct proto_subscriber *sub, struct proto *proto)
+{
+    SLOG(LOG_DEBUG, "Destruct a subscriber@%p for proto %s", sub, proto->name);
+
+    mutex_lock(&proto->lock);
+    LIST_REMOVE(sub, entry);
+    mutex_unlock(&proto->lock);
+}
+
+int proto_pkt_subscriber_ctor(struct proto_subscriber *sub, proto_cb_t *cb)
+{
+    SLOG(LOG_DEBUG, "Construct a new packet subscriber@%p", sub);
+
+    sub->cb = cb;
+    mutex_lock(&pkt_subscribers_lock);
+    LIST_INSERT_HEAD(&pkt_subscribers, sub, entry);
+    mutex_unlock(&pkt_subscribers_lock);
+
+    return 0;
+}
+
+void proto_pkt_subscriber_dtor(struct proto_subscriber *sub)
+{
+    SLOG(LOG_DEBUG, "Destruct a packet subscriber@%p", sub);
+
+    mutex_lock(&pkt_subscribers_lock);
+    LIST_REMOVE(sub, entry);
+    mutex_unlock(&pkt_subscribers_lock);
+}
+
+void proto_subscribers_call(struct proto *proto, bool with_pkt_sbc, struct proto_info *info, size_t tot_cap_len, uint8_t const *tot_packet)
+{
+    // Call the callbacks for the completed proto_info
+    // FIXME: smaller lock?
+    mutex_lock(&proto->lock);
+    proto_subscribers_call_ll(&proto->subscribers, info, tot_cap_len, tot_packet);
+    mutex_unlock(&proto->lock);
+
+    if (with_pkt_sbc) { // also call packet subscribers
+        // look for last proto_info with pkt_sbc_called, flagin all proto_infos along the way so that next lookups will be faster
+        struct proto_info *info_ = info;
+        while (info_->parent && !info_->pkt_sbc_called) {
+            info_->pkt_sbc_called = true;
+            info_ = info_->parent;
+        }
+        if (! info_->pkt_sbc_called) {
+            mutex_lock(&pkt_subscribers_lock);
+            proto_subscribers_call_ll(&pkt_subscribers, info, tot_cap_len, tot_packet);
+            info_->pkt_sbc_called = true;
+            mutex_unlock(&pkt_subscribers_lock);
+        }
+    }
 }
 
 /*
@@ -177,6 +268,7 @@ void proto_info_ctor(struct proto_info *info, struct parser *parser, struct prot
     info->parser = parser;
     info->head_len = head_len;
     info->payload = payload;
+    info->pkt_sbc_called = false;
 }
 
 void const *proto_info_addr(struct proto_info const *info, size_t *size)
@@ -204,6 +296,7 @@ void proto_info_deserialize(struct proto_info *info, uint8_t const **buf)
     info->parser = NULL;
     info->head_len = deserialize_2(buf);
     info->payload = deserialize_2(buf);
+    info->pkt_sbc_called = false;
 }
 
 /*
@@ -272,9 +365,9 @@ struct parser *parser_unref(struct parser *parser)
  * Dummy proto
  */
 
-static enum proto_parse_status dummy_parse(struct parser unused_ *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status dummy_parse(struct parser unused_ *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
-    return proto_parse(NULL, parent, way, packet, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
+    return proto_parse(NULL, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
 }
 
 static struct proto static_proto_dummy;
@@ -982,12 +1075,13 @@ void proto_init(void)
     ext_param_nb_fuzzed_bits_init();
     ext_param_mux_timeout_init();
 
+    LIST_INIT(&pkt_subscribers);
+    mutex_ctor(&pkt_subscribers_lock, "packet subscribers");
+
     // A thread to timeout all mux_subparsers
     int err = pthread_create(&timeouter_pth, NULL, timeouter_thread, NULL);
 
-    if (! err) {
-        pthread_detach(timeouter_pth);
-    } else {
+    if (err) {
         SLOG(LOG_ERR, "Cannot pthread_create(): %s", strerror(err));
     }
 
@@ -1041,6 +1135,15 @@ void proto_init(void)
 
 void proto_fini(void)
 {
+    SLOG(LOG_DEBUG, "Terminating timeouter thread...");
+    (void)pthread_cancel(timeouter_pth);
+    (void)pthread_join(timeouter_pth, NULL);
+
+    if (! LIST_EMPTY(&pkt_subscribers)) {
+        SLOG(LOG_NOTICE, "Some packet subscribers are still registered");
+    }
+    mutex_dtor(&pkt_subscribers_lock);
+
     dummy_fini();
     ext_param_mux_timeout_fini();
     ext_param_nb_fuzzed_bits_fini();

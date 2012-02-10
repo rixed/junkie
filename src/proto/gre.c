@@ -156,7 +156,7 @@ static void gre_subparser_del(struct gre_subparser *gre_subparser)
  * Parse
  */
 
-static enum proto_parse_status gre_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status gre_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct gre_hdr const *grehdr = (struct gre_hdr *)packet;
     size_t grehdr_len = sizeof(*grehdr);
@@ -223,13 +223,13 @@ static enum proto_parse_status gre_parse(struct parser *parser, struct proto_inf
     }
 
     assert(subparser);
-    enum proto_parse_status status = proto_parse(subparser, &info.info, way, packet + h_len, cap_len - h_len, wire_len - h_len, now, okfn, tot_cap_len, tot_packet);
+    enum proto_parse_status status = proto_parse(subparser, &info.info, way, packet + h_len, cap_len - h_len, wire_len - h_len, now, tot_cap_len, tot_packet);
     parser_unref(subparser);
 
     if (status == PROTO_OK) return PROTO_OK;
 
 fallback:
-    (void)proto_parse(NULL, &info.info, way, packet + h_len, cap_len - h_len, wire_len - h_len, now, okfn, tot_cap_len, tot_packet);
+    (void)proto_parse(NULL, &info.info, way, packet + h_len, cap_len - h_len, wire_len - h_len, now, tot_cap_len, tot_packet);
     return PROTO_OK;
 }
 

@@ -54,7 +54,7 @@ static bool is_bittorrent(uint8_t const *packet, size_t packet_len)
         (packet_len >= strlen(STR2) && 0 == strnstr((char const *)packet, STR2, strlen(STR2)));
 }
 
-static enum proto_parse_status bittorrent_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status bittorrent_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     if (! is_bittorrent(packet, cap_len)) return PROTO_PARSE_ERR;
 
@@ -63,7 +63,7 @@ static enum proto_parse_status bittorrent_parse(struct parser *parser, struct pr
     struct bittorrent_proto_info info;
     proto_info_ctor(&info.info, parser, parent, 0, wire_len);
 
-    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
+    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
 
 /*

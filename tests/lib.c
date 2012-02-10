@@ -36,7 +36,7 @@ void stress_check(struct proto *proto)
     for (unsigned nb_tests = 0; nb_tests < 10000 ; nb_tests ++) {
         size_t size;
         uint8_t *buf = random_buffer(&size, 20, 60);
-        parser->proto->ops->parse(parser, NULL, rand()%1, buf, size, size, &now, NULL, size, buf);
+        parser->proto->ops->parse(parser, NULL, rand()%1, buf, size, size, &now, size, buf);
         free(buf);
     }
 

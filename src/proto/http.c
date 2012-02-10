@@ -243,7 +243,7 @@ static int http_extract_host(unsigned unused_ field, struct liner *liner, void *
     return 0;
 }
 
-static enum proto_parse_status http_parse_header(struct http_parser *http_parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status http_parse_header(struct http_parser *http_parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     // Sanity checks + Parse
     static struct httper_command const commands[] = {
@@ -280,14 +280,14 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
     if (status == PROTO_TOO_SHORT) {
         // Are we going to receive the end eventually?
         if (wire_len == cap_len) {
-            status = proto_parse(NULL, parent, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);    // ack what we had so far
+            status = proto_parse(NULL, parent, way, NULL, 0, 0, now, tot_cap_len, tot_packet);    // ack what we had so far
             streambuf_set_restart(&http_parser->sbuf, way, packet, true);
             return PROTO_OK;
         } else {    // No, the header was truncated. We want to report as much as we can
             // Notice that we have no idea of the actual size of header and payload, by we want to report all bytes,
             // ie that out header+payload = wire_len.
             http_proto_info_ctor(&info, http_parser, parent, cap_len, wire_len - cap_len);
-            return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
+            return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
             // We are going to look for another header in the next packet, hoping for the best.
         }
     }
@@ -319,14 +319,14 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
         http_parser->state[way].remaining_content = info.set_values & HTTP_LENGTH_SET ? info.content_length - rem_bytes : UNKNOWN_REM_CONTENT;
     }
 
-    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
+    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
 
 /*
  * Parse HTTP Body
  */
 
-static enum proto_parse_status http_parse_body(struct http_parser *http_parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status http_parse_body(struct http_parser *http_parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     // In this phase, either we known the content length and we skip it before returning to NONE phase,
     // or we don't know and we just skip everything.
@@ -345,7 +345,7 @@ static enum proto_parse_status http_parse_body(struct http_parser *http_parser, 
         info.set_values = 0;
         http_proto_info_ctor(&info, http_parser, parent, 0, body_part);
         // TODO: choose a subparser according to mime type ?
-        (void)proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
+        (void)proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
         // What to do with this partial parse status ?
     }
 
@@ -372,7 +372,7 @@ static enum proto_parse_status http_parse_body(struct http_parser *http_parser, 
  * Proto API
  */
 
-static enum proto_parse_status http_sbuf_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status http_sbuf_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct http_parser *http_parser = DOWNCAST(parser, parser, http_parser);
 
@@ -386,9 +386,9 @@ static enum proto_parse_status http_sbuf_parse(struct parser *parser, struct pro
     SLOG(LOG_DEBUG, "Http parser@%p is %s", http_parser, http_parser->state[way].phase == NONE ? "waiting header" : "waiting end of body");
     switch (http_parser->state[way].phase) {
         case NONE:  // In this mode we retry until we manage to parse a header
-           return http_parse_header(http_parser, parent, way, payload, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
+           return http_parse_header(http_parser, parent, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
         case BODY:
-           return http_parse_body(http_parser, parent, way, payload, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
+           return http_parse_body(http_parser, parent, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
         case LOST:
            return PROTO_TOO_SHORT;
     }
@@ -397,12 +397,12 @@ static enum proto_parse_status http_sbuf_parse(struct parser *parser, struct pro
     return -1;
 }
 
-static enum proto_parse_status http_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status http_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct http_parser *http_parser = DOWNCAST(parser, parser, http_parser);
 
     mutex_lock(&http_parser->mutex);
-    enum proto_parse_status const status = streambuf_add(&http_parser->sbuf, parser, parent, way, payload, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
+    enum proto_parse_status const status = streambuf_add(&http_parser->sbuf, parser, parent, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
     mutex_unlock(&http_parser->mutex);
 
     return status;

@@ -91,7 +91,7 @@ static enum proto_parse_status pkt_wait_parse(struct pkt_wait *pkt, struct pkt_w
         pkt->offset > pkt_wl->next_offset           // or the pkt was supposed to come later,
     ) {
         // then do not parse it
-        return proto_parse(NULL, pkt->parent, pkt->way, NULL, 0, 0, now, pkt->okfn, pkt->tot_cap_len, pkt->packet);
+        return proto_parse(NULL, pkt->parent, pkt->way, NULL, 0, 0, now, pkt->tot_cap_len, pkt->packet);
     }
 
     // So we must parse from pkt_wl->next_offset to pkt->next_offset
@@ -99,8 +99,8 @@ static enum proto_parse_status pkt_wait_parse(struct pkt_wait *pkt, struct pkt_w
     unsigned trim = pkt_wl->next_offset - pkt->offset;  // This assumes that offsets _are_ bytes. If not, then there is no reason to trim.
     enum proto_parse_status const status =
         trim < pkt->cap_len ?
-            proto_parse(pkt_wl->parser, pkt->parent, pkt->way, pkt->packet + pkt->start + trim, pkt->cap_len - trim, pkt->wire_len - trim, now, pkt->okfn, pkt->tot_cap_len, pkt->packet) :
-            proto_parse(pkt_wl->parser, pkt->parent, pkt->way, NULL, 0, trim < pkt->wire_len ? pkt->wire_len - trim : 0, now, pkt->okfn, pkt->tot_cap_len, pkt->packet);
+            proto_parse(pkt_wl->parser, pkt->parent, pkt->way, pkt->packet + pkt->start + trim, pkt->cap_len - trim, pkt->wire_len - trim, now, pkt->tot_cap_len, pkt->packet) :
+            proto_parse(pkt_wl->parser, pkt->parent, pkt->way, NULL, 0, trim < pkt->wire_len ? pkt->wire_len - trim : 0, now, pkt->tot_cap_len, pkt->packet);
     pkt_wl->next_offset = pkt->next_offset;
     return status;
 }
@@ -143,7 +143,7 @@ static struct proto_info *copy_info_rec(struct proto_info *info)
 }
 
 // Construct it but does not insert it into the pkt_wait list yet
-static int pkt_wait_ctor(struct pkt_wait *pkt, unsigned offset, unsigned next_offset, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static int pkt_wait_ctor(struct pkt_wait *pkt, unsigned offset, unsigned next_offset, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     SLOG(LOG_DEBUG, "Construct pkt@%p", pkt);
     CHECK_LAST_FIELD(pkt_wait, packet, uint8_t);
@@ -153,7 +153,6 @@ static int pkt_wait_ctor(struct pkt_wait *pkt, unsigned offset, unsigned next_of
     pkt->cap_len = cap_len;
     pkt->wire_len = wire_len;
     pkt->way = way;
-    pkt->okfn = okfn;
     pkt->tot_cap_len = tot_cap_len;
     if (packet < tot_packet || packet + cap_len > tot_packet + tot_cap_len) {
         // FIXME: May happen since packet does not always lies within tot_packet (see pkt_wait_list_reassemble)
@@ -177,7 +176,7 @@ static int pkt_wait_ctor(struct pkt_wait *pkt, unsigned offset, unsigned next_of
     return 0;
 }
 
-static struct pkt_wait *pkt_wait_new(unsigned offset, unsigned next_offset, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static struct pkt_wait *pkt_wait_new(unsigned offset, unsigned next_offset, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     MALLOCER(waiting_pkts);
     struct pkt_wait *pkt = MALLOC(waiting_pkts, sizeof(*pkt) + tot_cap_len);
@@ -186,7 +185,7 @@ static struct pkt_wait *pkt_wait_new(unsigned offset, unsigned next_offset, stru
         return NULL;
     }
 
-    if (0 != pkt_wait_ctor(pkt, offset, next_offset, parent, way, packet, cap_len, wire_len, okfn, tot_cap_len, tot_packet)) {
+    if (0 != pkt_wait_ctor(pkt, offset, next_offset, parent, way, packet, cap_len, wire_len, tot_cap_len, tot_packet)) {
         FREE(pkt);
         return NULL;
     }
@@ -238,7 +237,7 @@ enum proto_parse_status pkt_wait_list_flush(struct pkt_wait_list *pkt_wl, uint8_
         struct pkt_wait *pkt;
         while (NULL != (pkt = LIST_FIRST(&pkt_wl->pkts))) {
             if (LIST_IS_LAST(pkt, entry)) {
-                last_status = proto_parse(parser, pkt->parent, pkt->way, payload, cap_len, wire_len, now, pkt->okfn, pkt->tot_cap_len, pkt->packet);   // FIXME: once again, payload not within pkt->packet !
+                last_status = proto_parse(parser, pkt->parent, pkt->way, payload, cap_len, wire_len, now, pkt->tot_cap_len, pkt->packet);   // FIXME: once again, payload not within pkt->packet !
                 pkt_wait_del_nolock(pkt, pkt_wl);
             } else {
                 last_status = pkt_wait_finalize(pkt, pkt_wl, now);
@@ -379,7 +378,7 @@ static void pkt_wait_list_timeout(struct pkt_wl_config *config, struct pkt_wl_co
 #   endif
 }
 
-enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned offset, unsigned next_offset, bool can_parse, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned offset, unsigned next_offset, bool can_parse, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     enum proto_parse_status ret = PROTO_OK;
 
@@ -402,7 +401,7 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
     if (! pkt_wl->parser) {
         // Empty the list and ack this packet
         pkt_wait_list_empty(pkt_wl, now);
-        ret = proto_parse(NULL, parent, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
+        ret = proto_parse(NULL, parent, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
         goto quit;
     }
 
@@ -412,7 +411,7 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
     struct pkt_wait *prev = NULL;
     struct pkt_wait *next;
     LIST_FOREACH(next, &pkt_wl->pkts, entry) {
-        // Stop whenever the next packet must be sent after (try to preserve packet numbers and order of arrival for okfn)
+        // Stop whenever the next packet must be sent after (try to preserve packet numbers and order of arrival for subscribers)
         if (offset < next->offset) {
             break;
         }
@@ -426,7 +425,7 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
          * but if he wants to create a new list on another config which is already locked by another thread
          * who also want to lock the one we already own!
          * Yes, this does happen :-( */
-        ret = proto_parse(pkt_wl->parser, parent, way, packet, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
+        ret = proto_parse(pkt_wl->parser, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
 
         // Now parse as much as we can while advancing next_offset, returning the first error we obtain
         pkt_wl->next_offset = next_offset;
@@ -439,19 +438,19 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
         goto quit;
     }
 
-    // else if gap after previous > acceptable_gap then call okfn directly and we are done
+    // else if gap after previous > acceptable_gap then call subscribers directly and we are done
     unsigned prev_offset = prev ? prev->next_offset : pkt_wl->next_offset;
     if (
         (pkt_wl->config->acceptable_gap > 0 && (int)(offset - prev_offset) > (int)pkt_wl->config->acceptable_gap)
     ) {
-        ret = proto_parse(NULL, parent, way, packet, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
+        ret = proto_parse(NULL, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
         goto quit;
     }
 
     // In all other more complex cases, insert the packet
-    struct pkt_wait *pkt = pkt_wait_new(offset, next_offset, parent, way, packet, cap_len, wire_len, okfn, tot_cap_len, tot_packet);
+    struct pkt_wait *pkt = pkt_wait_new(offset, next_offset, parent, way, packet, cap_len, wire_len, tot_cap_len, tot_packet);
     if (! pkt) {
-        ret = proto_parse(NULL, parent, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet); // silently discard
+        ret = proto_parse(NULL, parent, way, NULL, 0, 0, now, tot_cap_len, tot_packet); // silently discard
         goto quit;
     }
 

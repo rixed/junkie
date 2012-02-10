@@ -124,7 +124,7 @@ static void check_for_port(struct ip_proto_info const *ip, struct tcp_proto_info
     (void)cnxtrack_ip_new(IPPROTO_TCP, &usr_addr, usr_port, ip->key.addr+1, tcp->key.port[1]-1, false, proto_ftp, now, requestor);
 }
 
-static enum proto_parse_status ftp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status ftp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     // Sanity Checks
     ASSIGN_INFO_CHK(tcp, parent, -1);
@@ -141,7 +141,7 @@ static enum proto_parse_status ftp_parse(struct parser *parser, struct proto_inf
     check_for_pasv(ip, parser->proto, packet, cap_len, now);
     check_for_port(ip, tcp, parser->proto, packet, cap_len, now);
 
-    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
+    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
 
 /*

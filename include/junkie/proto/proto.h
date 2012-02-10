@@ -20,12 +20,15 @@
  * @brief Packet inspection
  *
  * Each packet received from libpcap is passed to a toplevel "capture" parser,
- * which then builds a small struct proto_info describing the packet and handling
- * the payload to a child parser. This child parser performs in a similar fashion,
- * extracting from the received data the interesting bits, building another
- * struct proto_info describing this parser and handling the payload to yet another
- * parser, etc... At the end, once a leaf of the protocol tree is reached, the
- * user callback is called with the list of all these proto_infos.
+ * which then builds a small struct proto_info describing the packet and
+ * handling the payload to a child parser. This child parser performs in a
+ * similar fashion, extracting from the received data the interesting bits,
+ * building another struct proto_info describing this parser and handling the
+ * payload to yet another parser, etc... Eventually the whole packet will be
+ * inspected, with various content involving several protocols one or several
+ * times.  Each time a proto_info is construct for a given protocol, callbacks
+ * registered for this proto are called with the list of all the proto_infos
+ * from packet root up to this proto layer.
  *
  * Parsers are designed in order to be (as most as possible) independent on
  * each others. Their aim is to extract from the packet only the informations
@@ -35,9 +38,9 @@
  * Having independent parsers implies that every parser is committed to a given
  * behavior. For instance, every protocol parser must have a single parse
  * function receiving the relevant data from it's parent and its parent's
- * proto_info (which can be used to inspect upper layers). This common
- * behavior is inherited from the struct proto that defines the behavior of
- * all parsers of this proto.
+ * proto_info (which can be used to inspect upper layers). This common behavior
+ * is inherited from the struct proto that defines the behavior of all parsers
+ * of this proto.
  *
  * We have several constraints/wishes to take into account :
  *
@@ -50,70 +53,94 @@
  * - for robustness we would like junkie to keep working if for some reason a
  * parser is unable to operate (lack some resource).
  *
- * Storing every information related to a frame on the stack leads to simpler
- * code (especially if a parser can call several sub-parser on the same data
- * and/or when multiple threads are performing frame parsing) but implies that
- * the final callback that should be called once the frame is fully broken to
- * pieces must be called at the deepest point of the parsing call graph. In
- * other words, the callback function must be called by a parser when it has no
- * sub-parser (notice that this function may then be called several times if a
- * parser try different sub-parsers).
+ * How can a parser call a sub-parser if they do not know each other? For
+ * instance, how can IP call UDP parser? Either IP has to know UDP and call it
+ * directly for proper protocol field, or UDP has to know that there is that IP
+ * parser which dispatch its payload according to a protocol field, and register
+ * for the protocol 17. This later alternative, although more complex, was
+ * chosen because it is more general and also make it possible to configure any
+ * other mapping in runtime (for instance, ask for HTTP parsing on TCP port
+ * 8080 as well as 80).
  *
- * For generality we choose here to pass an additional parameter to the parse
- * method which is a kind of "continuation" to call when no more parsing is
- * required.  This allows a parser to replace this function by another one that
- * will perform any final action before calling the received continuation, and
- * is similar to netfilter hooks implementation (just to say it's not _that_
- * alien).
+ * Either way, the struct proto describing a parser has to be public so that a
+ * parser can spawn a new parser for this protocol. But that's the only link
+ * that exists between two parsers, and apart from the case where a parser look
+ * something into one of its parent's proto_info then one can safely modify a
+ * parser implementation without interfering with any other parsers.
  *
- * How can a parser call a sub-parser if they do not know each other ? Well,
- * obviously a parser must have some kind of knowledge of what other parsers
- * are available.  That's why the struct proto describing a parser is public,
- * so that a parser can spawn a new parser for this protocol. But that's the
- * only link that exists between two parsers, and apart from the case where a
- * parser look something into one of its parent's proto_info then one can
- * safely modify a parser implementation without interfering with any other
- * parsers.
- *
- * Anyway, a dummy parser is created whenever a proto in not implemented or no
- * more accessible.
- *
- * FIXME: if a parser call several sub-parsers in parallel the continuation
- * will be called several times.
+ * Regarding callbacks, please bear in mind that many are called for every
+ * packet.  Even a given one can be called several times for the same packet.
+ * This is contrary to the rule that was prevailing with previous versions of
+ * junkie (prior to version 2.0), and makes pcap writing/injecting more
+ * complex.  The benefit is to allow more in depth analyses to free the upper
+ * protocol layers from the bounds of individual packets.
  */
-
-struct parser;
-struct proto_info;
-/// The type for the continuation function
-/** This continuation function will actually call the parse_callback()
- * function of every loaded plugin. */
-typedef int proto_okfn_t(struct proto_info const *, size_t tot_cap_len, uint8_t const *tot_packet);
 
 /// The various possible exit codes of the parse functions
 enum proto_parse_status {
-    /// When a parser (not necessarily its children) recognize its protocol (okfn was called, then)
+    /// When a parser (not necessarily its children) recognize its protocol
     PROTO_OK,
-    /// When a parser does not recognize its protocol (okfn was not already called then)
+    /// When a parser does not recognize its protocol
     PROTO_PARSE_ERR,
     /** When a parser can't tell if the payload belongs to him because the capture length is not enough
-     *  (proto_parse will call okfn and return PROTO_OK to the parent) */
+     *  (proto_parse will return PROTO_OK to the parent) */
     PROTO_TOO_SHORT,
 };
 
 char const *proto_parse_status_2_str(enum proto_parse_status status);
 
+struct parser;
+struct proto;
+struct proto_info;
+struct proto_subscriber;
+
 typedef enum proto_parse_status parse_fun(
-    struct parser *parser,      ///< The parser to hand over the payload to. If NULL okfn is called instead
+    struct parser *parser,      ///< The parser to hand over the payload to, or NULL if no protocol suit the payload
     struct proto_info *parent,  ///< It's parent proto_info
     unsigned way,               ///< Direction identifier (@see struct mux_proto)
     uint8_t const *packet,      ///< Raw data to parse
     size_t cap_len,             ///< How many bytes are present in packet
     size_t wire_len,            ///< How many bytes were present on the wire
     struct timeval const *now,  ///< The current time
-    proto_okfn_t *okfn,         ///< The "continuation"
-    size_t tot_cap_len,         ///< The capture length of the total packet (to be passed to okfn)
-    uint8_t const *tot_packet   ///< The total packet (to be passed to okfn)
+    size_t tot_cap_len,         ///< The capture length of the total packet (to be passed to subscribers)
+    uint8_t const *tot_packet   ///< The total packet (to be passed to subscribers)
 );
+
+/// The callback function for proto subscribers
+typedef void proto_cb_t(struct proto_subscriber *, struct proto_info const *, size_t tot_cap_len, uint8_t const *tot_packet);
+
+/// A subscriber is a plugin that want to be called for each proto_info of a given proto.
+/** Previous junkie 1.5 each plugin had a callback function that was called for every packet.
+ * This is not the case anymore. Now if you are interrested in a particular proto_info then
+ * you are required to register a callback with proto_subscriber_ctor().
+ * Notice that there are no lock in this structure, so the callback must be thread safe. */
+struct proto_subscriber {
+    LIST_ENTRY(proto_subscriber) entry; ///< In the list of all proto subscribers
+    proto_cb_t *cb;
+};
+
+/// Register a callback to receive all proto_info
+int proto_subscriber_ctor(struct proto_subscriber *, struct proto *, proto_cb_t *);
+
+/// Unregister a callback
+void proto_subscriber_dtor(struct proto_subscriber *, struct proto *);
+
+/// Call all subscribers of a given proto
+void proto_subscribers_call(struct proto *, bool with_pkt_sbc, struct proto_info *, size_t tot_cap_len, uint8_t const *tot_packet);
+
+/// Subscriber to packet (not protocolar events)
+/** Many plugins want to be called once per packet, with a good but not necessarily
+ * comprehensive description of the packet content, in a way similar to what was
+ * offered by junkie v1.x. This is possible with this special case of subscription.
+ * Technically, these subscribers will be called only when there are no more subparsers,
+ * once per packet. We use a special bit in the cap proto_info to tell when packet
+ * subscribers have already been called (which is not perfect since the cap proto_info
+ * is deep in the stack.
+ * Again, notice the callback must be thread safe. */
+int proto_pkt_subscriber_ctor(struct proto_subscriber *, proto_cb_t *);
+
+/// Unregister a packet callback
+void proto_pkt_subscriber_dtor(struct proto_subscriber *);
 
 /// A protocol implementation.
 /** Only one instance for each protocol ever exist (located in the protocol compilation unit).
@@ -162,7 +189,9 @@ struct proto {
     LIST_ENTRY(proto) entry;
     /// Fuzzing statistics: number of time this proto has been fuzzed.
     unsigned fuzzed_times;
-    /// Mutex to protect the mutable values of this proto (entry, parsers, nb_parsers, nb_frames)
+    /// List of all registrant
+    LIST_HEAD(proto_subscribers, proto_subscriber) subscribers;
+    /// Mutex to protect the mutable values of this proto (entry, parsers, nb_parsers, nb_frames, subscribers list)
     struct mutex lock;
 };
 
@@ -203,6 +232,7 @@ struct proto_info {
     /// Common information that all protocol must fill one way or another
     size_t head_len;            ///< Size of the header
     size_t payload;             ///< Size of the embedded payload (including what we did not capture from the wire)
+    bool pkt_sbc_called;        ///< The packet subscribers where already called for this packet and should not be called again (only used when at the bottom of the proto_info stack)
 };
 
 /// Constructor for a proto_info

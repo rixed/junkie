@@ -95,7 +95,7 @@ static struct parse_test {
 
 static unsigned cur_test, cur_msg;
 
-static int mgcp_info_check(struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
+static void mgcp_info_check(struct proto_subscriber unused_ *s, struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
     // Check info against parse_tests[cur_test].expected
     struct mgcp_proto_info const *const info = DOWNCAST(info_, info, mgcp_proto_info);
@@ -123,7 +123,6 @@ static int mgcp_info_check(struct proto_info const *info_, size_t unused_ cap_le
     assert(0 == strcmp(info->call_id, expected->call_id));
 
     cur_msg ++;
-    return 0;
 }
 
 static void parse_check(void)
@@ -132,15 +131,18 @@ static void parse_check(void)
     timeval_set_now(&now);
     struct parser *mgcp_parser = proto_mgcp->ops->parser_new(proto_mgcp);
     assert(mgcp_parser);
+    struct proto_subscriber sub;
+    proto_pkt_subscriber_ctor(&sub, mgcp_info_check);
 
     for (cur_test = 0; cur_test < NB_ELEMS(parse_tests); cur_test++) {
         cur_msg = 0;
         struct parse_test const *test = parse_tests+cur_test;
         size_t const len = strlen((char *)test->packet);
-        int ret = mgcp_parse(mgcp_parser, NULL, 0, test->packet, len, len, &now, mgcp_info_check, len, test->packet);
+        int ret = mgcp_parse(mgcp_parser, NULL, 0, test->packet, len, len, &now, len, test->packet);
         assert(ret == test->ret);
     }
 
+    proto_pkt_subscriber_dtor(&sub);
     parser_unref(mgcp_parser);
 }
 
@@ -154,6 +156,7 @@ int main(void)
     mallocer_init();
     pkt_wait_list_init();
     ref_init();
+    proto_init();
     cap_init();
     eth_init();
     ip_init();
@@ -174,6 +177,7 @@ int main(void)
     ip_fini();
     eth_fini();
     cap_fini();
+    proto_fini();
     ref_fini();
     pkt_wait_list_fini();
     mallocer_fini();

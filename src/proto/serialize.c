@@ -76,14 +76,18 @@ void serialize_proto_stack(uint8_t **buf, struct proto_info const *last)
 #include "junkie/proto/sdp.h"
 #include "junkie/proto/sql.h"
 
-static int deserialize_proto_info_rec(unsigned depth, uint8_t const **buf, struct proto_info *last, int (*okfn)(struct proto_info *))
+static void deserialize_proto_info_rec(unsigned depth, uint8_t const **buf, struct proto_info *last)
 {
-    if (depth == 0) return okfn(last);
+    if (last) {
+        proto_subscribers_call(last->parser->proto, depth == 0, last, 0, NULL);
+    }
+
+    if (depth == 0) return;
 
     enum proto_code code = deserialize_1(buf); // read the code
     if (code >= PROTO_CODE_MAX) {
         SLOG(LOG_WARNING, "Unknown protocol code %u", code);
-        return okfn(last);
+        return;
     }
 
     union {
@@ -134,32 +138,30 @@ static int deserialize_proto_info_rec(unsigned depth, uint8_t const **buf, struc
     }
     if (! info) {
         SLOG(LOG_WARNING, "Unknown proto code %u", code);
-        return okfn(last);
+        return;
     }
 
     assert(proto);
     if (proto->ops->deserialize) {
         proto->ops->deserialize(info, buf);
         info->parent = last;
-        struct parser dummy_parser = { .proto = proto }; // A dummy parser just so that okfn can dereference proto
+        struct parser dummy_parser = { .proto = proto }; // A dummy parser just so that subscribers can dereference info->parser->proto
         info->parser = &dummy_parser;
     } else {
         if (proto->ops->serialize) {
             SLOG(LOG_WARNING, "No deserializer for proto %s", proto->name);
-            return okfn(last);
+            return;
         }
         info = last;    // skip this layer
     }
 
-    return deserialize_proto_info_rec(depth-1, buf, info, okfn);
+    deserialize_proto_info_rec(depth-1, buf, info);
 }
 
-int deserialize_proto_stack(uint8_t const **buf, int (*okfn)(struct proto_info *))
+void deserialize_proto_stack(uint8_t const **buf)
 {
     unsigned depth = deserialize_1(buf);   // the msg starts with the protocol stack depth
-    int ret = deserialize_proto_info_rec(depth, buf, NULL, okfn);
-
-    return ret;
+    deserialize_proto_info_rec(depth, buf, NULL);
 }
 
 /*
@@ -238,11 +240,6 @@ static struct deserializer_source *deserializer_source_lookup(struct deserialize
     return source;
 }
 
-static int callback_plugins(struct proto_info *info)
-{
-    return parser_callbacks(info, 0, NULL);
-}
-
 // The thread serving the deserializer port
 static void *deserializer_thread(void *deser_)
 {
@@ -264,7 +261,7 @@ static void *deserializer_thread(void *deser_)
                         src_id = deserialize_4(&ptr);
                         source = deserializer_source_lookup(deser, src_id);
                         if (! source) break;
-                        (void)deserialize_proto_stack(&ptr, callback_plugins);
+                        deserialize_proto_stack(&ptr);
                         source->nb_rcvd_msgs ++;
                         break;
                     case MSG_PROTO_STATS:;

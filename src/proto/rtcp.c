@@ -117,7 +117,7 @@ static void rtcp_proto_info_ctor(struct rtcp_proto_info *info, struct parser *pa
  * Parse
  */
 
-static enum proto_parse_status rtcp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status rtcp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct rtcp_hdr const *rtcphd = (struct rtcp_hdr *)packet;
 
@@ -165,7 +165,7 @@ static enum proto_parse_status rtcp_parse(struct parser *parser, struct proto_in
     struct rtcp_proto_info info;
     rtcp_proto_info_ctor(&info, parser, parent, wire_len, 0, packet_lost, jitter, lsr, dlsr, ntp_ts);
 
-    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
+    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
 
 /*

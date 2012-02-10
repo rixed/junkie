@@ -243,25 +243,10 @@ static struct timeval now;
 static struct parser *eth_parser;
 static unsigned nb_okfn_calls;
 static unsigned udp_num; // when did we receive the whole payload ?
-static unsigned pkt_num[10];
+static unsigned pkt_num[NB_ELEMS(pkts)];
+static struct proto_subscriber sub;
 
-static void setup(void)
-{
-    timeval_set_now(&now);
-    eth_parser = proto_eth->ops->parser_new(proto_eth);
-    assert(eth_parser);
-    had_udp = false;
-    nb_okfn_calls = 0;
-    udp_num = ~0;
-    for (unsigned p = 0; p < NB_ELEMS(pkt_num); p++) pkt_num[p] = ~0;
-}
-
-static void teardown(void)
-{
-    parser_unref(eth_parser);
-}
-
-static int okfn(struct proto_info const *last, size_t cap_len, uint8_t const *packet)
+static void okfn(struct proto_subscriber unused_ *s, struct proto_info const *last, size_t cap_len, uint8_t const *packet)
 {
     // We are called once for UDP, and once for each IP fragments
     if (last->parser->proto == proto_udp) {
@@ -277,14 +262,31 @@ static int okfn(struct proto_info const *last, size_t cap_len, uint8_t const *pa
     // Try to find out which packet have been sent
     for (unsigned p = 0; p < NB_ELEMS(pkts); p++) {
         if (0 == memcmp(packet, pkts[p], cap_len)) {
+            assert(nb_okfn_calls < NB_ELEMS(pkt_num));
             pkt_num[nb_okfn_calls] = p;
             break;
         }
     }
 
     nb_okfn_calls ++;
+}
 
-    return 0;
+static void setup(void)
+{
+    timeval_set_now(&now);
+    eth_parser = proto_eth->ops->parser_new(proto_eth);
+    assert(eth_parser);
+    had_udp = false;
+    nb_okfn_calls = 0;
+    udp_num = ~0;
+    for (unsigned p = 0; p < NB_ELEMS(pkt_num); p++) pkt_num[p] = ~0;
+    proto_pkt_subscriber_ctor(&sub, okfn);
+}
+
+static void teardown(void)
+{
+    proto_pkt_subscriber_dtor(&sub);
+    parser_unref(eth_parser);
 }
 
 static void check_result(void)
@@ -301,7 +303,7 @@ static void simple_check(void)
     setup();
 
     for (unsigned p = 0 ; p < NB_ELEMS(pkts); p++) {
-        assert(PROTO_OK == proto_parse(eth_parser, NULL, 0, pkts[p], sizeof(pkts[p]), sizeof(pkts[p]), &now, okfn, sizeof(pkts[p]), pkts[p]));
+        assert(PROTO_OK == proto_parse(eth_parser, NULL, 0, pkts[p], sizeof(pkts[p]), sizeof(pkts[p]), &now, sizeof(pkts[p]), pkts[p]));
     }
     check_result();
 
@@ -315,7 +317,7 @@ static void reverse_check(void)
 
     unsigned p = NB_ELEMS(pkts);
     while (p--) {
-        assert(PROTO_OK == proto_parse(eth_parser, NULL, 0, pkts[p], sizeof(pkts[p]), sizeof(pkts[p]), &now, okfn, sizeof(pkts[p]), pkts[p]));
+        assert(PROTO_OK == proto_parse(eth_parser, NULL, 0, pkts[p], sizeof(pkts[p]), sizeof(pkts[p]), &now, sizeof(pkts[p]), pkts[p]));
     }
     check_result();
 
@@ -334,7 +336,7 @@ static void random_check(void)
         while (sent[p]) p = (p+1) % NB_ELEMS(pkts);
         sent[p] = true;
         SLOG(LOG_DEBUG, "Sending Packet %u", p);
-        assert(PROTO_OK == proto_parse(eth_parser, NULL, 0, pkts[p], sizeof(pkts[p]), sizeof(pkts[p]), &now, okfn, sizeof(pkts[p]), pkts[p]));
+        assert(PROTO_OK == proto_parse(eth_parser, NULL, 0, pkts[p], sizeof(pkts[p]), sizeof(pkts[p]), &now, sizeof(pkts[p]), pkts[p]));
     }
     check_result();
 
@@ -351,6 +353,7 @@ int main(void)
     cnxtrack_init();
     pkt_wait_list_init();
     ref_init();
+    proto_init();
     cap_init();
     eth_init();
     ip_init();
@@ -371,6 +374,7 @@ int main(void)
     ip_fini();
     eth_fini();
     cap_fini();
+    proto_fini();
     ref_fini();
     pkt_wait_list_fini();
     cnxtrack_fini();

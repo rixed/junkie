@@ -153,10 +153,9 @@ static struct test {
 
 static unsigned current_test = 0;
 
-static int check_last_proto(struct proto_info const *last, size_t unused_ cap_len, uint8_t const unused_ *packet)
+static void check_last_proto(struct proto_subscriber unused_ *s, struct proto_info const *last, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
     assert(0 == strcmp(last->parser->proto->name, tests[current_test].last_proto_name));
-    return 0;
 }
 
 static void cnxtrack_check(void)
@@ -164,15 +163,18 @@ static void cnxtrack_check(void)
     struct timeval now;
     timeval_set_now(&now);
     struct parser *eth_parser = proto_eth->ops->parser_new(proto_eth);
+    struct proto_subscriber sub;
+    proto_pkt_subscriber_ctor(&sub, check_last_proto);
 
     for (current_test = 0; current_test < NB_ELEMS(tests); current_test ++) {
         struct test const *test = tests + current_test;
         printf("Testing packet %u...", current_test);
-        int ret = proto_parse(eth_parser, NULL, 0, test->packet, test->packet_len, test->packet_len, &now, check_last_proto, test->packet_len, test->packet);
+        int ret = proto_parse(eth_parser, NULL, 0, test->packet, test->packet_len, test->packet_len, &now, test->packet_len, test->packet);
         assert(ret == 0);
         printf("Ok\n");
     }
 
+    proto_pkt_subscriber_dtor(&sub);
     parser_unref(eth_parser);
 }
 

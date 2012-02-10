@@ -184,7 +184,7 @@ static enum proto_parse_status cursor_read_msg(struct cursor *cursor, unsigned *
     return PROTO_OK;
 }
 
-static enum proto_parse_status mysql_parse_init(struct mysql_parser *mysql_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status mysql_parse_init(struct mysql_parser *mysql_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     info->msg_type = SQL_STARTUP;
 
@@ -208,10 +208,10 @@ static enum proto_parse_status mysql_parse_init(struct mysql_parser *mysql_parse
 
     mysql_parser->phase = STARTUP;
 
-    return proto_parse(NULL, &info->info, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
+    return proto_parse(NULL, &info->info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
 
-static enum proto_parse_status mysql_parse_startup(struct mysql_parser *mysql_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status mysql_parse_startup(struct mysql_parser *mysql_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     info->msg_type = SQL_STARTUP;
 
@@ -266,7 +266,7 @@ static enum proto_parse_status mysql_parse_startup(struct mysql_parser *mysql_pa
         }
     }
 
-    return proto_parse(NULL, &info->info, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
+    return proto_parse(NULL, &info->info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
 
 static char const *com_refresh_2_str(uint8_t code)
@@ -299,7 +299,7 @@ static char const *com_shutdown_2_str(uint8_t code)
     return NULL;
 }
 
-static enum proto_parse_status mysql_parse_query(struct mysql_parser *mysql_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status mysql_parse_query(struct mysql_parser *mysql_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     info->msg_type = SQL_QUERY;
 
@@ -317,7 +317,7 @@ static enum proto_parse_status mysql_parse_query(struct mysql_parser *mysql_pars
         if (status == PROTO_PARSE_ERR) return PROTO_PARSE_ERR;
         if (status == PROTO_TOO_SHORT) {
             SLOG(LOG_DEBUG, "Payload too short for parsing message, will restart");
-            status = proto_parse(NULL, &info->info, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);    // ack what we had so far
+            status = proto_parse(NULL, &info->info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);    // ack what we had so far
             streambuf_set_restart(&mysql_parser->sbuf, way, msg_start, true);
             return PROTO_OK;
         }
@@ -422,10 +422,10 @@ static enum proto_parse_status mysql_parse_query(struct mysql_parser *mysql_pars
         cursor_drop(&cursor, msg_end - cursor.head);
     }
 
-    return proto_parse(NULL, &info->info, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
+    return proto_parse(NULL, &info->info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
 
-static enum proto_parse_status mysql_sbuf_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status mysql_sbuf_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct mysql_parser *mysql_parser = DOWNCAST(parser, parser, mysql_parser);
 
@@ -442,21 +442,21 @@ static enum proto_parse_status mysql_sbuf_parse(struct parser *parser, struct pr
     info.set_values = 0;
 
     switch (mysql_parser->phase) {
-        case NONE:    return mysql_parse_init   (mysql_parser, &info, way, payload, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
-        case STARTUP: return mysql_parse_startup(mysql_parser, &info, way, payload, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
-        case QUERY:   return mysql_parse_query  (mysql_parser, &info, way, payload, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
+        case NONE:    return mysql_parse_init   (mysql_parser, &info, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
+        case STARTUP: return mysql_parse_startup(mysql_parser, &info, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
+        case QUERY:   return mysql_parse_query  (mysql_parser, &info, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
         case EXIT:    return PROTO_PARSE_ERR;   // we do not expect payload after a termination message
     }
 
     return PROTO_PARSE_ERR;
 }
 
-static enum proto_parse_status mysql_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status mysql_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct mysql_parser *mysql_parser = DOWNCAST(parser, parser, mysql_parser);
 
     mutex_lock(&mysql_parser->mutex);
-    enum proto_parse_status const status = streambuf_add(&mysql_parser->sbuf, parser, parent, way, payload, cap_len, wire_len, now, okfn, tot_cap_len, tot_packet);
+    enum proto_parse_status const status = streambuf_add(&mysql_parser->sbuf, parser, parent, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
     mutex_unlock(&mysql_parser->mutex);
 
     return status;

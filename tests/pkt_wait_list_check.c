@@ -46,7 +46,7 @@ static struct pkt_wait_list wl;
 static unsigned next_msg;
 static struct pkt_wl_config config;
 
-static enum proto_parse_status test_parse(struct parser *parser, struct proto_info unused_ *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, proto_okfn_t *okfn, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status test_parse(struct parser *parser, struct proto_info unused_ *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     SLOG(LOG_DEBUG, "got payload '%.*s'", (int)cap_len, packet);
     assert(parser == test_parser);
@@ -56,7 +56,7 @@ static enum proto_parse_status test_parse(struct parser *parser, struct proto_in
     assert(seqnum == next_msg);
     assert(packet[cap_len-1] == '\0');
     next_msg ++;
-    return proto_parse(NULL, NULL, way, NULL, 0, 0, now, okfn, tot_cap_len, tot_packet);
+    return proto_parse(NULL, NULL, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
 
 static void wl_check_setup(void)
@@ -103,7 +103,7 @@ static void simple_check(void)
     for (unsigned p = 0; p < NB_ELEMS(packets); p++) {
         assert(wl.next_offset == offset);
         int len = strlen(packets[p]) + 1;
-        assert(PROTO_OK == pkt_wait_list_add(&wl, offset, offset+len, true, NULL, 0, (uint8_t *)packets[p], len, len, &now, NULL, len, (uint8_t *)packets[p]));
+        assert(PROTO_OK == pkt_wait_list_add(&wl, offset, offset+len, true, NULL, 0, (uint8_t *)packets[p], len, len, &now, len, (uint8_t *)packets[p]));
         offset += len;
         assert(LIST_EMPTY(&wl.pkts));
     }
@@ -130,7 +130,7 @@ static void reorder_check(void)
         unsigned offset = 0;
         for (unsigned pp = 0; pp < p; pp++) offset += strlen(packets[pp]) + 1;
         int len = strlen(packets[p]) + 1;
-        assert(PROTO_OK == pkt_wait_list_add(&wl, offset, offset+len, true, NULL, 0, (uint8_t *)packets[p], len, len, &now, NULL, len, (uint8_t *)packets[p]));
+        assert(PROTO_OK == pkt_wait_list_add(&wl, offset, offset+len, true, NULL, 0, (uint8_t *)packets[p], len, len, &now, len, (uint8_t *)packets[p]));
     }
 
     // Check we parsed everything
@@ -145,11 +145,11 @@ static void gap_check(void)
 {
     wl_check_setup();
 
-    assert(PROTO_OK == pkt_wait_list_add(&wl, 999998, 999999, true, NULL, 0, (uint8_t *)"X", 1, 1, &now, NULL, 1, (uint8_t *)"X"));
-    assert(PROTO_OK == pkt_wait_list_add(&wl, 999997, 999998, true, NULL, 0, (uint8_t *)"X", 1, 1, &now, NULL, 1, (uint8_t *)"X"));
+    assert(PROTO_OK == pkt_wait_list_add(&wl, 999998, 999999, true, NULL, 0, (uint8_t *)"X", 1, 1, &now, 1, (uint8_t *)"X"));
+    assert(PROTO_OK == pkt_wait_list_add(&wl, 999997, 999998, true, NULL, 0, (uint8_t *)"X", 1, 1, &now, 1, (uint8_t *)"X"));
     char packet[] = "0. Maitre corbeau sur un arbre perche tenait en son bec un fromage";
     int const len = strlen(packet) + 1;
-    assert(PROTO_OK == pkt_wait_list_add(&wl, 0, 0+len, true, NULL, 0, (uint8_t *)packet, len, len, &now, NULL, len, (uint8_t *)packet));
+    assert(PROTO_OK == pkt_wait_list_add(&wl, 0, 0+len, true, NULL, 0, (uint8_t *)packet, len, len, &now, len, (uint8_t *)packet));
     assert(LIST_EMPTY(&wl.pkts));
     assert(next_msg == 1);
 
@@ -219,11 +219,11 @@ static void reassembly_check(void)
             len = NB_ELEMS(msg);
         }
         unsigned const len_ = MIN(len, NB_ELEMS(msg)-start);
-        assert(PROTO_OK == pkt_wait_list_add(&wl, start, start+len_, false, NULL, 0, (uint8_t *)msg+start, len_, len_, &now, NULL, len_, (uint8_t *)msg+start));
+        assert(PROTO_OK == pkt_wait_list_add(&wl, start, start+len_, false, NULL, 0, (uint8_t *)msg+start, len_, len_, &now, len_, (uint8_t *)msg+start));
         mark_sent(start, len_);
         if (len != len_) {
             len -= len_;
-            assert(PROTO_OK == pkt_wait_list_add(&wl, 0, len, false, NULL, 0, (uint8_t *)msg, len, len, &now, NULL, len, (uint8_t *)msg));
+            assert(PROTO_OK == pkt_wait_list_add(&wl, 0, len, false, NULL, 0, (uint8_t *)msg, len, len, &now, len, (uint8_t *)msg));
             mark_sent(0, len);
         }
 

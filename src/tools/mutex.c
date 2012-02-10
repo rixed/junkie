@@ -284,6 +284,7 @@ void mutex_init(void)
 {
     if (inited++) return;
     ext_init();
+    log_init();
 
     log_category_mutex_init();
 
@@ -298,5 +299,6 @@ void mutex_fini(void)
 
     log_category_mutex_fini();
 
+    log_init();
     ext_fini();
 }

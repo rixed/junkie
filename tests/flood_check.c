@@ -28,7 +28,7 @@ static void flood_check(unsigned nb)
     for (unsigned t = 0; t < nb; t++) {
         size_t len = rand() % sizeof(packet);
         if (! udp_ctor_random(packet, len)) continue;
-        (void)ip_parser->proto->ops->parse(ip_parser,  NULL, 0, packet, len, len, &now, NULL, len, packet);
+        (void)ip_parser->proto->ops->parse(ip_parser,  NULL, 0, packet, len, len, &now, len, packet);
     }
 
     SLOG(LOG_INFO, "Number of UDP parsers : %u", proto_udp->nb_parsers);

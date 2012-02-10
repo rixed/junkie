@@ -64,7 +64,7 @@ static struct parse_test {
 
 static unsigned cur_test;
 
-static int sdp_info_check(struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
+static void sdp_info_check(struct proto_subscriber unused_ *s, struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
 {
     // Check info against parse_tests[cur_test].expected
     struct sdp_proto_info const *const info = DOWNCAST(info_, info, sdp_proto_info);
@@ -79,8 +79,6 @@ static int sdp_info_check(struct proto_info const *info_, size_t unused_ cap_len
     struct ip_addr exp_addr;
     (void)ip_addr_ctor_from_str(&exp_addr, ip, strlen(ip), 4);
     assert(0 == ip_addr_cmp(&info->host, &exp_addr));
-
-    return 0;
 }
 
 static void parse_check(void)
@@ -89,13 +87,16 @@ static void parse_check(void)
     timeval_set_now(&now);
     struct parser *sdp_parser = proto_sdp->ops->parser_new(proto_sdp);
     assert(sdp_parser);
+    struct proto_subscriber sub;
+    proto_pkt_subscriber_ctor(&sub, sdp_info_check);
 
     for (cur_test = 0; cur_test < NB_ELEMS(parse_tests); cur_test++) {
         size_t const len = strlen((char *)parse_tests[cur_test].packet);
-        enum proto_parse_status ret = sdp_parse(sdp_parser, NULL, 0, parse_tests[cur_test].packet, len, len, &now, sdp_info_check, len, parse_tests[cur_test].packet);
+        enum proto_parse_status ret = sdp_parse(sdp_parser, NULL, 0, parse_tests[cur_test].packet, len, len, &now, len, parse_tests[cur_test].packet);
         assert(parse_tests[cur_test].ret == ret);
     }
 
+    proto_pkt_subscriber_dtor(&sub);
     parser_unref(sdp_parser);
 }
 
@@ -105,6 +106,7 @@ int main(void)
     ext_init();
     mallocer_init();
     ref_init();
+    proto_init();
     sdp_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("sdp_check.log");
@@ -114,6 +116,7 @@ int main(void)
 
     doomer_stop();
     sdp_fini();
+    proto_fini();
     ref_fini();
     mallocer_fini();
     ext_fini();

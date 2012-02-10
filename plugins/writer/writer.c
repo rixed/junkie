@@ -298,7 +298,7 @@ static void try_write(struct capture_conf *conf, struct proto_info const *info, 
     }
 }
 
-int parse_callback(struct proto_info const *info, size_t cap_len, uint8_t const *packet)
+static void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info const *info, size_t cap_len, uint8_t const *packet)
 {
     static bool cli_inited = false;
     if (! cli_inited) {
@@ -315,8 +315,6 @@ int parse_callback(struct proto_info const *info, size_t cap_len, uint8_t const 
         try_write(conf, info, cap_len, packet);
     }
     mutex_unlock(&confs_lock);
-
-    return 0;
 }
 
 /*
@@ -511,6 +509,8 @@ static struct cli_opt writer_opts[] = {
                                   "will create files suffixed with numbers.", CLI_SET_UINT, { .uint = &cli_conf.rotation } },
 };
 
+static struct proto_subscriber subscription;
+
 void on_load(void)
 {
     log_category_writer_init();
@@ -571,11 +571,14 @@ void on_load(void)
     ext_function_ctor(&sg_capture_stats,
         "capture-stats", 1, 0, 0, g_capture_stats,
         "(capture-stats capture): return some infos & stats\n");
+
+    proto_pkt_subscriber_ctor(&subscription, pkt_callback);
 }
 
 void on_unload(void)
 {
     SLOG(LOG_INFO, "Unloading writer");
+    proto_pkt_subscriber_dtor(&subscription);
     cli_unregister(writer_opts);
 
     capture_conf_dtor(&cli_conf);
