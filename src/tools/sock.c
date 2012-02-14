@@ -95,8 +95,11 @@ int sock_ctor_server(struct sock *s, char const *service)
     SLOG(LOG_DEBUG, "Construct sock for serving %s", service);
 
     struct addrinfo *info;
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_flags = AI_PASSIVE;    // listen any interface
 
-    int err = getaddrinfo(NULL, service, NULL, &info);
+    int err = getaddrinfo(NULL, service, &hints, &info);
     if (err) {
         SLOG(LOG_ERR, "Cannot getaddrinfo(service=%s): %s", service, gai_strerror(err));
         // freeaddrinfo ?
@@ -132,6 +135,8 @@ int sock_ctor_server(struct sock *s, char const *service)
 
 void sock_dtor(struct sock *s)
 {
+    SLOG(LOG_DEBUG, "Destruct sock %s", s->name);
+
     if (s->fd < 0) return;
     int err = close(s->fd);
     s->fd = -1;
@@ -143,7 +148,7 @@ void sock_dtor(struct sock *s)
 
 int sock_send(struct sock *s, void const *buf, size_t len)
 {
-    SLOG(LOG_DEBUG, "Sending %zu bytes to %s", len, s->name);
+    SLOG(LOG_DEBUG, "Sending %zu bytes to %s (fd %d)", len, s->name, s->fd);
 
     if (-1 == sendto(s->fd, buf, len, MSG_DONTWAIT, &s->srv_addr, s->srv_addrlen)) {
         // FIXME: limit the rate of this error!
@@ -153,12 +158,28 @@ int sock_send(struct sock *s, void const *buf, size_t len)
     return 0;
 }
 
-ssize_t sock_recv(struct sock *s, void *buf, size_t maxlen)
+ssize_t sock_recv(struct sock *s, void *buf, size_t maxlen, struct ip_addr *sender)
 {
-    ssize_t r = recv(s->fd, buf, maxlen, 0);
+    SLOG(LOG_DEBUG, "Reading on socket %s (fd %d)", s->name, s->fd);
+
+    struct sockaddr src_addr;
+    socklen_t addrlen = sizeof(src_addr);
+    ssize_t r = recvfrom(s->fd, buf, maxlen, 0, &src_addr, &addrlen);
     if (r < 0) {
         SLOG(LOG_ERR, "Cannot receive datagram: %s", strerror(errno));
     }
+    if (sender) {
+        if (addrlen > sizeof(src_addr)) {
+            SLOG(LOG_ERR, "Cannot set sender address: size too big (%zu > %zu)", (size_t)addrlen, sizeof(src_addr));
+            ip_addr_ctor_from_ip4(sender, 0);
+        } else {
+            if (0 != ip_addr_ctor_from_sockaddr(sender, &src_addr, addrlen)) {
+                ip_addr_ctor_from_ip4(sender, 0);
+            }
+        }
+    }
+
+    SLOG(LOG_DEBUG, "read %zd bytes from %s out of %s", r, sender ? ip_addr_2_str(sender) : "unknown", s->name);
     return r;
 }
 

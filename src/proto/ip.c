@@ -57,17 +57,77 @@ void const *ip_info_addr(struct proto_info const *info_, size_t *size)
     return info;
 }
 
+char const *ip_proto_2_str(unsigned protocol)
+{
+    switch (protocol) {
+        case 1: return "ICMP";
+        case 2: return "IGMP";
+        case 3: return "GGP";
+        case 4: return "IP-ENCAP";
+        case 5: return "ST";
+        case 6: return "TCP";
+        case 8: return "EGP";
+        case 9: return "IGP";
+        case 12: return "PUP";
+        case 17: return "UDP";
+        case 20: return "HMP";
+        case 22: return "XNS-IDP";
+        case 27: return "RDP";
+        case 29: return "ISO-TP4";
+        case 33: return "DCCP";
+        case 36: return "XTP";
+        case 37: return "DDP";
+        case 38: return "IDPR-CMTP";
+        case 41: return "IPv6";
+        case 43: return "IPv6-Route";
+        case 44: return "IPv6-Frag";
+        case 45: return "IDRP";
+        case 46: return "RSVP";
+        case 47: return "GRE";
+        case 50: return "IPSEC-ESP";
+        case 51: return "IPSEC-AH";
+        case 57: return "SKIP";
+        case 58: return "IPv6-ICMP";
+        case 59: return "IPv6-NoNxt";
+        case 60: return "IPv6-Opts";
+        case 73: return "RSPF";
+        case 81: return "VMTP";
+        case 88: return "EIGRP";
+        case 89: return "OSPFIGP";
+        case 93: return "AX.25";
+        case 94: return "IPIP";
+        case 97: return "ETHERIP";
+        case 98: return "ENCAP";
+        case 103: return "PIM";
+        case 108: return "IPCOMP";
+        case 112: return "VRRP";
+        case 115: return "L2TP";
+        case 124: return "ISIS";
+        case 132: return "SCTP";
+        case 133: return "FC";
+        case 136: return "UDPLite";
+        case 137: return "MPLS-in-IP";
+        case 138: return "MANET";
+        case 139: return "HIP";
+        case 140: return "Shim6";
+        case 141: return "WESP";
+        case 142: return "ROHC";
+    }
+
+    return tempstr_printf("%u", protocol);
+}
+
 char const *ip_info_2_str(struct proto_info const *info_)
 {
     struct ip_proto_info const *info = DOWNCAST(info_, info, ip_proto_info);
     char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, version=%u, addr=%s->%s%s, proto=%u, ttl=%u",
+    snprintf(str, TEMPSTR_SIZE, "%s, version=%u, addr=%s->%s%s, proto=%s, ttl=%u",
         proto_info_2_str(info_),
         info->version,
         ip_addr_2_str(info->key.addr+0),
         ip_addr_2_str(info->key.addr+1),
         info->way ? " (hashed the other way)":"",
-        info->key.protocol,
+        ip_proto_2_str(info->key.protocol),
         info->ttl);
     return str;
 }
