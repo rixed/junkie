@@ -28,6 +28,7 @@
 #include "junkie/cpp.h"
 #include "junkie/tools/ext.h"
 #include "junkie/tools/mallocer.h"
+#include "junkie/tools/tempstr.h"
 #include "nettrack.h"
 
 LOG_CATEGORY_DEF(nettrack);
@@ -166,6 +167,14 @@ static int nt_edge_ctor(struct nt_edge *edge, char const *name, struct nt_graph 
             return -1;
         }
     }
+
+    /* Additionnaly, there may be an action function to be called whenever this edge is entered.
+     * If so, it's named "entry_"+name. */
+    // FIXME: as name is not necessarily a valid symbol identifier better use an explicit parameter.
+
+    char *action_name = tempstr_printf("entry_%s", name);
+    edge->action_fn = lt_dlsym(graph->lib, action_name);
+    if (edge->action_fn) SLOG(LOG_DEBUG, "Found entry action %s", action_name);
 
     return 0;
 }
@@ -379,15 +388,19 @@ static int nt_graph_update(struct nt_graph *graph, struct proto_info const *last
             if (vertex->match_fn(last, tmp_regfile)) {
                 SLOG(LOG_DEBUG, "Match!");
                 vertex->nb_matches ++;
-                // TODO: actually spawn/move the state
                 if (vertex->spawn) {
-                    if (! nt_state_new(state, vertex->to, tmp_regfile)) {
+                    if (! (state = nt_state_new(state, vertex->to, tmp_regfile))) {
                         npc_regfile_del(tmp_regfile, graph->nb_registers);
                     }
                 } else {    // move the whole state
                     npc_regfile_del(state->regfile, graph->nb_registers);
                     state->regfile = tmp_regfile;
                     nt_state_move(state, vertex->to);
+                }
+                // state is now the new moved/spawned state
+                if (vertex->to->action_fn) {
+                    SLOG(LOG_DEBUG, "Calling entry function for edge '%s'", vertex->to->name);
+                    vertex->to->action_fn(state->regfile);
                 }
                 if (vertex->grab) goto quit;
             } else {

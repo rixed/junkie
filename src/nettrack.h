@@ -28,6 +28,7 @@ struct nt_edge {
      LIST_HEAD(nt_vertices, nt_vertex) outgoing_vertices;
     struct nt_vertices incoming_vertices;
     // User defined actions
+    npc_action_fn *action_fn;
     // TODO timeout, etc
 };
 

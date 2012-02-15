@@ -12,5 +12,6 @@ struct npc_register {
 };
 
 typedef bool npc_match_fn(struct proto_info const *info, struct npc_register *regfile);
+typedef void npc_action_fn(struct npc_register *regfile);
 
 #endif

@@ -119,6 +119,10 @@
 
 (export string->C-ident)
 
+(define (symbol->C-ident s) (string->C-ident (symbol->string s)))
+
+(export symbol->C-ident)
+
 (define (indent-more str)
   (regexp-substitute/global #f (make-regexp "^ {4}" regexp/newline) str 'pre "        " 'post))
 

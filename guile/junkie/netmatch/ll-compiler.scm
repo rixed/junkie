@@ -269,7 +269,7 @@
   (let* ((srcname     (string-copy "/tmp/netmatch-ll.c.XXXXXX"))
          (srcport     (mkstemp! srcname))
          (libname     (string-append srcname ".so"))
-         (tmp         (matches->C matches))
+         (tmp         (matches->C matches actions))
          (code        (car tmp))
          (nb-varnames (cdr tmp)))
     (display code srcport)

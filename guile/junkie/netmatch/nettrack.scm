@@ -5,7 +5,8 @@
 (use-modules (ice-9 match)
              (junkie tools)
              (junkie runtime) ; for make-nettrack
-			 ((junkie netmatch netmatch) :renamer (symbol-prefix-proc 'match:))
+             (junkie defs) ; for slog
+             ((junkie netmatch netmatch) :renamer (symbol-prefix-proc 'netmatch:))
              ((junkie netmatch types)    :renamer (symbol-prefix-proc 'type:))) ; for string->C-ident
 
 ;;; This takes a name and a nettrack expression with all tests developped, and returns:
@@ -16,7 +17,7 @@
 ;;; For instance, let's consider this nettrack expression:
 #;(
 (; edges (notice that edges are filled with default attributes as required)
-  [(http-answer (call-scm print-int %http-status))] ; an action to perform whenever the http-answer node is entered
+  [(http-answer (pass "printf(\"%u\\n\", " %http-status ");\n"))] ; an action to perform whenever the http-answer node is entered
   ; vertices
   [(root web-syn
          ((ip with  (do
@@ -30,10 +31,15 @@
    (web-syn http-answer
             ((ip with   ((src =i %ip-server) && (dst =i %ip-client)))
              (tcp with  ((src-port == 80) && (dst-port == %client-port)))
-             (http with ((set? (status as %http-status)))))
+             (http with (do (status as http-status) (set? status))))
             kill)])
 )
-;;; We want to gather from it the list of matches:
+;;; For actions, here we use 'eval' with parameters of various types (eval is a special form which parameters are
+;;; evaluated but not type checked, see netmatch.scm).
+;;; We could also use 'call' which would call this function with given parameters (it's up to you (and ld) to
+;;; ensure this call will eventually succeed). See netmatch.scm for these (and others) interesting special forms...
+;;;
+;;; We want to gather from this nettrack expression the list of matches:
 ;;; -> ((("root_2_web_syn" . ((ip with ....) (tcp with ...)))
 ;;;      ("web_syn_2_http_answer" . (...)))
 
@@ -43,9 +49,9 @@
     (lambda (from to)
       (set! seq (+ 1 seq))
       (string-append
-        (type:string->C-ident (symbol->string from))
+        (type:symbol->C-ident from)
         "_2_"
-        (type:string->C-ident (symbol->string to))
+        (type:symbol->C-ident to)
         "_"
         (number->string seq)))))
 
@@ -78,11 +84,16 @@
       vertices)
     (for-each
       (lambda (e)
+        (slog log-debug "Got action: ~a~%" e)
         (match e
                ((name code)
-                (set! actions (cons (cons (string-append "entry_" name) code) actions)))
-               (_ #f))))
-    (match (match:compile matches actions)
+                (set! actions
+                  (cons (cons (string-append "entry_" (type:symbol->C-ident name))
+                              code)
+                        actions)))
+               (_ #f)))
+      edges)
+    (match (netmatch:compile matches actions)
            ((so-name . nb-regs)
             (make-nettrack name so-name nb-regs edges vertices-ll)))))
 

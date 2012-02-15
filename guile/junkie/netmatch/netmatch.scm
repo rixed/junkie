@@ -152,7 +152,7 @@
            ((_ 'header-size)                                                 "info.head_len")
            ((_ 'payload-size)                                                "info.payload")
            ; but in the general case field name is the same
-           ((_ f) (type:string->C-ident (symbol->string f))))))
+           ((_ f) (type:symbol->C-ident f)))))
 
 (define field->type
   (lambda proto-and-field
@@ -293,7 +293,8 @@
   (hash-ref (fluid-ref register-types) regname))
 (define (register->type regname)
   (or (get-register-type regname)
-      (throw 'cannot-type regname)))
+      (throw 'cannot-type (simple-format #f "register ~a is unknown"
+                                         regname))))
 
 (define (expr->stub proto expr)
   (slog log-debug "compiling expression ~s, which should be of type ~a" expr (type:type-name (fluid-ref expected-type)))
@@ -339,7 +340,7 @@
                  (slog log-debug "compiling special form 'set?' for field name ~a (flag ~a)" field flag)
                  (if (not flag)
                      (throw 'you-must-be-joking (simple-format #f "field ~s in ~s is either always set or unknown" f proto)))
-                 (ll:set? (type:string->C-ident (symbol->string proto))
+                 (ll:set? (type:symbol->C-ident proto)
                           (field->C proto field)
                           flag)))
               ((x 'as name) ; binding operation
@@ -347,7 +348,7 @@
                (or (symbol? name)
                    (throw 'you-must-be-joking (simple-format #f "register name must be a symbol not ~s" name)))
                (let* ((x-stub  (expr->stub proto x)) ; should set expected-type if unset yet
-                      (regname (type:string->C-ident (symbol->string name)))
+                      (regname (type:symbol->C-ident name))
                       (e-type  (fluid-ref expected-type)))
                  (slog log-debug " compiling actual bind")
                  (set-register-type regname e-type)
@@ -360,6 +361,21 @@
                (type:stub-concat
                  (with-expected-type type:any (lambda () (expr->stub proto v1)))
                  (expr->stub proto (cons 'do v2))))
+              ; Generate code to pass C code from expression to generated file. All params that are not strings are evaluated and
+              ; their result is inlined, so you'd better not use anything beyond mere immediate values or refs.
+              (('pass . params)
+               (slog log-debug " compiling special form 'pass'")
+               (let ((ps (map (lambda (p)
+                                (if (string? p) ; anything that's not a string must be evaluated
+                                    (type:make-stub "" p '())
+                                    (with-expected-type type:any (lambda () (expr->stub proto p)))))
+                              params)))
+                 (type:make-stub
+                   (string-append
+                     (apply string-append (map type:stub-code ps))
+                     (apply string-append (map type:stub-result ps)))
+                   ""
+                   (apply append (map type:stub-regnames ps)))))
               ; Now that we have ruled out the empty list and special forms we must face an operator, which can be infix or prefix
               ((and (v1 op-name . rest) (? (lambda (expr) (is-infix (cadr expr)))))
                (perform-op op-name (cons v1 rest)))
@@ -390,7 +406,7 @@
             ; fetch from a register
             (let* ((regname     (type:string->C-ident (substring str 1)))
                    (e-type      (fluid-ref expected-type)))
-              (if (eq? (fluid-ref expected-type) type:any)
+              (if (eq? e-type type:any)
                   (let ((actual-type (register->type regname)))
                     (slog log-debug "set expteced type of register ~a: ~a" regname (type:type-name actual-type))
                     (fluid-set! expected-type actual-type))
@@ -407,7 +423,7 @@
                    (let ((actual-type (field->type proto canon-name)))
                      (slog log-debug "set expteced type of field ~a: ~a" canon-name (type:type-name actual-type))
                      (fluid-set! expected-type actual-type)))
-               ((type:type-fetch (fluid-ref expected-type)) (type:string->C-ident (symbol->string proto))
+               ((type:type-fetch (fluid-ref expected-type)) (type:symbol->C-ident proto)
                                                             (field->C proto canon-name)))))))
       (else
         (throw 'you-must-be-joking
