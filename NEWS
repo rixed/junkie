@@ -23,7 +23,7 @@ New in 1.5.0 (since 1.4.0)
 * Compiled packet filters (much faster than tshark filters):
 
   junkie -i eth0 -p writer.so --file=/dev/stdout --method=csv \
-    --netmatch '((tcp with (dst = 80)) (http with ((set? host) && (host =s "www.google.com"))))'
+    --netmatch '((tcp with (dst-port = 80)) (http with ((set? host) && (host =s "www.google.com"))))'
 
 
 New in 1.4.0 (since 1.3.0)
