@@ -298,36 +298,47 @@
 
 (define (expr->stub proto expr)
   (slog log-debug "compiling expression ~s, which should be of type ~a" expr (type:type-name (fluid-ref expected-type)))
-  (let ((perform-op (lambda (op-name params)
-                      (let* ((op (or (type:symbol->op op-name)
-                                     (throw 'you-must-be-joking (simple-format #f "operator ~s?" op-name))))
-                             (itypes (type:op-itypes op))
-                             (otype  (type:op-otype op)))
-                        (slog log-debug " compiling operator ~a, taking ~a and returning a ~a"
-                              (type:op-name op) (map type:type-name itypes) (type:type-name otype))
-                        (type:check otype (fluid-ref expected-type))
-                        (if (eqv? (length params) (length itypes))
-                            (apply
-                              (type:op-function op)
-                              (map (lambda (p t)
-                                     (with-expected-type t (lambda () (expr->stub proto p))))
-                                   params itypes))
-                            ; In some occasions we automatically transform (op a b c d) to (op (op (op a b) c) d), or
-                            ; in the general case, when op require n<m arguments:
-                            ; (op a1 .. am) -> (op (op (... (op a1 .. an) an+1 .. a2n) a2n+1 .. a3n) ...)
-                            ; so we suppose that op is left associative.
-                            (if (and (> (length params) (length itypes)) ; if we have params in excess
-                                     (every (lambda (t) (eqv? otype t)) itypes)) ; and they are all of the same type = the output type
-                                (expr->stub proto (explode-op op-name (length itypes) params))
-                                (throw 'you-must-be-joking
-                                       (simple-format #f "bad number of parameters for ~a: ~a instead of ~a" op-name (length params) (length itypes))))))))
-        (is-infix   (let ((prefix-chars (string->char-set "!@#$%^&*-+=|~/:><")))
-                      (lambda (op)
-                        (and (symbol? op)
-                             (char-set-contains? prefix-chars (string-ref (symbol->string op) 0))
-                             (false-if-exception (type:symbol->op op))))))
-        (regname?   (lambda (str)
-                      (eqv? (string-ref str 0) #\%))))
+  (let* ((perf-op    (lambda (op params)
+                       (let* ((itypes (type:op-itypes op))
+                              (otype  (type:op-otype op)))
+                         (slog log-debug " compiling operator ~a, taking ~a and returning a ~a"
+                               (type:op-name op) (map type:type-name itypes) (type:type-name otype))
+                         (type:check otype (fluid-ref expected-type))
+                         (if (eqv? (length params) (length itypes))
+                             (apply
+                               (type:op-function op)
+                               (map (lambda (p t)
+                                      (with-expected-type t (lambda () (expr->stub proto p))))
+                                    params itypes))
+                             ; In some occasions we automatically transform (op a b c d) to (op (op (op a b) c) d), or
+                             ; in the general case, when op require n<m arguments:
+                             ; (op a1 .. am) -> (op (op (... (op a1 .. an) an+1 .. a2n) a2n+1 .. a3n) ...)
+                             ; so we suppose that op is left associative.
+                             (if (and (> (length params) (length itypes)) ; if we have params in excess
+                                      (every (lambda (t) (eqv? otype t)) itypes)) ; and they are all of the same type = the output type
+                                 (expr->stub proto (explode-op (type:op-name op) (length itypes) params))
+                                 (throw 'you-must-be-joking
+                                        (simple-format #f "bad number of parameters for ~a: ~a instead of ~a"
+                                                       (type:op-name op) (length params) (length itypes))))))))
+         ; takes an op name and try each binding for this op until one works (aka. generic buildins)
+         (perform-op (lambda (op-name params)
+                       (let* ((ops (or (type:symbol->ops op-name)
+                                       (throw 'you-must-be-joking 'unknown-operator op-name))))
+                         (or (any (lambda (op)
+                                    (catch 'type-error
+                                           (lambda () (perf-op op params))
+                                           (lambda (key . args)
+                                             #f)))
+                                  ops)
+                             (throw 'type-error op-name)))))
+         (is-infix   (let ((prefix-chars (string->char-set "!@#$%^&*-+=|~/:><")))
+                       (lambda (op)
+                         (slog log-debug "is ~s an infix op?" op)
+                         (and (symbol? op)
+                              (char-set-contains? prefix-chars (string-ref (symbol->string op) 0))
+                              (false-if-exception (type:symbol->ops op))))))
+         (regname?   (lambda (str)
+                       (eqv? (string-ref str 0) #\%))))
     (cond
       ((list? expr)
        (match expr

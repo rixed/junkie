@@ -309,7 +309,19 @@
 ;;; Operators
 ;;;
 
+; A hash of name -> list of functions of this name
 (define operators (make-hash-table 31))
+
+; Welcome the helper for insertion
+(define (add-operator sym fun)
+  (let ((prev (hashq-ref operators sym '())))
+    (hashq-set! operators sym (cons fun prev))))
+
+; Mapping from symbols to operators
+(define (symbol->ops sym)
+  (hashq-ref operators sym))
+
+(export symbol->ops)
 
 ;;; Logical Operators
 
@@ -331,10 +343,10 @@
           res
           (append (stub-regnames v1) (stub-regnames v2)))))))
 
-(hashq-set! operators '| log-or)
-(hashq-set! operators '|| log-or)
-(hashq-set! operators 'or log-or)
-(hashq-set! operators 'log-or log-or)
+(add-operator '| log-or)
+(add-operator '|| log-or)
+(add-operator 'or log-or)
+(add-operator 'log-or log-or)
 
 (define log-and
   (make-op
@@ -354,10 +366,10 @@
           res
           (append (stub-regnames v1) (stub-regnames v2)))))))
 
-(hashq-set! operators '& log-and)
-(hashq-set! operators '&& log-and)
-(hashq-set! operators 'and log-and)
-(hashq-set! operators 'log-and log-and)
+(add-operator '& log-and)
+(add-operator '&& log-and)
+(add-operator 'and log-and)
+(add-operator 'log-and log-and)
 
 (define log-not
   (make-op
@@ -373,8 +385,8 @@
           res
           (append (stub-regnames v)))))))
 
-(hashq-set! operators '! log-not)
-(hashq-set! operators 'not log-not)
+(add-operator '! log-not)
+(add-operator 'not log-not)
 
 (export log-or log-and log-not)
 
@@ -421,18 +433,18 @@
 (define eq
   (make-op '= bool (list uint uint) (simple-binary-op "==" "bool")))
 
-(hashq-set! operators '+ add)
-(hashq-set! operators '- sub)
-(hashq-set! operators '* mult)
-(hashq-set! operators '/ div)
-(hashq-set! operators 'mod mod)
-(hashq-set! operators '% mod)
-(hashq-set! operators '> gt)
-(hashq-set! operators '>= ge)
-(hashq-set! operators '< lt)
-(hashq-set! operators '<= le)
-(hashq-set! operators '= eq)
-(hashq-set! operators '== eq)
+(add-operator '+ add)
+(add-operator '- sub)
+(add-operator '* mult)
+(add-operator '/ div)
+(add-operator 'mod mod)
+(add-operator '% mod)
+(add-operator '> gt)
+(add-operator '>= ge)
+(add-operator '< lt)
+(add-operator '<= le)
+(add-operator '= eq)
+(add-operator '== eq)
 
 (export add sub mult div mod gt ge lt le eq)
 
@@ -449,7 +461,7 @@
                  (string-append "&" res)
                  (stub-regnames ts))))))
 
-(hashq-set! operators 'make-timestamp make-timestamp)
+(add-operator 'make-timestamp make-timestamp)
 
 (define now ; build a timestamp based from current local time
   (make-op 'now timestamp '()
@@ -462,7 +474,7 @@
                  (string-append "&" res)
                  '())))))
 
-(hashq-set! operators 'now now)
+(add-operator 'now now)
 
 (define age ; returns the number of microsecs between now and a given timestamp from the past (since result is unsigned)
   (make-op 'age uint (list timestamp)
@@ -475,7 +487,7 @@
                  res
                  (stub-regnames ts))))))
 
-(hashq-set! operators 'age age)
+(add-operator 'age age)
 
 (define timestamp-sub ; returns the number of microseconds between two timestamps (first minus second, must be positive!)
   (make-op 'timestamp-sub uint (list timestamp timestamp)
@@ -489,9 +501,9 @@
                  res
                  (append (stub-regnames ts1) (stub-regnames ts2)))))))
 
-(hashq-set! operators 'timestamp-sub timestamp-sub)
-(hashq-set! operators 'sub-timestamp timestamp-sub)
-(hashq-set! operators '-TS timestamp-sub)
+(add-operator 'timestamp-sub timestamp-sub)
+(add-operator 'sub-timestamp timestamp-sub)
+(add-operator '-TS timestamp-sub)
 
 (export make-timestamp now age timestamp-sub)
 
@@ -509,7 +521,7 @@
                  (string-append "&" res)
                  (stub-regnames s))))))
 
-(hashq-set! operators 'make-ip make-ip)
+(add-operator 'make-ip make-ip)
 
 (define routable?
   (make-op 'routable? bool (list ip)
@@ -522,8 +534,8 @@
                  res
                  (stub-regnames ip))))))
 
-(hashq-set! operators 'routable? routable?)
-(hashq-set! operators 'is-routable routable?)
+(add-operator 'routable? routable?)
+(add-operator 'is-routable routable?)
 
 (define broadcast?
   (make-op 'broadcast? bool (list ip)
@@ -536,8 +548,8 @@
                  res
                  (stub-regnames ip))))))
 
-(hashq-set! operators 'broadcast? broadcast?)
-(hashq-set! operators 'is-broadcast broadcast?)
+(add-operator 'broadcast? broadcast?)
+(add-operator 'is-broadcast broadcast?)
 
 (define ip-eq?
   (make-op 'ip-eq? bool (list ip ip)
@@ -551,8 +563,9 @@
                  res
                  (append (stub-regnames ip1) (stub-regnames ip2)))))))
 
-(hashq-set! operators '=I ip-eq?)
-(hashq-set! operators '=i ip-eq?)
+(add-operator '=I ip-eq?)
+(add-operator '=i ip-eq?)
+(add-operator '== ip-eq?)
 
 (export make-ip routable? broadcast?)
 
@@ -569,7 +582,7 @@
                  res
                  (stub-regnames str))))))
 
-(hashq-set! operators 'str-null? str-null?)
+(add-operator 'str-null? str-null?)
 
 (define str-eq?
   (make-op 'str-eq? bool (list str str)
@@ -583,17 +596,10 @@
                  res
                  (append (stub-regnames s1) (stub-regnames s2)))))))
 
-(hashq-set! operators 'str-eq? str-eq?)
-(hashq-set! operators '=S str-eq?)
-(hashq-set! operators '=s str-eq?)
+(add-operator 'str-eq? str-eq?)
+(add-operator '=S str-eq?)
+(add-operator '=s str-eq?)
 
 (export str-null? str-eq?)
 
-
-;;; Mapping from symbols to operators
-
-(define (symbol->op sym)
-  (hashq-ref operators sym))
-
-(export symbol->op)
 
