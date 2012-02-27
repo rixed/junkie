@@ -229,7 +229,7 @@ static SCM g_primitive_log(SCM priority_, SCM filename_, SCM funcname_, SCM msg_
     char *funcname = scm_to_locale_string(funcname_);
     scm_dynwind_free(funcname);
 
-    slog(priority, filename, funcname, msg);
+    slog(priority, filename, funcname, "%s", msg);
 
     scm_dynwind_end();
 
