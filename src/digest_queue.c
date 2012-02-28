@@ -166,7 +166,7 @@ enum digest_status digest_queue_find(struct digest_queue *digest, unsigned char 
 
 void digest_frame(unsigned char buf[DIGEST_SIZE], size_t size, uint8_t *restrict packet)
 {
-    SLOG(LOG_DEBUG, "Compute the digest of relevant data in the frame");
+    SLOG(LOG_DEBUG, "Compute the digest of %zu bytes frame", size);
 
     unsigned iphdr_offset = ETHER_HEADER_SIZE;
     unsigned ethertype_offset = ETHER_ETHERTYPE_OFFSET;
@@ -189,6 +189,14 @@ void digest_frame(unsigned char buf[DIGEST_SIZE], size_t size, uint8_t *restrict
     ) { // Optionally skip the VLan Tag
         iphdr_offset += 4;
         if (collapse_vlans) hash_start += 4;
+    }
+
+    /* If size is 64 bytes or below, assume trailing zeros are Ethernet padding.
+     * We'd rather does this as parsing Eth header + IP to figure out
+     * the actual payload size, since it's simpler, faster and works for any payload type.
+     */
+    if (size <= 64) {
+        while (size > 0 && packet[size-1] == 0) size--;
     }
 
     if (size < iphdr_offset + IPV4_CHECKSUM_OFFSET) {

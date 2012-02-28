@@ -1,2 +1,4 @@
--- pcap/misc/eth_padding.pcap --
+-- pcap/eth/padding.pcap --
 head_len=20, payload=0, ports=993->1979, flags=Ack, win=65535, ack=2440074829, seq=1633020171
+-- pcap/eth/dups_with_various_padding.pcap --
+head_len=20, payload=0, ports=4316->445, flags=Ack, win=24820, ack=4079031347, seq=573914980

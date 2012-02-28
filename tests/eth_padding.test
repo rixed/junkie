@@ -1,7 +1,8 @@
 #!/bin/sh
 # Check that TCP payload is 0 in the presence of ethernet padding
+# Also, check that packets differing only in padding will be deduplicated properly
 NAME="Ethernet Padding"
-PCAPS="pcap/misc/eth_padding.pcap"
+PCAPS="pcap/eth/padding.pcap pcap/eth/dups_with_various_padding.pcap"
 filter() {
 	grep '^TCP' | cut -d' ' -f 2-
 }
