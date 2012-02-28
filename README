@@ -45,8 +45,7 @@ most blatant limitations:
   on "any" interfaces) and 802.1q vlan tags. All other Ethernet extensions are
   ignored.
 
-- Http parser does not support chunked transport encoding nor multi-line 
-  headers.
+- Http parser does not support multi-line headers.
 
 - ARP parser knows only Ethernet and IP addresses.
 
