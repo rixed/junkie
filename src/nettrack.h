@@ -13,7 +13,7 @@ LOG_CATEGORY_DEC(nettrack);
 // FIXME: some locks for all these lists
 
 struct nt_state {
-    LIST_ENTRY(nt_state) siblings, same_edge;
+    LIST_ENTRY(nt_state) siblings, same_vertex;
     /* When a new state is spawned we keep a relationship with parent/children,
      * so that it's possible to terminate a whole family. */
     struct nt_state *parent;
@@ -21,21 +21,21 @@ struct nt_state {
     struct npc_register *regfile;
 };
 
-struct nt_edge {
+struct nt_vertex {
     char *name;
-    LIST_ENTRY(nt_edge) same_graph;
+    LIST_ENTRY(nt_vertex) same_graph;
     struct nt_states states; // the states currently waiting in this node
-     LIST_HEAD(nt_vertices, nt_vertex) outgoing_vertices;
-    struct nt_vertices incoming_vertices;
+    LIST_HEAD(nt_edges, nt_edge) outgoing_edges;
+    struct nt_edges incoming_edges;
     // User defined actions
     npc_action_fn *action_fn;
     // TODO timeout, etc
 };
 
-struct nt_vertex {
-    LIST_ENTRY(nt_vertex) same_graph;
-    struct nt_edge *from , *to;
-    LIST_ENTRY(nt_vertex) same_from, same_to;
+struct nt_edge {
+    LIST_ENTRY(nt_edge) same_graph;
+    struct nt_vertex *from , *to;
+    LIST_ENTRY(nt_edge) same_from, same_to;
     npc_match_fn *match_fn;
     // what to do when taken
     bool spawn;  // ie create a new child (otherwise bring the matching state right here)
@@ -47,10 +47,10 @@ struct nt_vertex {
 
 struct nt_graph {
     char *name;
-    LIST_HEAD(nt_edges, nt_edge) edges;
+    LIST_HEAD(nt_vertices, nt_vertex) vertices;
     LIST_ENTRY(nt_graph) entry; // in the list of all started graphs
     bool started;
-    struct nt_vertices vertices;
+    struct nt_edges edges;
     unsigned nb_registers;
     lt_dlhandle lib;
     // for statistics

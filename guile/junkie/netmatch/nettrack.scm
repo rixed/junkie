@@ -16,9 +16,9 @@
 ;;;
 ;;; For instance, let's consider this nettrack expression:
 #;(
-(; edges (notice that edges are filled with default attributes as required)
+(; vertices (notice that edges are filled with default attributes as required)
   [(http-answer (pass "printf(\"%u\\n\", " %http-status ");\n"))] ; an action to perform whenever the http-answer node is entered
-  ; vertices
+  ; edges
   [(root web-syn
          ((ip with  (do
                       (src as ip-client)
@@ -55,12 +55,12 @@
         "_"
         (number->string seq)))))
 
-; returns a vertice suitable for make-nettrack and the (match-name . match) pair
-(define (chg-vertice vertice)
-  (let* ((from  (car vertice))
-         (to    (cadr vertice))
-         (match (caddr vertice))
-         (rest  (cdddr vertice))
+; returns an edge suitable for make-nettrack and the (match-name . match) pair
+(define (chg-edge edge)
+  (let* ((from       (car edge))
+         (to         (cadr edge))
+         (match      (caddr edge))
+         (rest       (cdddr edge))
          (fname (match-name from to)))
     (cons
       (list fname from to rest)
@@ -68,20 +68,20 @@
 
 ; takes a full expression and do the work
 (define (compile name expr)
-  (let ((edges       (car expr))
-        (vertices    (cadr expr))
+  (let ((vertices    (car expr))
+        (edges       (cadr expr))
         (matches     '())
         (actions     '())
-        (vertices-ll '()))
+        (edges-ll    '()))
     (for-each
-      (lambda (v)
-        (match (chg-vertice v)
-               ((new-v . new-m)
+      (lambda (e)
+        (match (chg-edge e)
+               ((new-e . new-m)
                 (set! matches
                   (cons new-m matches))
-                (set! vertices-ll
-                  (cons new-v vertices-ll)))))
-      vertices)
+                (set! edges-ll
+                  (cons new-e edges-ll)))))
+      edges)
     (for-each
       (lambda (e)
         (slog log-debug "Got action: ~a~%" e)
@@ -92,9 +92,9 @@
                               code)
                         actions)))
                (_ #f)))
-      edges)
+      vertices)
     (match (netmatch:compile matches actions)
            ((so-name . nb-regs)
-            (make-nettrack name so-name nb-regs edges vertices-ll)))))
+            (make-nettrack name so-name nb-regs vertices edges-ll)))))
 
 (export compile)
