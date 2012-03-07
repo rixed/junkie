@@ -34,8 +34,10 @@ struct nt_vertex {
 
 struct nt_edge {
     LIST_ENTRY(nt_edge) same_graph;
+    struct nt_graph *graph;
     struct nt_vertex *from , *to;
     LIST_ENTRY(nt_edge) same_from, same_to;
+    LIST_ENTRY(nt_edge) same_hook;
     npc_match_fn *match_fn;
     // what to do when taken
     bool spawn;  // ie create a new child (otherwise bring the matching state right here)
@@ -56,9 +58,6 @@ struct nt_graph {
     // for statistics
     uint64_t nb_frames;
 };
-
-// Called for every parsed packet
-int nettrack_callbacks(struct proto_info const *, size_t cap_len, uint8_t const *packet);
 
 void nettrack_init(void);
 void nettrack_fini(void);

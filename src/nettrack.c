@@ -38,6 +38,19 @@ LOG_CATEGORY_DEF(nettrack);
 static MALLOCER_DEF(nettrack);
 
 /*
+ * We need to register a callback for every parsers, then try all nodes whose last proto match the called one.
+ */
+
+
+static struct nt_parser_hook {
+    struct proto_subscriber subscriber;
+    // list of edges which test ends with this proto
+    struct nt_edges edges;
+    bool registered;    // we only subscribe to this hook when used
+} parser_hooks[PROTO_CODE_MAX];
+
+
+/*
  * Register Files
  */
 
@@ -227,7 +240,8 @@ static void nt_vertex_del(struct nt_vertex *vertex, struct nt_graph *graph)
  * Edges
  */
 
-static int nt_edge_ctor(struct nt_edge *edge, struct nt_graph *graph, struct nt_vertex *from, struct nt_vertex *to, char const *match_fn_name, bool spawn, bool grab, unsigned death_range)
+static proto_cb_t parser_hook;
+static int nt_edge_ctor(struct nt_edge *edge, struct nt_graph *graph, struct nt_vertex *from, struct nt_vertex *to, char const *match_fn_name, bool spawn, bool grab, unsigned death_range, struct proto *inner_proto)
 {
     SLOG(LOG_DEBUG, "Construct new edge@%p", edge);
 
@@ -242,18 +256,25 @@ static int nt_edge_ctor(struct nt_edge *edge, struct nt_graph *graph, struct nt_
     edge->grab = grab;
     edge->death_range = death_range;
     edge->nb_matches = edge->nb_tries = 0;
+    edge->graph = graph;
     LIST_INSERT_HEAD(&from->outgoing_edges, edge, same_from);
     LIST_INSERT_HEAD(&to->incoming_edges, edge, same_to);
     LIST_INSERT_HEAD(&graph->edges, edge, same_graph);
+    LIST_INSERT_HEAD(&parser_hooks[inner_proto->code].edges, edge, same_hook);
+    if (! parser_hooks[inner_proto->code].registered) {
+        if (0 == proto_subscriber_ctor(&parser_hooks[inner_proto->code].subscriber, inner_proto, parser_hook)) {
+            parser_hooks[inner_proto->code].registered = true;
+        }
+    }
 
     return 0;
 }
 
-static struct nt_edge *nt_edge_new(struct nt_graph *graph, struct nt_vertex *from, struct nt_vertex *to, char const *match_fn_name, bool spawn, bool grab, unsigned death_range)
+static struct nt_edge *nt_edge_new(struct nt_graph *graph, struct nt_vertex *from, struct nt_vertex *to, char const *match_fn_name, bool spawn, bool grab, unsigned death_range, struct proto *inner_proto)
 {
     struct nt_edge *edge = MALLOC(nettrack, sizeof(*edge));
     if (! edge) return NULL;
-    if (0 != nt_edge_ctor(edge, graph, from, to, match_fn_name, spawn, grab, death_range)) {
+    if (0 != nt_edge_ctor(edge, graph, from, to, match_fn_name, spawn, grab, death_range, inner_proto)) {
         FREE(edge);
         return NULL;
     }
@@ -267,7 +288,9 @@ static void nt_edge_dtor(struct nt_edge *edge)
     LIST_REMOVE(edge, same_from);
     LIST_REMOVE(edge, same_to);
     LIST_REMOVE(edge, same_graph);
+    LIST_REMOVE(edge, same_hook);
 
+    edge->graph = NULL;
     edge->match_fn = NULL;
 }
 
@@ -361,39 +384,43 @@ static void nt_graph_del(struct nt_graph *graph)
  * Update graph with proto_infos
  */
 
-static int nt_graph_update(struct nt_graph *graph, struct proto_info const *last, size_t cap_len, uint8_t const *packet)
+static void parser_hook(struct proto_subscriber *subscriber, struct proto_info const *last, size_t cap_len, uint8_t const *packet)
 {
-    SLOG(LOG_DEBUG, "Updating graph %s", graph->name);
     (void)cap_len;
     (void)packet;
 
-    graph->nb_frames ++;
+    SLOG(LOG_DEBUG, "Updating graph");
 
-    // Simple method: loop over all edges, then over all states from the departure vertices
+    // Find the parser_hook
+    struct nt_parser_hook *hook = DOWNCAST(subscriber, subscriber, nt_parser_hook);
+    assert(hook >= parser_hooks+0);
+    assert(hook < parser_hooks+(NB_ELEMS(parser_hooks)));
+
     struct nt_edge *edge;
-    LIST_FOREACH(edge, &graph->edges, same_graph) {
+    LIST_FOREACH(edge, &hook->edges, same_hook) {
+        // Test this edge for transition
         struct nt_state *state;
         LIST_FOREACH(state, &edge->from->states, same_vertex) {
             SLOG(LOG_DEBUG, "Testing state from vertex %s for %s into %s",
-                edge->from->name,
-                edge->spawn ? "spawn":"move",
-                edge->to->name);
+                    edge->from->name,
+                    edge->spawn ? "spawn":"move",
+                    edge->to->name);
             edge->nb_tries ++;
             /* Do the match with a copy of the regfile.
              * FIXME: Delayed bindings + prevent use of new bindings in same expression would be much faster.
              *        Note that dereferencing a register in the same expression where it's bound is unsafe
              *        anyway since order of evaluation is not guaranteed to be the one that's expected. */
-            struct npc_register *tmp_regfile = npc_regfile_copy(state->regfile, graph->nb_registers);
-            if (! tmp_regfile) return -1;
+            struct npc_register *tmp_regfile = npc_regfile_copy(state->regfile, edge->graph->nb_registers);
+            if (! tmp_regfile) return;  // so be it
             if (edge->match_fn(last, tmp_regfile)) {
                 SLOG(LOG_DEBUG, "Match!");
                 edge->nb_matches ++;
                 if (edge->spawn) {
                     if (! (state = nt_state_new(state, edge->to, tmp_regfile))) {
-                        npc_regfile_del(tmp_regfile, graph->nb_registers);
+                        npc_regfile_del(tmp_regfile, edge->graph->nb_registers);
                     }
                 } else {    // move the whole state
-                    npc_regfile_del(state->regfile, graph->nb_registers);
+                    npc_regfile_del(state->regfile, edge->graph->nb_registers);
                     state->regfile = tmp_regfile;
                     nt_state_move(state, edge->to);
                 }
@@ -402,25 +429,13 @@ static int nt_graph_update(struct nt_graph *graph, struct proto_info const *last
                     SLOG(LOG_DEBUG, "Calling entry function for vertex '%s'", edge->to->name);
                     edge->to->action_fn(state->regfile);
                 }
-                if (edge->grab) goto quit;
+                if (edge->grab) return;
             } else {
                 SLOG(LOG_DEBUG, "No match");
-                npc_regfile_del(tmp_regfile, graph->nb_registers);
+                npc_regfile_del(tmp_regfile, edge->graph->nb_registers);
             }
         }
     }
-quit:
-
-    return 0;
-}
-
-int nettrack_callbacks(struct proto_info const *last, size_t cap_len, uint8_t const *packet)
-{
-    struct nt_graph *graph;
-    LIST_FOREACH(graph, &started_graphs, entry) {
-        if (0 != nt_graph_update(graph, last, cap_len, packet)) return -1;
-    }
-    return 0;
 }
 
 /*
@@ -470,17 +485,23 @@ static SCM kill_sym;
 
 static void add_edge(struct nt_graph *graph, SCM edge_)
 {
-    // edge is a list of: match-name vertex-name, vertex-name, param
+    // edge is a list of: match-name inner-proto, vertex-name, vertex-name, param
     // where param can be: spawn, grab, (kill n) ...
     SCM name_ = scm_car(edge_);
     edge_ = scm_cdr(edge_);
 
+    struct proto *inner_proto = proto_of_scm_name(scm_symbol_to_string(scm_car(edge_)));
+    if (! inner_proto) {
+        scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_1(scm_car(edge_)));
+    }
+    edge_ = scm_cdr(edge_);
+
     struct nt_vertex *from = nt_vertex_lookup(graph, scm_to_tempstr(scm_car(edge_)));
-    if (! from) scm_throw(scm_from_latin1_symbol("cannot-create-nt-vertex"), scm_list_1(scm_car(edge_)));
+    if (! from) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_1(scm_car(edge_)));
     edge_ = scm_cdr(edge_);
 
     struct nt_vertex *to   = nt_vertex_lookup(graph, scm_to_tempstr(scm_car(edge_)));
-    if (! to) scm_throw(scm_from_latin1_symbol("cannot-create-nt-vertex"), scm_list_1(scm_car(edge_)));
+    if (! to) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_1(scm_car(edge_)));
     edge_ = scm_cdr(edge_);
 
     bool spawn = false;
@@ -501,7 +522,7 @@ static void add_edge(struct nt_graph *graph, SCM edge_)
         edge_ = scm_cdr(edge_);
     }
 
-    struct nt_edge *edge = nt_edge_new(graph, from, to, scm_to_tempstr(name_), spawn, grab, death_range);
+    struct nt_edge *edge = nt_edge_new(graph, from, to, scm_to_tempstr(name_), spawn, grab, death_range, inner_proto);
     if (! edge) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_1(name_));
 }
 
@@ -609,6 +630,12 @@ void nettrack_init(void)
 
     LIST_INIT(&started_graphs);
 
+    // Init parser_hooks
+    for (unsigned h = 0; h < NB_ELEMS(parser_hooks); h++) {
+        parser_hooks[h].registered = false;
+        LIST_INIT(&parser_hooks[h].edges);
+    }
+
     // Create a SMOB for nt_graph
     graph_tag = scm_make_smob_type("nettrack-graph", sizeof(struct nt_graph));
     scm_set_smob_free(graph_tag, free_graph_smob);
@@ -621,8 +648,8 @@ void nettrack_init(void)
         "    (tcp-syn) ; merely the names. Later: timeout, etc...\n"
         "    (etc...))\n"
         "  ; list of edges\n"
-        "  '((\"match-fun1\" root tcp-syn spawn (kill 2))\n"
-        "    (\"match-fun2\" root blabla ...)\n"
+        "  '((\"match-fun1\" inner-proto root tcp-syn spawn (kill 2))\n"
+        "    (\"match-fun2\" inner-proto root blabla ...)\n"
         "    (etc...))) : create a nettrack graph.\n"
         "Note: you are not supposed to use this directly.\n");
 

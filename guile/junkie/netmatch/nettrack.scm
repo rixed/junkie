@@ -55,19 +55,30 @@
         "_"
         (number->string seq)))))
 
+(define (inner-proto-of-test test)
+  (let ((ll-test (netmatch:test->ll-test test)))
+    (car ll-test)))
+
+(define (inner-proto-of-match match)
+  (if (null? (cdr match))
+      (inner-proto-of-test (car match))
+      (inner-proto-of-match (cdr match))))
+
 ; returns an edge suitable for make-nettrack and the (match-name . match) pair
 (define (chg-edge edge)
-  (let* ((from       (car edge))
-         (to         (cadr edge))
-         (match      (caddr edge))
-         (rest       (cdddr edge))
-         (fname (match-name from to)))
+  (let* ((from        (car edge))
+         (to          (cadr edge))
+         (match       (caddr edge))
+         (rest        (cdddr edge))
+         (fname       (match-name from to))
+         (inner-proto (inner-proto-of-match match)))
     (cons
-      (list fname from to rest)
+      (list fname inner-proto from to rest)
       (cons fname match))))
 
 ; takes a full expression and do the work
 (define (compile name expr)
+  (netmatch:reset-register-types) ; since we are going to call test->ll-test (FIXME: test->ll-test is too much hassle just for obtaining the proto!)
   (let ((vertices    (car expr))
         (edges       (cadr expr))
         (matches     '())

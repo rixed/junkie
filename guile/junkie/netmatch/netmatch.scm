@@ -279,6 +279,7 @@
 (define register-types (make-fluid))
 (define (reset-register-types)
   (fluid-set! register-types (make-hash-table)))
+(export reset-register-types)
 (define (set-register-type regname type)
   (let ((prev-type (hash-ref (fluid-ref register-types) regname)))
     (slog log-debug "register ~a is now known to be of type ~a (previously a ~a)" regname (type:type-name type) prev-type)
@@ -476,6 +477,8 @@
           `(,proto #t . ,(expr->stub proto #t)))
          (_
           (throw 'you-must-be-joking (simple-format #f "Cannot get my head around ~s" test)))))
+
+(export test->ll-test) ; used to find out proto code of inner test of match :-(
 
 (define (match->ll-match match)
   (let* ((patch-skip (lambda (test can-skip) ; as we revert the list of tests in a match, we have to propagate can-skip the other way around
