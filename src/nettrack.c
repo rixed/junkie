@@ -243,7 +243,7 @@ static void nt_vertex_del(struct nt_vertex *vertex, struct nt_graph *graph)
 static proto_cb_t parser_hook;
 static int nt_edge_ctor(struct nt_edge *edge, struct nt_graph *graph, struct nt_vertex *from, struct nt_vertex *to, char const *match_fn_name, bool spawn, bool grab, unsigned death_range, struct proto *inner_proto)
 {
-    SLOG(LOG_DEBUG, "Construct new edge@%p", edge);
+    SLOG(LOG_DEBUG, "Construct new edge@%p from %s to %s", edge, from->name, to->name);
 
     edge->match_fn = lt_dlsym(graph->lib, match_fn_name);
     if (! edge->match_fn) {
@@ -389,18 +389,19 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
     (void)cap_len;
     (void)packet;
 
-    SLOG(LOG_DEBUG, "Updating graph");
+    SLOG(LOG_DEBUG, "Updating graph with inner info from %s", last->parser->proto->name);
 
     // Find the parser_hook
     struct nt_parser_hook *hook = DOWNCAST(subscriber, subscriber, nt_parser_hook);
     assert(hook >= parser_hooks+0);
     assert(hook < parser_hooks+(NB_ELEMS(parser_hooks)));
+    assert(hook->registered);
 
     struct nt_edge *edge;
     LIST_FOREACH(edge, &hook->edges, same_hook) {
         // Test this edge for transition
-        struct nt_state *state;
-        LIST_FOREACH(state, &edge->from->states, same_vertex) {
+        struct nt_state *state, *tmp;
+        LIST_FOREACH_SAFE(state, &edge->from->states, same_vertex, tmp) {   // Beware that this state may move
             SLOG(LOG_DEBUG, "Testing state from vertex %s for %s into %s",
                     edge->from->name,
                     edge->spawn ? "spawn":"move",
@@ -415,6 +416,7 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
             if (edge->match_fn(last, tmp_regfile)) {
                 SLOG(LOG_DEBUG, "Match!");
                 edge->nb_matches ++;
+                // FIXME: wheither spawn or move, do not attach any state to edge->to is LIST_EMPTY(edge->to->outgoing)
                 if (edge->spawn) {
                     if (! (state = nt_state_new(state, edge->to, tmp_regfile))) {
                         npc_regfile_del(tmp_regfile, edge->graph->nb_registers);
@@ -422,14 +424,14 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                 } else {    // move the whole state
                     npc_regfile_del(state->regfile, edge->graph->nb_registers);
                     state->regfile = tmp_regfile;
-                    nt_state_move(state, edge->to);
+                    if (edge->from != edge->to) nt_state_move(state, edge->to);
                 }
                 // state is now the new moved/spawned state
                 if (edge->to->action_fn) {
                     SLOG(LOG_DEBUG, "Calling entry function for vertex '%s'", edge->to->name);
                     edge->to->action_fn(state->regfile);
                 }
-                if (edge->grab) return;
+                if (edge->grab) return; // FIXME: oups! there can be more than one graph in this hook, and we don't want to skip all
             } else {
                 SLOG(LOG_DEBUG, "No match");
                 npc_regfile_del(tmp_regfile, edge->graph->nb_registers);
