@@ -276,26 +276,28 @@
             (lasts  (take-right params (- s 1))))
         `(,op ,(explode-op op s firsts) ,@lasts))))
 
-(define register-types (make-fluid))
+(define register-types (make-fluid)) ; an alist of name->type (persistant data structure for fast save/restore (just in case)
 (define (reset-register-types)
-  (fluid-set! register-types (make-hash-table)))
+  (fluid-set! register-types '()))
 (export reset-register-types)
 (define (set-register-type regname type)
-  (let ((prev-type (hash-ref (fluid-ref register-types) regname)))
-    (slog log-debug "register ~a is now known to be of type ~a (previously a ~a)" regname (type:type-name type) prev-type)
+  (assert (type:type? type))
+  ;(slog log-debug "set-register-type ~a to ~a in ~s" regname (type:type-name type) (fluid-ref register-types))
+  (let ((prev-type (assoc-ref (fluid-ref register-types) regname)))
+    (slog log-debug "register ~a is now known to be of type ~a (previously a ~a)" regname (type:type-name type) (if prev-type (type:type-name prev-type) "unknown"))
     (if prev-type
         ; check this is not incompatible with a previous information
         (if (not (eq? prev-type type))
-            (throw 'cannot-type (simple-format #f "register ~a was a ~a but is now a ~a"
-                                               regname (type:type-name prev-type) (type:type-name type))))
+            (throw 'type-error (simple-format #f "register ~a was a ~a but is now a ~a"
+                                              regname (type:type-name prev-type) (type:type-name type))))
         ; else record it for future checks
-        (hash-set! (fluid-ref register-types) regname type))))
+        (fluid-set! register-types (cons (cons regname type) (fluid-ref register-types))))))
+(export set-register-type)
 (define (get-register-type regname)
-  (hash-ref (fluid-ref register-types) regname))
+  (assoc-ref (fluid-ref register-types) regname))
 (define (register->type regname)
   (or (get-register-type regname)
-      (throw 'cannot-type (simple-format #f "register ~a is unknown"
-                                         regname))))
+      (throw 'unknown-register regname (fluid-ref register-types))))
 
 (define (expr->stub proto expr)
   (slog log-debug "compiling expression ~s, which should be of type ~a" expr (type:type-name (fluid-ref expected-type)))
@@ -326,10 +328,25 @@
                        (let* ((ops (or (type:symbol->ops op-name)
                                        (throw 'you-must-be-joking 'unknown-operator op-name))))
                          (or (any (lambda (op)
-                                    (catch 'type-error
-                                           (lambda () (perf-op op params))
-                                           (lambda (key . args)
-                                             #f)))
+                                    ; save register types
+                                    (let ((saved-regs (fluid-ref register-types)))
+                                      (slog log-debug "Saving register types:")
+                                      (for-each (lambda (a)
+                                                  (slog log-debug "  ~a of type ~a" (car a) (type:type-name (or (get-register-type (car a)) "unknown"))))
+                                                saved-regs)
+                                      (catch 'type-error
+                                             (lambda () (perf-op op params))
+                                             (lambda (key . args)
+                                               ; restore register types
+                                               (slog log-debug "Cannot type, rollback")
+                                               (for-each (lambda (a)
+                                                           (slog log-debug "  ~a of type ~a->~a"
+                                                                 (car a)
+                                                                 (type:type-name (or (get-register-type (car a)) "unknown"))
+                                                                 (type:type-name (cdr a))))
+                                                         saved-regs)
+                                               (fluid-set! register-types saved-regs)
+                                               #f))))
                                   ops)
                              (throw 'type-error op-name)))))
          (is-infix   (let ((prefix-chars (string->char-set "!@#$%^&*-+=|~/:><")))
@@ -420,7 +437,7 @@
                    (e-type      (fluid-ref expected-type)))
               (if (eq? e-type type:any)
                   (let ((actual-type (register->type regname)))
-                    (slog log-debug "set expteced type of register ~a: ~a" regname (type:type-name actual-type))
+                    (slog log-debug "set expected type of register ~a: ~a" regname (type:type-name actual-type))
                     (fluid-set! expected-type actual-type))
                   ; check the type we expect is not incompatible with a previously known type for this regname (or set it)
                   (set-register-type regname e-type))
@@ -433,7 +450,7 @@
              (let ((canon-name (fieldname proto expr)))
                (if (eq? (fluid-ref expected-type) type:any)
                    (let ((actual-type (field->type proto canon-name)))
-                     (slog log-debug "set expteced type of field ~a: ~a" canon-name (type:type-name actual-type))
+                     (slog log-debug "set expected type of field ~a: ~a" canon-name (type:type-name actual-type))
                      (fluid-set! expected-type actual-type)))
                ((type:type-fetch (fluid-ref expected-type)) (type:symbol->C-ident proto)
                                                             (field->C proto canon-name)))))))
@@ -505,7 +522,7 @@
            (cons name (match->ll-match match))))
        matches))
 
-; an action is a procedure that compute an expression and returns nothing (usefull for regfile update, calling external functions...
+; an action is a procedure that compute an expression and returns nothing (usefull for regfile update, calling external functions...)
 (define (actions->ll-actions actions)
   (map (lambda (r)
          (let ((name   (car r))
@@ -513,10 +530,17 @@
            (cons name (expr->stub 'none action))))
        actions))
 
-(define (compile matches actions)
-  (reset-register-types)
+;; for nettrack, which already filled some register types
+(define (resume-compile matches actions)
   (let ((ll-matches (matches->ll-matches matches))
         (ll-actions (actions->ll-actions actions)))
     (ll:matches->so ll-matches ll-actions)))
 
+(export resume-compile)
+
+(define (compile matches actions)
+  (reset-register-types)
+  (resume-compile matches actions))
+
 (export compile)
+

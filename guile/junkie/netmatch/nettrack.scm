@@ -16,7 +16,12 @@
 ;;;
 ;;; For instance, let's consider this nettrack expression:
 #;(
-(; vertices (notice that edges are filled with default attributes as required)
+( ; register declarations (optional but recommended)
+  [(http-status uint)
+   (ip-client ip)
+   (ip-server ip)
+   (client-port uint)]
+  ; vertices (notice that edges are filled with default attributes as required)
   [(http-answer (pass "printf(\"%u\\n\", " %http-status ");\n"))] ; an action to perform whenever the http-answer node is entered
   ; edges
   [(root web-syn
@@ -34,6 +39,9 @@
              (http with (do (status as http-status) (set? status))))
             kill)])
 )
+;;; Notice that despite type inference we need to declare (some) registers since type inference is performed
+;;; test after test. Even if type inference was done globally, such deep backtracking would lead to slow compilation,
+;;; and thus the ability to make some types explicit would come handy nonetheless.
 ;;; For actions, here we use 'eval' with parameters of various types (eval is a special form which parameters are
 ;;; evaluated but not type checked, see netmatch.scm).
 ;;; We could also use 'call' which would call this function with given parameters (it's up to you (and ld) to
@@ -79,11 +87,20 @@
 ; takes a full expression and do the work
 (define (compile name expr)
   (netmatch:reset-register-types) ; since we are going to call test->ll-test (FIXME: test->ll-test is too much hassle just for obtaining the proto!)
-  (let ((vertices    (car expr))
-        (edges       (cadr expr))
-        (matches     '())
-        (actions     '())
-        (edges-ll    '()))
+  (let ((decls     (car expr))
+        (vertices  (cadr expr))
+        (edges     (caddr expr))
+        (matches   '())
+        (actions   '())
+        (edges-ll  '()))
+    (for-each
+      (lambda (dec)
+        (let ((regname  (car dec))
+              (typename (cadr dec)))
+          (netmatch:set-register-type
+            (type:symbol->C-ident regname)
+            (module-ref (resolve-module '(junkie netmatch types)) typename))))
+      decls)
     (for-each
       (lambda (e)
         (match (chg-edge e)
@@ -95,7 +112,7 @@
       edges)
     (for-each
       (lambda (e)
-        (slog log-debug "Got action: ~a~%" e)
+        (slog log-debug "Got action: ~a" e)
         (match e
                ((name code)
                 (set! actions
@@ -104,7 +121,7 @@
                         actions)))
                (_ #f)))
       vertices)
-    (match (netmatch:compile matches actions)
+    (match (netmatch:resume-compile matches actions)
            ((so-name . nb-regs)
             (make-nettrack name so-name nb-regs vertices edges-ll)))))
 

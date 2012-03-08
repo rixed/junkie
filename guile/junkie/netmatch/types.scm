@@ -29,6 +29,8 @@
 
 ; we take the type rather than the type name because one day we may want to try implicit convertion?
 (define (check t1 t2)
+  (assert (type? t1))
+  (assert (type? t2))
   (if (and (not (eq? t1 t2))
            (not (eq? t1 any))
            (not (eq? t2 any)))
@@ -37,7 +39,7 @@
 (export check)
 
 (define-record-type type (fields name imm fetch ref bind))
-(export type-name type-imm type-fetch type-ref type-bind)
+(export type-name type? type-imm type-fetch type-ref type-bind)
 
 ;;; But what's a code stub? It's the code required to compute a value, this value's name,
 ;;; and the list of used register(s).
