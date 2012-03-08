@@ -78,7 +78,8 @@
   (make-stub
     (string-append
       (stub-code value)
-      "    regfile[" regname "].value = " (stub-result value) ";\n")
+      "    regfile[" regname "].value = " (stub-result value) ";\n"
+      "    regfile[" regname "].size = 0;\n")
     (string-append "regfile[" regname "].value")
     (cons regname (stub-regnames value))))
 
