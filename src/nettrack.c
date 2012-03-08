@@ -409,27 +409,46 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
             edge->nb_tries ++;
             /* Do the match with a copy of the regfile.
              * FIXME: Delayed bindings + prevent use of new bindings in same expression would be much faster.
-             *        Note that dereferencing a register in the same expression where it's bound is unsafe
-             *        anyway since order of evaluation is not guaranteed to be the one that's expected. */
+             *        Also, a flag per node telling of the match function write into the regfile or not would come handy.
+             *        Note that dereferencing a register in the same expression where it is bound is unsafe
+             *        no matter what, and should be forbidden, since order of evaluation is not guaranteed,
+             *        which imply that any register can be either read or written to but not both in any given
+             *        matching function.
+             *        Late binding is nonetheless a hassle... There could be another newregfile array, written to
+             *        by bind methods and set onto the entry match function stack, and then later if the
+             *        match function returns true copied into regfile, or if returning false cleared? So that
+             *        the whole regfile would have to be copied preemptively (only the overwritten fields, and
+             *        even not if the bind method merely puts the address (which are still valid, except for constants,
+             *        when the main function exits)).
+             *        Another way to address this issues: forbid bind in matching functions, but allow them in
+             *        the entry function. Would be familiar to the user but would require to lookup the bound values again.
+             *        Binding `en passant` is definitively more elegant. go for the newbind list? */
             struct npc_register *tmp_regfile = npc_regfile_copy(state->regfile, edge->graph->nb_registers);
             if (! tmp_regfile) return;  // so be it
             if (edge->match_fn(last, tmp_regfile)) {
                 SLOG(LOG_DEBUG, "Match!");
                 edge->nb_matches ++;
-                // FIXME: wheither spawn or move, do not attach any state to edge->to is LIST_EMPTY(edge->to->outgoing)
+                // Call the entry function
+                if (edge->to->action_fn) {
+                    SLOG(LOG_DEBUG, "Calling entry function for vertex '%s'", edge->to->name);
+                    edge->to->action_fn(tmp_regfile);
+                }
+                // Now move/spawn/dispose of state
                 if (edge->spawn) {
-                    if (! (state = nt_state_new(state, edge->to, tmp_regfile))) {
+                    if (LIST_EMPTY(&edge->to->outgoing_edges)) {  // no need to spawn anything
+                        npc_regfile_del(tmp_regfile, edge->graph->nb_registers);
+                    } else if (! (state = nt_state_new(state, edge->to, tmp_regfile))) {
                         npc_regfile_del(tmp_regfile, edge->graph->nb_registers);
                     }
                 } else {    // move the whole state
-                    npc_regfile_del(state->regfile, edge->graph->nb_registers);
-                    state->regfile = tmp_regfile;
-                    if (edge->from != edge->to) nt_state_move(state, edge->to);
-                }
-                // state is now the new moved/spawned state
-                if (edge->to->action_fn) {
-                    SLOG(LOG_DEBUG, "Calling entry function for vertex '%s'", edge->to->name);
-                    edge->to->action_fn(state->regfile);
+                    if (LIST_EMPTY(&edge->to->outgoing_edges)) {  // rather dispose of former state
+                        nt_state_del(state, edge->graph);
+                        npc_regfile_del(tmp_regfile, edge->graph->nb_registers);
+                    } else {
+                        npc_regfile_del(state->regfile, edge->graph->nb_registers);
+                        state->regfile = tmp_regfile;
+                        if (edge->from != edge->to) nt_state_move(state, edge->to);
+                    }
                 }
                 if (edge->grab) return; // FIXME: oups! there can be more than one graph in this hook, and we don't want to skip all
             } else {
