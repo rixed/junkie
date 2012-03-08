@@ -13,7 +13,7 @@ LOG_CATEGORY_DEC(nettrack);
 // FIXME: some locks for all these lists
 
 struct nt_state {
-    LIST_ENTRY(nt_state) siblings, same_vertex;
+    LIST_ENTRY(nt_state) same_parent, same_vertex;
     /* When a new state is spawned we keep a relationship with parent/children,
      * so that it's possible to terminate a whole family. */
     struct nt_state *parent;

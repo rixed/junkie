@@ -103,7 +103,7 @@ static int nt_state_ctor(struct nt_state *state, struct nt_state *parent, struct
 
     state->regfile = regfile;
     state->parent = parent;
-    if (parent) LIST_INSERT_HEAD(&parent->children, state, siblings);
+    if (parent) LIST_INSERT_HEAD(&parent->children, state, same_parent);
     LIST_INSERT_HEAD(&vertex->states, state, same_vertex);
     LIST_INIT(&state->children);
 
@@ -133,7 +133,7 @@ static void nt_state_dtor(struct nt_state *state, struct nt_graph *graph)
     }
 
     if (state->parent) {
-        LIST_REMOVE(state, siblings);
+        LIST_REMOVE(state, same_parent);
         state->parent = NULL;
     }
     LIST_REMOVE(state, same_vertex);
