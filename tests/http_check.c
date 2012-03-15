@@ -256,7 +256,7 @@ static struct parse_test {
 static unsigned current_test;
 static unsigned current_rep;
 
-static void http_info_check(struct proto_subscriber unused_ *s, struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
+static void http_info_check(struct proto_subscriber unused_ *s, struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet, struct timeval const unused_ *now)
 {
     assert(current_rep < parse_tests[current_test].nb_expected);
 
@@ -337,7 +337,7 @@ void build_url_check(void)
 }
 
 static bool caplen_reported;
-static void caplen_info_check(struct proto_subscriber unused_ *s, struct proto_info const unused_ *info, size_t unused_ cap_len, uint8_t const unused_ *packet)
+static void caplen_info_check(struct proto_subscriber unused_ *s, struct proto_info const unused_ *info, size_t unused_ cap_len, uint8_t const unused_ *packet, struct timeval const unused_ *now)
 {
     caplen_reported = true;
 }

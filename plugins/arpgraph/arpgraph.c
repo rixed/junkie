@@ -25,7 +25,6 @@
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/hash.h"
 #include "junkie/proto/arp.h"
-#include "junkie/proto/cap.h"
 
 // Global parameters settable from the command line
 #define DEFAULT_MONITORING_PERIOD 120 // seconds
@@ -153,16 +152,15 @@ static void reset_edges(void)
     }
 }
 
-static void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info const *info, size_t unused_ cap_len, uint8_t const unused_ *packet)
+static void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info const *info, size_t unused_ cap_len, uint8_t const unused_ *packet, struct timeval const *now)
 {
-    ASSIGN_INFO_CHK(cap, info, );
     static time_t last_output = 0;
     if (! last_output) {
-        last_output = cap->tv.tv_sec;
-    } else if (cap->tv.tv_sec > last_output + (time_t)opt_monitoring_period) {
+        last_output = now->tv_sec;
+    } else if (now->tv_sec > last_output + (time_t)opt_monitoring_period) {
         output_graph();
         reset_edges();
-        last_output = cap->tv.tv_sec;
+        last_output = now->tv_sec;
     }
 
     ASSIGN_INFO_CHK(arp, info, );

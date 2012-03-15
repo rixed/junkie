@@ -14,7 +14,7 @@
 #define DATAGRAM_MAX_SIZE 65535
 #define SERIALIZER_DEFAULT_SERVICE "28999"
 
-void serialize_proto_stack(uint8_t **buf, struct proto_info const *last);
+void serialize_proto_stack(uint8_t **buf, struct proto_info const *last, struct timeval const *now);
 void deserialize_proto_stack(uint8_t const **buf);
 
 void serialize_init(void);

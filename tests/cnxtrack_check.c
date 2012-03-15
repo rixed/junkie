@@ -153,7 +153,7 @@ static struct test {
 
 static unsigned current_test = 0;
 
-static void check_last_proto(struct proto_subscriber unused_ *s, struct proto_info const *last, size_t unused_ cap_len, uint8_t const unused_ *packet)
+static void check_last_proto(struct proto_subscriber unused_ *s, struct proto_info const *last, size_t unused_ cap_len, uint8_t const unused_ *packet, struct timeval const unused_ *now)
 {
     assert(0 == strcmp(last->parser->proto->name, tests[current_test].last_proto_name));
 }

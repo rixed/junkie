@@ -6,6 +6,7 @@
 #include <ltdl.h>
 #include "junkie/tools/queue.h"
 #include "junkie/tools/log.h"
+#include "junkie/tools/timeval.h"
 #include "junkie/netmatch.h"
 
 LOG_CATEGORY_DEC(nettrack);
@@ -19,6 +20,7 @@ struct nt_state {
     struct nt_state *parent;
     LIST_HEAD(nt_states, nt_state) children;
     struct npc_register *regfile;
+    struct timeval last_used;
 };
 
 struct nt_vertex {
@@ -29,7 +31,7 @@ struct nt_vertex {
     struct nt_edges incoming_edges;
     // User defined actions
     npc_action_fn *action_fn;
-    // TODO timeout, etc
+    unsigned timeout;   // if >0, number of seconds to keep an inactive state in here
 };
 
 struct nt_edge {

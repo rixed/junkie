@@ -246,7 +246,7 @@ static unsigned udp_num; // when did we receive the whole payload ?
 static unsigned pkt_num[NB_ELEMS(pkts)];
 static struct proto_subscriber sub;
 
-static void okfn(struct proto_subscriber unused_ *s, struct proto_info const *last, size_t cap_len, uint8_t const *packet)
+static void okfn(struct proto_subscriber unused_ *s, struct proto_info const *last, size_t cap_len, uint8_t const *packet, struct timeval const unused_ *now)
 {
     // We are called once for UDP, and once for each IP fragments
     if (last->parser->proto == proto_udp) {

@@ -75,7 +75,7 @@ static struct parse_test {
 
 static unsigned cur_test;
 
-static void rtcp_info_check(struct proto_subscriber unused_ *s, struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
+static void rtcp_info_check(struct proto_subscriber unused_ *s, struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet, struct timeval const unused_ *now)
 {
     struct rtcp_proto_info const *const info = DOWNCAST(info_, info, rtcp_proto_info);
     struct expected const *const exp = &parse_tests[cur_test].exp;

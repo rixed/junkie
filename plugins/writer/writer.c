@@ -299,7 +299,7 @@ static void try_write(struct capture_conf *conf, struct proto_info const *info, 
     }
 }
 
-static void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info const *info, size_t cap_len, uint8_t const *packet)
+static void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info const *info, size_t cap_len, uint8_t const *packet, struct timeval const unused_ *now)
 {
     static bool cli_inited = false;
     if (! cli_inited) {

@@ -72,7 +72,7 @@ static struct parse_test {
 
 static unsigned current_test;
 
-static void tcp_info_check(struct proto_subscriber unused_ *s, struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
+static void tcp_info_check(struct proto_subscriber unused_ *s, struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet, struct timeval const unused_ *now)
 {
     // Check info against parse_tests[current_test].expected
     struct tcp_proto_info const *const info = DOWNCAST(info_, info, tcp_proto_info);

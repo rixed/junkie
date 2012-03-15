@@ -130,11 +130,11 @@ char const *proto_parse_status_2_str(enum proto_parse_status status)
     return "INVALID";
 }
 
-static void proto_subscribers_call_ll(struct proto_subscribers *list, struct proto_info const *info, size_t tot_cap_len, uint8_t const *tot_packet)
+static void proto_subscribers_call_ll(struct proto_subscribers *list, struct proto_info const *info, size_t tot_cap_len, uint8_t const *tot_packet, struct timeval const *now)
 {
     struct proto_subscriber *sub;
     LIST_FOREACH(sub, list, entry) {
-        sub->cb(sub, info, tot_cap_len, tot_packet);
+        sub->cb(sub, info, tot_cap_len, tot_packet, now);
     }
 }
 
@@ -146,7 +146,7 @@ enum proto_parse_status proto_parse(struct parser *parser, struct proto_info *pa
     bool const go_deeper = parser && wire_len > 0;  // FIXME: don't we want to call subparsers on empty payload?
 
     if (parent) {
-        proto_subscribers_call(parent->parser->proto, !go_deeper, parent, tot_cap_len, tot_packet);
+        proto_subscribers_call(parent->parser->proto, !go_deeper, parent, tot_cap_len, tot_packet, now);
     }
 
     if (go_deeper) {
@@ -224,12 +224,12 @@ void proto_pkt_subscriber_dtor(struct proto_subscriber *sub)
     mutex_unlock(&pkt_subscribers_lock);
 }
 
-void proto_subscribers_call(struct proto *proto, bool with_pkt_sbc, struct proto_info *info, size_t tot_cap_len, uint8_t const *tot_packet)
+void proto_subscribers_call(struct proto *proto, bool with_pkt_sbc, struct proto_info *info, size_t tot_cap_len, uint8_t const *tot_packet, struct timeval const *now)
 {
     // Call the callbacks for the completed proto_info
     // FIXME: smaller lock?
     mutex_lock(&proto->lock);
-    proto_subscribers_call_ll(&proto->subscribers, info, tot_cap_len, tot_packet);
+    proto_subscribers_call_ll(&proto->subscribers, info, tot_cap_len, tot_packet, now);
     mutex_unlock(&proto->lock);
 
     if (with_pkt_sbc) { // also call packet subscribers
@@ -241,7 +241,7 @@ void proto_subscribers_call(struct proto *proto, bool with_pkt_sbc, struct proto
         }
         if (! info_->pkt_sbc_called) {
             mutex_lock(&pkt_subscribers_lock);
-            proto_subscribers_call_ll(&pkt_subscribers, info, tot_cap_len, tot_packet);
+            proto_subscribers_call_ll(&pkt_subscribers, info, tot_cap_len, tot_packet, now);
             info_->pkt_sbc_called = true;
             mutex_unlock(&pkt_subscribers_lock);
         }

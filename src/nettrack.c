@@ -127,7 +127,7 @@ static struct npc_register *npc_regfile_merge(struct npc_register *prev_regfile,
  * States
  */
 
-static int nt_state_ctor(struct nt_state *state, struct nt_state *parent, struct nt_vertex *vertex, struct npc_register *regfile)
+static int nt_state_ctor(struct nt_state *state, struct nt_state *parent, struct nt_vertex *vertex, struct npc_register *regfile, struct timeval const *now)
 {
     SLOG(LOG_DEBUG, "Construct state@%p from state@%p, in vertex %s", state, parent, vertex->name);
 
@@ -136,15 +136,16 @@ static int nt_state_ctor(struct nt_state *state, struct nt_state *parent, struct
     if (parent) LIST_INSERT_HEAD(&parent->children, state, same_parent);
     LIST_INSERT_HEAD(&vertex->states, state, same_vertex);
     LIST_INIT(&state->children);
+    state->last_used = *now;
 
     return 0;
 }
 
-static struct nt_state *nt_state_new(struct nt_state *parent, struct nt_vertex *vertex, struct npc_register *regfile)
+static struct nt_state *nt_state_new(struct nt_state *parent, struct nt_vertex *vertex, struct npc_register *regfile, struct timeval const *now)
 {
     struct nt_state *state = MALLOC(nettrack, sizeof(*state));
     if (! state) return NULL;
-    if (0 != nt_state_ctor(state, parent, vertex, regfile)) {
+    if (0 != nt_state_ctor(state, parent, vertex, regfile, now)) {
         FREE(state);
         return NULL;
     }
@@ -203,14 +204,19 @@ static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_
     LIST_INIT(&vertex->states);
     LIST_INSERT_HEAD(&graph->vertices, vertex, same_graph);
 
-    // An vertex named "root" starts with a nul state
+    // An vertex named "root" starts with a nul state (and is not timeouted)
     if (0 == strcmp("root", name)) {
+        struct timeval now;
+        timeval_set_now(&now);
         struct npc_register *regfile = npc_regfile_new(graph->nb_registers);
         if (! regfile) return -1;
-        if (! nt_state_new(NULL, vertex, regfile)) {
+        if (! nt_state_new(NULL, vertex, regfile, &now)) {
             npc_regfile_del(regfile, graph->nb_registers);
             return -1;
         }
+        vertex->timeout = 0;
+    } else {
+        vertex->timeout = 100000;//1000000;  // 1 second (FIXME: make this a parameter)
     }
 
     /* Additionnaly, there may be an action function to be called whenever this vertex is entered.
@@ -416,7 +422,7 @@ static void nt_graph_del(struct nt_graph *graph)
  * Update graph with proto_infos
  */
 
-static void parser_hook(struct proto_subscriber *subscriber, struct proto_info const *last, size_t cap_len, uint8_t const *packet)
+static void parser_hook(struct proto_subscriber *subscriber, struct proto_info const *last, size_t cap_len, uint8_t const *packet, struct timeval const *now)
 {
     (void)cap_len;
     (void)packet;
@@ -434,6 +440,11 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
         // Test this edge for transition
         struct nt_state *state, *tmp;
         LIST_FOREACH_SAFE(state, &edge->from->states, same_vertex, tmp) {   // Beware that this state may move
+            if (edge->from->timeout > 0 && edge->from->timeout < timeval_sub(now, &state->last_used)) {
+                SLOG(LOG_DEBUG, "Timeouting state in vertex %s", edge->from->name);
+                nt_state_del(state, edge->graph);
+                continue;
+            }
             SLOG(LOG_DEBUG, "Testing state from vertex %s for %s into %s",
                     edge->from->name,
                     edge->spawn ? "spawn":"move",
@@ -473,7 +484,7 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                 // Now move/spawn/dispose of state
                 if (edge->spawn) {
                     if (!LIST_EMPTY(&edge->to->outgoing_edges) && merged_regfile) { // or we do not need to spawn anything
-                        if (NULL == (state = nt_state_new(state, edge->to, merged_regfile))) {
+                        if (NULL == (state = nt_state_new(state, edge->to, merged_regfile, now))) {
                             npc_regfile_del(merged_regfile, edge->graph->nb_registers);
                         }
                     }
@@ -484,6 +495,7 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                         npc_regfile_del(state->regfile, edge->graph->nb_registers);
                         state->regfile = merged_regfile;
                         nt_state_move(state, edge->from, edge->to);
+                        state->last_used = *now;
                     }
                 }
                 npc_regfile_dtor(tmp_regfile, edge->graph->nb_registers);

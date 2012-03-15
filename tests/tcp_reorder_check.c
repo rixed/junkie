@@ -236,7 +236,7 @@ static unsigned nb_okfn_calls;
 static unsigned nb_gets, nb_resps;
 static struct proto_subscriber sub;
 
-static void okfn(struct proto_subscriber unused_ *s, struct proto_info const *last, size_t unused_ cap_len, uint8_t const unused_ *packet)
+static void okfn(struct proto_subscriber unused_ *s, struct proto_info const *last, size_t unused_ cap_len, uint8_t const unused_ *packet, struct timeval const unused_ *now)
 {
     nb_okfn_calls ++;
     SLOG(LOG_INFO, "Last info [%s]: %s", last->parser->proto->name, last->parser->proto->ops->info_2_str(last));

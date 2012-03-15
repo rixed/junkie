@@ -57,24 +57,22 @@ static void init_capture(void)
 }
 
 static bool inited = false;
-void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info const *info, size_t cap_len, uint8_t const *packet)
+void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info const *info, size_t cap_len, uint8_t const *packet, struct timeval const *now)
 {
     static bool writing = false;
     static struct timeval start;
     static uint64_t pld_since_start;
 
-    ASSIGN_INFO_CHK(cap, info, );
-
     if (! inited) {
         inited = true;
         init_capture();
         writing = false;
-        start = cap->tv;
+        start = *now;
         pld_since_start = 0;
     }
 
     // Do we started measuring payload more than 1 sec ago ?
-    if (timeval_sub(&cap->tv, &start) > 1000000) {
+    if (timeval_sub(now, &start) > 1000000) {
         SLOG(LOG_DEBUG, "Current throughput is %"PRIu64" bytes/secs", pld_since_start);
         if (writing && pld_since_start < opt_lower_bound) {
             SLOG(LOG_DEBUG, "Stopping capture");
@@ -84,11 +82,11 @@ void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info const *i
             writing = true;
         }
         // reset
-        start = cap->tv;
+        start = *now;
         pld_since_start = 0;
     }
 
-    pld_since_start += cap->info.payload;
+    pld_since_start += cap_len;
 
     if (writing && capfile) {
         (void)capfile->ops->write(capfile, info, cap_len, packet);
