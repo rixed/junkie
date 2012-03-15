@@ -54,43 +54,73 @@ static struct nt_parser_hook {
  * Register Files
  */
 
+static void npc_regfile_ctor(struct npc_register *regfile, unsigned nb_registers)
+{
+    for (unsigned r = 0; r < nb_registers; r++) {
+        regfile[r].value = 0;
+        regfile[r].size = -1;
+    }
+}
+
 static struct npc_register *npc_regfile_new(unsigned nb_registers)
 {
     size_t size = sizeof(struct npc_register) * nb_registers;
     struct npc_register *regfile = MALLOC(nettrack, size);
     if (! regfile) return NULL;
 
-    memset(regfile, 0, size);
+    npc_regfile_ctor(regfile, nb_registers);
     return regfile;
+}
+
+static void npc_regfile_dtor(struct npc_register *regfile, unsigned nb_registers)
+{
+    for (unsigned r = 0; r < nb_registers; r++) {
+        if (regfile[r].size > 0 && regfile[r].value) {
+            free((void *)regfile[r].value); // beware that individual registers are mallocated with malloc not MALLOC
+        }
+    }
 }
 
 static void npc_regfile_del(struct npc_register *regfile, unsigned nb_registers)
 {
-    for (unsigned r = 0; r < nb_registers; r++) {
-        if (regfile[r].value && regfile[r].size>0) {
-            free((void *)regfile[r].value); // beware that individual registers are mallocated with malloc not MALLOC
-        }
-    }
+    npc_regfile_dtor(regfile, nb_registers);
     FREE(regfile);
 }
 
-static struct npc_register *npc_regfile_copy(struct npc_register *regfile, unsigned nb_registers)
+static void register_copy(struct npc_register *dst, struct npc_register const *src)
 {
-    struct npc_register *copy = npc_regfile_new(nb_registers);
-    if (! copy) return NULL;
+    dst->size = src->size;
+    if (src->size > 0 && src->value) {
+        dst->value = (uintptr_t)malloc(src->size);
+        assert(dst->value);  // FIXME
+        memcpy((void *)dst->value, (void *)src->value, src->size);
+    } else {
+        dst->value = src->value;
+    }
+}
+
+/* Given the regular regfile prev_regfile and the new bindings of new_regfile, return a fresh register with new bindings applied.
+ * If steal_from_prev, then the previous values may be moved from prev_regfile to the new one. In any cases the new values are. */
+static struct npc_register *npc_regfile_merge(struct npc_register *prev_regfile, struct npc_register *new_regfile, unsigned nb_registers, bool steal_from_prev)
+{
+    struct npc_register *merged = npc_regfile_new(nb_registers);
+    if (! merged) return NULL;
 
     for (unsigned r = 0; r < nb_registers; r++) {
-        copy[r].size = regfile[r].size;
-        if (regfile[r].value && regfile[r].size>0) {
-            copy[r].value = (uintptr_t)malloc(copy[r].size);
-            assert(copy[r].value);  // FIXME
-            memcpy((void *)copy[r].value, (void *)regfile[r].value, copy[r].size);
+        if (new_regfile[r].size < 0) {  // still unbound
+            if (steal_from_prev) {
+                merged[r] = prev_regfile[r];
+                prev_regfile[r].size = -1;
+            } else {
+                register_copy(merged+r, prev_regfile+r);
+            }
         } else {
-            copy[r].value = regfile[r].value;
+            merged[r] = new_regfile[r];
+            new_regfile[r].size = -1;
         }
     }
 
-    return copy;
+    return merged;
 }
 
 /*
@@ -150,11 +180,13 @@ static void nt_state_del(struct nt_state *state, struct nt_graph *graph)
     FREE(state);
 }
 
-static void nt_state_move(struct nt_state *state, struct nt_vertex *vertex)
+static void nt_state_move(struct nt_state *state, struct nt_vertex *from, struct nt_vertex *to)
 {
-    SLOG(LOG_DEBUG, "Moving state@%p to vertex %s", state, vertex->name);
+    if (from == to) return;
+
+    SLOG(LOG_DEBUG, "Moving state@%p to vertex %s", state, to->name);
     LIST_REMOVE(state, same_vertex);
-    LIST_INSERT_HEAD(&vertex->states, state, same_vertex);
+    LIST_INSERT_HEAD(&to->states, state, same_vertex);
 }
 
 /*
@@ -407,53 +439,58 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                     edge->spawn ? "spawn":"move",
                     edge->to->name);
             edge->nb_tries ++;
-            /* Do the match with a copy of the regfile.
-             * FIXME: Delayed bindings + prevent use of new bindings in same expression would be much faster.
-             *        Also, a flag per node telling of the match function write into the regfile or not would come handy.
-             *        Note that dereferencing a register in the same expression where it is bound is unsafe
-             *        no matter what, and should be forbidden, since order of evaluation is not guaranteed,
-             *        which imply that any register can be either read or written to but not both in any given
-             *        matching function.
-             *        Late binding is nonetheless a hassle... There could be another newregfile array, written to
-             *        by bind methods and set onto the entry match function stack, and then later if the
-             *        match function returns true copied into regfile, or if returning false cleared? So that
-             *        the whole regfile would have to be copied preemptively (only the overwritten fields, and
-             *        even not if the bind method merely puts the address (which are still valid, except for constants,
-             *        when the main function exits)).
-             *        Another way to address this issues: forbid bind in matching functions, but allow them in
-             *        the entry function. Would be familiar to the user but would require to lookup the bound values again.
-             *        Binding `en passant` is definitively more elegant. go for the newbind list? */
-            struct npc_register *tmp_regfile = npc_regfile_copy(state->regfile, edge->graph->nb_registers);
-            if (! tmp_regfile) return;  // so be it
-            if (edge->match_fn(last, tmp_regfile)) {
+            /* Delayed bindings:
+             *   Matching functions does not change the bindings of the regfile while performing the tests because
+             *   we want the binding to take effect only if the tests succeed. Also, since the test order is not
+             *   specified then a given test can not both bind and references the same register. Thus, we pass it
+             *   two regfiles: one with the actual bindings (read only) and one with the new bindings. On exit, if
+             *   the test passed, then the new bindings overwrite the previous ones; otherwise they are discarded.
+             *   We try to do this as efficiently as possible by reusing the previously boxed values whenever
+             *   possible rather than reallocing/copying them.
+             * TODO:
+             *   - a flag per node telling of the match function write into the regfile or not would comes handy;
+             *   - prevent the test expressions to read and write the same register;
+             */
+            struct npc_register tmp_regfile[edge->graph->nb_registers];
+            npc_regfile_ctor(tmp_regfile, edge->graph->nb_registers);
+            if (edge->match_fn(last, state->regfile, tmp_regfile)) {
                 SLOG(LOG_DEBUG, "Match!");
                 edge->nb_matches ++;
+                // We need the merged state in all cases but when we have no action and we don't keep the result
+                struct npc_register *merged_regfile = NULL;
+                if (edge->to->action_fn || !LIST_EMPTY(&edge->to->outgoing_edges)) {
+                    merged_regfile = npc_regfile_merge(state->regfile, tmp_regfile, edge->graph->nb_registers, !edge->spawn);
+                    if (! merged_regfile) {
+                        SLOG(LOG_WARNING, "Cannot create the new register file");
+                        // so be it
+                    }
+                }
                 // Call the entry function
-                if (edge->to->action_fn) {
+                if (edge->to->action_fn && merged_regfile) {
                     SLOG(LOG_DEBUG, "Calling entry function for vertex '%s'", edge->to->name);
-                    edge->to->action_fn(tmp_regfile);
+                    edge->to->action_fn(merged_regfile);
                 }
                 // Now move/spawn/dispose of state
                 if (edge->spawn) {
-                    if (LIST_EMPTY(&edge->to->outgoing_edges)) {  // no need to spawn anything
-                        npc_regfile_del(tmp_regfile, edge->graph->nb_registers);
-                    } else if (! (state = nt_state_new(state, edge->to, tmp_regfile))) {
-                        npc_regfile_del(tmp_regfile, edge->graph->nb_registers);
+                    if (!LIST_EMPTY(&edge->to->outgoing_edges) && merged_regfile) { // or we do not need to spawn anything
+                        if (NULL == (state = nt_state_new(state, edge->to, merged_regfile))) {
+                            npc_regfile_del(merged_regfile, edge->graph->nb_registers);
+                        }
                     }
                 } else {    // move the whole state
                     if (LIST_EMPTY(&edge->to->outgoing_edges)) {  // rather dispose of former state
                         nt_state_del(state, edge->graph);
-                        npc_regfile_del(tmp_regfile, edge->graph->nb_registers);
-                    } else {
+                    } else if (merged_regfile) {    // replace former regfile with new one
                         npc_regfile_del(state->regfile, edge->graph->nb_registers);
-                        state->regfile = tmp_regfile;
-                        if (edge->from != edge->to) nt_state_move(state, edge->to);
+                        state->regfile = merged_regfile;
+                        nt_state_move(state, edge->from, edge->to);
                     }
                 }
+                npc_regfile_dtor(tmp_regfile, edge->graph->nb_registers);
                 if (edge->grab) return; // FIXME: oups! there can be more than one graph in this hook, and we don't want to skip all
             } else {
                 SLOG(LOG_DEBUG, "No match");
-                npc_regfile_del(tmp_regfile, edge->graph->nb_registers);
+                npc_regfile_dtor(tmp_regfile, edge->graph->nb_registers);
             }
         }
     }

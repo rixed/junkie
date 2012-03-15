@@ -101,11 +101,12 @@
   (let ((res (type:gensymC "test_fun")))
     (type:make-stub
       (string-append
-        "static npc_match_fn " res "; /* just to typecheck */\n"
-        "static bool " res "(struct proto_info const *info, struct npc_register *regfile)\n"
+        "static bool " res "(struct proto_info const *info, struct npc_register const *prev_regfile, struct npc_register *new_regfile)\n"
         "{\n"
+        "    /* We may not use these: */\n"
         "    (void)info;\n"
-        "    (void)regfile;\n"
+        "    (void)prev_regfile;\n"
+        "    (void)new_regfile;\n"
         (type:stub-code test)
         "    return " (type:stub-result test) ";\n}\n\n")
       res
@@ -125,7 +126,7 @@
         "    struct proto_info const *" res ";\n"
         "    for (" res " = info; " res "; " res " = " res "->parent) {\n"
         "        if (" res "->parser->proto->code == PROTO_CODE_" (string-upcase! (string-copy (symbol->string proto))) " &&\n"
-        "            " (type:stub-result test) "(" res ", regfile)) {\n"
+        "            " (type:stub-result test) "(" res ", prev_regfile, new_regfile)) {\n"
         "            break;\n"
         "        }\n"
         (if can-skip
@@ -150,10 +151,12 @@
                                   "   See function " fun-name "\n"
                                   " */\n\n"))
                (main-code       (string-append
-                                  "static bool " fun-name "(struct proto_info const *info, struct npc_register *regfile)\n"
+                                  "static bool " fun-name "(struct proto_info const *info, struct npc_register const *prev_regfile, struct npc_register *new_regfile)\n"
                                   "{\n"
+                                  "    /* We may not use these: */\n"
                                   "    (void)info;\n"
-                                  "    (void)regfile;\n"))
+                                  "    (void)prev_regfile;\n"
+                                  "    (void)new_regfile;\n"))
                (regnames '()))
       (if (null? remaining-tests)
           (type:make-stub
@@ -230,9 +233,10 @@
                                 (string-append
                                   (type:stub-code prev)
                                   (type:stub-code stub)
-                                  "bool " match-name "(struct proto_info const *info, struct npc_register *regfile)\n"
+                                  "npc_match_fn " match-name "; /* typecheck me please */\n"
+                                  "bool " match-name "(struct proto_info const *info, struct npc_register const *prev_regfile, struct npc_register *new_regfile)\n"
                                   "{\n"
-                                  "    return " (type:stub-result stub) "(info, regfile);\n"
+                                  "    return " (type:stub-result stub) "(info, prev_regfile, new_regfile);\n"
                                   "}\n\n")
                                 match-name
                                 (append (type:stub-regnames stub) (type:stub-regnames prev)))))
@@ -244,7 +248,8 @@
                               (type:make-stub
                                 (string-append
                                   (type:stub-code prev)
-                                  "void " action-name "(struct npc_register *regfile)\n"
+                                  "npc_action_fn " action-name "; /* typecheck me please */\n"
+                                  "void " action-name "(struct npc_register *prev_regfile)\n" ; actions can not bind to new_regfile
                                   "{\n"
                                   (type:stub-code action-expr)
                                   "}\n\n")

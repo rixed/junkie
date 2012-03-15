@@ -8,10 +8,10 @@
 
 struct npc_register {
     uintptr_t value;
-    size_t size;    // 0 if value is unboxed, malloced size otherwise (may be > to required size)
+    ssize_t size;   // <0 if value is unbound, 0 if unboxed, malloced size otherwise (may be > to required size, may be < sizeof(intptr_t) (for strings for instance))
 };
 
-typedef bool npc_match_fn(struct proto_info const *info, struct npc_register *regfile);
+typedef bool npc_match_fn(struct proto_info const *info, struct npc_register const *prev_regfile, struct npc_register *new_regfile);
 typedef void npc_action_fn(struct npc_register *regfile);
 
 #endif

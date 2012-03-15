@@ -71,36 +71,36 @@
 (define (unboxed-ref regname)
   (make-stub
     ""
-    (string-append "regfile[" regname "].value")
+    (string-append "prev_regfile[" regname "].value")
     (list regname)))
 
 (define (unboxed-bind regname value)
   (make-stub
     (string-append
       (stub-code value)
-      "    regfile[" regname "].value = " (stub-result value) ";\n"
-      "    regfile[" regname "].size = 0;\n")
-    (string-append "regfile[" regname "].value")
+      "    new_regfile[" regname "].value = " (stub-result value) ";\n"
+      "    new_regfile[" regname "].size = 0;\n")
+    (string-append "new_regfile[" regname "].value")
     (cons regname (stub-regnames value))))
 
 (define (boxed-ref regname)
   (make-stub
     ""
-    (string-append "regfile[" regname "].value")
+    (string-append "prev_regfile[" regname "].value")
     (list regname)))
 
 (define (boxed-bind regname value)
   (make-stub
     (string-append
-      (stub-code value)
-      "    if (regfile[" regname "].value) {\n" ; FIXME: check size since we may have enough room to avoid a free/malloc
-      "        free(regfile[" regname "].value);\n"
+      (stub-code value) ; FIXME: this won't work when rebinding the same boxed register (ie (%foo as foo)), which should not be possible anyway
+      "    if (new_regfile[" regname "].size > 0) {\n"
+      "        free(new_regfile[" regname "].value);\n"
       "    }\n"
-      "    regfile[" regname "].value = malloc(sizeof(*" (stub-result value) "));\n"
-      "    regfile[" regname "].size = sizeof(*" (stub-result value) ");\n"
-      "    assert(regfile[" regname "].value);\n" ; aren't assertions as good as proper error checks? O:-)
-      "    memcpy(regfile[" regname "].value, " (stub-result value) ", sizeof(*" (stub-result value) "));\n")
-    (string-append "regfile[" regname "].value")
+      "    new_regfile[" regname "].value = malloc(sizeof(*" (stub-result value) "));\n"
+      "    new_regfile[" regname "].size = sizeof(*" (stub-result value) ");\n"
+      "    assert(new_regfile[" regname "].value);\n" ; aren't assertions as good as proper error checks? O:-)
+      "    memcpy(new_regfile[" regname "].value, " (stub-result value) ", sizeof(*" (stub-result value) "));\n")
+    (string-append "new_regfile[" regname "].value")
     (cons regname (stub-regnames value))))
 
 (define gensymC
@@ -223,21 +223,21 @@
           res
           '())))
     boxed-ref
-    (lambda (regname value) ; bind needs special attention since sizeof(*res) won't work, we need strlen(*res)
+    (lambda (regname value) ; bind needs special attention since sizeof(*res) won't work, we need strlen(*res)+1
       (let ((tmp (gensymC)))
         (make-stub
           (string-append
             (stub-code value)
             "    /* " (stub-result value) " is supposed to point to a null terminated string */\n"
-            "    size_t " tmp " = strlen(" (stub-result value) ");\n"
-            "    if (regfile[" regname "].value) {\n" ; FIXME: same as above
-            "        free((void *)regfile[" regname "].value);\n"
+            "    size_t " tmp " = 1 + strlen(" (stub-result value) ");\n"
+            "    if (new_regfile[" regname "].value) {\n" ; FIXME: same as above
+            "        free((void *)new_regfile[" regname "].value);\n"
             "    }\n"
-            "    regfile[" regname "].value = malloc(" tmp ");\n"
-            "    regfile[" regname "].size = " tmp ";\n"
-            "    assert(regfile[" regname "].value);\n" ; aren't assertions as good as proper error checks? O:-)
-            "    memcpy((void *)regfile[" regname "].value, " (stub-result value) ", " tmp ");\n")
-          (string-append "regfile[" regname "].value")
+            "    new_regfile[" regname "].value = malloc(" tmp ");\n"
+            "    new_regfile[" regname "].size = " tmp ";\n"
+            "    assert(new_regfile[" regname "].value);\n" ; aren't assertions as good as proper error checks? O:-)
+            "    memcpy((void *)new_regfile[" regname "].value, " (stub-result value) ", " tmp ");\n")
+          (string-append "new_regfile[" regname "].value")
           (cons regname (stub-regnames value)))))))
 
 (export str)

@@ -284,7 +284,8 @@ static bool info_match(struct capture_conf const *conf, struct proto_info const 
     }
 
     if (conf->netmatch_set) {
-        if (! conf->netmatch.match_fun(info, conf->netmatch.regfile)) return false;
+        // FIXME: here we pass NULL as the new regfile since we are not supposed to bind anything. Ensure this using match purity property.
+        if (! conf->netmatch.match_fun(info, conf->netmatch.regfile, NULL)) return false;
     }
 
     return true;
