@@ -127,25 +127,26 @@ static struct npc_register *npc_regfile_merge(struct npc_register *prev_regfile,
  * States
  */
 
-static int nt_state_ctor(struct nt_state *state, struct nt_state *parent, struct nt_vertex *vertex, struct npc_register *regfile, struct timeval const *now)
+static int nt_state_ctor(struct nt_state *state, struct nt_state *parent, struct nt_vertex *vertex, struct npc_register *regfile, struct timeval const *now, unsigned index_h)
 {
     SLOG(LOG_DEBUG, "Construct state@%p from state@%p, in vertex %s", state, parent, vertex->name);
+    unsigned const index = index_h % vertex->index_size;
 
     state->regfile = regfile;
     state->parent = parent;
     if (parent) LIST_INSERT_HEAD(&parent->children, state, same_parent);
-    LIST_INSERT_HEAD(&vertex->states, state, same_vertex);
+    LIST_INSERT_HEAD(&vertex->states[index], state, same_vertex);
     LIST_INIT(&state->children);
     state->last_used = *now;
 
     return 0;
 }
 
-static struct nt_state *nt_state_new(struct nt_state *parent, struct nt_vertex *vertex, struct npc_register *regfile, struct timeval const *now)
+static struct nt_state *nt_state_new(struct nt_state *parent, struct nt_vertex *vertex, struct npc_register *regfile, struct timeval const *now, unsigned index_h)
 {
     struct nt_state *state = MALLOC(nettrack, sizeof(*state));
     if (! state) return NULL;
-    if (0 != nt_state_ctor(state, parent, vertex, regfile, now)) {
+    if (0 != nt_state_ctor(state, parent, vertex, regfile, now, index_h)) {
         FREE(state);
         return NULL;
     }
@@ -181,38 +182,46 @@ static void nt_state_del(struct nt_state *state, struct nt_graph *graph)
     FREE(state);
 }
 
-static void nt_state_move(struct nt_state *state, struct nt_vertex *from, struct nt_vertex *to)
+static void nt_state_move(struct nt_state *state, struct nt_vertex *from, struct nt_vertex *to, unsigned index_h)
 {
     if (from == to) return;
 
+    unsigned const index = index_h % to->index_size;
+
     SLOG(LOG_DEBUG, "Moving state@%p to vertex %s", state, to->name);
     LIST_REMOVE(state, same_vertex);
-    LIST_INSERT_HEAD(&to->states, state, same_vertex);
+    LIST_INSERT_HEAD(&to->states[index], state, same_vertex);
 }
 
 /*
  * Vertices
  */
 
-static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_graph *graph)
+static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_graph *graph, unsigned index_size)
 {
     SLOG(LOG_DEBUG, "Construct new vertex %s", name);
 
     vertex->name = STRDUP(nettrack, name);
+    vertex->index_size = index_size;
+    assert(index_size >= 1);
     LIST_INIT(&vertex->outgoing_edges);
     LIST_INIT(&vertex->incoming_edges);
-    LIST_INIT(&vertex->states);
     LIST_INSERT_HEAD(&graph->vertices, vertex, same_graph);
+    for (unsigned i = 0; i < index_size; i++) {
+        LIST_INIT(&vertex->states[i]);
+    }
 
     // A vertex named "root" starts with an initial state (and is not timeouted)
     if (0 == strcmp("root", name)) {
         struct timeval now;
         timeval_set_now(&now);
-        struct npc_register *regfile = npc_regfile_new(graph->nb_registers);
-        if (! regfile) return -1;
-        if (! nt_state_new(NULL, vertex, regfile, &now)) {
-            npc_regfile_del(regfile, graph->nb_registers);
-            return -1;
+        for (unsigned i = 0; i < vertex->index_size; i++) { // actually, one state per index
+            struct npc_register *regfile = npc_regfile_new(graph->nb_registers);
+            if (! regfile) return -1;
+            if (! nt_state_new(NULL, vertex, regfile, &now, 0)) {
+                npc_regfile_del(regfile, graph->nb_registers);
+                return -1;
+            }
         }
         vertex->timeout = 0;
     } else {
@@ -221,7 +230,7 @@ static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_
 
     /* Additionally, there may be an action function to be called whenever this vertex is entered.
      * If so, it's named "entry_"+name. */
-    // FIXME: as name is not necessarily a valid symbol identifier better use an explicit parameter.
+    // FIXME: as name is not necessarily a valid symbol identifier better use an explicit parameter (second parameter of the vertex, hereafter named action_).
 
     char *action_name = tempstr_printf("entry_%s", name);
     vertex->action_fn = lt_dlsym(graph->lib, action_name);
@@ -230,11 +239,11 @@ static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_
     return 0;
 }
 
-static struct nt_vertex *nt_vertex_new(char const *name, struct nt_graph *graph)
+static struct nt_vertex *nt_vertex_new(char const *name, struct nt_graph *graph, unsigned index_size)
 {
-    struct nt_vertex *vertex = MALLOC(nettrack, sizeof(*vertex));
+    struct nt_vertex *vertex = MALLOC(nettrack, sizeof(*vertex) + index_size*sizeof(vertex->states[0]));
     if (! vertex) return NULL;
-    if (0 != nt_vertex_ctor(vertex, name, graph)) {
+    if (0 != nt_vertex_ctor(vertex, name, graph, index_size)) {
         FREE(vertex);
         return NULL;
     }
@@ -247,9 +256,11 @@ static void nt_vertex_dtor(struct nt_vertex *vertex, struct nt_graph *graph)
     SLOG(LOG_DEBUG, "Destruct vertex %s", vertex->name);
 
     // Delete all our states
-    struct nt_state *state;
-    while (NULL != (state = LIST_FIRST(&vertex->states))) {
-        nt_state_del(state, graph);
+    for (unsigned i = 0; i < vertex->index_size; i++) {
+        struct nt_state *state;
+        while (NULL != (state = LIST_FIRST(&vertex->states[i]))) {
+            nt_state_del(state, graph);
+        }
     }
 
     // Then all the edges using us
@@ -344,11 +355,12 @@ static void nt_edge_del(struct nt_edge *edge)
 
 static LIST_HEAD(nt_graphs, nt_graph) started_graphs;
 
-static int nt_graph_ctor(struct nt_graph *graph, char const *name, char const *libname, unsigned nb_registers)
+static int nt_graph_ctor(struct nt_graph *graph, char const *name, char const *libname, unsigned nb_registers, unsigned default_index_size)
 {
     SLOG(LOG_DEBUG, "Construct new graph %s", name);
 
     graph->nb_registers = nb_registers;
+    graph->default_index_size = default_index_size;
     graph->lib = lt_dlopen(libname);
     if (! graph->lib) {
         SLOG(LOG_ERR, "Cannot load netmatch shared object %s: %s", libname, lt_dlerror());
@@ -364,11 +376,11 @@ static int nt_graph_ctor(struct nt_graph *graph, char const *name, char const *l
     return 0;
 }
 
-static struct nt_graph *nt_graph_new(char const *name, char const *libname, unsigned nb_registers)
+static struct nt_graph *nt_graph_new(char const *name, char const *libname, unsigned nb_registers, unsigned default_index_size)
 {
     struct nt_graph *graph = MALLOC(nettrack, sizeof(*graph));
     if (! graph) return NULL;
-    if (0 != nt_graph_ctor(graph, name, libname, nb_registers)) {
+    if (0 != nt_graph_ctor(graph, name, libname, nb_registers, default_index_size)) {
         FREE(graph);
         return NULL;
     }
@@ -435,11 +447,14 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
     assert(hook < parser_hooks+(NB_ELEMS(parser_hooks)));
     assert(hook->registered);
 
+    unsigned const index_h = 0; // TODO
+
     struct nt_edge *edge;
     LIST_FOREACH(edge, &hook->edges, same_hook) {
         // Test this edge for transition
         struct nt_state *state, *tmp;
-        LIST_FOREACH_SAFE(state, &edge->from->states, same_vertex, tmp) {   // Beware that this state may move
+        unsigned const index = index_h % edge->from->index_size;
+        LIST_FOREACH_SAFE(state, &edge->from->states[index], same_vertex, tmp) {   // Beware that this state may move
             if (edge->from->timeout > 0 && edge->from->timeout < timeval_sub(now, &state->last_used)) {
                 SLOG(LOG_DEBUG, "Timeouting state in vertex %s", edge->from->name);
                 nt_state_del(state, edge->graph);
@@ -485,7 +500,7 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                 // Now move/spawn/dispose of the state
                 if (edge->spawn) {
                     if (!LIST_EMPTY(&edge->to->outgoing_edges) && merged_regfile) { // or we do not need to spawn anything
-                        if (NULL == (state = nt_state_new(state, edge->to, merged_regfile, now))) {
+                        if (NULL == (state = nt_state_new(state, edge->to, merged_regfile, now, index_h))) {
                             npc_regfile_del(merged_regfile, edge->graph->nb_registers);
                         }
                     }
@@ -495,7 +510,7 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                     } else if (merged_regfile) {    // replace former regfile with new one
                         npc_regfile_del(state->regfile, edge->graph->nb_registers);
                         state->regfile = merged_regfile;
-                        nt_state_move(state, edge->from, edge->to);
+                        nt_state_move(state, edge->from, edge->to, index_h);
                         state->last_used = *now;
                     }
                 }
@@ -532,9 +547,11 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
 
 static void add_vertex(struct nt_graph *graph, SCM vertex_)
 {
-    // for now, a vertex is merely a list with a single symbol, the name
+    // a vertex is merely a list of: name, entry action (or empty string if none), and optionaly the index size
     SCM name_ = scm_car(vertex_);
-    struct nt_vertex *vertex = nt_vertex_new(scm_to_tempstr(name_), graph);
+    SCM unused_ action_ = scm_cdr(vertex_); // FIXME: pass the action name to nt_vertex_new so that he does not have to guess (ie. add this in the vertices list passed to make-nettrack)
+    unsigned index_size = scm_is_null(scm_cddr(vertex_)) ? graph->default_index_size : scm_to_uint(scm_caddr(vertex_));
+    struct nt_vertex *vertex = nt_vertex_new(scm_to_tempstr(name_), graph, index_size);
     if (! vertex) scm_throw(scm_from_latin1_symbol("cannot-create-nt-vertex"), scm_list_1(name_));
 }
 
@@ -547,7 +564,7 @@ static struct nt_vertex *nt_vertex_lookup(struct nt_graph *graph, char const *na
     }
 
     // Create a new one
-    return nt_vertex_new(name, graph);
+    return nt_vertex_new(name, graph, graph->default_index_size);
 }
 
 static SCM spawn_sym;
@@ -633,12 +650,12 @@ static int print_graph_smob(SCM graph_smob, SCM port, scm_print_state unused_ *p
 }
 
 static struct ext_function sg_make_nettrack;
-static SCM g_make_nettrack(SCM name_, SCM libname_, SCM nb_registers_, SCM vertices_, SCM edges_)
+static SCM g_make_nettrack(SCM name_, SCM libname_, SCM nb_registers_, SCM default_index_size_, SCM vertices_, SCM edges_)
 {
     scm_dynwind_begin(0);
 
     // Create an empty graph
-    struct nt_graph *graph = nt_graph_new(scm_to_tempstr(name_), scm_to_tempstr(libname_), scm_to_uint(nb_registers_));
+    struct nt_graph *graph = nt_graph_new(scm_to_tempstr(name_), scm_to_tempstr(libname_), scm_to_uint(nb_registers_), scm_to_uint(default_index_size_));
     if (! graph) {
         scm_throw(scm_from_latin1_symbol("cannot-create-nt-graph"), scm_list_1(name_));
         assert(!"Never reached");
@@ -713,8 +730,8 @@ void nettrack_init(void)
     scm_set_smob_print(graph_tag, print_graph_smob);
     // FIXME: why is not nb_registers written in the .so file?
     ext_function_ctor(&sg_make_nettrack,
-        "make-nettrack", 5, 0, 0, g_make_nettrack,
-        "(make-nettrack \"sample graph\" \"/tmp/libfile.so\" nb-registers\n"
+        "make-nettrack", 6, 0, 0, g_make_nettrack,
+        "(make-nettrack \"sample graph\" \"/tmp/libfile.so\" nb-registers default-index-size\n"
         "  ; list of vertices (optional)\n"
         "  '((root)\n"
         "    (tcp-syn) ; merely the names. Later: timeout, etc...\n"

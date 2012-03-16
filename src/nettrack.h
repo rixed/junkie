@@ -26,12 +26,13 @@ struct nt_state {
 struct nt_vertex {
     char *name;
     LIST_ENTRY(nt_vertex) same_graph;
-    struct nt_states states; // the states currently waiting in this node
     LIST_HEAD(nt_edges, nt_edge) outgoing_edges;
     struct nt_edges incoming_edges;
     // User defined actions
     npc_action_fn *action_fn;
     unsigned timeout;   // if >0, number of seconds to keep an inactive state in here
+    unsigned index_size;   // the index size (>=1)
+    struct nt_states states[]; // the states currently waiting in this node (BEWARE: variable size!)
 };
 
 struct nt_edge {
@@ -57,6 +58,7 @@ struct nt_graph {
     struct nt_edges edges;
     unsigned nb_registers;
     lt_dlhandle lib;
+    unsigned default_index_size;    // index size if not specified in the vertex
     // for statistics
     uint64_t nb_frames;
 };

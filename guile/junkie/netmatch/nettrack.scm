@@ -92,7 +92,8 @@
         (edges     (caddr expr))
         (matches   '())
         (actions   '())
-        (edges-ll  '()))
+        (edges-ll  '())
+        (default-index-size 1)) ; FIXME
     (for-each
       (lambda (dec)
         (let ((regname  (car dec))
@@ -123,6 +124,6 @@
       vertices)
     (match (netmatch:resume-compile matches actions)
            ((so-name . nb-regs)
-            (make-nettrack name so-name nb-regs vertices edges-ll)))))
+            (make-nettrack name so-name nb-regs default-index-size vertices edges-ll)))))
 
 (export compile)
