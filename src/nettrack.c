@@ -38,7 +38,7 @@ LOG_CATEGORY_DEF(nettrack);
 static MALLOCER_DEF(nettrack);
 
 /*
- * We need to register a callback for every parsers, then try all nodes whose last proto match the called one.
+ * We need to register a callback for every parsers, then try all nodes whose last proto matches the called one.
  */
 
 
@@ -76,7 +76,7 @@ static void npc_regfile_dtor(struct npc_register *regfile, unsigned nb_registers
 {
     for (unsigned r = 0; r < nb_registers; r++) {
         if (regfile[r].size > 0 && regfile[r].value) {
-            free((void *)regfile[r].value); // beware that individual registers are mallocated with malloc not MALLOC
+            free((void *)regfile[r].value); // beware that individual registers are malloced with malloc not MALLOC
         }
     }
 }
@@ -99,8 +99,8 @@ static void register_copy(struct npc_register *dst, struct npc_register const *s
     }
 }
 
-/* Given the regular regfile prev_regfile and the new bindings of new_regfile, return a fresh register with new bindings applied.
- * If steal_from_prev, then the previous values may be moved from prev_regfile to the new one. In any cases the new values are. */
+/* Given the regular regfile prev_regfile and the new bindings of new_regfile, returns a fresh register with new bindings applied.
+ * If steal_from_prev then the previous values may be moved from prev_regfile to the new one. In any cases the new values are. */
 static struct npc_register *npc_regfile_merge(struct npc_register *prev_regfile, struct npc_register *new_regfile, unsigned nb_registers, bool steal_from_prev)
 {
     struct npc_register *merged = npc_regfile_new(nb_registers);
@@ -204,7 +204,7 @@ static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_
     LIST_INIT(&vertex->states);
     LIST_INSERT_HEAD(&graph->vertices, vertex, same_graph);
 
-    // An vertex named "root" starts with a nul state (and is not timeouted)
+    // A vertex named "root" starts with an initial state (and is not timeouted)
     if (0 == strcmp("root", name)) {
         struct timeval now;
         timeval_set_now(&now);
@@ -216,10 +216,10 @@ static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_
         }
         vertex->timeout = 0;
     } else {
-        vertex->timeout = 100000;//1000000;  // 1 second (FIXME: make this a parameter)
+        vertex->timeout = 1000000;  // 1 second (FIXME: make this a parameter)
     }
 
-    /* Additionnaly, there may be an action function to be called whenever this vertex is entered.
+    /* Additionally, there may be an action function to be called whenever this vertex is entered.
      * If so, it's named "entry_"+name. */
     // FIXME: as name is not necessarily a valid symbol identifier better use an explicit parameter.
 
@@ -451,15 +451,16 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                     edge->to->name);
             edge->nb_tries ++;
             /* Delayed bindings:
-             *   Matching functions does not change the bindings of the regfile while performing the tests because
+             *   Matching functions do not change the bindings of the regfile while performing the tests because
              *   we want the binding to take effect only if the tests succeed. Also, since the test order is not
-             *   specified then a given test can not both bind and references the same register. Thus, we pass it
-             *   two regfiles: one with the actual bindings (read only) and one with the new bindings. On exit, if
-             *   the test passed, then the new bindings overwrite the previous ones; otherwise they are discarded.
+             *   specified then a given test can not both bind and reference the same register. Thus we pass it
+             *   two regfiles: one with the actual bindings (read only) and an empty one for the new bindings. On
+             *   exit, if the test succeeded, the new bindings overwrite the previous ones; otherwise they are
+             *   discarded.
              *   We try to do this as efficiently as possible by reusing the previously boxed values whenever
              *   possible rather than reallocing/copying them.
              * TODO:
-             *   - a flag per node telling of the match function write into the regfile or not would comes handy;
+             *   - a flag per node telling if the match function write into the regfile or not would comes handy;
              *   - prevent the test expressions to read and write the same register;
              */
             struct npc_register tmp_regfile[edge->graph->nb_registers];
@@ -467,7 +468,7 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
             if (edge->match_fn(last, state->regfile, tmp_regfile)) {
                 SLOG(LOG_DEBUG, "Match!");
                 edge->nb_matches ++;
-                // We need the merged state in all cases but when we have no action and we don't keep the result
+                // We need the merged state in all cases but when we have no action and don't keep the result
                 struct npc_register *merged_regfile = NULL;
                 if (edge->to->action_fn || !LIST_EMPTY(&edge->to->outgoing_edges)) {
                     merged_regfile = npc_regfile_merge(state->regfile, tmp_regfile, edge->graph->nb_registers, !edge->spawn);
@@ -481,7 +482,7 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                     SLOG(LOG_DEBUG, "Calling entry function for vertex '%s'", edge->to->name);
                     edge->to->action_fn(merged_regfile);
                 }
-                // Now move/spawn/dispose of state
+                // Now move/spawn/dispose of the state
                 if (edge->spawn) {
                     if (!LIST_EMPTY(&edge->to->outgoing_edges) && merged_regfile) { // or we do not need to spawn anything
                         if (NULL == (state = nt_state_new(state, edge->to, merged_regfile, now))) {
@@ -671,7 +672,7 @@ static SCM g_nettrack_start(SCM graph_smob)
     struct nt_graph *graph = (struct nt_graph *)SCM_SMOB_DATA(graph_smob);
     nt_graph_start(graph);
     return SCM_UNSPECIFIED;
-}    
+}
 
 static struct ext_function sg_nettrack_stop;
 static SCM g_nettrack_stop(SCM graph_smob)
@@ -680,8 +681,8 @@ static SCM g_nettrack_stop(SCM graph_smob)
     struct nt_graph *graph = (struct nt_graph *)SCM_SMOB_DATA(graph_smob);
     nt_graph_stop(graph);
     return SCM_UNSPECIFIED;
-}    
-    
+}
+
 /*
  * Init
  */
@@ -691,7 +692,7 @@ void nettrack_init(void)
 {
     if (inited++) return;
     log_category_nettrack_init();
-	ext_init();
+    ext_init();
     mallocer_init();
     MALLOCER_INIT(nettrack);
     spawn_sym = scm_permanent_object(scm_from_latin1_symbol("spawn"));
@@ -710,6 +711,7 @@ void nettrack_init(void)
     graph_tag = scm_make_smob_type("nettrack-graph", sizeof(struct nt_graph));
     scm_set_smob_free(graph_tag, free_graph_smob);
     scm_set_smob_print(graph_tag, print_graph_smob);
+    // FIXME: why is not nb_registers written in the .so file?
     ext_function_ctor(&sg_make_nettrack,
         "make-nettrack", 5, 0, 0, g_make_nettrack,
         "(make-nettrack \"sample graph\" \"/tmp/libfile.so\" nb-registers\n"
@@ -739,6 +741,6 @@ void nettrack_fini(void)
     if (--inited) return;
 
     mallocer_fini();
-	ext_fini();
+    ext_fini();
     log_category_nettrack_fini();
 }
