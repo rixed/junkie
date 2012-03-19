@@ -531,16 +531,16 @@
        actions))
 
 ;; for nettrack, which already filled some register types
-(define (resume-compile matches actions)
+(define (resume-compile matches actions additional-code)
   (let ((ll-matches (matches->ll-matches matches))
         (ll-actions (actions->ll-actions actions)))
-    (ll:matches->so ll-matches ll-actions)))
+    (ll:matches->so ll-matches ll-actions additional-code)))
 
 (export resume-compile)
 
-(define (compile matches actions)
+(define (compile matches actions additional-code)
   (reset-register-types)
-  (resume-compile matches actions))
+  (resume-compile matches actions additional-code))
 
 (export compile)
 

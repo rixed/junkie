@@ -93,7 +93,9 @@
         (matches   '())
         (actions   '())
         (edges-ll  '())
-        (default-index-size 1)) ; FIXME
+        (action-name (lambda (name)
+                       (string-append "entry_" (type:symbol->C-ident name))))
+        (additional-code (string-append "unsigned default_index_size = 1;\n"))) ; FIXME
     (for-each
       (lambda (dec)
         (let ((regname  (car dec))
@@ -112,18 +114,26 @@
                   (cons new-e edges-ll)))))
       edges)
     (for-each
-      (lambda (e)
-        (slog log-debug "Got action: ~a" e)
-        (match e
-               ((name code)
+      (lambda (v)
+        (match v
+               ((name code) ; TODO: a third optional parameter for setting the index
+                (slog log-debug "Got action: ~a" code)
                 (set! actions
-                  (cons (cons (string-append "entry_" (type:symbol->C-ident name))
-                              code)
+                  (cons (cons (action-name name) code)
                         actions)))
                (_ #f)))
       vertices)
-    (match (netmatch:resume-compile matches actions)
-           ((so-name . nb-regs)
-            (make-nettrack name so-name nb-regs default-index-size vertices edges-ll)))))
+    (let ((vertices-ll
+            (map
+              (lambda (v)
+                (match v
+                       ((name code) ; TODO: a third optional parameter for setting the index
+                        (slog log-debug "Got action: ~a" code)
+                        `(,name ,(action-name name)))
+                       ((name) (name))))
+              vertices)))
+      (match (netmatch:resume-compile matches actions additional-code)
+             (so-name
+               (make-nettrack name so-name vertices-ll edges-ll))))))
 
 (export compile)

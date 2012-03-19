@@ -202,7 +202,7 @@ static int set_netmatch(struct capture_conf *conf, char const *value)
 
     /* value is an expression that we are supposed to compile with (@ (junkie netmatch netmatch) compile) as
      * a matching function named "match" */
-    char *cmd = tempstr_printf("((@ (junkie netmatch netmatch) compile) '((\"match\" . %s)) '())", value);
+    char *cmd = tempstr_printf("((@ (junkie netmatch netmatch) compile) '((\"match\" . %s)) '() \"\")", value);
     SLOG(LOG_DEBUG, "Evaluating scheme string '%s'", cmd);
     SCM pair = scm_c_eval_string(cmd);
 

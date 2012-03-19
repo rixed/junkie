@@ -222,8 +222,8 @@
 
 ; Given an alist of name->match (a match being a list of triplets (proto, can-skip, test-expr)),
 ; and a list of actions (ie. name->expression to return),
-; returns the code of all matching functions, as well as the length of the npc_register array.
-(define (matches->C matches actions)
+; returns the code of all matching functions. This code will have the nb_registers global unsigned int defined.
+(define (matches->C matches actions additional-code)
   (let* ((headers   C-header)
          (mth-stubs (fold (lambda (entry prev)
                             (let* ((match-name (car entry))
@@ -261,22 +261,22 @@
          (tmp       (extract-regnames stubs))
          (regnames  (car tmp))
          (nb-regs   (cdr tmp)))
-    (cons (string-append
-            headers
-            regnames
-            (type:stub-code stubs)
-            "/* end */")
-          nb-regs)))
+    (string-append
+      headers
+      regnames
+      "unsigned nb_registers = " (number->string nb-regs) "U;\n"
+      (type:stub-code stubs)
+      "\n/* Additional code */\n\n"
+      additional-code
+      "\n/* end */\n")))
 
 ; Given an alist of name->match and an alist of name->expression, returns the name of the dynlib containing the required functions,
 ; and the length of the required regfile
-(define (matches->so matches actions)
+(define (matches->so matches actions additional-code)
   (let* ((srcname     (string-copy "/tmp/netmatch-ll.c.XXXXXX"))
          (srcport     (mkstemp! srcname))
          (libname     (string-append srcname ".so"))
-         (tmp         (matches->C matches actions))
-         (code        (car tmp))
-         (nb-varnames (cdr tmp)))
+         (code        (matches->C matches actions additional-code)))
     (display code srcport)
     (close-port srcport)
     (let* ((cc       (or (getenv "NETMATCH_CC")       build-cc))
@@ -288,7 +288,7 @@
       (if (eqv? 0 (status:exit-val status))
           (begin
             ;(delete-file srcname)
-            (cons libname nb-varnames))
+            libname)
           (begin
             (throw 'compilation-error
                    (simple-format #f "Cannot exec ~s: exit-val=~s, term-sig=~s stop-sig=~s~%"

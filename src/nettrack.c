@@ -355,17 +355,33 @@ static void nt_edge_del(struct nt_edge *edge)
 
 static LIST_HEAD(nt_graphs, nt_graph) started_graphs;
 
-static int nt_graph_ctor(struct nt_graph *graph, char const *name, char const *libname, unsigned nb_registers, unsigned default_index_size)
+static int nt_graph_ctor(struct nt_graph *graph, char const *name, char const *libname)
 {
     SLOG(LOG_DEBUG, "Construct new graph %s", name);
 
-    graph->nb_registers = nb_registers;
-    graph->default_index_size = default_index_size;
     graph->lib = lt_dlopen(libname);
     if (! graph->lib) {
         SLOG(LOG_ERR, "Cannot load netmatch shared object %s: %s", libname, lt_dlerror());
         return -1;
     }
+    unsigned *uptr;
+    if (NULL != (uptr = lt_dlsym(graph->lib, "nb_registers"))) {
+        graph->nb_registers = *uptr;
+    } else {
+        SLOG(LOG_ERR, "Cannot find nb_registers in shared object %s", libname);
+        (void)lt_dlclose(graph->lib);
+        graph->lib = NULL;
+        return -1;
+    }
+    if (NULL != (uptr = lt_dlsym(graph->lib, "default_index_size"))) {
+        graph->default_index_size = *uptr;
+    } else {
+        SLOG(LOG_ERR, "Cannot find default_index_size in shared object %s", libname);
+        (void)lt_dlclose(graph->lib);
+        graph->lib = NULL;
+        return -1;
+    }
+
     graph->name = STRDUP(nettrack, name);
     graph->started = false;
     graph->nb_frames = 0;
@@ -376,11 +392,11 @@ static int nt_graph_ctor(struct nt_graph *graph, char const *name, char const *l
     return 0;
 }
 
-static struct nt_graph *nt_graph_new(char const *name, char const *libname, unsigned nb_registers, unsigned default_index_size)
+static struct nt_graph *nt_graph_new(char const *name, char const *libname)
 {
     struct nt_graph *graph = MALLOC(nettrack, sizeof(*graph));
     if (! graph) return NULL;
-    if (0 != nt_graph_ctor(graph, name, libname, nb_registers, default_index_size)) {
+    if (0 != nt_graph_ctor(graph, name, libname)) {
         FREE(graph);
         return NULL;
     }
@@ -531,7 +547,7 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
  * (except that match expressions are replaced by name of the C function).
  * For instance, here is how a graph might be defined:
  *
- * (make-nettrack "sample graph" "/tmp/libfile.so" nb-registers
+ * (make-nettrack "sample graph" "/tmp/libfile.so"
  *   ; list of vertices
  *   '((root)
  *     (tcp-syn) ; merely the names. Later: timeout, etc...
@@ -650,12 +666,12 @@ static int print_graph_smob(SCM graph_smob, SCM port, scm_print_state unused_ *p
 }
 
 static struct ext_function sg_make_nettrack;
-static SCM g_make_nettrack(SCM name_, SCM libname_, SCM nb_registers_, SCM default_index_size_, SCM vertices_, SCM edges_)
+static SCM g_make_nettrack(SCM name_, SCM libname_, SCM vertices_, SCM edges_)
 {
     scm_dynwind_begin(0);
 
     // Create an empty graph
-    struct nt_graph *graph = nt_graph_new(scm_to_tempstr(name_), scm_to_tempstr(libname_), scm_to_uint(nb_registers_), scm_to_uint(default_index_size_));
+    struct nt_graph *graph = nt_graph_new(scm_to_tempstr(name_), scm_to_tempstr(libname_));
     if (! graph) {
         scm_throw(scm_from_latin1_symbol("cannot-create-nt-graph"), scm_list_1(name_));
         assert(!"Never reached");
@@ -728,10 +744,9 @@ void nettrack_init(void)
     graph_tag = scm_make_smob_type("nettrack-graph", sizeof(struct nt_graph));
     scm_set_smob_free(graph_tag, free_graph_smob);
     scm_set_smob_print(graph_tag, print_graph_smob);
-    // FIXME: why is not nb_registers written in the .so file?
     ext_function_ctor(&sg_make_nettrack,
-        "make-nettrack", 6, 0, 0, g_make_nettrack,
-        "(make-nettrack \"sample graph\" \"/tmp/libfile.so\" nb-registers default-index-size\n"
+        "make-nettrack", 4, 0, 0, g_make_nettrack,
+        "(make-nettrack \"sample graph\" \"/tmp/libfile.so\"\n"
         "  ; list of vertices (optional)\n"
         "  '((root)\n"
         "    (tcp-syn) ; merely the names. Later: timeout, etc...\n"
