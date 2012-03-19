@@ -94,12 +94,12 @@
     (string-append
       (stub-code value) ; FIXME: this won't work when rebinding the same boxed register (ie (%foo as foo)), which should not be possible anyway
       "    if (new_regfile[" regname "].size > 0) {\n"
-      "        free(new_regfile[" regname "].value);\n"
+      "        free((void *)new_regfile[" regname "].value);\n"
       "    }\n"
       "    new_regfile[" regname "].value = malloc(sizeof(*" (stub-result value) "));\n"
       "    new_regfile[" regname "].size = sizeof(*" (stub-result value) ");\n"
       "    assert(new_regfile[" regname "].value);\n" ; aren't assertions as good as proper error checks? O:-)
-      "    memcpy(new_regfile[" regname "].value, " (stub-result value) ", sizeof(*" (stub-result value) "));\n")
+      "    memcpy((void *)new_regfile[" regname "].value, " (stub-result value) ", sizeof(*" (stub-result value) "));\n")
     (string-append "new_regfile[" regname "].value")
     (cons regname (stub-regnames value))))
 
@@ -520,7 +520,7 @@
                  (string-append
                    (stub-code s)
                    "    struct ip_addr " res ";\n"
-                   "    ip_addr_ctor_from_str_any(&" res ", " (stub-result s) ");\n")
+                   "    ip_addr_ctor_from_str_any(&" res ", (struct ip_addr *)" (stub-result s) ");\n")
                  (string-append "&" res)
                  (stub-regnames s))))))
 
@@ -533,7 +533,7 @@
                (make-stub
                  (string-append
                    (stub-code ip)
-                   "    bool " res " = ip_addr_is_routable(" (stub-result ip) ");\n")
+                   "    bool " res " = ip_addr_is_routable((struct ip_addr *)" (stub-result ip) ");\n")
                  res
                  (stub-regnames ip))))))
 
@@ -547,7 +547,7 @@
                (make-stub
                  (string-append
                    (stub-code ip)
-                   "    bool " res " = ip_addr_is_broadcast(" (stub-result ip) ");\n")
+                   "    bool " res " = ip_addr_is_broadcast((struct ip_addr *)" (stub-result ip) ");\n")
                  res
                  (stub-regnames ip))))))
 
@@ -562,7 +562,7 @@
                  (string-append
                    (stub-code ip1)
                    (stub-code ip2)
-                   "    bool " res " = 0 == ip_addr_cmp(" (stub-result ip1) ", " (stub-result ip2) ");\n")
+                   "    bool " res " = 0 == ip_addr_cmp((struct ip_addr *)" (stub-result ip1) ", (struct ip_addr *)" (stub-result ip2) ");\n")
                  res
                  (append (stub-regnames ip1) (stub-regnames ip2)))))))
 
