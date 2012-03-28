@@ -134,8 +134,8 @@
                                         "{\n"
                                         "    .match_fn = " (type:stub-result match-func) ",\n"
                                         "    .inner_proto = " (ll:proto-code->C proto-code) ",\n"
-                                        "    .from_vertex = \"" (type:symbol->C-ident from) "\",\n"
-                                        "    .to_vertex = \"" (type:symbol->C-ident to) "\",\n"
+                                        "    .from_vertex = \"" (symbol->string from) "\",\n" ; FIXME: escape double quotes within name (ll:string->C)
+                                        "    .to_vertex = \"" (symbol->string to) "\",\n" ; FIXME: escape double quotes within name (ll:string->C)
                                         "    .spawn = " (ll:bool->C spawn) ",\n"
                                         "    .grab = " (ll:bool->C grab) ",\n"
                                         "}, ")
