@@ -219,6 +219,10 @@ parse_fun proto_parse;
 /** @returns NULL if not found. */
 struct proto *proto_of_name(char const *);
 
+/// Lookup by proto_code in the list of registered protos
+/** @returns NULL if not found. */
+struct proto *proto_of_code(enum proto_code);
+
 /// Protocol Informations.
 /** A proto parse function is supposed to overload this (publicly) and stores
  * all relevant informations gathered from the frame into its specialized

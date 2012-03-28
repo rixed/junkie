@@ -119,6 +119,13 @@ struct proto *proto_of_name(char const *name)
     return proto;
 }
 
+struct proto *proto_of_code(enum proto_code code)
+{
+    struct proto *proto;
+    LIST_LOOKUP(proto, &protos, entry, proto->code == code);
+    return proto;
+}
+
 char const *proto_parse_status_2_str(enum proto_parse_status status)
 {
     switch (status) {

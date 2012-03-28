@@ -6,8 +6,10 @@
              (junkie tools)
              (junkie runtime) ; for make-nettrack
              (junkie defs) ; for slog
-             ((junkie netmatch netmatch) :renamer (symbol-prefix-proc 'netmatch:))
-             ((junkie netmatch types)    :renamer (symbol-prefix-proc 'type:))) ; for string->C-ident
+             (srfi srfi-1)
+             ((junkie netmatch netmatch)    :renamer (symbol-prefix-proc 'netmatch:))
+             ((junkie netmatch types)       :renamer (symbol-prefix-proc 'type:)) ; for string->C-ident
+             ((junkie netmatch ll-compiler) :renamer (symbol-prefix-proc 'll:)))
 
 ;;; This takes a name and a nettrack expression with all tests developped, and returns:
 ;;; - the required shared object file name,
@@ -15,30 +17,29 @@
 ;;; - the nettrack graph SMOB object.
 ;;;
 ;;; For instance, let's consider this nettrack expression:
-#;(
-( ; register declarations (optional but recommended)
-  [(http-status uint)
-   (ip-client ip)
-   (ip-server ip)
-   (client-port uint)]
-  ; vertices (notice that edges are filled with default attributes as required)
-  [(http-answer (pass "printf(\"%u\\n\", " %http-status ");\n"))] ; an action to perform whenever the http-answer node is entered
-  ; edges
-  [(root web-syn
-         ((ip with  (do
-                      (src as ip-client)
-                      (dst as ip-server)
-                      #t))
-          (tcp with (and syn
-                         (dst-port == 80)
-                         (do (src-port as client-port) #t))))
-         spawn)
-   (web-syn http-answer
-            ((ip with   ((src =i %ip-server) && (dst =i %ip-client)))
-             (tcp with  ((src-port == 80) && (dst-port == %client-port)))
-             (http with (do (status as http-status) (set? status))))
-            kill)])
-)
+#;( ; register declarations (optional but recommended)
+     [(http-status uint)
+      (ip-client ip)
+      (ip-server ip)
+      (client-port uint)]
+     ; vertices (notice that edges are filled with default attributes as required)
+     [(http-answer
+        (on-entry (pass "printf(\"%u\\n\", " http-status ");\n")))] ; an action to perform whenever the http-answer node is entered
+     ; edges
+     [(root web-syn
+            (match (ip tcp) (do
+                              (ip-client := ip.src)
+                              (ip-server := ip.dst)
+                              (client-port := tcp.src-port)
+                              (tcp.syn && (tcp.dst-port == 80))))
+            spawn)
+      (web-syn http-answer
+               (match (ip tcp http) (do
+                                      (http-status := http.status)
+                                      (and (ip.src == ip-server)
+                                           (ip.dst == ip-client)
+                                           (tcp.dst-port == client-port)
+                                           (set? http.status)))))])
 ;;; Notice that despite type inference we need to declare (some) registers since type inference is performed
 ;;; test after test. Even if type inference was done globally, such deep backtracking would lead to slow compilation,
 ;;; and thus the ability to make some types explicit would come handy nonetheless.
@@ -51,51 +52,127 @@
 ;;; -> ((("root_2_web_syn" . ((ip with ....) (tcp with ...)))
 ;;;      ("web_syn_2_http_answer" . (...)))
 
-; returns the C name of the test function from "from" to "to"
-(define match-name
-  (let ((seq 0))
-    (lambda (from to)
-      (set! seq (+ 1 seq))
-      (string-append
-        (type:symbol->C-ident from)
-        "_2_"
-        (type:symbol->C-ident to)
-        "_"
-        (number->string seq)))))
+; returns the stub for a given vertice
+(define (vertex->stub vertice preamble defs)
+  (match vertice
+         [(name . cfgs)
+          (let ((entry-func (type:make-stub "" "NULL" '()))
+                (index-size 0))
+            (for-each (lambda (cfg)
+                        (match cfg
+                               [('on-entry expr) ; FIXME: check we do not set this several times
+                                (set! entry-func (netmatch:function->stub type:any '() expr #f))]
+                               [('index-size sz) ; FIXME: idem
+                                (set! index-size sz)]
+                               [_ (throw 'you-must-be-joking cfg)]))
+                      cfgs)
+            (set! preamble
+              (type:stub-concat preamble entry-func))
+            (set! defs
+              (type:stub-concat
+                defs
+                (type:make-stub
+                  (string-append
+                    "{\n"
+                    "    .name = \"" (symbol->string name) "\",\n" ; FIXME: escape double quotes within name (ll:string->C)
+                    "    .entry_fn = " (type:stub-result entry-func) ",\n"
+                    "    .index_size = " (number->string index-size) ",\n"
+                    "}, ")
+                  "" '()))))]
+         [_ (throw 'you-must-be-joking (simple-format #f "can't understand vertice ~a" vertice))])
+  (cons preamble defs))
 
-(define (inner-proto-of-test test)
-  (let ((ll-test (netmatch:test->ll-test test)))
-    (car ll-test)))
+(define (vertices->stub vertices)
+  (slog log-debug "Nettrack compiling vertices ~s" vertices)
+  (let ((nb-vertices (length vertices)))
+    (match (fold (lambda (v prev)
+                   (let ((preamble (car prev))
+                         (defs     (cdr prev)))
+                     (vertex->stub v preamble defs)))
+                 (cons type:empty-stub ; empty preamble
+                       (type:make-stub ; start of defs
+                         (string-append
+                           "struct nt_vertex_def vertice_defs[" (number->string nb-vertices) "] = {\n")
+                         "" '()))
+                 vertices)
+           [(preamble . defs)
+            (type:stub-concat
+              preamble
+              defs
+              (type:make-stub
+                (string-append
+                  "};\n"
+                  "unsigned nb_vertice_defs = " (number->string nb-vertices) ";\n")
+                "vertice_defs" '()))])))
 
-(define (inner-proto-of-match match)
-  (if (null? (cdr match))
-      (inner-proto-of-test (car match))
-      (inner-proto-of-match (cdr match))))
+; returns the stub for a given edge
+(define (edge->stub edge preamble defs)
+  (match edge
+         [(from to . cfgs)
+          (let ((spawn      #f)
+                (grab       #f)
+                (proto-code 'cap)
+                (match-func (type:make-stub "" "NULL" '())))
+            (for-each (lambda (cfg)
+                        (match cfg
+                               [('match protos expr)
+                                (let ((protos (reverse protos)))
+                                  (set! match-func (netmatch:function->stub type:bool protos expr #f))
+                                  ; Would fail if no protos are given, since we use this to register a callback
+                                  (if (not (null? protos))
+                                      (set! proto-code (car protos))))]
+                               ['spawn
+                                (set! spawn #t)]
+                               ['grab
+                                (set! grab #t)]))
+                      cfgs)
+            (slog log-debug "Done, got proto-code = ~s (~s)" proto-code (ll:proto-code->C proto-code))
+            (cons (type:stub-concat preamble match-func) ; new preamble
+                  (type:stub-concat defs ; new defs
+                                    (type:make-stub
+                                      (string-append
+                                        "{\n"
+                                        "    .match_fn = " (type:stub-result match-func) ",\n"
+                                        "    .inner_proto = " (ll:proto-code->C proto-code) ",\n"
+                                        "    .from_vertex = \"" (type:symbol->C-ident from) "\",\n"
+                                        "    .to_vertex = \"" (type:symbol->C-ident to) "\",\n"
+                                        "    .spawn = " (ll:bool->C spawn) ",\n"
+                                        "    .grab = " (ll:bool->C grab) ",\n"
+                                        "}, ")
+                                      "" '()))))]
+         [_ (throw 'you-must-be-joking (simple-format #f "can't understand edge ~a" edge))]))
 
-; returns an edge suitable for make-nettrack and the (match-name . match) pair
-(define (chg-edge edge)
-  (let* ((from        (car edge))
-         (to          (cadr edge))
-         (match       (caddr edge))
-         (rest        (cdddr edge))
-         (fname       (match-name from to))
-         (inner-proto (inner-proto-of-match match)))
-    (cons
-      (list fname inner-proto from to rest)
-      (cons fname match))))
+(define (edges->stub edges)
+  (slog log-debug "Nettrack compiling edges ~s" edges)
+  (let ((nb-edges (length edges)))
+    (match (fold (lambda (v prev)
+                   (let ((preamble (car prev))
+                         (defs     (cdr prev)))
+                     (edge->stub v preamble defs)))
+                 (cons type:empty-stub ; empty preamble
+                       (type:make-stub ; start of defs
+                         (string-append
+                           "struct nt_edge_def edge_defs[" (number->string nb-edges) "] = {\n")
+                         "" '()))
+                 edges)
+           [(preamble . defs)
+            (type:stub-concat
+              preamble
+              defs
+              (type:make-stub
+                (string-append
+                  "};\n"
+                  "unsigned nb_edge_defs = " (number->string nb-edges) ";\n")
+                "edge_defs" '()))])))
 
-; takes a full expression and do the work
+; takes a nettrack expression and returns the nettrack SMOB
 (define (compile name expr)
+  (slog log-debug "Nettrack compiling expression ~s" expr)
   (netmatch:reset-register-types) ; since we are going to call test->ll-test (FIXME: test->ll-test is too much hassle just for obtaining the proto!)
-  (let ((decls     (car expr))
+  (let ((decls     (car expr)) ; some type declarations to preset some register types
         (vertices  (cadr expr))
-        (edges     (caddr expr))
-        (matches   '())
-        (actions   '())
-        (edges-ll  '())
-        (action-name (lambda (name)
-                       (string-append "entry_" (type:symbol->C-ident name))))
-        (additional-code (string-append "unsigned default_index_size = 1;\n"))) ; FIXME
+        (edges     (caddr expr)))
+    ; register the given register types
     (for-each
       (lambda (dec)
         (let ((regname  (car dec))
@@ -104,36 +181,13 @@
             (type:symbol->C-ident regname)
             (module-ref (resolve-module '(junkie netmatch types)) typename))))
       decls)
-    (for-each
-      (lambda (e)
-        (match (chg-edge e)
-               ((new-e . new-m)
-                (set! matches
-                  (cons new-m matches))
-                (set! edges-ll
-                  (cons new-e edges-ll)))))
-      edges)
-    (for-each
-      (lambda (v)
-        (match v
-               ((name code) ; TODO: a third optional parameter for setting the index
-                (slog log-debug "Got action: ~a" code)
-                (set! actions
-                  (cons (cons (action-name name) code)
-                        actions)))
-               (_ #f)))
-      vertices)
-    (let ((vertices-ll
-            (map
-              (lambda (v)
-                (match v
-                       ((name code) ; TODO: a third optional parameter for setting the index
-                        (slog log-debug "Got action: ~a" code)
-                        `(,name ,(action-name name)))
-                       ((name) (name))))
-              vertices)))
-      (match (netmatch:resume-compile matches actions additional-code)
-             (so-name
-               (make-nettrack name so-name vertices-ll edges-ll))))))
+    (let* ((init (type:make-stub
+                   "unsigned default_index_size = 1;\n" ; FIXME
+                   "" '()))
+           (v-stub (vertices->stub vertices))
+           (e-stub (edges->stub edges))
+           (stub   (type:stub-concat
+                     init v-stub e-stub)))
+      (make-nettrack name (ll:stub->so stub)))))
 
 (export compile)

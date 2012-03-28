@@ -4,6 +4,7 @@
 #define NETMATCH_H_111229
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <junkie/proto/proto.h>
 
 struct npc_register {
@@ -11,7 +12,23 @@ struct npc_register {
     ssize_t size;   // <0 if value is unbound, 0 if unboxed, malloced size otherwise (may be > to required size, may be < sizeof(intptr_t) (for strings for instance))
 };
 
-typedef bool npc_match_fn(struct proto_info const *info, struct npc_register const *prev_regfile, struct npc_register *new_regfile);
-typedef void npc_action_fn(struct npc_register *regfile);
+typedef uintptr_t npc_match_fn(struct proto_info const *info, struct npc_register const *prev_regfile, struct npc_register *new_regfile);
+typedef uintptr_t npc_entry_fn(struct proto_info const *info, struct npc_register const *prev_regfile, struct npc_register *new_regfile);
+
+// The following structures are used by nettrack to describe the event graph
+
+struct nt_vertex_def {
+    char const *name;
+    npc_entry_fn *entry_fn;
+    unsigned index_size;    // 0 for default
+};
+
+struct nt_edge_def {
+    npc_match_fn *match_fn;
+    enum proto_code inner_proto;
+    char const *from_vertex, *to_vertex;
+    bool spawn;
+    bool grab;
+};
 
 #endif

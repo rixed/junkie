@@ -197,13 +197,13 @@ static void nt_state_move(struct nt_state *state, struct nt_vertex *from, struct
  * Vertices
  */
 
-static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_graph *graph, unsigned index_size)
+static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_graph *graph, npc_entry_fn *entry_fn, unsigned index_size)
 {
     SLOG(LOG_DEBUG, "Construct new vertex %s", name);
 
     vertex->name = STRDUP(nettrack, name);
-    vertex->index_size = index_size;
-    assert(index_size >= 1);
+    vertex->index_size = index_size ? index_size : graph->default_index_size;
+    assert(vertex->index_size >= 1);
     LIST_INIT(&vertex->outgoing_edges);
     LIST_INIT(&vertex->incoming_edges);
     LIST_INSERT_HEAD(&graph->vertices, vertex, same_graph);
@@ -228,22 +228,17 @@ static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_
         vertex->timeout = 1000000;  // 1 second (FIXME: make this a parameter)
     }
 
-    /* Additionally, there may be an action function to be called whenever this vertex is entered.
-     * If so, it's named "entry_"+name. */
-    // FIXME: as name is not necessarily a valid symbol identifier better use an explicit parameter (second parameter of the vertex, hereafter named action_).
-
-    char *action_name = tempstr_printf("entry_%s", name);
-    vertex->action_fn = lt_dlsym(graph->lib, action_name);
-    if (vertex->action_fn) SLOG(LOG_DEBUG, "Found entry action %s", action_name);
+    // Additionally, there may be an entry function to be called whenever this vertex is entered.
+    vertex->entry_fn = entry_fn;
 
     return 0;
 }
 
-static struct nt_vertex *nt_vertex_new(char const *name, struct nt_graph *graph, unsigned index_size)
+static struct nt_vertex *nt_vertex_new(char const *name, struct nt_graph *graph, npc_entry_fn *entry_fn, unsigned index_size)
 {
     struct nt_vertex *vertex = MALLOC(nettrack, sizeof(*vertex) + index_size*sizeof(vertex->states[0]));
     if (! vertex) return NULL;
-    if (0 != nt_vertex_ctor(vertex, name, graph, index_size)) {
+    if (0 != nt_vertex_ctor(vertex, name, graph, entry_fn, index_size)) {
         FREE(vertex);
         return NULL;
     }
@@ -290,20 +285,15 @@ static void nt_vertex_del(struct nt_vertex *vertex, struct nt_graph *graph)
  */
 
 static proto_cb_t parser_hook;
-static int nt_edge_ctor(struct nt_edge *edge, struct nt_graph *graph, struct nt_vertex *from, struct nt_vertex *to, char const *match_fn_name, bool spawn, bool grab, unsigned death_range, struct proto *inner_proto)
+static int nt_edge_ctor(struct nt_edge *edge, struct nt_graph *graph, struct nt_vertex *from, struct nt_vertex *to, npc_match_fn *match_fn, bool spawn, bool grab, struct proto *inner_proto)
 {
-    SLOG(LOG_DEBUG, "Construct new edge@%p from %s to %s", edge, from->name, to->name);
+    SLOG(LOG_DEBUG, "Construct new edge@%p from %s to %s on proto %s", edge, from->name, to->name, inner_proto->name);
 
-    edge->match_fn = lt_dlsym(graph->lib, match_fn_name);
-    if (! edge->match_fn) {
-        SLOG(LOG_ERR, "Cannot find match function %s", match_fn_name);
-        return -1;
-    }
+    edge->match_fn = match_fn;
     edge->from = from;
     edge->to = to;
     edge->spawn = spawn;
     edge->grab = grab;
-    edge->death_range = death_range;
     edge->nb_matches = edge->nb_tries = 0;
     edge->graph = graph;
     LIST_INSERT_HEAD(&from->outgoing_edges, edge, same_from);
@@ -319,11 +309,11 @@ static int nt_edge_ctor(struct nt_edge *edge, struct nt_graph *graph, struct nt_
     return 0;
 }
 
-static struct nt_edge *nt_edge_new(struct nt_graph *graph, struct nt_vertex *from, struct nt_vertex *to, char const *match_fn_name, bool spawn, bool grab, unsigned death_range, struct proto *inner_proto)
+static struct nt_edge *nt_edge_new(struct nt_graph *graph, struct nt_vertex *from, struct nt_vertex *to, npc_match_fn *match_fn, bool spawn, bool grab, struct proto *inner_proto)
 {
     struct nt_edge *edge = MALLOC(nettrack, sizeof(*edge));
     if (! edge) return NULL;
-    if (0 != nt_edge_ctor(edge, graph, from, to, match_fn_name, spawn, grab, death_range, inner_proto)) {
+    if (0 != nt_edge_ctor(edge, graph, from, to, match_fn, spawn, grab, inner_proto)) {
         FREE(edge);
         return NULL;
     }
@@ -501,7 +491,7 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                 edge->nb_matches ++;
                 // We need the merged state in all cases but when we have no action and don't keep the result
                 struct npc_register *merged_regfile = NULL;
-                if (edge->to->action_fn || !LIST_EMPTY(&edge->to->outgoing_edges)) {
+                if (edge->to->entry_fn || !LIST_EMPTY(&edge->to->outgoing_edges)) {
                     merged_regfile = npc_regfile_merge(state->regfile, tmp_regfile, edge->graph->nb_registers, !edge->spawn);
                     if (! merged_regfile) {
                         SLOG(LOG_WARNING, "Cannot create the new register file");
@@ -509,9 +499,9 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                     }
                 }
                 // Call the entry function
-                if (edge->to->action_fn && merged_regfile) {
+                if (edge->to->entry_fn && merged_regfile) {
                     SLOG(LOG_DEBUG, "Calling entry function for vertex '%s'", edge->to->name);
-                    edge->to->action_fn(merged_regfile);
+                    edge->to->entry_fn(last, merged_regfile, NULL); // entry function is not supposed to bind anything... for now (FIXME).
                 }
                 // Now move/spawn/dispose of the state
                 if (edge->spawn) {
@@ -542,34 +532,7 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
 
 /*
  * Extensions
- *
- * It's enough to have a single make-graph function, taking as parameters whatever is required to create the whole graph
- * (except that match expressions are replaced by name of the C function).
- * For instance, here is how a graph might be defined:
- *
- * (make-nettrack "sample graph" "/tmp/libfile.so"
- *   ; list of vertices
- *   '((root)
- *     (tcp-syn) ; merely the names. Later: timeout, etc...
- *     (etc...))
- *   ; list of edges
- *   '((match-fun1 root tcp-syn spawn (kill 2))
- *     (match-fun2 root blabla ...)
- *     (etc...)))
- *
- * This returns a smob object that can later be started, deleted, queried for stats, ...
- * but not edited (cannot add/remove vertices nor edges).
  */
-
-static void add_vertex(struct nt_graph *graph, SCM vertex_)
-{
-    // a vertex is merely a list of: name, entry action (or empty string if none), and optionaly the index size
-    SCM name_ = scm_car(vertex_);
-    SCM unused_ action_ = scm_cdr(vertex_); // FIXME: pass the action name to nt_vertex_new so that he does not have to guess (ie. add this in the vertices list passed to make-nettrack)
-    unsigned index_size = scm_is_null(scm_cddr(vertex_)) ? graph->default_index_size : scm_to_uint(scm_caddr(vertex_));
-    struct nt_vertex *vertex = nt_vertex_new(scm_to_tempstr(name_), graph, index_size);
-    if (! vertex) scm_throw(scm_from_latin1_symbol("cannot-create-nt-vertex"), scm_list_1(name_));
-}
 
 // Will create the vertex with default attributes if not found
 static struct nt_vertex *nt_vertex_lookup(struct nt_graph *graph, char const *name)
@@ -580,54 +543,7 @@ static struct nt_vertex *nt_vertex_lookup(struct nt_graph *graph, char const *na
     }
 
     // Create a new one
-    return nt_vertex_new(name, graph, graph->default_index_size);
-}
-
-static SCM spawn_sym;
-static SCM grab_sym;
-static SCM kill_sym;
-
-static void add_edge(struct nt_graph *graph, SCM edge_)
-{
-    // edge is a list of: match-name inner-proto, vertex-name, vertex-name, param
-    // where param can be: spawn, grab, (kill n) ...
-    SCM name_ = scm_car(edge_);
-    edge_ = scm_cdr(edge_);
-
-    struct proto *inner_proto = proto_of_scm_name(scm_symbol_to_string(scm_car(edge_)));
-    if (! inner_proto) {
-        scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_1(scm_car(edge_)));
-    }
-    edge_ = scm_cdr(edge_);
-
-    struct nt_vertex *from = nt_vertex_lookup(graph, scm_to_tempstr(scm_car(edge_)));
-    if (! from) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_1(scm_car(edge_)));
-    edge_ = scm_cdr(edge_);
-
-    struct nt_vertex *to   = nt_vertex_lookup(graph, scm_to_tempstr(scm_car(edge_)));
-    if (! to) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_1(scm_car(edge_)));
-    edge_ = scm_cdr(edge_);
-
-    bool spawn = false;
-    bool grab = false;
-    unsigned death_range = 0;
-
-    while (! scm_is_null(edge_)) {
-        SCM param = scm_car(edge_);
-        if (scm_eq_p(param, spawn_sym)) {
-            spawn = true;
-        } else if (scm_eq_p(param, grab_sym)) {
-            grab = true;
-        } else if (scm_is_true(scm_list_p(param)) && scm_eq_p(scm_car(param), kill_sym)) {
-            death_range = scm_to_uint(scm_cadr(param));
-        } else {
-            scm_throw(scm_from_latin1_symbol("unknown-edge-parameter"), scm_list_1(param));
-        }
-        edge_ = scm_cdr(edge_);
-    }
-
-    struct nt_edge *edge = nt_edge_new(graph, from, to, scm_to_tempstr(name_), spawn, grab, death_range, inner_proto);
-    if (! edge) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_1(name_));
+    return nt_vertex_new(name, graph, NULL, graph->default_index_size);
 }
 
 static scm_t_bits graph_tag;
@@ -666,7 +582,7 @@ static int print_graph_smob(SCM graph_smob, SCM port, scm_print_state unused_ *p
 }
 
 static struct ext_function sg_make_nettrack;
-static SCM g_make_nettrack(SCM name_, SCM libname_, SCM vertices_, SCM edges_)
+static SCM g_make_nettrack(SCM name_, SCM libname_)
 {
     scm_dynwind_begin(0);
 
@@ -678,16 +594,45 @@ static SCM g_make_nettrack(SCM name_, SCM libname_, SCM vertices_, SCM edges_)
     }
     scm_dynwind_unwind_handler((void (*)(void *))nt_graph_del, graph, 0);
 
-    // Create vertices
-    while (! scm_is_null(vertices_)) {
-        add_vertex(graph, scm_car(vertices_));
-        vertices_ = scm_cdr(vertices_);
+    // Create vertices from declarations (others will be created hereafter with default settings)
+    unsigned *nb_vertice_defs = lt_dlsym(graph->lib, "nb_vertice_defs");
+    if (! nb_vertice_defs) {
+        scm_throw(scm_from_latin1_symbol("cannot-create-nt-vertex"), scm_list_1(scm_from_latin1_string("nb_vertice_defs")));
+        assert(!"Never reached");
+    }
+    struct nt_vertex_def *v_def = lt_dlsym(graph->lib, "vertice_defs");
+    if (! v_def) {
+        scm_throw(scm_from_latin1_symbol("cannot-create-nt-vertex"), scm_list_1(scm_from_latin1_string("vertice_defs")));
+        assert(!"Never reached");
+    }
+    for (unsigned vi = 0; vi < *nb_vertice_defs; vi++) {
+        struct nt_vertex *vertex = nt_vertex_new(v_def[vi].name, graph, v_def[vi].entry_fn, v_def[vi].index_size);
+        if (! vertex) {
+            scm_throw(scm_from_latin1_symbol("cannot-create-nt-vertex"), scm_list_1(scm_from_locale_string(v_def[vi].name)));
+            assert(!"Never reached");
+        }
     }
 
-    // Create edges
-    while (! scm_is_null(edges_)) {
-        add_edge(graph, scm_car(edges_));
-        edges_ = scm_cdr(edges_);
+    // Create edges (and other vertices)
+    unsigned *nb_edge_defs = lt_dlsym(graph->lib, "nb_edge_defs");
+    if (! nb_edge_defs) {
+        scm_throw(scm_from_latin1_symbol("cannot-create-nt-vertex"), scm_list_1(scm_from_latin1_string("nb_edge_defs")));
+        assert(!"Never reached");
+    }
+    struct nt_edge_def *e_def = lt_dlsym(graph->lib, "edge_defs");
+    if (! e_def) {
+        scm_throw(scm_from_latin1_symbol("cannot-create-nt-vertex"), scm_list_1(scm_from_latin1_string("edge_defs")));
+        assert(!"Never reached");
+    }
+    for (unsigned e = 0; e < *nb_edge_defs; e++) {
+        struct nt_vertex *from = nt_vertex_lookup(graph, e_def[e].from_vertex);
+        if (! from) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_1(scm_from_locale_string(e_def[e].from_vertex)));
+        struct nt_vertex *to   = nt_vertex_lookup(graph, e_def[e].to_vertex);
+        if (! to) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_1(scm_from_locale_string(e_def[e].to_vertex)));
+        struct proto *inner_proto = proto_of_code(e_def[e].inner_proto);
+        if (! inner_proto) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_2(scm_from_latin1_string("no such proto"), scm_from_uint(e_def[e].inner_proto)));
+        struct nt_edge *edge = nt_edge_new(graph, from, to, e_def[e].match_fn, e_def[e].spawn, e_def[e].grab, inner_proto);
+        if (! edge) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_2(scm_from_locale_string(e_def[e].from_vertex), scm_from_locale_string(e_def[e].to_vertex)));
     }
 
     // build the smob
@@ -728,9 +673,6 @@ void nettrack_init(void)
     ext_init();
     mallocer_init();
     MALLOCER_INIT(nettrack);
-    spawn_sym = scm_permanent_object(scm_from_latin1_symbol("spawn"));
-    grab_sym  = scm_permanent_object(scm_from_latin1_symbol("grab"));
-    kill_sym  = scm_permanent_object(scm_from_latin1_symbol("kill"));
 
     LIST_INIT(&started_graphs);
 
@@ -745,17 +687,9 @@ void nettrack_init(void)
     scm_set_smob_free(graph_tag, free_graph_smob);
     scm_set_smob_print(graph_tag, print_graph_smob);
     ext_function_ctor(&sg_make_nettrack,
-        "make-nettrack", 4, 0, 0, g_make_nettrack,
-        "(make-nettrack \"sample graph\" \"/tmp/libfile.so\"\n"
-        "  ; list of vertices (optional)\n"
-        "  '((root)\n"
-        "    (tcp-syn) ; merely the names. Later: timeout, etc...\n"
-        "    (etc...))\n"
-        "  ; list of edges\n"
-        "  '((\"match-fun1\" inner-proto root tcp-syn spawn (kill 2))\n"
-        "    (\"match-fun2\" inner-proto root blabla ...)\n"
-        "    (etc...))) : create a nettrack graph.\n"
-        "Note: you are not supposed to use this directly.\n");
+        // FIXME: should be load-nettrack, and all params but the libfile should be compiled herein.
+        "make-nettrack", 2, 0, 0, g_make_nettrack,
+        "(make-nettrack \"sample graph\" \"/tmp/libfile.so\"): create a nettrack graph.\n");
 
     ext_function_ctor(&sg_nettrack_start,
         "nettrack-start", 1, 0, 0, g_nettrack_start,

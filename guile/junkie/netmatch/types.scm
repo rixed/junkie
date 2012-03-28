@@ -3,6 +3,7 @@
 (define-module (junkie netmatch types))
 
 (use-modules (ice-9 regex)
+             (srfi srfi-1)
              (rnrs records syntactic)
              (ice-9 format)
              (junkie tools))
@@ -46,14 +47,19 @@
 
 (define-record-type stub (fields code result regnames))
 
+(define empty-stub (make-stub "" "" '()))
+
 ; additionally, this is useful to concat two stubs
-(define (stub-concat s1 s2)
+(define (stub-concat-2 s2 s1)
   (make-stub
     (string-append (stub-code s1) (stub-code s2))
     (stub-result s2)
     (append (stub-regnames s1) (stub-regnames s2))))
 
-(export make-stub stub-code stub-result stub-regnames stub-concat)
+(define (stub-concat . s)
+  (reduce stub-concat-2 empty-stub s))
+
+(export make-stub stub-code stub-result stub-regnames stub-concat empty-stub)
 
 ;;; Operators (itypes is the list of input types and thus gives the number of parameters as
 ;;; well as their types)
@@ -96,7 +102,7 @@
       "    if (new_regfile[" regname "].size > 0) {\n"
       "        free((void *)new_regfile[" regname "].value);\n"
       "    }\n"
-      "    new_regfile[" regname "].value = malloc(sizeof(*" (stub-result value) "));\n"
+      "    new_regfile[" regname "].value = (intptr_t)malloc(sizeof(*" (stub-result value) "));\n"
       "    new_regfile[" regname "].size = sizeof(*" (stub-result value) ");\n"
       "    assert(new_regfile[" regname "].value);\n" ; aren't assertions as good as proper error checks? O:-)
       "    memcpy((void *)new_regfile[" regname "].value, " (stub-result value) ", sizeof(*" (stub-result value) "));\n")
@@ -111,6 +117,7 @@
 
 (export gensymC)
 
+; FIXME: move this into ll-compiler
 (define string->C-ident
   (let ((ident-charset (char-set-intersection char-set:ascii char-set:letter)))
     (lambda (str)
@@ -168,12 +175,10 @@
     (lambda (v) ; imm
       (make-stub "" (if v "true" "false") '()))
     (lambda (proto field) ; fetch
-      (let* ((tmp (gensymC (string-append proto "_info")))
-             (res (gensymC (string-append (string->C-ident field) "_field"))))
+      (let* ((res (gensymC (string-append (string->C-ident field) "_field"))))
         (make-stub
           (string-append
-            "    struct " proto "_proto_info const *const " tmp " = DOWNCAST(info, info, " proto "_proto_info);\n"
-            "    bool const " res " = " tmp "->" field ";\n")
+            "    bool const " res " = " proto "->" field ";\n")
           res
           '())))
     unboxed-ref
@@ -189,12 +194,10 @@
     (lambda (v) ; imm
       (make-stub "" (format #f "~d" v) '()))
     (lambda (proto field) ; fetch (TODO: factorize with other types)
-      (let* ((tmp (gensymC (string-append proto "_info")))
-             (res (gensymC (string-append (string->C-ident field) "_field"))))
+      (let* ((res (gensymC (string-append (string->C-ident field) "_field"))))
         (make-stub
           (string-append
-            "    struct " proto "_proto_info const *" tmp " = DOWNCAST(info, info, " proto "_proto_info);\n"
-            "    uint_least64_t " res " = " tmp "->" field ";\n")
+            "    uint_least64_t " res " = " proto "->" field ";\n")
           res
           '())))
     unboxed-ref
@@ -214,12 +217,10 @@
           res
           '())))
     (lambda (proto field) ; fetch (TODO: factorize with other types)
-      (let* ((tmp (gensymC (string-append proto "_info")))
-             (res (gensymC (string-append (string->C-ident field) "_field"))))
+      (let* ((res (gensymC (string-append (string->C-ident field) "_field"))))
         (make-stub
           (string-append
-            "    struct " proto "_proto_info const *" tmp " = DOWNCAST(info, info, " proto "_proto_info);\n"
-            "    char const *" res " = " tmp "->" field ";\n")
+            "    char const *" res " = " proto "->" field ";\n")
           res
           '())))
     boxed-ref
@@ -233,7 +234,7 @@
             "    if (new_regfile[" regname "].value) {\n" ; FIXME: same as above
             "        free((void *)new_regfile[" regname "].value);\n"
             "    }\n"
-            "    new_regfile[" regname "].value = malloc(" tmp ");\n"
+            "    new_regfile[" regname "].value = (intptr_t)malloc(" tmp ");\n"
             "    new_regfile[" regname "].size = " tmp ";\n"
             "    assert(new_regfile[" regname "].value);\n" ; aren't assertions as good as proper error checks? O:-)
             "    memcpy((void *)new_regfile[" regname "].value, " (stub-result value) ", " tmp ");\n")
@@ -250,12 +251,10 @@
     (lambda (v) ; imm
       #f)
     (lambda (proto field) ; fetch (TODO: factorize with other types)
-      (let* ((tmp (gensymC (string-append proto "_info")))
-             (res (gensymC (string-append (string->C-ident field) "_field"))))
+      (let* ((res (gensymC (string-append (string->C-ident field) "_field"))))
         (make-stub
           (string-append
-            "    struct " proto "_proto_info const *" tmp " = DOWNCAST(info, info, " proto "_proto_info);\n"
-            "    struct timeval const *" res " = &" tmp "->" field ";\n")
+            "    struct timeval const *" res " = &" proto "->" field ";\n")
           res
           '())))
     boxed-ref
@@ -272,12 +271,10 @@
     (lambda (v) ; imm
       #f)
     (lambda (proto field) ; fetch (TODO: factorize with other types)
-      (let* ((tmp (gensymC (string-append proto "_info")))
-             (res (gensymC (string-append (string->C-ident field) "_field"))))
+      (let* ((res (gensymC (string-append (string->C-ident field) "_field"))))
         (make-stub
           (string-append
-            "    struct " proto "_proto_info const *" tmp " = DOWNCAST(info, info, " proto "_proto_info);\n"
-            "    char const (*" res ")[ETH_ADDR_LEN] = &" tmp "->" field ";\n")
+            "    char const (*" res ")[ETH_ADDR_LEN] = &" proto "->" field ";\n")
           res
           '())))
     boxed-ref
@@ -294,12 +291,10 @@
     (lambda (v) ; imm
       #f)
     (lambda (proto field) ; fetch (TODO: factorize with other types)
-      (let* ((tmp (gensymC (string-append proto "_info")))
-             (res (gensymC (string-append (string->C-ident field) "_field"))))
+      (let* ((res (gensymC (string-append (string->C-ident field) "_field"))))
         (make-stub
           (string-append
-            "    struct " proto "_proto_info const *" tmp " = DOWNCAST(info, info, " proto "_proto_info);\n"
-            "    struct ip_addr const *" res " = &" tmp "->" field ";\n")
+            "    struct ip_addr const *" res " = &" proto "->" field ";\n")
           res
           '())))
     boxed-ref

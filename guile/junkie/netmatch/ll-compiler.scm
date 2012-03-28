@@ -3,22 +3,13 @@
 (define-module (junkie netmatch ll-compiler))
 
 ;;; We generate untyped C from untyped code stubs.
-
-;;; (fetch field) -> returns the code that fetch the given field (given a proto and a layer)
-;;; (imm value) -> returns the immediate value
-;;; (binary-op operator value1 value2) -> returns the code that computes this
-;;; (unary-op operator value) -> returns the code that computes that
-;;; (bind name value) -> generate the code that memoize the given value in the given register
-;;; (ref var) -> return the value of the given register
-;;; (bind-unboxed name value) -> copy value, casted to uintptr_t, into the register
+;;; Some type checking happened earlier, and more will happen when compiling the generated C code.
 
 (use-modules (ice-9 format)
              (srfi srfi-1)
              ((junkie netmatch types) :renamer (symbol-prefix-proc 'type:))
              (junkie tools)
              (junkie instvars))
-
-; TODO: a fluid for the indent level
 
 ; FIXME: instead of this, an alist of protos (records) giving the header name, the fields, etc...
 (define *all-protos*
@@ -35,6 +26,7 @@
                  "#include <stddef.h>\n"
                  "#include <stdbool.h>\n"
                  "#include <stdint.h>\n"
+                 "#include <inttypes.h>\n"
                  "#include <assert.h>\n"
                  "#include <string.h>\n"
                  "#include <junkie/netmatch.h>\n"
@@ -47,236 +39,49 @@
                  "\n\n")))
     (apply string-append lines)))
 
-;;; A match being a list of test, a test being a triplet (proto can-skip . test-expr):
+; uniquify the given list (useful for regnames)
+(define (uniquify lst)
+  (let ((h (make-hash-table 11)))
+    (for-each (lambda (v)
+                (hash-set! h v #t))
+              lst)
+    (hash-fold (lambda (v dummy new-lst)
+                 (cons v new-lst))
+               '()
+               h)))
 
-(define test-proto car)
-(define test-can-skip cadr)
-(define test-expr cddr)
-(export test-proto test-can-skip test-expr)
-
-;;; A test expression (or merely test) is any (untyped!) scheme expression returning a code stub.
-
-; Given a test and a hash of already existing varnames, extract the required bindings (ie. all  that's bound).
-; Note: If we ref something that's not defined then that will trigger a compile error which is fine.
-;       We do not look for refs instead of binds because it's allowed to bind values without using them (these
-;       migh be usefull for the actions we will be calling).
-; Note that we dont care about type, how nice is that! :)
-
-; Return the code required to define all regnames used in the given stub and the number of regnames
-(define (extract-regnames stub)
-  (let ((regnames-h (make-hash-table 11))
-        (idx        0))
-    (for-each (lambda (regname)
-               (hash-set! regnames-h regname #t))
-             (type:stub-regnames stub))
-    (cons
-      (string-append
-        (hash-fold (lambda (regname dummy code)
-                     ; note: these are indexes into an array of struct npc_register { uintptr_t value; size_t size; }
-                     (let ((res (string-append
-                                  code
-                                  "#define " regname " " (number->string idx) "\n")))
-                       (set! idx (1+ idx))
-                       res))
-                   "/* Register definitions */\n\n"
-                   regnames-h)
-        "\n\n")
-      idx)))
-
-; given a proto, field and flag names, return the stub for the bool test of the set_values
-(define (set? proto field flag)
-  (let ((tmp (type:gensymC (string-append proto "_info")))
-        (res (type:gensymC "test_set")))
-    (type:make-stub
-      (string-append
-        "    struct " proto "_proto_info const *const " tmp " = DOWNCAST(info, info, " proto "_proto_info);\n"
-        "    bool const " res " = " tmp "->set_values & " flag ";\n")
-      res
-      '())))
-
-(export set?)
-
-; given the stub for a test, return the stub for a function performing the test
-(define (test->function test)
-  (let ((res (type:gensymC "test_fun")))
-    (type:make-stub
-      (string-append
-        "static bool " res "(struct proto_info const *info, struct npc_register const *prev_regfile, struct npc_register *new_regfile)\n"
-        "{\n"
-        "    /* We may not use these: */\n"
-        "    (void)info;\n"
-        "    (void)prev_regfile;\n"
-        "    (void)new_regfile;\n"
-        (type:stub-code test)
-        "    return " (type:stub-result test) ";\n}\n\n")
-      res
-      (type:stub-regnames test))))
-
-;;; Then, we want to look for the next protocol of a given type (optionaly skipping some)
-;;; that satisfies some tests. We then have a full multilayer test, suitable for instance
-;;; for a packet filter.
-
-; takes the proto name, a flag telling if we are allowed to skip some layers, the name of
-; the function performing the layer test.
-; returns the code and the name of the variable storing the matching proto_info or NULL.
-(define (find-next-matching-proto proto can-skip test)
-  (let ((res (type:gensymC "info")))
-    (type:make-stub
-      (string-append
-        "    struct proto_info const *" res ";\n"
-        "    for (" res " = info; " res "; " res " = " res "->parent) {\n"
-        "        if (" res "->parser->proto->code == PROTO_CODE_" (string-upcase! (string-copy (symbol->string proto))) " &&\n"
-        "            " (type:stub-result test) "(" res ", prev_regfile, new_regfile)) {\n"
-        "            break;\n"
-        "        }\n"
-        (if can-skip
-            ""
-            (string-append
-              "        " res " = NULL;\n"
-              "        break;\n"))
-        "    }\n")
-      res
-      (type:stub-regnames test))))
-
-; Given a list of triplets (proto can-skip . test-expr),
-; returns the stub for a function performing the test given the first proto_info, and the name of it.
-(define (match->stub tests)
-  ; First output all the required functions to perform layer-tests
-  (let ((fun-name (type:gensymC "match")))
-    (let loop ((remaining-tests tests)
-               (first-unmatched "first")
-               (preamble-code   (string-append
-                                  "/* These functions perform entry test for:\n"
-                                  "   " (simple-format #f "~s" tests) "\n"
-                                  "   See function " fun-name "\n"
-                                  " */\n\n"))
-               (main-code       (string-append
-                                  "static bool " fun-name "(struct proto_info const *info, struct npc_register const *prev_regfile, struct npc_register *new_regfile)\n"
-                                  "{\n"
-                                  "    /* We may not use these: */\n"
-                                  "    (void)info;\n"
-                                  "    (void)prev_regfile;\n"
-                                  "    (void)new_regfile;\n"))
-               (regnames '()))
-      (if (null? remaining-tests)
-          (type:make-stub
-            (string-append
-              preamble-code
-              main-code
-              "    return true;\n"
-              "}\n\n")
-            fun-name
+; Return the the code required to define the given regnames
+(define (extract-regnames regnames)
+  (let ((idx 0))
+    (string-append
+      (fold (lambda (regname code)
+              ; note: these are indexes into an array of struct npc_register { uintptr_t value; size_t size; }
+              (let ((res (string-append
+                           code
+                           "#define " regname " " (number->string idx) "\n")))
+                (set! idx (1+ idx))
+                res))
+            "/* Register definitions */\n\n"
             regnames)
-          (let* ((test      (car remaining-tests))
-                 (proto     (test-proto test))
-                 (can-skip  (test-can-skip test))
-                 (test-expr (test->function (test-expr test)))
-                 (match-one (find-next-matching-proto proto can-skip test-expr))
-                 (next-info (type:stub-result match-one)))
-            (loop (cdr remaining-tests)
-                  next-info
-                  (string-append
-                    preamble-code
-                    (type:stub-code test-expr))
-                  (string-append
-                    main-code
-                    (type:stub-code match-one)
-                    "    if (! " next-info ") return false;\n")
-                  (append (type:stub-regnames match-one) regnames)))))))
+      "unsigned nb_registers = " (number->string idx) "U;\n"
+      "\n\n")))
 
-;;; Now we want to manage a FSM, where we have many 'walkers' going from one state to the next, either moving or being copied
-;;; (note: when copying, the new walker have a pointer toward its ancestor, and every walker have a list of sons).
-;;; In the starting state we have a single nul walker.
-;;; A walker is:
-;;;  - the state its in
-;;;  - pointer to its parent
-;;;  - list of its sons
-;;;  - a regfile
-;;; For each state, we have:
-;;;  - a list of output transitions, a transition being: a match, a flag copy/move, a flag reapply, a flag grab, a dest state
-;;;  - a list of actions to be performed on arrival (like, killing all walkers sharing a given ancestor)
-;;; Note about flags:
-;;;  When receiving a new event, we try all walkers in turn. When one match, we move/copy it.
-;;;  Then, if reapply is set, we retry the same event on the new walker, until it stops moving.
-;;;  Then, if grab is not set, we keep trying the event on following walkers.
-;;;
-;;; For this set of waiting walkers, we can have several indexes (hash on some field of the regfile).
-;;; Then, when we know we are going to perform a check on a varname then use the index to reduce the
-;;; size of the possible set. But if the and function works properly (ie. not evaluating B in 0&&B)
-;;; then this may not be required. Keep this for later then.
-;;;
-;;; !!! NOTE NOTE NOTE NOTE NOTE !!!
-;;;
-;;; Nothing in there requires to be dynamically generated!
-;;; We may want to use this code generator to supply only a matcher, then the matcher is dynamically loaded
-;;; and we make use of it in the FSM by using its match function alone. Except that we need to know the regfile
-;;; structure for all used matches. So we need the code generator to build a single .so with all the matches,
-;;; and then this .so will give us N match functions and a size for the regfile structure.
-;;;
-;;; So it's API is : match list -> matching-funs list * regfile size
-;;; (yes the generator also compiles and loads the .so)
-;;;
-;;; If we have this then we can write a plugin for matching single events or a plugin for following dialogs.
-;;; But what if we want to implement some indexes of walkers? This can be done before calling the matchers
-;;; since the index can easily be build on any regfile structure, given the regfile is actually an array of npc_registers.
-
-; Given an alist of name->match (a match being a list of triplets (proto, can-skip, test-expr)),
-; and a list of actions (ie. name->expression to return),
-; returns the code of all matching functions. This code will have the nb_registers global unsigned int defined.
-(define (matches->C matches actions additional-code)
+; Given a stub, returns the complete C source code
+(define (stub->C stub)
   (let* ((headers   C-header)
-         (mth-stubs (fold (lambda (entry prev)
-                            (let* ((match-name (car entry))
-                                   (match      (cdr entry))
-                                   (stub       (match->stub match)))
-                              (type:make-stub
-                                (string-append
-                                  (type:stub-code prev)
-                                  (type:stub-code stub)
-                                  "npc_match_fn " match-name "; /* typecheck me please */\n"
-                                  "bool " match-name "(struct proto_info const *info, struct npc_register const *prev_regfile, struct npc_register *new_regfile)\n"
-                                  "{\n"
-                                  "    return " (type:stub-result stub) "(info, prev_regfile, new_regfile);\n"
-                                  "}\n\n")
-                                match-name
-                                (append (type:stub-regnames stub) (type:stub-regnames prev)))))
-                          (type:make-stub "/* Functions */\n\n" "" '())
-                          matches))
-         (act-stubs (fold (lambda (entry prev)
-                            (let* ((action-name (car entry))
-                                   (action-expr (cdr entry)))
-                              (type:make-stub
-                                (string-append
-                                  (type:stub-code prev)
-                                  "npc_action_fn " action-name "; /* typecheck me please */\n"
-                                  "void " action-name "(struct npc_register *prev_regfile)\n" ; actions can not bind to new_regfile
-                                  "{\n"
-                                  (type:stub-code action-expr)
-                                  "}\n\n")
-                                action-name
-                                (type:stub-regnames action-expr))))
-                          (type:make-stub "/* Actions */\n\n" "" '())
-                          actions))
-         (stubs     (type:stub-concat mth-stubs act-stubs))
-         (tmp       (extract-regnames stubs))
-         (regnames  (car tmp))
-         (nb-regs   (cdr tmp)))
+         (regnames  (extract-regnames (uniquify (type:stub-regnames stub)))))
     (string-append
       headers
       regnames
-      "unsigned nb_registers = " (number->string nb-regs) "U;\n"
-      (type:stub-code stubs)
-      "\n/* Additional code */\n\n"
-      additional-code
+      (type:stub-code stub)
       "\n/* end */\n")))
 
-; Given an alist of name->match and an alist of name->expression, returns the name of the dynlib containing the required functions,
-; and the length of the required regfile
-(define (matches->so matches actions additional-code)
+; Given a stub, returns the name of the corresponding dynlib
+(define (stub->so stub)
   (let* ((srcname     (string-copy "/tmp/netmatch-ll.c.XXXXXX"))
          (srcport     (mkstemp! srcname))
          (libname     (string-append srcname ".so"))
-         (code        (matches->C matches actions additional-code)))
+         (code        (stub->C stub)))
     (display code srcport)
     (close-port srcport)
     (let* ((cc       (or (getenv "NETMATCH_CC")       build-cc))
@@ -289,13 +94,22 @@
           (begin
             ;(delete-file srcname)
             libname)
-          (begin
-            (throw 'compilation-error
-                   (simple-format #f "Cannot exec ~s: exit-val=~s, term-sig=~s stop-sig=~s~%"
-                                  cmd
-                                  (status:exit-val status)
-                                  (status:term-sig status)
-                                  (status:stop-sig status)))
-            #f)))))
+          (throw 'compilation-error
+                 (simple-format #f "Cannot exec ~s: exit-val=~s, term-sig=~s stop-sig=~s~%"
+                                cmd
+                                (status:exit-val status)
+                                (status:term-sig status)
+                                (status:stop-sig status)))))))
 
-(export matches->so)
+(export stub->so)
+
+; some tools
+
+(define (bool->C b)
+  (if b "true" "false"))
+(export bool->C)
+
+(define (proto-code->C proto)
+  (string-append "PROTO_CODE_" (string-upcase (symbol->string proto))))
+(export proto-code->C)
+

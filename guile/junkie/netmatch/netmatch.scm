@@ -5,7 +5,6 @@
 (use-modules (ice-9 match)
              (srfi srfi-1) ; for fold
              ((junkie netmatch types) :renamer (symbol-prefix-proc 'type:))
-             ((junkie netmatch ll-compiler) :renamer (symbol-prefix-proc 'll:))
              (junkie tools)
              (junkie defs)) ; thus, junkie runtime as well
 
@@ -181,74 +180,41 @@
            ; then all others are uint
            (_ type:uint))))
 
-(define cst->stub
-  (lambda proto-and-field
-    ; given a proto + symbol, returns the expression that alias it, or #f if unknown (and then the symbol is a field name)
-    (match proto-and-field
-           (('arp 'request) 1)
-           (('arp 'reply) 2)
-           (('dns 'unset) 0)
-           (('dns 'A) 1)
-           (('dns 'NS) 2)
-           (('dns 'MD) 3)
-           (('dns 'MF) 4)
-           (('dns 'CNAME) 5)
-           (('dns 'SOA) 6)
-           (('dns 'MB) 7)
-           (('dns 'MG) 8)
-           (('dns 'MR) 9)
-           (('dns 'NULL) 10)
-           (('dns 'WKS) 11)
-           (('dns 'PTR) 12)
-           (('dns 'HINFO) 13)
-           (('dns 'MINFO) 14)
-           (('dns 'MX) 15)
-           (('dns 'TXT) 16)
-           (('dns 'AAAA) #x1c)
-           (('dns 'NBNS) #x20)
-           (('dns 'SRV) #x21)
-           (('dns 'NBSTAT) #x21) ; yes, same as above
-           (('dns 'A6) #x26)
-           (('dns 'IXFR) #xfb)
-           (('dns 'AXFR) #xfc)
-           (('dns 'ANY) #xff)
-           (('dns 'IN) 1)
-           (('dns 'CS) 2)
-           (('dns 'CH) 3)
-           (('dns 'HS) 4)
-           ((or ('eth 'ip) ('eth 'ipv4) ('eth 'ip4)) #x0800)
-           ((or ('eth 'ip6) ('eth 'ipv6)) #x86dd)
-           (('eth 'arp) #x0806)
-           (('eth 'ieee-802.1q) #x8100)
-           (('eth 'unset) -1)
-           (('http 'get) 0)
-           (('http 'head) 1)
-           (('http 'post) 2)
-           (('http 'connect) 3)
-           (('http 'put) 4)
-           (('http 'options) 5)
-           (('http 'trace) 6)
-           (('http 'delete) 7)
-           (('sip 'register) 0)
-           (('sip 'invite) 1)
-           (('sip 'ack) 2)
-           (('sip 'cancel) 3)
-           (('sip 'options) 4)
-           (('sip 'bye) 5)
-           ((or ('pgsql 'unknown) ('mysql 'unknown) ('tns 'unknown)) 0)
-           ((or ('pgsql 'startup) ('mysql 'startup) ('tns 'startup)) 1)
-           ((or ('pgsql 'query) ('mysql 'query) ('tns 'query)) 2)
-           ((or ('pgsql 'exit) ('mysql 'exit) ('tns 'exit)) 3)
-           ((or ('pgsql 'requested) ('mysql 'requested) ('tns 'requested)) 0)
-           ((or ('pgsql 'granted) ('mysql 'granted) ('tns 'granted)) 1)
-           ((or ('pgsql 'refused) ('mysql 'refused) ('tns 'refused)) 2)
-           (('ssl 'unset) 0)
-           (('ssl 'v2) 1)
-           (('ssl 'v3) 2)
-           (('ssl 'tls) 3)
-           (_ #f))))
+; given a proto, field and flag names, return the stub for the bool test of the set_values
+(define (set? proto field flag)
+  (let ((res (type:gensymC "test_set")))
+    (type:make-stub
+      (string-append
+        "    bool const " res " = " proto "->set_values & " flag ";\n")
+      res
+      '())))
 
-(define expected-type (make-fluid))
+; Returns the new expression replacing a well-known constant, of #f
+(define (well-known-cst? x)
+  (match x
+         ('arp-request 1) ('arp-reply 2)
+         ('dns-unset 0)
+         ('dns-A 1) ('dns-NS 2) ('dns-MD 3) ('dns-MF 4)
+         ('dns-CNAME 5) ('dns-SOA 6) ('dns-MB 7) ('dns-MG 8)
+         ('dns-MR 9) ('dns-NULL 10) ('dns-WKS 11) ('dns-PTR 12)
+         ('dns-HINFO 13) ('dns-MINFO 14) ('dns-MX 15) ('dns-TXT 16)
+         ('dns-AAAA #x1c) ('dns-NBNS #x20) ('dns-SRV #x21)
+         ('dns-NBSTAT #x21) ; yes, same as above
+         ('dns-A6 #x26) ('dns-IXFR #xfb) ('dns-AXFR #xfc) ('dns-ANY #xff)
+         ('dns-IN 1) ('dns-CS 2) ('dns-CH 3) ('dns-HS 4)
+         ((or 'eth-ip 'eth-ipv4 'eth-ip4) #x0800)
+         ((or 'eth-ip6 'eth-ipv6) #x86dd)
+         ('eth-arp #x0806) ('eth-ieee-802.1q #x8100) ('eth-unset -1)
+         ('http-get 0) ('http-head 1) ('http-post 2) ('http-connect 3)
+         ('http-put 4) ('http-options 5) ('http-trace 6) ('http-delete 7)
+         ('sip-register 0) ('sip-invite 1) ('sip-ack 2) ('sip-cancel 3)
+         ('sip-options 4) ('sip-bye 5)
+         ('sql-unknown 0) ('sql-startup 1) ('sql-query 2) ('sql-exit 3)
+         ('sql-requested 0) ('sql-granted 1) ('sql-refused 2)
+         ('ssl-unset 0) ('ssl-v2 1) ('ssl-v3 2) ('ssl-tls 3)
+         (_ #f)))
+
+(define expected-type (make-fluid type:any))
 (define (with-expected-type t thung)
   ; BEWARE: not your usual with-this -> if currently expected type is type:any, then its value is not restored!
   (slog log-debug "now expecting ~a instead of ~a" (type:type-name t) (type:type-name (fluid-ref expected-type)))
@@ -299,8 +265,42 @@
   (or (get-register-type regname)
       (throw 'unknown-register regname (fluid-ref register-types))))
 
-(define (expr->stub proto expr)
-  (slog log-debug "compiling expression ~s, which should be of type ~a" expr (type:type-name (fluid-ref expected-type)))
+;;; We want to support only one kind of "function" taking and destructuring a proto stack and returning anything (the regfiles are implicit)
+;;; (function_name (proto1 in proto2 in proto3...) expr)
+;;; Note that when the destructuration of protos fails, 0 is returned (Ok when function result is interpreted as a bool)
+;;; where expr can be either a constants, proto.field, %register, (expression ...) or (special-form ...) (a la lisp).
+;;; some of these special form are for binding (set!), some for testing field set value (set?), some for if, etc...
+;;; This gets compiled into a C function taking the last proto info (and the prev/new regfiles), and returning an intptr_t.
+
+(define (function-preamble name public)
+  (type:make-stub
+    (string-append
+      (if public "" "static ")
+      "uintptr_t " name "(struct proto_info const *info, struct npc_register const *prev_regfile, struct npc_register *new_regfile)\n"
+      "{\n"
+      "    /* We may not use any of these: */\n"
+      "    (void)info;\n"
+      "    (void)prev_regfile;\n"
+      "    (void)new_regfile;\n")
+    "" '()))
+
+(define (proto->C sym) ; placeholder for more elavorate translation
+  (symbol->string sym)) 
+
+(define (deconstruct-protos protos)
+  (let ((deconstruct-1 (lambda (proto prev)
+                         (type:stub-concat
+                           prev
+                           (type:make-stub
+                             (let ((p (type:stub-result prev)))
+                               (if (string=? p "info")
+                                   (string-append "    ASSIGN_INFO_CHK(" (proto->C proto) ", " p ", 0);\n")
+                                   (string-append "    ASSIGN_INFO_CHK(" (proto->C proto) ", &" p "->info, 0);\n")))
+                             (proto->C proto) '())))))
+    (fold deconstruct-1 (type:make-stub "" "info" '()) protos)))
+
+(define (expr->stub expr)
+  (slog log-debug "Compiling expression ~s, which should be of type ~a" expr (type:type-name (fluid-ref expected-type)))
   (let* ((perf-op    (lambda (op params)
                        (let* ((itypes (type:op-itypes op))
                               (otype  (type:op-otype op)))
@@ -311,7 +311,7 @@
                              (apply
                                (type:op-function op)
                                (map (lambda (p t)
-                                      (with-expected-type t (lambda () (expr->stub proto p))))
+                                      (with-expected-type t (lambda () (expr->stub p))))
                                     params itypes))
                              ; In some occasions we automatically transform (op a b c d) to (op (op (op a b) c) d), or
                              ; in the general case, when op require n<m arguments:
@@ -319,7 +319,7 @@
                              ; so we suppose that op is left associative.
                              (if (and (> (length params) (length itypes)) ; if we have params in excess
                                       (every (lambda (t) (eqv? otype t)) itypes)) ; and they are all of the same type = the output type
-                                 (expr->stub proto (explode-op (type:op-name op) (length itypes) params))
+                                 (expr->stub (explode-op (type:op-name op) (length itypes) params))
                                  (throw 'you-must-be-joking
                                         (simple-format #f "bad number of parameters for ~a: ~a instead of ~a"
                                                        (type:op-name op) (length params) (length itypes))))))))
@@ -356,40 +356,55 @@
                               (char-set-contains? prefix-chars (string-ref (symbol->string op) 0))
                               (false-if-exception (type:symbol->ops op))))))
          (regname?   (lambda (str)
-                       (eqv? (string-ref str 0) #\%))))
+                       (eqv? (string-ref str 0) #\%)))
+         (fieldname? (lambda (sym)
+                       (and (symbol? sym)
+                            (let* ((str (symbol->string sym))
+                                   (dot (string-index str #\.)))
+                              (and dot
+                                   (> dot 0)
+                                   (< dot (- (string-length str) 1))
+                                   (cons (string->symbol (substring str 0 dot))
+                                         (string->symbol (substring str (1+ dot))))))))))
     (cond
       ((list? expr)
+       ; So we have either a special form or an operator application
        (match expr
               (()
                (throw 'you-must-be-joking "what's the empty list for?"))
-              ; Try first to handle some few special forms
-              (('set? f) ; special operator
-               (let* ((field (fieldname proto f))
-                      (flag  (flag-for-field proto field)))
-                 (slog log-debug "compiling special form 'set?' for field name ~a (flag ~a)" field flag)
-                 (if (not flag)
-                     (throw 'you-must-be-joking (simple-format #f "field ~s in ~s is either always set or unknown" f proto)))
-                 (ll:set? (type:symbol->C-ident proto)
-                          (field->C proto field)
-                          flag)))
-              ((x 'as name) ; binding operation
+              ;; Try first to handle some few special forms
+              ; set? tells if a field is set or not in a proto into
+              (('set? fname) ; special operator
+               (match (fieldname? fname)
+                      ((proto . f)
+                       (let* ((field (fieldname proto f))
+                              (flag  (flag-for-field proto field)))
+                         (slog log-debug "compiling special form 'set?' for field name ~a (flag ~a)" field flag)
+                         (if (not flag)
+                             (throw 'you-must-be-joking (simple-format #f "field ~s in ~s is either always set or unknown" f proto)))
+                         (set? (type:symbol->C-ident proto)
+                               (field->C proto field)
+                               flag)))
+                      (_ (throw 'you-must-be-joking (simple-format #f "how could ~a be set or not?" fname)))))
+              ; binding
+              ((name ':= x)
                (slog log-debug " compiling special form 'bind' for expr ~a to register ~a" x name)
                (or (symbol? name)
                    (throw 'you-must-be-joking (simple-format #f "register name must be a symbol not ~s" name)))
-               (let* ((x-stub  (expr->stub proto x)) ; should set expected-type if unset yet
+               (let* ((x-stub  (expr->stub x)) ; should set expected-type if unset yet
                       (regname (type:symbol->C-ident name))
                       (e-type  (fluid-ref expected-type)))
                  (slog log-debug " compiling actual bind")
                  (set-register-type regname e-type)
                  ((type:type-bind e-type) regname x-stub)))
-              ; Sequencing operator (special typing)
+              ; Sequencing operator (special typing, returns the last evaluated expression)
               (('do v1) ; easy one
-               (expr->stub proto v1))
+               (expr->stub v1))
               (('do v1 . v2) ; general case
                (slog log-debug " compiling special form 'do'")
                (type:stub-concat
-                 (with-expected-type type:any (lambda () (expr->stub proto v1)))
-                 (expr->stub proto (cons 'do v2))))
+                 (with-expected-type type:any (lambda () (expr->stub v1)))
+                 (expr->stub (cons 'do v2))))
               ; Generate code to pass C code from expression to generated file. All params that are not strings are evaluated and
               ; their result is inlined, so you'd better not use anything beyond mere immediate values or refs.
               (('pass . params)
@@ -397,19 +412,23 @@
                (let ((ps (map (lambda (p)
                                 (if (string? p) ; anything that's not a string must be evaluated
                                     (type:make-stub "" p '())
-                                    (with-expected-type type:any (lambda () (expr->stub proto p)))))
+                                    (with-expected-type type:any (lambda () (expr->stub p)))))
                               params)))
-                 (type:make-stub
+                 (type:make-stub ; concatenate all code then all results
                    (string-append
                      (apply string-append (map type:stub-code ps))
-                     (apply string-append (map type:stub-result ps)))
-                   ""
+                     (apply string-append (map type:stub-result ps))
+                     "\n")
+                   "0"
                    (apply append (map type:stub-regnames ps)))))
+              ; TODO: add more special forms (such as conditionals, etc)
               ; Now that we have ruled out the empty list and special forms we must face an operator, which can be infix or prefix
               ((and (v1 op-name . rest) (? (lambda (expr) (is-infix (cadr expr)))))
                (perform-op op-name (cons v1 rest)))
               ((op-name . params)
                (perform-op op-name params))))
+      ; We handled lists. What's left: constants, well known constants, field references and register references.
+      ; Immediate constants
       ((boolean? expr)
        (slog log-debug " compiling immediate boolean ~a" expr)
        (type-check-or-set type:bool)
@@ -423,124 +442,58 @@
        (type-check-or-set type:str)
        ((type:type-imm type:str) expr))
       ((symbol? expr)
-       (slog log-debug " compiling immediate symbol ~a" expr)
-       ; A symbol may be:
-       ; - a register name (if prefixed with '%')
+       (slog log-debug " compiling symbol ~a" expr)
+       ; A symbol might be:
        ; - a well-known constant
-       ; - otherwise, a field name
-       (let* ((str (symbol->string expr)))
-         ; Notice: if we don't know the type yet it's time to think about it.
-         (cond
-           ((regname? str)
-            ; fetch from a register
-            (let* ((regname     (type:string->C-ident (substring str 1)))
-                   (e-type      (fluid-ref expected-type)))
-              (if (eq? e-type type:any)
-                  (let ((actual-type (register->type regname)))
-                    (slog log-debug "set expected type of register ~a: ~a" regname (type:type-name actual-type))
-                    (fluid-set! expected-type actual-type))
-                  ; check the type we expect is not incompatible with a previously known type for this regname (or set it)
-                  (set-register-type regname e-type))
-              ((type:type-ref (fluid-ref expected-type)) regname)))
-           ((cst->stub proto expr) =>
-            ; or convert named constant
-            (lambda (x) expr->stub proto x))
-           (else
-             ; else we have to fetch this field from current proto
-             (let ((canon-name (fieldname proto expr)))
-               (if (eq? (fluid-ref expected-type) type:any)
-                   (let ((actual-type (field->type proto canon-name)))
-                     (slog log-debug "set expected type of field ~a: ~a" canon-name (type:type-name actual-type))
-                     (fluid-set! expected-type actual-type)))
-               ((type:type-fetch (fluid-ref expected-type)) (type:symbol->C-ident proto)
-                                                            (field->C proto canon-name)))))))
+       ; - a field name (proto.field)
+       ; - otherwise, a register name
+       (cond
+         ((well-known-cst? expr) => ; Well known constant?
+                                 (lambda (x) expr->stub x))
+         ((fieldname? expr) => ; Proto.field reference
+                            (lambda (x)
+                              (let* ((proto (car x))
+                                     (canon-name (fieldname proto (cdr x))))
+                                (if (eq? (fluid-ref expected-type) type:any)
+                                    (let ((actual-type (field->type proto canon-name)))
+                                      (slog log-debug "set expected type of field ~a: ~a" canon-name (type:type-name actual-type))
+                                      (fluid-set! expected-type actual-type))
+                                    ; else check the type
+                                    (type:check (field->type proto canon-name)
+                                                (fluid-ref expected-type)))
+                                ((type:type-fetch (fluid-ref expected-type))
+                                 (type:symbol->C-ident proto) (field->C proto canon-name)))))
+         (else ; A register name
+           ; Notice: if we don't know the type yet it's time to think about it.
+           (let* ((regname     (type:symbol->C-ident expr))
+                  (e-type      (fluid-ref expected-type)))
+             (if (eq? e-type type:any)
+                 (let ((actual-type (register->type regname)))
+                   (slog log-debug "set expected type of register ~a: ~a" regname (type:type-name actual-type))
+                   (fluid-set! expected-type actual-type))
+                 ; check the type we expect is not incompatible with a previously known type for this regname (or set it)
+                 (set-register-type regname e-type))
+             ((type:type-ref (fluid-ref expected-type)) regname)))))
       (else
         (throw 'you-must-be-joking
                (simple-format #f "~a? you really mean it?" expr))))))
 
-;;; Also, for complete matches, transform this:
-;;;
-;;; '(("node1" . ((cap with (#f || $client-is-connected))
-;;;               (next ip with (tos = 2))))
-;;;   ("node2" . ...))
-;;;
-;;; into this:
-;;;
-;;; (("node1" .  ((next ip #t ((op-function =) ((type-fetch "ip" 'tos)) ((type-imm uint) 2)))
-;;;               (next cap #f ((op-function log-or) ((type-imm bool) #f)
-;;;                                                  ((type-ref bool) 'client-is-connected))))))
-;;;  ("node2" . ...))
-;;;
-;;; note: then means skip-flag=#f, whereas next means skip-flag=#t.
-;;; note: notice how we go from outer to inner proto (first->last) to last->first since
-;;;       this is what we have. This implies that the first cap is allowed not to be
-;;;       the outest protocol, contrary to what the expression specifies ("cap with...."
-;;;       rather than "next cap with..."). Not a big deal in practice.
+(define (function->stub otype protos expr public)
+  (slog log-debug "Compiling netmatch function ~s" expr)
+  (let* ((name (type:gensymC "netmatch_fun"))
+         (preamble (function-preamble name public))
+         (proto-deconstruction (deconstruct-protos protos))
+         (function-body (with-expected-type otype
+                                            (lambda ()
+                                              (expr->stub expr)))))
+    (type:stub-concat
+      preamble
+      proto-deconstruction
+      function-body
+      (type:make-stub
+        (string-append
+          "    return " (type:stub-result function-body) ";\n}\n\n")
+        name '()))))
 
-(define (test->ll-test test)
-  (fluid-set! expected-type type:bool)
-  (match test
-         (('then proto 'with ex)
-          `(,proto #f . ,(expr->stub proto ex)))
-         (('then proto)
-          `(,proto #f . ,(expr->stub proto #t)))
-         ((proto 'with ex)
-          `(,proto #t . ,(expr->stub proto ex)))
-         ((or (? symbol? proto) (proto))
-          `(,proto #t . ,(expr->stub proto #t)))
-         (('next proto 'with ex)
-          `(,proto #t . ,(expr->stub proto ex)))
-         (('next proto)
-          `(,proto #t . ,(expr->stub proto #t)))
-         (_
-          (throw 'you-must-be-joking (simple-format #f "Cannot get my head around ~s" test)))))
-
-(export test->ll-test) ; used to find out proto code of inner test of match :-(
-
-(define (match->ll-match match)
-  (let* ((patch-skip (lambda (test can-skip) ; as we revert the list of tests in a match, we have to propagate can-skip the other way around
-                       `(,(ll:test-proto test)
-                          ,can-skip .
-                          ,(ll:test-expr test))))
-         ; first compile each test into a ll-test and reverse the list
-         (ll-match   (fold (lambda (test rev-list)
-                             (cons (test->ll-test test) rev-list))
-                           '()
-                           match))
-         ; then update the can-skip flags since we reverted the order of tests
-         (ll-match   (map (lambda (test prev-skip)
-                            `(,(ll:test-proto test)
-                               ,prev-skip .
-                               ,(ll:test-expr test)))
-                          ll-match (cons #t (map ll:test-can-skip ll-match))))) ; FIXME: the inner specified proto is always allowed to not be the inner reported
-    ll-match))
-
-(define (matches->ll-matches matches)
-  (map (lambda (r)
-         (let ((name  (car r))
-               (match (cdr r)))
-           (cons name (match->ll-match match))))
-       matches))
-
-; an action is a procedure that compute an expression and returns nothing (usefull for regfile update, calling external functions...)
-(define (actions->ll-actions actions)
-  (map (lambda (r)
-         (let ((name   (car r))
-               (action (cdr r)))
-           (cons name (expr->stub 'none action))))
-       actions))
-
-;; for nettrack, which already filled some register types
-(define (resume-compile matches actions additional-code)
-  (let ((ll-matches (matches->ll-matches matches))
-        (ll-actions (actions->ll-actions actions)))
-    (ll:matches->so ll-matches ll-actions additional-code)))
-
-(export resume-compile)
-
-(define (compile matches actions additional-code)
-  (reset-register-types)
-  (resume-compile matches actions additional-code))
-
-(export compile)
+(export function->stub)
 
