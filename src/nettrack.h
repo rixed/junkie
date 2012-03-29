@@ -29,7 +29,7 @@ struct nt_vertex {
     LIST_HEAD(nt_edges, nt_edge) outgoing_edges;
     struct nt_edges incoming_edges;
     // User defined actions on entry
-    npc_entry_fn *entry_fn;
+    npc_match_fn *entry_fn;
     unsigned timeout;   // if >0, number of seconds to keep an inactive state in here
     unsigned index_size;   // the index size (>=1)
     struct nt_states states[]; // the states currently waiting in this node (BEWARE: variable size!)

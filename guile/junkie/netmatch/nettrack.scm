@@ -24,7 +24,9 @@
       (client-port uint)]
      ; vertices (notice that edges are filled with default attributes as required)
      [(http-answer
-        (on-entry (pass "printf(\"%u\\n\", " http-status ");\n")))] ; an action to perform whenever the http-answer node is entered
+        (on-entry (pass "printf(\"%u\\n\", " http-status ");\n"))) ; an action to perform whenever the http-answer node is entered
+      (web-syn2
+        (index-on (tcp) (tcp.src-port)))] ; notice that the index, being applied to matching and candidate packets, can not use registers! (candidate have no registers)
      ; edges
      [(root web-syn
             (match (ip tcp) (do
@@ -57,6 +59,7 @@
   (match vertice
          [(name . cfgs)
           (let ((entry-func (type:make-stub "" "NULL" '()))
+                (index-func (type:make-stub "" "NULL" '()))
                 (index-size 0))
             (for-each (lambda (cfg)
                         (match cfg
@@ -64,10 +67,15 @@
                                 (set! entry-func (netmatch:function->stub type:any '() expr #f))]
                                [('index-size sz) ; FIXME: idem
                                 (set! index-size sz)]
+                               [('index-on protos expr) ; FIXME: idem
+                                (set! index-func (netmatch:function->stub type:uint protos expr #f))]
                                [_ (throw 'you-must-be-joking cfg)]))
                       cfgs)
             (set! preamble
-              (type:stub-concat preamble entry-func))
+              (type:stub-concat
+                preamble
+                entry-func
+                index-func))
             (set! defs
               (type:stub-concat
                 defs
@@ -77,6 +85,7 @@
                     "    .name = \"" (symbol->string name) "\",\n" ; FIXME: escape double quotes within name (ll:string->C)
                     "    .entry_fn = " (type:stub-result entry-func) ",\n"
                     "    .index_size = " (number->string index-size) ",\n"
+                    "    .index_fn = " (type:stub-result index-func) ",\n"
                     "}, ")
                   "" '()))))]
          [_ (throw 'you-must-be-joking (simple-format #f "can't understand vertice ~a" vertice))])

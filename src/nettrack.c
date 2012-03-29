@@ -197,7 +197,7 @@ static void nt_state_move(struct nt_state *state, struct nt_vertex *from, struct
  * Vertices
  */
 
-static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_graph *graph, npc_entry_fn *entry_fn, unsigned index_size)
+static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_graph *graph, npc_match_fn *entry_fn, unsigned index_size)
 {
     SLOG(LOG_DEBUG, "Construct new vertex %s", name);
 
@@ -234,7 +234,7 @@ static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_
     return 0;
 }
 
-static struct nt_vertex *nt_vertex_new(char const *name, struct nt_graph *graph, npc_entry_fn *entry_fn, unsigned index_size)
+static struct nt_vertex *nt_vertex_new(char const *name, struct nt_graph *graph, npc_match_fn *entry_fn, unsigned index_size)
 {
     struct nt_vertex *vertex = MALLOC(nettrack, sizeof(*vertex) + index_size*sizeof(vertex->states[0]));
     if (! vertex) return NULL;

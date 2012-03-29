@@ -13,14 +13,14 @@ struct npc_register {
 };
 
 typedef uintptr_t npc_match_fn(struct proto_info const *info, struct npc_register const *prev_regfile, struct npc_register *new_regfile);
-typedef uintptr_t npc_entry_fn(struct proto_info const *info, struct npc_register const *prev_regfile, struct npc_register *new_regfile);
 
 // The following structures are used by nettrack to describe the event graph
 
 struct nt_vertex_def {
     char const *name;
-    npc_entry_fn *entry_fn;
+    npc_match_fn *entry_fn;
     unsigned index_size;    // 0 for default
+    npc_match_fn *index_fn;
 };
 
 struct nt_edge_def {
