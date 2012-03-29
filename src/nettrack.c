@@ -199,15 +199,15 @@ static void nt_state_move(struct nt_state *state, struct nt_vertex *from, struct
 
 static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_graph *graph, npc_match_fn *entry_fn, unsigned index_size)
 {
-    SLOG(LOG_DEBUG, "Construct new vertex %s", name);
+    SLOG(LOG_DEBUG, "Construct new vertex %s with %u buckets", name, index_size);
 
     vertex->name = STRDUP(nettrack, name);
-    vertex->index_size = index_size ? index_size : graph->default_index_size;
+    vertex->index_size = index_size;
     assert(vertex->index_size >= 1);
     LIST_INIT(&vertex->outgoing_edges);
     LIST_INIT(&vertex->incoming_edges);
     LIST_INSERT_HEAD(&graph->vertices, vertex, same_graph);
-    for (unsigned i = 0; i < index_size; i++) {
+    for (unsigned i = 0; i < vertex->index_size; i++) {
         LIST_INIT(&vertex->states[i]);
     }
 
@@ -236,6 +236,7 @@ static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_
 
 static struct nt_vertex *nt_vertex_new(char const *name, struct nt_graph *graph, npc_match_fn *entry_fn, unsigned index_size)
 {
+    if (! index_size) index_size = graph->default_index_size;
     struct nt_vertex *vertex = MALLOC(nettrack, sizeof(*vertex) + index_size*sizeof(vertex->states[0]));
     if (! vertex) return NULL;
     if (0 != nt_vertex_ctor(vertex, name, graph, entry_fn, index_size)) {
