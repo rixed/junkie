@@ -25,8 +25,8 @@
      ; vertices (notice that edges are filled with default attributes as required)
      [(http-answer
         (on-entry (pass "printf(\"%u\\n\", " http-status ");\n"))) ; an action to perform whenever the http-answer node is entered
-      (web-syn2
-        (index-on (tcp) (tcp.src-port)))] ; notice that the index, being applied to matching and candidate packets, can not use registers! (candidate have no registers)
+      (web-syn
+        (index-size 1024))]
      ; edges
      [(root web-syn
             (match (ip tcp) (do
@@ -34,6 +34,7 @@
                               (ip-server := ip.dst)
                               (client-port := tcp.src-port)
                               (tcp.syn && (tcp.dst-port == 80))))
+            (dst-index-on () client-port)
             spawn)
       (web-syn http-answer
                (match (ip tcp http) (do
@@ -41,7 +42,8 @@
                                       (and (ip.src == ip-server)
                                            (ip.dst == ip-client)
                                            (tcp.dst-port == client-port)
-                                           (set? http.status)))))])
+                                           (set? http.status))))
+               (src-index-on (tcp) tcp.dst-port))])
 ;;; Notice that despite type inference we need to declare (some) registers since type inference is performed
 ;;; test after test. Even if type inference was done globally, such deep backtracking would lead to slow compilation,
 ;;; and thus the ability to make some types explicit would come handy nonetheless.
@@ -59,7 +61,6 @@
   (match vertice
          [(name . cfgs)
           (let ((entry-func (type:make-stub "" "NULL" '()))
-                (index-func (type:make-stub "" "NULL" '()))
                 (index-size 0))
             (for-each (lambda (cfg)
                         (match cfg
@@ -67,15 +68,12 @@
                                 (set! entry-func (netmatch:function->stub type:any '() expr #f))]
                                [('index-size sz) ; FIXME: idem
                                 (set! index-size sz)]
-                               [('index-on protos expr) ; FIXME: idem
-                                (set! index-func (netmatch:function->stub type:uint protos expr #f))]
                                [_ (throw 'you-must-be-joking cfg)]))
                       cfgs)
             (set! preamble
               (type:stub-concat
                 preamble
-                entry-func
-                index-func))
+                entry-func))
             (set! defs
               (type:stub-concat
                 defs
@@ -85,7 +83,6 @@
                     "    .name = \"" (symbol->string name) "\",\n" ; FIXME: escape double quotes within name (ll:string->C)
                     "    .entry_fn = " (type:stub-result entry-func) ",\n"
                     "    .index_size = " (number->string index-size) ",\n"
-                    "    .index_fn = " (type:stub-result index-func) ",\n"
                     "}, ")
                   "" '()))))]
          [_ (throw 'you-must-be-joking (simple-format #f "can't understand vertice ~a" vertice))])
@@ -118,10 +115,12 @@
 (define (edge->stub edge preamble defs)
   (match edge
          [(from to . cfgs)
-          (let ((spawn      #f)
-                (grab       #f)
-                (proto-code 'cap)
-                (match-func (type:make-stub "" "NULL" '())))
+          (let ((spawn          #f)
+                (grab           #f)
+                (proto-code     'cap)
+                (src-index-func (type:make-stub "" "NULL" '()))
+                (dst-index-func (type:make-stub "" "NULL" '()))
+                (match-func     (type:make-stub "" "NULL" '())))
             (for-each (lambda (cfg)
                         (match cfg
                                [('match protos expr)
@@ -130,13 +129,21 @@
                                   ; Would fail if no protos are given, since we use this to register a callback
                                   (if (not (null? protos))
                                       (set! proto-code (car protos))))]
+                               [('src-index-on protos expr)
+                                (set! src-index-func (netmatch:function->stub type:uint protos expr #f))]
+                               [('dst-index-on protos expr)
+                                (set! dst-index-func (netmatch:function->stub type:uint protos expr #f))]
                                ['spawn
                                 (set! spawn #t)]
                                ['grab
                                 (set! grab #t)]))
                       cfgs)
             (slog log-debug "Done, got proto-code = ~s (~s)" proto-code (ll:proto-code->C proto-code))
-            (cons (type:stub-concat preamble match-func) ; new preamble
+            (cons (type:stub-concat
+                    preamble
+                    src-index-func
+                    dst-index-func
+                    match-func) ; new preamble
                   (type:stub-concat defs ; new defs
                                     (type:make-stub
                                       (string-append
@@ -145,6 +152,8 @@
                                         "    .inner_proto = " (ll:proto-code->C proto-code) ",\n"
                                         "    .from_vertex = \"" (symbol->string from) "\",\n" ; FIXME: escape double quotes within name (ll:string->C)
                                         "    .to_vertex = \"" (symbol->string to) "\",\n" ; FIXME: escape double quotes within name (ll:string->C)
+                                        "    .from_index_fn = " (type:stub-result src-index-func) ",\n"
+                                        "    .to_index_fn = " (type:stub-result dst-index-func) ",\n"
                                         "    .spawn = " (ll:bool->C spawn) ",\n"
                                         "    .grab = " (ll:bool->C grab) ",\n"
                                         "}, ")

@@ -42,6 +42,7 @@ struct nt_edge {
     LIST_ENTRY(nt_edge) same_from, same_to;
     LIST_ENTRY(nt_edge) same_hook;
     npc_match_fn *match_fn;
+    npc_match_fn *from_index_fn, *to_index_fn;
     // what to do when taken
     bool spawn;  // ie create a new child (otherwise bring the matching state right here)
     bool grab;   // stop looking for other possible transitions

@@ -286,11 +286,13 @@ static void nt_vertex_del(struct nt_vertex *vertex, struct nt_graph *graph)
  */
 
 static proto_cb_t parser_hook;
-static int nt_edge_ctor(struct nt_edge *edge, struct nt_graph *graph, struct nt_vertex *from, struct nt_vertex *to, npc_match_fn *match_fn, bool spawn, bool grab, struct proto *inner_proto)
+static int nt_edge_ctor(struct nt_edge *edge, struct nt_graph *graph, struct nt_vertex *from, struct nt_vertex *to, npc_match_fn *match_fn, npc_match_fn *from_index_fn, npc_match_fn *to_index_fn, bool spawn, bool grab, struct proto *inner_proto)
 {
     SLOG(LOG_DEBUG, "Construct new edge@%p from %s to %s on proto %s", edge, from->name, to->name, inner_proto->name);
 
     edge->match_fn = match_fn;
+    edge->from_index_fn = from_index_fn;
+    edge->to_index_fn = to_index_fn;
     edge->from = from;
     edge->to = to;
     edge->spawn = spawn;
@@ -310,11 +312,11 @@ static int nt_edge_ctor(struct nt_edge *edge, struct nt_graph *graph, struct nt_
     return 0;
 }
 
-static struct nt_edge *nt_edge_new(struct nt_graph *graph, struct nt_vertex *from, struct nt_vertex *to, npc_match_fn *match_fn, bool spawn, bool grab, struct proto *inner_proto)
+static struct nt_edge *nt_edge_new(struct nt_graph *graph, struct nt_vertex *from, struct nt_vertex *to, npc_match_fn *match_fn, npc_match_fn *from_index_fn, npc_match_fn *to_index_fn, bool spawn, bool grab, struct proto *inner_proto)
 {
     struct nt_edge *edge = MALLOC(nettrack, sizeof(*edge));
     if (! edge) return NULL;
-    if (0 != nt_edge_ctor(edge, graph, from, to, match_fn, spawn, grab, inner_proto)) {
+    if (0 != nt_edge_ctor(edge, graph, from, to, match_fn, from_index_fn, to_index_fn, spawn, grab, inner_proto)) {
         FREE(edge);
         return NULL;
     }
@@ -454,78 +456,97 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
     assert(hook < parser_hooks+(NB_ELEMS(parser_hooks)));
     assert(hook->registered);
 
-    unsigned const index_h = 0; // TODO
-
     struct nt_edge *edge;
     LIST_FOREACH(edge, &hook->edges, same_hook) {
         // Test this edge for transition
         struct nt_state *state, *tmp;
-        unsigned const index = index_h % edge->from->index_size;
-        LIST_FOREACH_SAFE(state, &edge->from->states[index], same_vertex, tmp) {   // Beware that this state may move
-            if (edge->from->timeout > 0 && edge->from->timeout < timeval_sub(now, &state->last_used)) {
-                SLOG(LOG_DEBUG, "Timeouting state in vertex %s", edge->from->name);
-                nt_state_del(state, edge->graph);
-                continue;
-            }
-            SLOG(LOG_DEBUG, "Testing state from vertex %s for %s into %s",
-                    edge->from->name,
-                    edge->spawn ? "spawn":"move",
-                    edge->to->name);
-            edge->nb_tries ++;
-            /* Delayed bindings:
-             *   Matching functions do not change the bindings of the regfile while performing the tests because
-             *   we want the binding to take effect only if the tests succeed. Also, since the test order is not
-             *   specified then a given test can not both bind and reference the same register. Thus we pass it
-             *   two regfiles: one with the actual bindings (read only) and an empty one for the new bindings. On
-             *   exit, if the test succeeded, the new bindings overwrite the previous ones; otherwise they are
-             *   discarded.
-             *   We try to do this as efficiently as possible by reusing the previously boxed values whenever
-             *   possible rather than reallocing/copying them.
-             * TODO:
-             *   - a flag per node telling if the match function write into the regfile or not would comes handy;
-             *   - prevent the test expressions to read and write the same register;
-             */
-            struct npc_register tmp_regfile[edge->graph->nb_registers];
-            npc_regfile_ctor(tmp_regfile, edge->graph->nb_registers);
-            if (edge->match_fn(last, state->regfile, tmp_regfile)) {
-                SLOG(LOG_DEBUG, "Match!");
-                edge->nb_matches ++;
-                // We need the merged state in all cases but when we have no action and don't keep the result
-                struct npc_register *merged_regfile = NULL;
-                if (edge->to->entry_fn || !LIST_EMPTY(&edge->to->outgoing_edges)) {
-                    merged_regfile = npc_regfile_merge(state->regfile, tmp_regfile, edge->graph->nb_registers, !edge->spawn);
-                    if (! merged_regfile) {
-                        SLOG(LOG_WARNING, "Cannot create the new register file");
-                        // so be it
-                    }
+        unsigned index_start = 0, index_stop = edge->from->index_size;  // by default, prepare to look into all hash buckets
+        if (index_stop > 1 && edge->from_index_fn) {
+            // Notice that the hash function for incomming packet is *not* allowed to use the regfile nor to bind anything
+            index_start = edge->from_index_fn(last, NULL, NULL) % edge->from->index_size;
+            index_stop = index_start + 1;
+            SLOG(LOG_DEBUG, "Using index at location %u", index_start);
+        }
+        for (unsigned index = index_start; index < index_stop; index++) {
+            LIST_FOREACH_SAFE(state, &edge->from->states[index], same_vertex, tmp) {   // Beware that this state may move
+                if (edge->from->timeout > 0 && edge->from->timeout < timeval_sub(now, &state->last_used)) {
+                    SLOG(LOG_DEBUG, "Timeouting state in vertex %s", edge->from->name);
+                    nt_state_del(state, edge->graph);
+                    continue;
                 }
-                // Call the entry function
-                if (edge->to->entry_fn && merged_regfile) {
-                    SLOG(LOG_DEBUG, "Calling entry function for vertex '%s'", edge->to->name);
-                    edge->to->entry_fn(last, merged_regfile, NULL); // entry function is not supposed to bind anything... for now (FIXME).
-                }
-                // Now move/spawn/dispose of the state
-                if (edge->spawn) {
-                    if (!LIST_EMPTY(&edge->to->outgoing_edges) && merged_regfile) { // or we do not need to spawn anything
-                        if (NULL == (state = nt_state_new(state, edge->to, merged_regfile, now, index_h))) {
-                            npc_regfile_del(merged_regfile, edge->graph->nb_registers);
+                SLOG(LOG_DEBUG, "Testing state from vertex %s for %s into %s",
+                        edge->from->name,
+                        edge->spawn ? "spawn":"move",
+                        edge->to->name);
+                edge->nb_tries ++;
+                /* Delayed bindings:
+                 *   Matching functions do not change the bindings of the regfile while performing the tests because
+                 *   we want the binding to take effect only if the tests succeed. Also, since the test order is not
+                 *   specified then a given test can not both bind and reference the same register. Thus we pass it
+                 *   two regfiles: one with the actual bindings (read only) and an empty one for the new bindings. On
+                 *   exit, if the test succeeded, the new bindings overwrite the previous ones; otherwise they are
+                 *   discarded.
+                 *   We try to do this as efficiently as possible by reusing the previously boxed values whenever
+                 *   possible rather than reallocing/copying them.
+                 * TODO:
+                 *   - a flag per node telling if the match function write into the regfile or not would comes handy;
+                 *   - prevent the test expressions to read and write the same register;
+                 */
+                struct npc_register tmp_regfile[edge->graph->nb_registers];
+                npc_regfile_ctor(tmp_regfile, edge->graph->nb_registers);
+                if (edge->match_fn(last, state->regfile, tmp_regfile)) {
+                    SLOG(LOG_DEBUG, "Match!");
+                    edge->nb_matches ++;
+                    // We need the merged state in all cases but when we have no action and don't keep the result
+                    struct npc_register *merged_regfile = NULL;
+                    if (edge->to->entry_fn || !LIST_EMPTY(&edge->to->outgoing_edges)) {
+                        merged_regfile = npc_regfile_merge(state->regfile, tmp_regfile, edge->graph->nb_registers, !edge->spawn);
+                        if (! merged_regfile) {
+                            SLOG(LOG_WARNING, "Cannot create the new register file");
+                            // so be it
                         }
                     }
-                } else {    // move the whole state
-                    if (LIST_EMPTY(&edge->to->outgoing_edges)) {  // rather dispose of former state
-                        nt_state_del(state, edge->graph);
-                    } else if (merged_regfile) {    // replace former regfile with new one
-                        npc_regfile_del(state->regfile, edge->graph->nb_registers);
-                        state->regfile = merged_regfile;
-                        nt_state_move(state, edge->from, edge->to, index_h);
-                        state->last_used = *now;
+                    // Call the entry function
+                    if (edge->to->entry_fn && merged_regfile) {
+                        SLOG(LOG_DEBUG, "Calling entry function for vertex '%s'", edge->to->name);
+                        edge->to->entry_fn(last, merged_regfile, NULL); // entry function is not supposed to bind anything... for now (FIXME).
                     }
+                    // Now move/spawn/dispose of the state
+                    // first we need to know the location in the index
+                    unsigned index_h = 0;
+                    if (edge->to->index_size > 1) { // we'd better have a hashing function then!
+                        if (!edge->to_index_fn) {
+                            SLOG(LOG_WARNING, "Don't know how to store spawned state in vertex %s, missing hashing function when coming from %s", edge->to->name, edge->from->name);
+                            if (merged_regfile) npc_regfile_del(merged_regfile, edge->graph->nb_registers);
+                            goto hell;
+                        }
+                        // Notice this hashing function can use the regfile but can still perform no bindings
+                        index_h = edge->to_index_fn(last, merged_regfile, NULL) % edge->to->index_size;
+                        SLOG(LOG_DEBUG, "Will store at index location %u", index_h);
+                    }
+                    if (edge->spawn) {
+                        if (!LIST_EMPTY(&edge->to->outgoing_edges) && merged_regfile) { // or we do not need to spawn anything
+                            if (NULL == (state = nt_state_new(state, edge->to, merged_regfile, now, index_h))) {
+                                npc_regfile_del(merged_regfile, edge->graph->nb_registers);
+                            }
+                        }
+                    } else {    // move the whole state
+                        if (LIST_EMPTY(&edge->to->outgoing_edges)) {  // rather dispose of former state
+                            nt_state_del(state, edge->graph);
+                        } else if (merged_regfile) {    // replace former regfile with new one
+                            npc_regfile_del(state->regfile, edge->graph->nb_registers);
+                            state->regfile = merged_regfile;
+                            nt_state_move(state, edge->from, edge->to, index_h);
+                            state->last_used = *now;
+                        }
+                    }
+hell:
+                    npc_regfile_dtor(tmp_regfile, edge->graph->nb_registers);
+                    if (edge->grab) return; // FIXME: oups! there can be more than one graph in this hook, and we don't want to skip all
+                } else {
+                    SLOG(LOG_DEBUG, "No match");
+                    npc_regfile_dtor(tmp_regfile, edge->graph->nb_registers);
                 }
-                npc_regfile_dtor(tmp_regfile, edge->graph->nb_registers);
-                if (edge->grab) return; // FIXME: oups! there can be more than one graph in this hook, and we don't want to skip all
-            } else {
-                SLOG(LOG_DEBUG, "No match");
-                npc_regfile_dtor(tmp_regfile, edge->graph->nb_registers);
             }
         }
     }
@@ -544,7 +565,7 @@ static struct nt_vertex *nt_vertex_lookup(struct nt_graph *graph, char const *na
     }
 
     // Create a new one
-    return nt_vertex_new(name, graph, NULL, graph->default_index_size);
+    return nt_vertex_new(name, graph, NULL, 1);
 }
 
 static scm_t_bits graph_tag;
@@ -632,7 +653,7 @@ static SCM g_make_nettrack(SCM name_, SCM libname_)
         if (! to) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_1(scm_from_locale_string(e_def[e].to_vertex)));
         struct proto *inner_proto = proto_of_code(e_def[e].inner_proto);
         if (! inner_proto) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_2(scm_from_latin1_string("no such proto"), scm_from_uint(e_def[e].inner_proto)));
-        struct nt_edge *edge = nt_edge_new(graph, from, to, e_def[e].match_fn, e_def[e].spawn, e_def[e].grab, inner_proto);
+        struct nt_edge *edge = nt_edge_new(graph, from, to, e_def[e].match_fn, e_def[e].from_index_fn, e_def[e].to_index_fn, e_def[e].spawn, e_def[e].grab, inner_proto);
         if (! edge) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_2(scm_from_locale_string(e_def[e].from_vertex), scm_from_locale_string(e_def[e].to_vertex)));
     }
 

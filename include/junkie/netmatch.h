@@ -20,13 +20,13 @@ struct nt_vertex_def {
     char const *name;
     npc_match_fn *entry_fn;
     unsigned index_size;    // 0 for default
-    npc_match_fn *index_fn;
 };
 
 struct nt_edge_def {
     npc_match_fn *match_fn;
     enum proto_code inner_proto;
     char const *from_vertex, *to_vertex;
+    npc_match_fn *from_index_fn, *to_index_fn;
     bool spawn;
     bool grab;
 };
