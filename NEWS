@@ -1,12 +1,20 @@
 For a detailed Changelog, see git logs.
 Here are only reported the most visible changes.
 
+New in 2.1.0 (since 2.0.0)
+--------------------------
+
+* New simpler syntax for packet filters
+
+* Primitive implementation of `nettrack`, a network event tracking language
+  above packet filters
+
 New in 2.0.0 (since 1.5.0)
 --------------------------
 
 * Continuation function replaced by hooks (with a compatibility per packet hook)
 
-* Support for HTTP chunked transfert encoding
+* Support for HTTP chunked transfer encoding
 
 
 New in 1.5.0 (since 1.4.0)
@@ -23,7 +31,7 @@ New in 1.5.0 (since 1.4.0)
 * Compiled packet filters (much faster than tshark filters):
 
   junkie -i eth0 -p writer.so --file=/dev/stdout --method=csv \
-    --netmatch '((tcp with (dst = 80)) (http with ((set? host) && (host =s "www.google.com"))))'
+    --netmatch '((tcp with (dst-port = 80)) (http with ((set? host) && (host =s "www.google.com"))))'
 
 
 New in 1.4.0 (since 1.3.0)

@@ -106,7 +106,7 @@ static struct parse_test {
 
 static unsigned current_test;
 
-static void dns_info_check(struct proto_subscriber unused_ *s, struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet)
+static void dns_info_check(struct proto_subscriber unused_ *s, struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet, struct timeval const unused_ *now)
 {
 	struct dns_proto_info const *const info = DOWNCAST(info_, info, dns_proto_info);
 	struct dns_proto_info const *const expected = &parse_tests[current_test].expected;

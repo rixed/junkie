@@ -88,7 +88,7 @@ static void ser_fini(void)
     }
 }
 
-void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info const *info, size_t unused_ cap_len, uint8_t const unused_ *packet)
+static void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info const *info, size_t unused_ cap_len, uint8_t const unused_ *packet, struct timeval const *now)
 {
     mutex_lock(&ser_buf_lock);
 
@@ -99,7 +99,7 @@ void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info const *i
     uint8_t *ptr = ser_buf + ser_cursor;
     serialize_1(&ptr, MSG_PROTO_INFO);
     serialize_4(&ptr, ser_source);
-    serialize_proto_stack(&ptr, info);
+    serialize_proto_stack(&ptr, info, now);
     ser_nb_msgs ++;
     if (0 == (ser_nb_msgs % 32)) {  // from time to time, insert some stats about how many packets were sent by this source
         serialize_1(&ptr, MSG_PROTO_STATS);

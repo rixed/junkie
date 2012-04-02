@@ -28,11 +28,11 @@
 #include "junkie/tools/ext.h"
 #include "junkie/tools/queue.h"
 #include "junkie/tools/mutex.h"
-#include "junkie/tools/netmatch.h"
 #include "junkie/tools/mallocer.h"
 #include "junkie/proto/capfile.h"
 #include "junkie/proto/proto.h"
 #include "junkie/proto/cap.h"
+#include "junkie/netmatch.h"
 
 #undef LOG_CAT
 #define LOG_CAT writer_log_category
@@ -200,9 +200,9 @@ static int set_netmatch(struct capture_conf *conf, char const *value)
     scm_dynwind_begin(0);
     int err = -1;
 
-    /* value is an expression that we are supposed to compile with (@ (junkie netmatch compiler) make-so) as
+    /* value is an expression that we are supposed to compile with (@ (junkie netmatch netmatch) compile) as
      * a matching function named "match" */
-    char *cmd = tempstr_printf("((@ (junkie netmatch compiler) make-so) '((\"match\" . %s)))", value);
+    char *cmd = tempstr_printf("((@ (junkie netmatch netmatch) compile) '((\"match\" . %s)) '() \"\")", value);
     SLOG(LOG_DEBUG, "Evaluating scheme string '%s'", cmd);
     SCM pair = scm_c_eval_string(cmd);
 
@@ -284,7 +284,8 @@ static bool info_match(struct capture_conf const *conf, struct proto_info const 
     }
 
     if (conf->netmatch_set) {
-        if (! conf->netmatch.match_fun(info, conf->netmatch.regfile)) return false;
+        // FIXME: here we pass NULL as the new regfile since we are not supposed to bind anything. Ensure this using match purity property.
+        if (! conf->netmatch.match_fun(info, conf->netmatch.regfile, NULL)) return false;
     }
 
     return true;
@@ -298,7 +299,7 @@ static void try_write(struct capture_conf *conf, struct proto_info const *info, 
     }
 }
 
-static void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info const *info, size_t cap_len, uint8_t const *packet)
+static void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info const *info, size_t cap_len, uint8_t const *packet, struct timeval const unused_ *now)
 {
     static bool cli_inited = false;
     if (! cli_inited) {

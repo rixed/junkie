@@ -18,6 +18,5 @@ thisinclude_HEADERS = \
 	ref.h \
 	sock.h \
 	serialization.h \
-	netmatch.h \
 	netflow.h
 

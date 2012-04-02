@@ -9,13 +9,11 @@ bin_PROGRAMS = junkie
 dist_bin_SCRIPTS = juncli
 
 junkie_SOURCES = \
-	digest_queue.c \
-	digest_queue.h \
+	digest_queue.c digest_queue.h \
 	main.c \
-	pkt_source.c \
-	pkt_source.h \
-	plugins.c \
-	plugins.h
+	pkt_source.c pkt_source.h \
+	plugins.c plugins.h \
+	nettrack.c nettrack.h
 
 junkie_LDADD = proto/libproto.la tools/libjunkietools.la
 junkie_LDFLAGS = -export-dynamic

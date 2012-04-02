@@ -3,6 +3,7 @@
 (define-module (junkie netmatch types))
 
 (use-modules (ice-9 regex)
+             (srfi srfi-1)
              (rnrs records syntactic)
              (ice-9 format)
              (junkie tools))
@@ -29,19 +30,36 @@
 
 ; we take the type rather than the type name because one day we may want to try implicit convertion?
 (define (check t1 t2)
-  (if (not (eq? t1 t2))
+  (assert (type? t1))
+  (assert (type? t2))
+  (if (and (not (eq? t1 t2))
+           (not (eq? t1 any))
+           (not (eq? t2 any)))
       (throw 'type-error (type-name t1) (type-name t2))))
 
 (export check)
 
 (define-record-type type (fields name imm fetch ref bind))
-(export type-name type-imm type-fetch type-ref type-bind)
+(export type-name type? type-imm type-fetch type-ref type-bind)
 
 ;;; But what's a code stub? It's the code required to compute a value, this value's name,
 ;;; and the list of used register(s).
 
 (define-record-type stub (fields code result regnames))
-(export make-stub stub-code stub-result stub-regnames)
+
+(define empty-stub (make-stub "" "" '()))
+
+; additionally, this is useful to concat two stubs
+(define (stub-concat-2 s2 s1)
+  (make-stub
+    (string-append (stub-code s1) (stub-code s2))
+    (stub-result s2)
+    (append (stub-regnames s1) (stub-regnames s2))))
+
+(define (stub-concat . s)
+  (reduce stub-concat-2 empty-stub s))
+
+(export make-stub stub-code stub-result stub-regnames stub-concat empty-stub)
 
 ;;; Operators (itypes is the list of input types and thus gives the number of parameters as
 ;;; well as their types)
@@ -59,34 +77,36 @@
 (define (unboxed-ref regname)
   (make-stub
     ""
-    (string-append "regfile[" regname "].value")
+    (string-append "prev_regfile[" regname "].value")
     (list regname)))
 
 (define (unboxed-bind regname value)
   (make-stub
     (string-append
       (stub-code value)
-      "    regfile[" regname "].value = " (stub-result value) ";\n")
-    (string-append "regfile[" regname "].value")
+      "    new_regfile[" regname "].value = " (stub-result value) ";\n"
+      "    new_regfile[" regname "].size = 0;\n")
+    (string-append "new_regfile[" regname "].value")
     (cons regname (stub-regnames value))))
 
 (define (boxed-ref regname)
   (make-stub
     ""
-    (string-append "regfile[" regname "].value")
+    (string-append "prev_regfile[" regname "].value")
     (list regname)))
 
 (define (boxed-bind regname value)
   (make-stub
     (string-append
-      (stub-code value)
-      "    if (regfile[" regname "].value) {\n"
-      "        free(regfile[" regname "].value);\n"
+      (stub-code value) ; FIXME: this won't work when rebinding the same boxed register (ie (%foo as foo)), which should not be possible anyway
+      "    if (new_regfile[" regname "].size > 0) {\n"
+      "        free((void *)new_regfile[" regname "].value);\n"
       "    }\n"
-      "    regfile[" regname "].value = malloc(sizeof(*" (stub-result value) "));\n"
-      "    assert(regfile[" regname "].value);\n" ; aren't assertions as good as proper error checks? O:-)
-      "    memcpy(regfile[" regname "].value, " (stub-result value) ", sizeof(*" (stub-result value) "));\n")
-    (string-append "regfile[" regname "].value")
+      "    new_regfile[" regname "].value = (intptr_t)malloc(sizeof(*" (stub-result value) "));\n"
+      "    new_regfile[" regname "].size = sizeof(*" (stub-result value) ");\n"
+      "    assert(new_regfile[" regname "].value);\n" ; aren't assertions as good as proper error checks? O:-)
+      "    memcpy((void *)new_regfile[" regname "].value, " (stub-result value) ", sizeof(*" (stub-result value) "));\n")
+    (string-append "new_regfile[" regname "].value")
     (cons regname (stub-regnames value))))
 
 (define gensymC
@@ -97,6 +117,7 @@
 
 (export gensymC)
 
+; FIXME: move this into ll-compiler
 (define string->C-ident
   (let ((ident-charset (char-set-intersection char-set:ascii char-set:letter)))
     (lambda (str)
@@ -107,6 +128,10 @@
                          (string->list str))))))
 
 (export string->C-ident)
+
+(define (symbol->C-ident s) (string->C-ident (symbol->string s)))
+
+(export symbol->C-ident)
 
 (define (indent-more str)
   (regexp-substitute/global #f (make-regexp "^ {4}" regexp/newline) str 'pre "        " 'post))
@@ -126,6 +151,21 @@
 ;
 ;(export ignored)
 
+;;; The any type that can be used in some cases for bypass typecheck. Cannot be used.
+
+(define any
+  (make-type
+    'any
+    (lambda (v) ; imm
+      (throw 'type-error "No immediate of type any"))
+    (lambda (proto field) ; fetch
+      (throw 'type-error "Cannot fetch without type"))
+    (lambda (regname) ; ref
+      (throw 'type-error "Cannot reference without type"))
+    (lambda (regname value) ; bind
+      (throw 'type-error "Cannot bind without type"))))
+
+(export any)
 
 ;;; Booleans
 
@@ -135,12 +175,10 @@
     (lambda (v) ; imm
       (make-stub "" (if v "true" "false") '()))
     (lambda (proto field) ; fetch
-      (let* ((tmp (gensymC (string-append proto "_info")))
-             (res (gensymC (string-append (string->C-ident field) "_field"))))
+      (let* ((res (gensymC (string-append (string->C-ident field) "_field"))))
         (make-stub
           (string-append
-            "    struct " proto "_proto_info const *const " tmp " = DOWNCAST(info, info, " proto "_proto_info);\n"
-            "    bool const " res " = " tmp "->" field ";\n")
+            "    bool const " res " = " proto "->" field ";\n")
           res
           '())))
     unboxed-ref
@@ -156,12 +194,10 @@
     (lambda (v) ; imm
       (make-stub "" (format #f "~d" v) '()))
     (lambda (proto field) ; fetch (TODO: factorize with other types)
-      (let* ((tmp (gensymC (string-append proto "_info")))
-             (res (gensymC (string-append (string->C-ident field) "_field"))))
+      (let* ((res (gensymC (string-append (string->C-ident field) "_field"))))
         (make-stub
           (string-append
-            "    struct " proto "_proto_info const *" tmp " = DOWNCAST(info, info, " proto "_proto_info);\n"
-            "    uint_least64_t " res " = " tmp "->" field ";\n")
+            "    uint_least64_t " res " = " proto "->" field ";\n")
           res
           '())))
     unboxed-ref
@@ -181,29 +217,28 @@
           res
           '())))
     (lambda (proto field) ; fetch (TODO: factorize with other types)
-      (let* ((tmp (gensymC (string-append proto "_info")))
-             (res (gensymC (string-append (string->C-ident field) "_field"))))
+      (let* ((res (gensymC (string-append (string->C-ident field) "_field"))))
         (make-stub
           (string-append
-            "    struct " proto "_proto_info const *" tmp " = DOWNCAST(info, info, " proto "_proto_info);\n"
-            "    char const *" res " = " tmp "->" field ";\n")
+            "    char const *" res " = " proto "->" field ";\n")
           res
           '())))
     boxed-ref
-    (lambda (regname value) ; bind needs special attention since sizeof(*res) won't work, we need strlen(*res)
+    (lambda (regname value) ; bind needs special attention since sizeof(*res) won't work, we need strlen(*res)+1
       (let ((tmp (gensymC)))
         (make-stub
           (string-append
             (stub-code value)
             "    /* " (stub-result value) " is supposed to point to a null terminated string */\n"
-            "    size_t " tmp " = strlen(" (stub-result value) ");\n"
-            "    if (regfile[" regname "].value) {\n"
-            "        free(regfile[" regname "].value);\n"
+            "    size_t " tmp " = 1 + strlen(" (stub-result value) ");\n"
+            "    if (new_regfile[" regname "].value) {\n" ; FIXME: same as above
+            "        free((void *)new_regfile[" regname "].value);\n"
             "    }\n"
-            "    regfile[" regname "].value = malloc(" tmp ");\n"
-            "    assert(regfile[" regname "].value);\n" ; aren't assertions as good as proper error checks? O:-)
-            "    memcpy(regfile[" regname "].value, " (stub-result value) ", " tmp ");\n")
-          (string-append "regfile[" regname "].value")
+            "    new_regfile[" regname "].value = (intptr_t)malloc(" tmp ");\n"
+            "    new_regfile[" regname "].size = " tmp ";\n"
+            "    assert(new_regfile[" regname "].value);\n" ; aren't assertions as good as proper error checks? O:-)
+            "    memcpy((void *)new_regfile[" regname "].value, " (stub-result value) ", " tmp ");\n")
+          (string-append "new_regfile[" regname "].value")
           (cons regname (stub-regnames value)))))))
 
 (export str)
@@ -216,12 +251,10 @@
     (lambda (v) ; imm
       #f)
     (lambda (proto field) ; fetch (TODO: factorize with other types)
-      (let* ((tmp (gensymC (string-append proto "_info")))
-             (res (gensymC (string-append (string->C-ident field) "_field"))))
+      (let* ((res (gensymC (string-append (string->C-ident field) "_field"))))
         (make-stub
           (string-append
-            "    struct " proto "_proto_info const *" tmp " = DOWNCAST(info, info, " proto "_proto_info);\n"
-            "    struct timeval const *" res " = &" tmp "->" field ";\n")
+            "    struct timeval const *" res " = &" proto "->" field ";\n")
           res
           '())))
     boxed-ref
@@ -238,12 +271,10 @@
     (lambda (v) ; imm
       #f)
     (lambda (proto field) ; fetch (TODO: factorize with other types)
-      (let* ((tmp (gensymC (string-append proto "_info")))
-             (res (gensymC (string-append (string->C-ident field) "_field"))))
+      (let* ((res (gensymC (string-append (string->C-ident field) "_field"))))
         (make-stub
           (string-append
-            "    struct " proto "_proto_info const *" tmp " = DOWNCAST(info, info, " proto "_proto_info);\n"
-            "    char const (*" res ")[ETH_ADDR_LEN] = &" tmp "->" field ";\n")
+            "    char const (*" res ")[ETH_ADDR_LEN] = &" proto "->" field ";\n")
           res
           '())))
     boxed-ref
@@ -260,12 +291,10 @@
     (lambda (v) ; imm
       #f)
     (lambda (proto field) ; fetch (TODO: factorize with other types)
-      (let* ((tmp (gensymC (string-append proto "_info")))
-             (res (gensymC (string-append (string->C-ident field) "_field"))))
+      (let* ((res (gensymC (string-append (string->C-ident field) "_field"))))
         (make-stub
           (string-append
-            "    struct " proto "_proto_info const *" tmp " = DOWNCAST(info, info, " proto "_proto_info);\n"
-            "    struct ip_addr const *" res " = &" tmp "->" field ";\n")
+            "    struct ip_addr const *" res " = &" proto "->" field ";\n")
           res
           '())))
     boxed-ref
@@ -274,9 +303,25 @@
 (export ip)
 
 
-;;; Logical Operators
+;;;
+;;; Operators
+;;;
 
+; A hash of name -> list of functions of this name
 (define operators (make-hash-table 31))
+
+; Welcome the helper for insertion
+(define (add-operator sym fun)
+  (let ((prev (hashq-ref operators sym '())))
+    (hashq-set! operators sym (cons fun prev))))
+
+; Mapping from symbols to operators
+(define (symbol->ops sym)
+  (hashq-ref operators sym))
+
+(export symbol->ops)
+
+;;; Logical Operators
 
 (define log-or
   (make-op
@@ -296,10 +341,10 @@
           res
           (append (stub-regnames v1) (stub-regnames v2)))))))
 
-(hashq-set! operators '| log-or)
-(hashq-set! operators '|| log-or)
-(hashq-set! operators 'or log-or)
-(hashq-set! operators 'log-or log-or)
+(add-operator '| log-or)
+(add-operator '|| log-or)
+(add-operator 'or log-or)
+(add-operator 'log-or log-or)
 
 (define log-and
   (make-op
@@ -319,10 +364,10 @@
           res
           (append (stub-regnames v1) (stub-regnames v2)))))))
 
-(hashq-set! operators '& log-and)
-(hashq-set! operators '&& log-and)
-(hashq-set! operators 'and log-and)
-(hashq-set! operators 'log-and log-and)
+(add-operator '& log-and)
+(add-operator '&& log-and)
+(add-operator 'and log-and)
+(add-operator 'log-and log-and)
 
 (define log-not
   (make-op
@@ -338,8 +383,8 @@
           res
           (append (stub-regnames v)))))))
 
-(hashq-set! operators '! log-not)
-(hashq-set! operators 'not log-not)
+(add-operator '! log-not)
+(add-operator 'not log-not)
 
 (export log-or log-and log-not)
 
@@ -386,17 +431,18 @@
 (define eq
   (make-op '= bool (list uint uint) (simple-binary-op "==" "bool")))
 
-(hashq-set! operators '+ add)
-(hashq-set! operators '- sub)
-(hashq-set! operators '* mult)
-(hashq-set! operators '/ div)
-(hashq-set! operators 'mod mod)
-(hashq-set! operators '% mod)
-(hashq-set! operators '> gt)
-(hashq-set! operators '>= ge)
-(hashq-set! operators '< lt)
-(hashq-set! operators '<= le)
-(hashq-set! operators '= eq)
+(add-operator '+ add)
+(add-operator '- sub)
+(add-operator '* mult)
+(add-operator '/ div)
+(add-operator 'mod mod)
+(add-operator '% mod)
+(add-operator '> gt)
+(add-operator '>= ge)
+(add-operator '< lt)
+(add-operator '<= le)
+(add-operator '= eq)
+(add-operator '== eq)
 
 (export add sub mult div mod gt ge lt le eq)
 
@@ -410,10 +456,10 @@
                  (string-append
                    (stub-code ts)
                    "    struct timeval " res " = { .tv_sec = " (stub-result ts) "; .tv_usec = 0; };\n")
-                 res
+                 (string-append "&" res)
                  (stub-regnames ts))))))
 
-(hashq-set! operators 'make-timestamp make-timestamp)
+(add-operator 'make-timestamp make-timestamp)
 
 (define now ; build a timestamp based from current local time
   (make-op 'now timestamp '()
@@ -422,11 +468,11 @@
                (make-stub
                  (string-append
                    "    struct timeval " res ";\n"
-                   "    timeval_set_now(&" res ");\n")
-                 res
+                   "    timeval_set_now(" res ");\n")
+                 (string-append "&" res)
                  '())))))
 
-(hashq-set! operators 'now now)
+(add-operator 'now now)
 
 (define age ; returns the number of microsecs between now and a given timestamp from the past (since result is unsigned)
   (make-op 'age uint (list timestamp)
@@ -435,11 +481,11 @@
                (make-stub
                  (string-append
                    (stub-code ts)
-                   "    int64_t " res " = timeval_age(&" (stub-result ts) ");\n")
+                   "    int64_t " res " = timeval_age(" (stub-result ts) ");\n")
                  res
                  (stub-regnames ts))))))
 
-(hashq-set! operators 'age age)
+(add-operator 'age age)
 
 (define timestamp-sub ; returns the number of microseconds between two timestamps (first minus second, must be positive!)
   (make-op 'timestamp-sub uint (list timestamp timestamp)
@@ -449,13 +495,13 @@
                  (string-append
                    (stub-code ts1)
                    (stub-code ts2)
-                   "    int64_t " res " = timeval_sub(&" (stub-result ts1) ", &" (stub-result ts2) ");\n")
+                   "    int64_t " res " = timeval_sub(" (stub-result ts1) ", " (stub-result ts2) ");\n")
                  res
                  (append (stub-regnames ts1) (stub-regnames ts2)))))))
 
-(hashq-set! operators 'timestamp-sub timestamp-sub)
-(hashq-set! operators 'sub-timestamp timestamp-sub)
-(hashq-set! operators '-TS timestamp-sub)
+(add-operator 'timestamp-sub timestamp-sub)
+(add-operator 'sub-timestamp timestamp-sub)
+(add-operator '-TS timestamp-sub)
 
 (export make-timestamp now age timestamp-sub)
 
@@ -469,11 +515,11 @@
                  (string-append
                    (stub-code s)
                    "    struct ip_addr " res ";\n"
-                   "    ip_addr_ctor_from_str_any(&" res ", " (stub-result s) ");\n")
-                 res
+                   "    ip_addr_ctor_from_str_any(&" res ", (struct ip_addr *)" (stub-result s) ");\n")
+                 (string-append "&" res)
                  (stub-regnames s))))))
 
-(hashq-set! operators 'make-ip make-ip)
+(add-operator 'make-ip make-ip)
 
 (define routable?
   (make-op 'routable? bool (list ip)
@@ -482,12 +528,12 @@
                (make-stub
                  (string-append
                    (stub-code ip)
-                   "    bool " res " = ip_addr_is_routable(&" (stub-result ip) ");\n")
+                   "    bool " res " = ip_addr_is_routable((struct ip_addr *)" (stub-result ip) ");\n")
                  res
                  (stub-regnames ip))))))
 
-(hashq-set! operators 'routable? routable?)
-(hashq-set! operators 'is-routable routable?)
+(add-operator 'routable? routable?)
+(add-operator 'is-routable routable?)
 
 (define broadcast?
   (make-op 'broadcast? bool (list ip)
@@ -496,12 +542,28 @@
                (make-stub
                  (string-append
                    (stub-code ip)
-                   "    bool " res " = ip_addr_is_broadcast(&" (stub-result ip) ");\n")
+                   "    bool " res " = ip_addr_is_broadcast((struct ip_addr *)" (stub-result ip) ");\n")
                  res
                  (stub-regnames ip))))))
 
-(hashq-set! operators 'broadcast? broadcast?)
-(hashq-set! operators 'is-broadcast broadcast?)
+(add-operator 'broadcast? broadcast?)
+(add-operator 'is-broadcast broadcast?)
+
+(define ip-eq?
+  (make-op 'ip-eq? bool (list ip ip)
+           (lambda (ip1 ip2)
+             (let ((res (gensymC "same_ips")))
+               (make-stub
+                 (string-append
+                   (stub-code ip1)
+                   (stub-code ip2)
+                   "    bool " res " = 0 == ip_addr_cmp((struct ip_addr *)" (stub-result ip1) ", (struct ip_addr *)" (stub-result ip2) ");\n")
+                 res
+                 (append (stub-regnames ip1) (stub-regnames ip2)))))))
+
+(add-operator '=I ip-eq?)
+(add-operator '=i ip-eq?)
+(add-operator '== ip-eq?)
 
 (export make-ip routable? broadcast?)
 
@@ -518,7 +580,7 @@
                  res
                  (stub-regnames str))))))
 
-(hashq-set! operators 'str-null? str-null?)
+(add-operator 'str-null? str-null?)
 
 (define str-eq?
   (make-op 'str-eq? bool (list str str)
@@ -532,17 +594,10 @@
                  res
                  (append (stub-regnames s1) (stub-regnames s2)))))))
 
-(hashq-set! operators 'str-eq? str-eq?)
-(hashq-set! operators '=S str-eq?)
-(hashq-set! operators '=s str-eq?)
+(add-operator 'str-eq? str-eq?)
+(add-operator '=S str-eq?)
+(add-operator '=s str-eq?)
 
 (export str-null? str-eq?)
 
-
-;;; Mapping from symbols to operators
-
-(define (symbol->op sym)
-  (hashq-ref operators sym))
-
-(export symbol->op)
 

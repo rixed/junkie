@@ -107,7 +107,7 @@ typedef enum proto_parse_status parse_fun(
 );
 
 /// The callback function for proto subscribers
-typedef void proto_cb_t(struct proto_subscriber *, struct proto_info const *, size_t tot_cap_len, uint8_t const *tot_packet);
+typedef void proto_cb_t(struct proto_subscriber *, struct proto_info const *, size_t tot_cap_len, uint8_t const *tot_packet, struct timeval const *ts);
 
 /// A subscriber is a plugin that want to be called for each proto_info of a given proto.
 /** Previous junkie 1.5 each plugin had a callback function that was called for every packet.
@@ -126,7 +126,7 @@ int proto_subscriber_ctor(struct proto_subscriber *, struct proto *, proto_cb_t 
 void proto_subscriber_dtor(struct proto_subscriber *, struct proto *);
 
 /// Call all subscribers of a given proto
-void proto_subscribers_call(struct proto *, bool with_pkt_sbc, struct proto_info *, size_t tot_cap_len, uint8_t const *tot_packet);
+void proto_subscribers_call(struct proto *, bool with_pkt_sbc, struct proto_info *, size_t tot_cap_len, uint8_t const *tot_packet, struct timeval const *now);
 
 /// Subscriber to packet (not protocolar events)
 /** Many plugins want to be called once per packet, with a good but not necessarily
@@ -218,6 +218,10 @@ parse_fun proto_parse;
 /// Lookup by name in the list of registered protos
 /** @returns NULL if not found. */
 struct proto *proto_of_name(char const *);
+
+/// Lookup by proto_code in the list of registered protos
+/** @returns NULL if not found. */
+struct proto *proto_of_code(enum proto_code);
 
 /// Protocol Informations.
 /** A proto parse function is supposed to overload this (publicly) and stores

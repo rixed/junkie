@@ -35,7 +35,7 @@ static void dump_frame_rec(struct proto_info const *info)
     printf("%s: %s\n", info->parser->proto->name, info->parser->proto->ops->info_2_str(info));
 }
 
-static void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info const *last, size_t cap_len, uint8_t const unused_ *packet)
+static void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info const *last, size_t cap_len, uint8_t const unused_ *packet, struct timeval const unused_ *now)
 {
     if (display_caplen) printf("Captured length: %zu\n", cap_len);
     dump_frame_rec(last);

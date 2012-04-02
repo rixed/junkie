@@ -25,18 +25,21 @@
 #include "junkie/tools/mallocer.h"
 #include "junkie/tools/tempstr.h"
 #include "junkie/proto/serialize.h"
-#include "plugins.h"
+#include "pkt_source.h"
 
 /*
  * Serialization
  */
 
-static void serialize_info_rec(unsigned depth, uint8_t **buf, struct proto_info const *info)
+static void serialize_info_rec(unsigned depth, uint8_t **buf, struct proto_info const *info, struct timeval const *now)
 {
     if (info->parent != NULL) {
-        serialize_info_rec(depth+1, buf, info->parent);
+        serialize_info_rec(depth+1, buf, info->parent, now);
     } else {
-        serialize_1(buf, depth);    // The msg starts with the depth of the protocol stack (so that we can pack several info into a single msg)
+        // The msg starts with the depth of the protocol stack (so that we can pack several info into a single msg)
+        serialize_1(buf, depth);
+        // And is followed by the timestamp
+        timeval_serialize(now, buf);
     }
     ASSERT_COMPILE(PROTO_CODE_MAX <= 255);
     serialize_1(buf, info->parser->proto->code);    // each proto start with its code
@@ -46,9 +49,9 @@ static void serialize_info_rec(unsigned depth, uint8_t **buf, struct proto_info 
     }
 }
 
-void serialize_proto_stack(uint8_t **buf, struct proto_info const *last)
+void serialize_proto_stack(uint8_t **buf, struct proto_info const *last, struct timeval const *now)
 {
-    serialize_info_rec(1, buf, last);
+    serialize_info_rec(1, buf, last, now);
 }
 
 /*
@@ -76,10 +79,10 @@ void serialize_proto_stack(uint8_t **buf, struct proto_info const *last)
 #include "junkie/proto/sdp.h"
 #include "junkie/proto/sql.h"
 
-static void deserialize_proto_info_rec(unsigned depth, uint8_t const **buf, struct proto_info *last)
+static void deserialize_proto_info_rec(unsigned depth, uint8_t const **buf, struct proto_info *last, struct timeval const *now)
 {
     if (last) {
-        proto_subscribers_call(last->parser->proto, depth == 0, last, 0, NULL);
+        proto_subscribers_call(last->parser->proto, depth == 0, last, 0, NULL, now);
     }
 
     if (depth == 0) return;
@@ -155,13 +158,17 @@ static void deserialize_proto_info_rec(unsigned depth, uint8_t const **buf, stru
         info = last;    // skip this layer
     }
 
-    deserialize_proto_info_rec(depth-1, buf, info);
+    deserialize_proto_info_rec(depth-1, buf, info, now);
 }
 
 void deserialize_proto_stack(uint8_t const **buf)
 {
-    unsigned depth = deserialize_1(buf);   // the msg starts with the protocol stack depth
-    deserialize_proto_info_rec(depth, buf, NULL);
+    // The msg starts with the protocol stack depth
+    unsigned depth = deserialize_1(buf);
+    // Then the timestamp
+    struct timeval now;
+    timeval_deserialize(&now, buf);
+    deserialize_proto_info_rec(depth, buf, NULL, &now);
 }
 
 /*
@@ -261,7 +268,7 @@ static void *deserializer_thread(void *deser_)
                         src_id = deserialize_4(&ptr);
                         source = deserializer_source_lookup(deser, src_id);
                         if (! source) break;
-                        deserialize_proto_stack(&ptr);
+                        (void)deserialize_proto_stack(&ptr);
                         source->nb_rcvd_msgs ++;
                         break;
                     case MSG_PROTO_STATS:;
