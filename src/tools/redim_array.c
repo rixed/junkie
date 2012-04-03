@@ -180,12 +180,6 @@ void redim_array_free(struct redim_array *ra, void *cell)
     mutex_unlock(&ra->chunks_mutex);
 }
 
-void redim_array_push(struct redim_array *ra, void *cell)
-{
-    void *dst = redim_array_get(ra);
-    memcpy(dst, cell, ra->entry_size);
-}
-
 void redim_array_clear(struct redim_array *ra)
 {
     mutex_lock(&ra->chunks_mutex);

@@ -36,9 +36,6 @@ int redim_array_ctor(struct redim_array *, unsigned alloc_size, size_t entry_siz
 /// Destruct a redim array
 void redim_array_dtor(struct redim_array *);
 
-/// Add a cell to the array
-void redim_array_push(struct redim_array *, void *);
-
 /// We do not provide redim_array_pop because we don't want to return an address of an element that was removed from the array
 
 /// @return the first reusable cell in the redim_array
