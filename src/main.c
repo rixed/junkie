@@ -76,7 +76,7 @@ static struct {
     void (*fini)(void);
 } initers[] = {
 #   define I(x) { x##_init, x##_fini }
-    I(objalloc),      I(plugins),       I(nettrack),
+    I(objalloc),      I(plugins),     I(nettrack),
     I(cnxtrack),      I(proto),       I(fuzzing),
     I(pkt_wait_list), I(port_muxer),
     I(cap),           I(eth),         I(arp),

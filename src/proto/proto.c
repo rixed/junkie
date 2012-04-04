@@ -711,7 +711,7 @@ struct mux_subparser *mux_subparser_lookup(struct mux_parser *mux_parser, struct
     }
 
     if (nb_colls > 8) {
-        SLOG(nb_colls > 100 ? LOG_NOTICE : LOG_DEBUG, "%u collisions while looking for subparser of %s", nb_colls, mux_parser->parser.proto->name);
+        SLOG(nb_colls > 100 ? LOG_INFO : LOG_DEBUG, "%u collisions while looking for subparser of %s", nb_colls, mux_parser->parser.proto->name);
 #       ifndef NDEBUG
         if (unlikely_(nb_colls > 100)) {
             SLOG(LOG_NOTICE, "Dump of first keys for h = %u :", h);
@@ -906,7 +906,7 @@ static void mux_proto_timeout(struct mux_proto *mux_proto, struct timeval const 
         enter_safe_region();
     }
 
-    SLOG(LOG_INFO, "Timeouted %u subparsers of proto %s", count, mux_proto->proto.name);
+    SLOG(count > 0 ? LOG_INFO:LOG_DEBUG, "Timeouted %u subparsers of proto %s", count, mux_proto->proto.name);
 }
 
 static void *timeouter_thread(void unused_ *dummy)

@@ -69,7 +69,7 @@ extern struct mutex death_row_mutex;
 
 static void delete_doomed(void)
 {
-    SLOG(LOG_INFO, "Deleting doomed objects...");
+    SLOG(LOG_DEBUG, "Deleting doomed objects...");
     unsigned nb_dels = 0, nb_rescued = 0;
 
     // No need to take the mutex since other threads are not allowed to reenter unsafe region until we are done
@@ -87,7 +87,7 @@ static void delete_doomed(void)
         }
     }
 
-    SLOG(LOG_INFO, "Deleted %u objects, rescued %u", nb_dels, nb_rescued);
+    SLOG(nb_dels + nb_rescued > 0 ? LOG_INFO:LOG_DEBUG, "Deleted %u objects, rescued %u", nb_dels, nb_rescued);
 }
 
 static void *doomer_thread(void unused_ *dummy)
