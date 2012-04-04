@@ -71,7 +71,7 @@ tests/cli_check
 tests/cursor_check
 tests/mutex_check
 tests/objalloc_check
-tests/serialization.*ser
+tests/serialize_check.*ser
 config/.index
 .tarball-version
 instvars.scm
