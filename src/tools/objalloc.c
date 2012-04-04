@@ -24,8 +24,9 @@
 #include <assert.h>
 #include "junkie/tools/ext.h"
 #include "junkie/tools/miscmacs.h"
-#include "junkie/tools/objalloc.h"
 #include "junkie/tools/log.h"
+#include "junkie/tools/mutex.h"
+#include "junkie/tools/objalloc.h"
 
 #undef LOG_CAT
 #define LOG_CAT objalloc_log_category
@@ -40,8 +41,10 @@ static struct fixed_objalloc {
 
 static struct specialized_objalloc {
     struct redim_array *ra;
-    unsigned live; // how many live objects do we have with this size *in the fixed_objallocs* !
+    unsigned live; // how many live objects do we have with this size _in_the_fixed_objallocs_ !
 } spec_objallocs[10000];
+
+static struct mutex spec_objallocs_mutex[16]; // prevent simultaneous creation of the same redim_array;
 
 // Returns the minimum n such that 2^n >= s
 static unsigned ceil_log_2(size_t s)
@@ -69,6 +72,7 @@ static unsigned specialize_count(unsigned preset_size)
     return (3*preset_size)/4;   // we won't specialize an allocator if we have less than this number of live objects
 }
 
+// caller must own spec_objallocs_mutex
 static bool should_specialize_for_size(size_t entry_size)
 {
     unsigned const s = ceil_log_2(entry_size);
@@ -82,19 +86,27 @@ static struct redim_array *spec_objalloc_for_size(size_t entry_size, char const 
 {
     assert(entry_size < NB_ELEMS(spec_objallocs));
 
-    // first check for a specialized version
+    // short path: if ra is set then return it (no need to lock since ra is never deleted)
     if (spec_objallocs[entry_size].ra) return spec_objallocs[entry_size].ra;
 
-    if (should_specialize_for_size(entry_size)) {
-        spec_objallocs[entry_size].ra = malloc(sizeof(*spec_objallocs[entry_size].ra));
-        if (spec_objallocs[entry_size].ra) {
+    struct redim_array *ra = NULL;
+    struct mutex *const mutex = spec_objallocs_mutex + ((entry_size>>2) % NB_ELEMS(spec_objallocs_mutex));
+    mutex_lock(mutex);
+
+    if (spec_objallocs[entry_size].ra) {
+        ra = spec_objallocs[entry_size].ra;
+    } else if (should_specialize_for_size(entry_size)) {
+        ra = malloc(sizeof(*spec_objallocs[entry_size].ra));
+        if (ra) {
             SLOG(LOG_NOTICE, "Specializing allocator for %s (%zu bytes)", requestor, entry_size);
-            redim_array_ctor(spec_objallocs[entry_size].ra, preset_entry_size(entry_size), entry_size, requestor);
-            return spec_objallocs[entry_size].ra;
+            redim_array_ctor(ra, preset_entry_size(entry_size), entry_size, requestor);
+            spec_objallocs[entry_size].ra = ra;
         }
     }
 
-    return NULL;
+    mutex_unlock(mutex);
+
+    return ra;
 }
 
 static struct redim_array *preset_objalloc_for_size(size_t entry_size, char const *requestor)
@@ -160,7 +172,13 @@ void *objalloc(size_t entry_size, char const *requestor)
     if (! p_obj) return NULL;
     p_obj->spec_size = spec_size;
     p_obj->obj.ra = (void *)(((intptr_t)ra) | 1); // so that we will recognize it as such when freeing
-    if (spec_size < NB_ELEMS(spec_objallocs)) spec_objallocs[spec_size].live ++;
+    if (spec_size < NB_ELEMS(spec_objallocs)) {
+#       ifdef __GNUC__
+        (void)__sync_add_and_fetch(&spec_objallocs[spec_size].live, 1);
+#       else    // so be it
+        spec_objallocs[spec_size].live ++;
+#       endif
+    }
     return p_obj->obj.userdata;
 }
 
@@ -171,8 +189,13 @@ void objfree(void *ptr)
     if ((intptr_t)obj->ra & 1) {    // unspecialized redim_array
         struct preset_obj *p_obj = DOWNCAST(obj, obj, preset_obj);
         if (p_obj->spec_size < NB_ELEMS(spec_objallocs)) {
-            assert(spec_objallocs[p_obj->spec_size].live > 0);
-            spec_objallocs[p_obj->spec_size].live --;
+            unsigned const prev_lives =
+#           ifdef __GNUC__
+                __sync_fetch_and_sub(&spec_objallocs[p_obj->spec_size].live, 1);
+#           else
+                spec_objallocs[p_obj->spec_size].live --;
+#           endif
+            assert(prev_lives > 0);
         }
         redim_array_free((void *)((intptr_t)p_obj->obj.ra^1), p_obj);
     } else {
@@ -195,8 +218,12 @@ void objalloc_init(void)
 {
     if (inited++) return;
     redim_array_init();
+    mutex_init();
 
     log_category_objalloc_init();
+    for (unsigned m = 0; m < NB_ELEMS(spec_objallocs_mutex); m++) {
+        mutex_ctor(spec_objallocs_mutex+m, "spec_objallocs");
+    }
 
     for (unsigned f = 0; f < NB_ELEMS(fixed_objallocs); f++) {
         size_t const entry_size = 1U<<f;
@@ -229,8 +256,11 @@ void objalloc_fini(void)
         }
     }
 
+    for (unsigned m = 0; m < NB_ELEMS(spec_objallocs_mutex); m++) {
+        mutex_dtor(spec_objallocs_mutex+m);
+    }
     log_category_objalloc_fini();
-
+    mutex_fini();
     redim_array_fini();
 }
 
