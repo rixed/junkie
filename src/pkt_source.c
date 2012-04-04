@@ -376,7 +376,7 @@ unlock_quit:
 
 static struct pkt_source *pkt_source_new(char const *name, pcap_t *pcap_handle, void *(*sniffer)(void *), bool is_file, bool patch_ts, uint8_t dev_id)
 {
-    struct pkt_source *pkt_source = objalloc(sizeof(*pkt_source));
+    struct pkt_source *pkt_source = objalloc(sizeof(*pkt_source), "pkt_sources");
     if (! pkt_source) return NULL;
 
     if (0 != pkt_source_ctor(pkt_source, name, pcap_handle, sniffer, is_file, patch_ts, dev_id)) {

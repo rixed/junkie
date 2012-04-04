@@ -52,7 +52,7 @@ static int digest_queue_ctor(struct digest_queue *digest, unsigned length)
         struct queue *const q = digest->queues + i;
         q->idx = 0;
         q->length = length;
-        q->digests = objalloc(q->length * sizeof *q->digests);
+        q->digests = objalloc(q->length * sizeof(*q->digests), "pkt digests");
         if (! q->digests && length > 0) return -1;
         if (q->digests) memset(q->digests, 0, q->length * sizeof q->digests);
         mutex_ctor(&q->mutex, "digest queue");
@@ -63,7 +63,7 @@ static int digest_queue_ctor(struct digest_queue *digest, unsigned length)
 
 struct digest_queue *digest_queue_new(unsigned length)
 {
-    struct digest_queue *digest = objalloc(sizeof(*digest));
+    struct digest_queue *digest = objalloc(sizeof(*digest), "pkt digest queues");
     if (! digest) return NULL;
 
     if (0 != digest_queue_ctor(digest, length)) {
@@ -93,7 +93,7 @@ int digest_queue_resize(struct digest_queue *digest, unsigned length)
     for (unsigned i = 0; i < NB_ELEMS(digest->queues); i++) {
         struct queue *const q = digest->queues + i;
 
-        void *new = objalloc(length * sizeof *q->digests);
+        void *new = objalloc(length * sizeof *q->digests, "pkt digests");
         if (! new && length > 0) return -1;
 
         mutex_lock(&q->mutex);

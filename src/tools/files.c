@@ -254,7 +254,7 @@ void *file_load(char const *file_name, size_t *len_)
 
     if (len == 0) return NULL;
 
-    char *buf = objalloc(len+1);
+    char *buf = objalloc(len+1, "files");
     if (! buf) {
         SLOG(LOG_ERR, "Cannot alloc for reading %zu bytes", len);
         return NULL;

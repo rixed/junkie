@@ -330,7 +330,7 @@ int parser_ctor(struct parser *parser, struct proto *proto)
 
 static struct parser *parser_new(struct proto *proto)
 {
-    struct parser *parser = objalloc(sizeof(*parser));
+    struct parser *parser = objalloc(sizeof(*parser), "parsers");
     if (unlikely_(! parser)) return NULL;
 
     if (unlikely_(0 != parser_ctor(parser, proto))) {
@@ -635,7 +635,7 @@ int mux_subparser_ctor(struct mux_subparser *subparser, struct mux_parser *mux_p
 void *mux_subparser_alloc(struct mux_parser *mux_parser, size_t size_without_key)
 {
     struct mux_proto *mux_proto = DOWNCAST(mux_parser->parser.proto, proto, mux_proto);
-    void *subparser = objalloc(size_without_key + mux_proto->key_size);
+    void *subparser = objalloc(size_without_key + mux_proto->key_size, "subparsers");
     return subparser;
 }
 
@@ -808,7 +808,7 @@ struct parser *mux_parser_new(struct proto *proto)
     unsigned const hash_size = mux_proto->hash_size;  // so that we don't care if the size change between the malloc and the ctor
     unsigned const nb_max_children = mux_proto->nb_max_children;
     size_t const sz = mux_parser_size(hash_size);
-    struct mux_parser *mux_parser = objalloc(sz);
+    struct mux_parser *mux_parser = objalloc(sz, "mux_parsers");
     if (unlikely_(! mux_parser)) return NULL;
 
     if (unlikely_(0 != mux_parser_ctor(mux_parser, mux_proto, hash_size, nb_max_children))) {

@@ -126,7 +126,7 @@ static struct proto_info *copy_info_rec(struct proto_info *info)
 
     size_t size;
     void *start = (void *)info->parser->proto->ops->info_addr(info, &size);
-    void *copy = objalloc(size);
+    void *copy = objalloc(size, "waiting infos");
     if (! copy) {
         SLOG(LOG_WARNING, "Cannot alloc for pending info");
         if (parent) proto_info_del_rec(parent);
@@ -177,7 +177,7 @@ static int pkt_wait_ctor(struct pkt_wait *pkt, unsigned offset, unsigned next_of
 
 static struct pkt_wait *pkt_wait_new(unsigned offset, unsigned next_offset, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, size_t tot_cap_len, uint8_t const *tot_packet)
 {
-    struct pkt_wait *pkt = objalloc(sizeof(*pkt) + tot_cap_len);
+    struct pkt_wait *pkt = objalloc(sizeof(*pkt) + tot_cap_len, "pkt_waits");
     if (! pkt) return NULL;
 
     if (0 != pkt_wait_ctor(pkt, offset, next_offset, parent, way, packet, cap_len, wire_len, tot_cap_len, tot_packet)) {
@@ -499,7 +499,7 @@ uint8_t *pkt_wait_list_reassemble(struct pkt_wait_list *pkt_wl, unsigned start_o
 
     SLOG(LOG_DEBUG, "Reassemble pkt_wl@%p from offset %u to %u", pkt_wl, start_offset, end_offset);
 
-    uint8_t *payload = objalloc(end_offset - start_offset);
+    uint8_t *payload = objalloc(end_offset - start_offset, "waiting plds");
     if (! payload) {
         SLOG(LOG_DEBUG, "Cannot alloc for packet reassembly of %zu bytes", pkt_wl->tot_payload);
         return NULL;

@@ -202,7 +202,7 @@ static int deserializer_source_ctor(struct deserializer_source *source, struct d
 
 static struct deserializer_source *deserializer_source_new(struct deserializer *deser, uint32_t id)
 {
-    struct deserializer_source *source = objalloc(sizeof(*source));
+    struct deserializer_source *source = objalloc(sizeof(*source), "deserializer srcs");
     if (! source) return NULL;
     if (0 != deserializer_source_ctor(source, deser, id)) {
         objfree(source);
@@ -316,7 +316,7 @@ static int deserializer_ctor(struct deserializer *deser, char const *service)
 
 static struct deserializer *deserializer_new(char const *service)
 {
-    struct deserializer *deser = objalloc(sizeof(*deser));
+    struct deserializer *deser = objalloc(sizeof(*deser), "deserializers");
     if (! deser) return NULL;
 
     if (0 != deserializer_ctor(deser, service)) {

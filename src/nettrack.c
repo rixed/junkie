@@ -63,7 +63,7 @@ static void npc_regfile_ctor(struct npc_register *regfile, unsigned nb_registers
 static struct npc_register *npc_regfile_new(unsigned nb_registers)
 {
     size_t size = sizeof(struct npc_register) * nb_registers;
-    struct npc_register *regfile = objalloc(size);
+    struct npc_register *regfile = objalloc(size, "nettrack regfiles");
     if (! regfile) return NULL;
 
     npc_regfile_ctor(regfile, nb_registers);
@@ -142,7 +142,7 @@ static int nt_state_ctor(struct nt_state *state, struct nt_state *parent, struct
 
 static struct nt_state *nt_state_new(struct nt_state *parent, struct nt_vertex *vertex, struct npc_register *regfile, struct timeval const *now, unsigned index_h)
 {
-    struct nt_state *state = objalloc(sizeof(*state));
+    struct nt_state *state = objalloc(sizeof(*state), "nettrack states");
     if (! state) return NULL;
     if (0 != nt_state_ctor(state, parent, vertex, regfile, now, index_h)) {
         objfree(state);
@@ -235,7 +235,7 @@ static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_
 static struct nt_vertex *nt_vertex_new(char const *name, struct nt_graph *graph, npc_match_fn *entry_fn, unsigned index_size)
 {
     if (! index_size) index_size = graph->default_index_size;
-    struct nt_vertex *vertex = objalloc(sizeof(*vertex) + index_size*sizeof(vertex->states[0]));
+    struct nt_vertex *vertex = objalloc(sizeof(*vertex) + index_size*sizeof(vertex->states[0]), "nettrack vertices");
     if (! vertex) return NULL;
     if (0 != nt_vertex_ctor(vertex, name, graph, entry_fn, index_size)) {
         objfree(vertex);
@@ -312,7 +312,7 @@ static int nt_edge_ctor(struct nt_edge *edge, struct nt_graph *graph, struct nt_
 
 static struct nt_edge *nt_edge_new(struct nt_graph *graph, struct nt_vertex *from, struct nt_vertex *to, npc_match_fn *match_fn, npc_match_fn *from_index_fn, npc_match_fn *to_index_fn, bool spawn, bool grab, struct proto *inner_proto)
 {
-    struct nt_edge *edge = objalloc(sizeof(*edge));
+    struct nt_edge *edge = objalloc(sizeof(*edge), "nettrack edges");
     if (! edge) return NULL;
     if (0 != nt_edge_ctor(edge, graph, from, to, match_fn, from_index_fn, to_index_fn, spawn, grab, inner_proto)) {
         objfree(edge);
@@ -385,7 +385,7 @@ static int nt_graph_ctor(struct nt_graph *graph, char const *name, char const *l
 
 static struct nt_graph *nt_graph_new(char const *name, char const *libname)
 {
-    struct nt_graph *graph = objalloc(sizeof(*graph));
+    struct nt_graph *graph = objalloc(sizeof(*graph), "nettrack graphs");
     if (! graph) return NULL;
     if (0 != nt_graph_ctor(graph, name, libname)) {
         objfree(graph);

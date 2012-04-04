@@ -272,7 +272,7 @@ static int sdp_parser_ctor(struct sdp_parser *sdp_parser, struct proto *proto)
 
 static struct parser *sdp_parser_new(struct proto *proto)
 {
-    struct sdp_parser *sdp_parser = objalloc(sizeof *sdp_parser);
+    struct sdp_parser *sdp_parser = objalloc(sizeof *sdp_parser, "SDP parser");
 
     if (-1 == sdp_parser_ctor(sdp_parser, proto)) {
         objfree(sdp_parser);

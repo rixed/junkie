@@ -78,7 +78,7 @@ void port_muxer_dtor(struct port_muxer *muxer, struct port_muxer_list *muxers)
 
 struct port_muxer *port_muxer_new(struct port_muxer_list *muxers, uint16_t port_min, uint16_t port_max, struct proto *proto)
 {
-    struct port_muxer *muxer = objalloc(sizeof(*muxer));
+    struct port_muxer *muxer = objalloc(sizeof(*muxer), "port muxers");
     if (! muxer) return NULL;
     port_muxer_ctor(muxer, muxers, port_min, port_max, proto);
     muxer->malloced = true;

@@ -41,7 +41,7 @@ struct name_ { \
 #define HASH_INIT(hash, size_, name_) do { \
     (hash)->base.nb_lists = 1 + size_ / HASH_LENGTH_GOOD; \
     (hash)->base.nb_lists_min = (hash)->base.nb_lists; \
-    (hash)->lists = objalloc((hash)->base.nb_lists * sizeof(*(hash)->lists)); \
+    (hash)->lists = objalloc((hash)->base.nb_lists * sizeof(*(hash)->lists), name_); \
     (hash)->base.size = 0; \
     (hash)->base.max_size = 0; \
     (hash)->base.nb_rehash = 0; \
@@ -94,7 +94,7 @@ struct name_ { \
     unsigned const avg_length = HASH_AVG_LENGTH(hash); \
     if ((avg_length < HASH_LENGTH_MIN && (hash)->base.nb_lists > (hash)->base.nb_lists_min) || avg_length > HASH_LENGTH_MAX) { \
         unsigned new_nb_lists = 1 + (hash)->base.max_size / HASH_LENGTH_GOOD; \
-        __typeof__((hash)->lists) new_lists = objalloc(new_nb_lists * sizeof(*(hash)->lists)); \
+        __typeof__((hash)->lists) new_lists = objalloc(new_nb_lists * sizeof(*(hash)->lists), (hash)->base.name); \
         if (! new_lists) break; \
         SLOG(LOG_INFO, "Rehashing hash %s from %u to %u lists (%u max entries)", (hash)->base.name, (hash)->base.nb_lists, new_nb_lists, (hash)->base.max_size); \
         for (unsigned l = 0; l < new_nb_lists; l++) LIST_INIT(new_lists + l); \

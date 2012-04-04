@@ -111,7 +111,7 @@ static int callid_2_sdp_ctor(struct callid_2_sdp *c2s, char const *call_id, stru
 
 static struct callid_2_sdp *callid_2_sdp_new(char const *call_id, struct timeval const *now)
 {
-    struct callid_2_sdp *c2s = objalloc(sizeof(*c2s));
+    struct callid_2_sdp *c2s = objalloc(sizeof(*c2s), "SIP->SDP");
     if (! c2s) return NULL;
     if (0 != callid_2_sdp_ctor(c2s, call_id, now)) {
         objfree(c2s);

@@ -43,7 +43,6 @@ static struct fixed_objalloc {
 #define SPECIALIZE_COUNT 10000
 static struct specialized_objalloc {
     struct redim_array *ra;
-    char *name;
     unsigned count;
 } spec_objallocs[10000];
 
@@ -55,7 +54,7 @@ static unsigned ceil_log_2(size_t s)
     return r;
 }
 
-struct redim_array *objalloc_for_size(size_t entry_size)
+struct redim_array *objalloc_for_size(size_t entry_size, char const *requestor)
 {
     // first check for a specialized version
     if (entry_size < NB_ELEMS(spec_objallocs)) {
@@ -63,8 +62,7 @@ struct redim_array *objalloc_for_size(size_t entry_size)
         if (spec_objallocs[entry_size].count++ > SPECIALIZE_COUNT) {
             spec_objallocs[entry_size].ra = malloc(sizeof(*spec_objallocs[entry_size].ra));
             if (spec_objallocs[entry_size].ra) {
-                spec_objallocs[entry_size].name = strdup(tempstr_printf("spec_alloc[%zu]", entry_size));
-                redim_array_ctor(spec_objallocs[entry_size].ra, PRESET_ENTRY_SIZE, entry_size, spec_objallocs[entry_size].name);
+                redim_array_ctor(spec_objallocs[entry_size].ra, PRESET_ENTRY_SIZE, entry_size, requestor);
                 return spec_objallocs[entry_size].ra;
             }
         }
@@ -83,13 +81,13 @@ struct redim_array *objalloc_for_size(size_t entry_size)
     return &fixed_objallocs[s].ra;
 }
 
-extern inline void *objalloc(size_t);
+extern inline void *objalloc(size_t, char const *);
 extern inline void objfree(void *);
 
 char *objalloc_strdup(char const *str)
 {
     size_t len = strlen(str) + 1;
-    char *str2 = objalloc(len);
+    char *str2 = objalloc(len, "strdups");
     if (! str2) return NULL;
     memcpy(str2, str, len);
     return str2;
@@ -112,7 +110,6 @@ void objalloc_init(void)
 
     for (unsigned f = 0; f < NB_ELEMS(spec_objallocs); f++) {
         spec_objallocs[f].ra = NULL;
-        spec_objallocs[f].name = NULL;
         spec_objallocs[f].count = 0;
     }
 }
@@ -132,10 +129,6 @@ void objalloc_fini(void)
             redim_array_dtor(spec_objallocs[f].ra);
             free(spec_objallocs[f].ra);
             spec_objallocs[f].ra = NULL;
-        }
-        if (spec_objallocs[f].name) {
-            free(spec_objallocs[f].name);
-            spec_objallocs[f].name = NULL;
         }
     }
 

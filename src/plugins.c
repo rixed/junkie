@@ -62,7 +62,7 @@ static int plugin_ctor(struct plugin *plugin, char const *libname)
 
 static struct plugin *plugin_new(char const *libname)
 {
-    struct plugin *plugin = objalloc(sizeof(*plugin));
+    struct plugin *plugin = objalloc(sizeof(*plugin), "plugins");
     if (! plugin) return NULL;
     if (0 != plugin_ctor(plugin, libname)) {
         objfree(plugin);

@@ -102,7 +102,7 @@ static enum proto_parse_status streambuf_append(struct streambuf *sbuf, unsigned
 
         if (new_size > 0) {
             if (new_size > sbuf->max_size) return PROTO_PARSE_ERR;
-            uint8_t *new_buffer = objalloc(new_size);
+            uint8_t *new_buffer = objalloc(new_size, "streambufs");
             if (! new_buffer) return PROTO_PARSE_ERR;
 
             // Assemble kept buffer and new payload
@@ -129,7 +129,7 @@ static int streambuf_keep(struct streambuf_unidir *dir)
     if (dir->buffer_is_malloced) return 0;  // we already own a copy, do not touch it.
 
     size_t const len = dir->buffer_size - dir->restart_offset;
-    uint8_t *buf = objalloc(len);
+    uint8_t *buf = objalloc(len, "streambufs");
     if (! buf) {
         dir->buffer = NULL; // never escape from here with buffer referencing a non malloced packet
         return -1;

@@ -44,7 +44,7 @@ int cli_register(char const *name, struct cli_opt *opts, unsigned nb_opts)
 {
     SLOG(LOG_DEBUG, "Registering a new bloc of command line options for %s", name);
 
-    struct cli_bloc *bloc = objalloc(sizeof(*bloc));
+    struct cli_bloc *bloc = objalloc(sizeof(*bloc), "CLI blocs");
     if (! bloc) return -1;
 
     bloc->name = name;

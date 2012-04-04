@@ -129,7 +129,7 @@ static void gre_subparser_ctor(struct gre_subparser *gre_subparser, uint16_t pro
 
 static struct gre_subparser *gre_subparser_new(uint16_t protocol, struct parser *parser)
 {
-    struct gre_subparser *gre_subparser = objalloc(sizeof(*gre_subparser));
+    struct gre_subparser *gre_subparser = objalloc(sizeof(*gre_subparser), "GRE subparser");
     if (! gre_subparser) {
         return NULL;
     }

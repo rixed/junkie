@@ -15,8 +15,10 @@
 /** We have some preset object allocator for many sizes of objects,
  * in order to rduce fragmentation even more. Since redim_arrays
  * are constructed without any chunk these objallocators takes no
- * RAM until used, though. */
-struct redim_array *objalloc_for_size(size_t entry_size);
+ * RAM until used, though.
+ * @param entry_size is the object size we want an allocator for.
+ * @param requestor is used to name the allocator if one is created. */
+struct redim_array *objalloc_for_size(size_t entry_size, char const *requestor);
 
 /* We store the address of the redim_array along with the object, so that
  * objfree:
@@ -29,10 +31,10 @@ struct preset_obj {
 };
 
 #include <assert.h>
-static inline void *objalloc(size_t entry_size)
+static inline void *objalloc(size_t entry_size, char const *requestor)
 {
     entry_size += sizeof(struct preset_obj);
-    struct redim_array *ra = objalloc_for_size(entry_size);
+    struct redim_array *ra = objalloc_for_size(entry_size, requestor);
     assert(ra);
     struct preset_obj *p_obj = redim_array_get(ra);
     if (p_obj) {

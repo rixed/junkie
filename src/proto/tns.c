@@ -57,7 +57,7 @@ static int tns_parser_ctor(struct tns_parser *tns_parser, struct proto *proto)
 
 static struct parser *tns_parser_new(struct proto *proto)
 {
-    struct tns_parser *tns_parser = objalloc(sizeof(*tns_parser));
+    struct tns_parser *tns_parser = objalloc(sizeof(*tns_parser), "TNS parsers");
     if (! tns_parser) return NULL;
 
     if (-1 == tns_parser_ctor(tns_parser, proto)) {

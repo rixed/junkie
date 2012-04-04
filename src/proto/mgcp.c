@@ -55,7 +55,7 @@ static int mgcp_parser_ctor(struct mgcp_parser *mgcp_parser, struct proto unused
 
 static struct parser *mgcp_parser_new(struct proto *proto)
 {
-    struct mgcp_parser *mgcp_parser = objalloc(sizeof(*mgcp_parser));
+    struct mgcp_parser *mgcp_parser = objalloc(sizeof(*mgcp_parser), "MGCP parsers");
     if (! mgcp_parser) return NULL;
 
     if (-1 == mgcp_parser_ctor(mgcp_parser, proto)) {
