@@ -128,7 +128,7 @@ void *redim_array_get(struct redim_array *ra)
 
     // Look for the first chunk with free or unused cells
     struct redim_array_chunk *chunk;
-    TAILQ_FOREACH(chunk, &ra->chunks, entry) {  // TODO: a unfilled_chunks list?
+    TAILQ_FOREACH(chunk, &ra->chunks, entry) {  // a specific list for unfilled chunks seams overkill
         if (! SLIST_EMPTY(&chunk->freelist)) {
             ret = SLIST_FIRST(&chunk->freelist);
             SLIST_REMOVE_HEAD(&chunk->freelist, entry);
@@ -162,7 +162,7 @@ void redim_array_free(struct redim_array *ra, void *cell)
 
     // Find the relevant chunk
     struct redim_array_chunk *chunk;
-    TAILQ_FOREACH(chunk, &ra->chunks, entry) {  // TODO: a unfilled_chunks list?
+    TAILQ_FOREACH(chunk, &ra->chunks, entry) {
         if (cell >= chunk_entry(chunk, 0) && cell < chunk_entry(chunk, chunk->nb_used)) break;
     }
     assert(chunk);
@@ -279,7 +279,7 @@ void redim_array_init(void)
 
     ext_function_ctor(&sg_array_names,
         "array-names", 0, 0, 0, g_array_names,
-        "(array-names): returns the list of availaible array names.\n");
+        "(array-names): returns the list of available array names.\n");
 
     ext_function_ctor(&sg_array_stats,
         "array-stats", 1, 0, 0, g_array_stats,

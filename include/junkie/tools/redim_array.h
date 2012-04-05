@@ -14,8 +14,8 @@
  */
 
 /** A redim_array is a redimentionable array.
- * Each time you hit it's lenght you can resize it, without much time penalty.
- * Performence are similar than a mere array if your initial size guess is valid
+ * Each time you hit its lenght you can resize it, without much time penalty.
+ * Performences are similar than a mere array if your initial size guess is valid
  * or similar to a mere list if your initial guess is too small.
  */
 struct redim_array {
@@ -25,7 +25,7 @@ struct redim_array {
     unsigned alloc_size;    ///< Initial guess of the array size (we are going to alloc chunks of this size)
     size_t entry_size;      ///< Size of a single value
     TAILQ_HEAD(redim_array_chunks, redim_array_chunk) chunks;   ///< List of array chunks
-    struct mutex chunks_mutex;  ///< Mutex to protect the above chunks list
+    struct mutex chunks_mutex;  ///< Mutex to protect the above chunks list (and the various counters)
     LIST_ENTRY(redim_array) entry;  ///< Entry in the list of all redim_arrays
     char const *name;       ///< Name of the array, for stats purpose
 };

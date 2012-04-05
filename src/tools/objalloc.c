@@ -56,9 +56,9 @@ static unsigned ceil_log_2(size_t s)
 
 static unsigned preset_entry_size(size_t entry_size)
 {
-#   define CHUNK_SIZE (16*1024*1024)
+#   define CHUNK_SIZE (8*1024*1024)
 #   define MIN_PRESET_SIZE 2
-#   define MAX_PRESET_SIZE 3000
+#   define MAX_PRESET_SIZE 2000
     // We try to alloc objects by batch of CHUNK_SIZE bytes
     unsigned n = CHUNK_SIZE/entry_size;
 
