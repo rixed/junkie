@@ -11,6 +11,10 @@ New in 2.1.0 (since 2.0.0)
 
 * Custom memory allocator that performs marginally better on large networks
 
+* OS detection based on TCP, ripped with shame from p0f
+  (http://lcamtuf.coredump.cx/p0f3/)
+
+
 New in 2.0.0 (since 1.5.0)
 --------------------------
 
