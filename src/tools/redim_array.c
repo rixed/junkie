@@ -25,6 +25,10 @@
 #include "junkie/tools/mallocer.h"
 #include "junkie/tools/mutex.h"
 
+#undef LOG_CAT
+#define LOG_CAT redim_array_log_category
+LOG_CATEGORY_DEF(redim_array);
+
 static LIST_HEAD(redim_arrays, redim_array) redim_arrays = LIST_HEAD_INITIALIZER(redim_arrays);
 static struct mutex redim_arrays_mutex;
 
@@ -54,8 +58,8 @@ struct redim_array_chunk {
 static struct redim_array_chunk *chunk_new(struct redim_array *ra)
 {
     MALLOCER(redim_array);
-    SLOG(LOG_DEBUG, "New chunk of %zu bytes for array@%p", (ra->alloc_size * ra->entry_size), ra);
     struct redim_array_chunk *chunk = MALLOC(redim_array, sizeof(*chunk) + ra->alloc_size * ra->entry_size);
+    SLOG(LOG_INFO, "New chunk@%p of %zu bytes for array %s@%p", chunk, (ra->alloc_size * ra->entry_size), ra->name, ra);
 
     TAILQ_INSERT_TAIL(&ra->chunks, chunk, entry);
     chunk->nb_used = 0;
@@ -70,7 +74,7 @@ static struct redim_array_chunk *chunk_new(struct redim_array *ra)
 // Caller must own chunks_mutex
 static void chunk_del(struct redim_array_chunk *chunk)
 {
-    SLOG(LOG_DEBUG, "Del chunk of array@%p", chunk->array);
+    SLOG(LOG_INFO, "Del chunk@%p of array %s@%p", chunk, chunk->array->name, chunk->array);
     TAILQ_REMOVE(&chunk->array->chunks, chunk, entry);
     chunk->array->nb_used -= chunk->nb_used;
     chunk->array->nb_malloced -= chunk->nb_malloced;
@@ -85,7 +89,7 @@ static void chunk_del(struct redim_array_chunk *chunk)
 int redim_array_ctor(struct redim_array *ra, unsigned alloc_size, size_t entry_size, char const *name)
 {
     entry_size = MAX(entry_size, sizeof(struct freecell));
-    SLOG(LOG_DEBUG, "Construct redim_array %s@%p for entries of size %zu", name, ra, entry_size);
+    SLOG(LOG_INFO, "Construct redim_array %s@%p for entries of size %zu", name, ra, entry_size);
     ra->nb_used = 0;
     ra->nb_malloced = 0;
     ra->nb_holes = 0;
@@ -102,7 +106,7 @@ int redim_array_ctor(struct redim_array *ra, unsigned alloc_size, size_t entry_s
 
 void redim_array_dtor(struct redim_array *ra)
 {
-    SLOG(LOG_DEBUG, "Destruct redim_array %s@%p", ra->name, ra);
+    SLOG(LOG_INFO, "Destruct redim_array %s@%p", ra->name, ra);
     redim_array_clear(ra);
     mutex_lock(&redim_arrays_mutex);
     LIST_REMOVE(ra, entry);
@@ -270,6 +274,8 @@ void redim_array_init(void)
     mutex_init();
     mallocer_init();
 
+    log_category_redim_array_init();
+
     mutex_ctor(&redim_arrays_mutex, "redim_arrays");
     nb_used_sym     = scm_permanent_object(scm_from_latin1_symbol("nb-used"));
     nb_malloced_sym = scm_permanent_object(scm_from_latin1_symbol("nb-malloced"));
@@ -292,6 +298,7 @@ void redim_array_fini(void)
 {
     if (--inited) return;
 
+    log_category_redim_array_fini();
     mallocer_fini();
     mutex_dtor(&redim_arrays_mutex);
     mutex_fini();
