@@ -176,6 +176,7 @@ void ip_serialize(struct proto_info const *info_, uint8_t **buf)
     serialize_1(buf, info->way);    // Not really useful to serialize this but we want to be able to compare the output to test serializer
     serialize_1(buf, info->fragmentation);
     serialize_2(buf, info->id);
+    serialize_1(buf, info->ecn_capable);
 }
 
 void ip_deserialize(struct proto_info *info_, uint8_t const **buf)
@@ -190,6 +191,7 @@ void ip_deserialize(struct proto_info *info_, uint8_t const **buf)
     info->way = deserialize_1(buf);
     info->fragmentation = deserialize_1(buf);
     info->id = deserialize_2(buf);
+    info->ecn_capable = deserialize_1(buf);
 }
 
 static void ip_proto_info_ctor(struct ip_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, struct ip_hdr const *iphdr)
@@ -209,6 +211,7 @@ static void ip_proto_info_ctor(struct ip_proto_info *info, struct parser *parser
         info->fragmentation = dont_frag ? IP_DONTFRAG : IP_NOFRAG;
     }
     info->id = READ_U16N(&iphdr->id);
+    info->ecn_capable = 0 != (READ_U8(&iphdr->tos) & IP_TOS_ECN_MASK);
 }
 
 /*
