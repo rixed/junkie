@@ -22,6 +22,14 @@ struct tcp_proto_info {
     uint16_t window;
     uint32_t ack_num;
     uint32_t seq_num;
+    // Options
+#   define TCP_MSS_SET 0x01 // Maximum Segment Size
+#   define TCP_WSF_SET 0x02 // Window Size Scaling
+    unsigned set_values;
+    uint16_t mss;
+    uint8_t wsf;
+    uint8_t nb_options;
+    uint8_t options[8]; // The option kind that were set, in order of appearance (useful for OS detection)
 };
 
 // You can use src = 0 or dst = 0 for any port

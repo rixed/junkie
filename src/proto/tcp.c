@@ -54,11 +54,27 @@ static void const *tcp_info_addr(struct proto_info const *info_, size_t *size)
     return info;
 }
 
+static char const *tcp_options_2_str(struct tcp_proto_info const *info)
+{
+    char *tmp = tempstr();
+    char *t = tmp;
+    for (unsigned o = 0; o < info->nb_options; o++) {
+        switch (info->options[o]) {
+            case 0:  t += snprintf(t, TEMPSTR_SIZE - (t-tmp), ",end"); break;
+            case 1:  t += snprintf(t, TEMPSTR_SIZE - (t-tmp), ",nop"); break;
+            case 2:  t += snprintf(t, TEMPSTR_SIZE - (t-tmp), ",MSS(%"PRIu16")", info->mss); break;
+            case 3:  t += snprintf(t, TEMPSTR_SIZE - (t-tmp), ",WSF(%"PRIu8")", info->wsf); break;
+            default: t += snprintf(t, TEMPSTR_SIZE - (t-tmp), ",%"PRIu8, info->options[o]); break;
+        }
+    }
+    return t > tmp ? tmp+1 : "none";    // skip the initial ','
+}
+
 static char const *tcp_info_2_str(struct proto_info const *info_)
 {
     struct tcp_proto_info const *info = DOWNCAST(info_, info, tcp_proto_info);
     char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, ports=%"PRIu16"->%"PRIu16", flags=%s%s%s%s, win=%"PRIu16", ack=%"PRIu32", seq=%"PRIu32,
+    snprintf(str, TEMPSTR_SIZE, "%s, ports=%"PRIu16"->%"PRIu16", flags=%s%s%s%s, win=%"PRIu16", ack=%"PRIu32", seq=%"PRIu32", opts=%s",
         proto_info_2_str(info_),
         info->key.port[0], info->key.port[1],
         info->syn ? "Syn":"",
@@ -67,7 +83,8 @@ static char const *tcp_info_2_str(struct proto_info const *info_)
         info->fin ? "Fin":"",
         info->window,
         info->ack_num,
-        info->seq_num);
+        info->seq_num,
+        tcp_options_2_str(info));
     return str;
 }
 
@@ -81,6 +98,13 @@ static void tcp_serialize(struct proto_info const *info_, uint8_t **buf)
     serialize_2(buf, info->window);
     serialize_4(buf, info->ack_num);
     serialize_4(buf, info->seq_num);
+    serialize_1(buf, info->set_values);
+    serialize_2(buf, info->mss);
+    serialize_1(buf, info->wsf);
+    serialize_1(buf, info->nb_options);
+    for (unsigned o = 0; o < info->nb_options; o++) {
+        serialize_1(buf, info->options[o]);
+    }
 }
 
 static void tcp_deserialize(struct proto_info *info_, uint8_t const **buf)
@@ -97,6 +121,13 @@ static void tcp_deserialize(struct proto_info *info_, uint8_t const **buf)
     info->window = deserialize_2(buf);
     info->ack_num = deserialize_4(buf);
     info->seq_num = deserialize_4(buf);
+    info->set_values = deserialize_1(buf);
+    info->mss = deserialize_2(buf);
+    info->wsf = deserialize_1(buf);
+    info->nb_options = deserialize_1(buf);
+    for (unsigned o = 0; o < info->nb_options; o++) {
+        info->options[o] = deserialize_1(buf);
+    }
 }
 
 static void tcp_proto_info_ctor(struct tcp_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, uint16_t sport, uint16_t dport, struct tcp_hdr const *tcphdr)
@@ -112,6 +143,71 @@ static void tcp_proto_info_ctor(struct tcp_proto_info *info, struct parser *pars
     info->window = READ_U16N(&tcphdr->window);
     info->ack_num = READ_U32N(&tcphdr->ack_seq);
     info->seq_num = READ_U32N(&tcphdr->seq_num);
+    info->set_values = 0;   // options will be set later
+    info->nb_options = 0;
+}
+
+static ssize_t parse_next_option(struct tcp_proto_info *info, uint8_t const *options, size_t rem_len)
+{
+    assert(rem_len > 0);
+    if (rem_len < 1) return -1;
+
+    uint8_t const kind = options[0];
+
+    // We only decode MSS and WSF but record all options
+    if (info->nb_options < NB_ELEMS(info->options)) {
+        info->options[info->nb_options++] = kind;
+    }
+
+    if (kind == 0) {    // end of option list
+        if (rem_len > 4) {
+            SLOG(LOG_DEBUG, "Option list terminated while %zu bytes left", rem_len-1);
+            return rem_len; // keep parsing payload
+        }
+        if ((intptr_t)(options+rem_len) & 0x3) {
+            SLOG(LOG_DEBUG, "Option list ends in a non word boundary");
+            return -1;
+        }
+        // TODO: check that padding is composed of zeros
+        return rem_len;
+    } else if (kind == 1) {
+        return 1;
+    }
+
+    if (rem_len < 2) {
+        SLOG(LOG_DEBUG, "Invalid TCP options: can't read length");
+        return -1;
+    }
+    size_t const len = options[1];  // len includes what's read before
+    if (len < 2) {
+        SLOG(LOG_DEBUG, "Invalid TCP options: len field (%zu) < 2", len);
+        return -1;
+    }
+    if (rem_len < len) {
+        SLOG(LOG_DEBUG, "Invalid TCP options: length (%zu) > rem options bytes (%zu)", len, rem_len);
+        return -1;
+    }
+
+    switch (kind) {
+        case 2: // MSS
+            if (len != 4) {
+                SLOG(LOG_DEBUG, "MSS with length %zu", len);
+                return -1;
+            }
+            info->set_values |= TCP_MSS_SET;
+            info->mss = READ_U16N(options+2);
+            break;
+        case 3: // Window Scale Factor
+            if (len != 3) {
+                SLOG(LOG_DEBUG, "WSF with length %zu", len);
+                return -1;
+            }
+            info->set_values |= TCP_WSF_SET;
+            info->wsf = options[2];
+            break;
+    }
+
+    return len;
 }
 
 /*
@@ -267,6 +363,12 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
     if (cap_len < sizeof(*tcphdr)) return PROTO_TOO_SHORT;
 
     size_t tcphdr_len = TCP_HDR_LENGTH(tcphdr);
+
+    if (tcphdr_len < sizeof(*tcphdr)) {
+        SLOG(LOG_DEBUG, "Bogus TCP packet: header size too smal (%zu < %zu)", tcphdr_len, sizeof(*tcphdr));
+        return -1;
+    }
+
     if (tcphdr_len > wire_len) {
         SLOG(LOG_DEBUG, "Bogus TCP packet: wrong length %zu > %zu", tcphdr_len, wire_len);
         return -1;
@@ -289,6 +391,16 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
 
     struct tcp_proto_info info;
     tcp_proto_info_ctor(&info, parser, parent, tcphdr_len, wire_len - tcphdr_len, sport, dport, tcphdr);
+
+    // Parse TCP options
+    uint8_t const *options = (uint8_t *)(tcphdr+1);
+    assert(tcphdr_len >= sizeof(*tcphdr));
+    for (size_t rem_len = tcphdr_len - sizeof(*tcphdr); rem_len > 0; ) {
+        ssize_t const len = parse_next_option(&info, options, rem_len);
+        if (len < 0) return -1;
+        rem_len -= len;
+        options += len;
+    }
 
     // Search an already spawned subparser
     struct port_key key;
