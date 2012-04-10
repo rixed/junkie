@@ -74,7 +74,7 @@ static char const *tcp_info_2_str(struct proto_info const *info_)
 {
     struct tcp_proto_info const *info = DOWNCAST(info_, info, tcp_proto_info);
     char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, ports=%"PRIu16"->%"PRIu16", flags=%s%s%s%s%s, win=%"PRIu16", ack=%"PRIu32", seq=%"PRIu32", urg=%"PRIx16", opts=%s",
+    snprintf(str, TEMPSTR_SIZE, "%s, ports=%"PRIu16"->%"PRIu16", flags=%s%s%s%s%s%s, win=%"PRIu16", ack=%"PRIu32", seq=%"PRIu32", urg=%"PRIx16", opts=%s",
         proto_info_2_str(info_),
         info->key.port[0], info->key.port[1],
         info->syn ? "Syn":"",
@@ -82,6 +82,7 @@ static char const *tcp_info_2_str(struct proto_info const *info_)
         info->rst ? "Rst":"",
         info->fin ? "Fin":"",
         info->urg ? "Urg":"",
+        info->psh ? "Psh":"",
         info->window,
         info->ack_num,
         info->seq_num,
@@ -96,7 +97,7 @@ static void tcp_serialize(struct proto_info const *info_, uint8_t **buf)
     proto_info_serialize(info_, buf);
     serialize_2(buf, info->key.port[0]);
     serialize_2(buf, info->key.port[1]);
-    serialize_1(buf, info->syn + (info->ack<<1) + (info->rst<<2) + (info->fin<<3) + (info->urg<<4));
+    serialize_1(buf, info->syn + (info->ack<<1) + (info->rst<<2) + (info->fin<<3) + (info->urg<<4) + (info->psh<<5));
     serialize_2(buf, info->window);
     serialize_2(buf, info->urg_ptr);
     serialize_4(buf, info->ack_num);
@@ -122,6 +123,7 @@ static void tcp_deserialize(struct proto_info *info_, uint8_t const **buf)
     info->rst = !!(flags & 0x04);
     info->fin = !!(flags & 0x08);
     info->urg = !!(flags & 0x10);
+    info->psh = !!(flags & 0x20);
     info->window = deserialize_2(buf);
     info->urg_ptr = deserialize_2(buf);
     info->ack_num = deserialize_4(buf);
@@ -146,6 +148,7 @@ static void tcp_proto_info_ctor(struct tcp_proto_info *info, struct parser *pars
     info->rst = !!(READ_U8(&tcphdr->flags) & TCP_RST_MASK);
     info->fin = !!(READ_U8(&tcphdr->flags) & TCP_FIN_MASK);
     info->urg = !!(READ_U8(&tcphdr->flags) & TCP_URG_MASK);
+    info->psh = !!(READ_U8(&tcphdr->flags) & TCP_PSH_MASK);
     info->window = READ_U16N(&tcphdr->window);
     info->urg_ptr = READ_U16N(&tcphdr->urg_ptr);
     info->ack_num = READ_U32N(&tcphdr->ack_seq);
@@ -390,9 +393,10 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
     bool const ack = !!(READ_U8(&tcphdr->flags) & TCP_ACK_MASK);
     bool const rst = !!(READ_U8(&tcphdr->flags) & TCP_RST_MASK);
     bool const urg = !!(READ_U8(&tcphdr->flags) & TCP_URG_MASK);
-    SLOG(LOG_DEBUG, "New TCP packet of %zu bytes (%zu captured), %zu payload, ports %"PRIu16" -> %"PRIu16" Flags: %s%s%s%s%s, Seq:%"PRIu32", Ack:%"PRIu32,
+    bool const psh = !!(READ_U8(&tcphdr->flags) & TCP_PSH_MASK);
+    SLOG(LOG_DEBUG, "New TCP packet of %zu bytes (%zu captured), %zu payload, ports %"PRIu16" -> %"PRIu16" Flags: %s%s%s%s%s%s, Seq:%"PRIu32", Ack:%"PRIu32,
         wire_len, cap_len, wire_len - tcphdr_len, sport, dport,
-        syn ? "Syn":"", fin ? "Fin":"", ack ? "Ack":"", rst ? "Rst":"", urg ? "Urg":"",
+        syn ? "Syn":"", fin ? "Fin":"", ack ? "Ack":"", rst ? "Rst":"", urg ? "Urg":"", psh ? "Psh":"",
         READ_U32N(&tcphdr->seq_num), READ_U32N(&tcphdr->ack_seq));
 
     // Parse

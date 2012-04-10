@@ -19,6 +19,7 @@ struct tcp_proto_info {
     unsigned ack:1;
     unsigned rst:1;
     unsigned fin:1;
+    unsigned psh:1;
     unsigned urg:1;
     uint16_t window;
     uint16_t urg_ptr;    // copied whatever the value of the urg flag
