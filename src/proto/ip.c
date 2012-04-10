@@ -47,6 +47,24 @@ static bool reassembly_enabled = true;
 EXT_PARAM_RW(reassembly_enabled, "ip-reassembly", bool, "Whether IP fragments reassembly is enabled or not.")
 
 /*
+ * Tools
+ */
+
+static bool is_fragment(struct ip_hdr const *ip)
+{
+    // No need to set fragment offset in host byte order to test for 0
+    return
+        unlikely_(READ_U8(&ip->frag_offset_lo)) ||
+        unlikely_(READ_U8(&ip->flags) & IP_FRAG_OFFSET_MASK) ||
+        unlikely_(READ_U8(&ip->flags) & IP_MORE_FRAGS_MASK);
+}
+
+static unsigned fragment_offset(struct ip_hdr const *ip)
+{
+    return (READ_U8(&ip->frag_offset_lo) + (READ_U8(&ip->flags) & IP_FRAG_OFFSET_MASK) * 256) * 8;
+}
+
+/*
  * Proto Infos
  */
 
@@ -117,18 +135,31 @@ char const *ip_proto_2_str(unsigned protocol)
     return tempstr_printf("%u", protocol);
 }
 
+char const *ip_fragmentation_2_str(enum ip_fragmentation frag)
+{
+    switch (frag) {
+        case IP_NOFRAG:      return "NoFrag";
+        case IP_DONTFRAG:    return "DontFrag";
+        case IP_FRAGMENT:    return "Fragment";
+        case IP_REASSEMBLED: return "Reassembled";
+    }
+
+    return "INVALID!";
+}
+
 char const *ip_info_2_str(struct proto_info const *info_)
 {
     struct ip_proto_info const *info = DOWNCAST(info_, info, ip_proto_info);
     char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, version=%u, addr=%s->%s%s, proto=%s, ttl=%u",
+    snprintf(str, TEMPSTR_SIZE, "%s, version=%u, addr=%s->%s%s, proto=%s, ttl=%u, frag=%s",
         proto_info_2_str(info_),
         info->version,
         ip_addr_2_str(info->key.addr+0),
         ip_addr_2_str(info->key.addr+1),
         info->way ? " (hashed the other way)":"",
         ip_proto_2_str(info->key.protocol),
-        info->ttl);
+        info->ttl,
+        ip_fragmentation_2_str(info->fragmentation));
     return str;
 }
 
@@ -142,6 +173,7 @@ void ip_serialize(struct proto_info const *info_, uint8_t **buf)
     serialize_1(buf, info->version);
     serialize_1(buf, info->ttl);
     serialize_1(buf, info->way);    // Not really useful to serialize this but we want to be able to compare the output to test serializer
+    serialize_1(buf, info->fragmentation);
 }
 
 void ip_deserialize(struct proto_info *info_, uint8_t const **buf)
@@ -154,6 +186,7 @@ void ip_deserialize(struct proto_info *info_, uint8_t const **buf)
     info->version = deserialize_1(buf);
     info->ttl = deserialize_1(buf);
     info->way = deserialize_1(buf);
+    info->fragmentation = deserialize_1(buf);
 }
 
 static void ip_proto_info_ctor(struct ip_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, struct ip_hdr const *iphdr)
@@ -166,6 +199,12 @@ static void ip_proto_info_ctor(struct ip_proto_info *info, struct parser *parser
     info->key.protocol = READ_U8(&iphdr->protocol);
     info->ttl = READ_U8(&iphdr->ttl);
     info->way = 0;  // will be set later
+    if (is_fragment(iphdr)) {
+        info->fragmentation = IP_FRAGMENT;  // may be changed later after optional reassembly
+    } else {
+        bool dont_frag = READ_U8(&iphdr->flags) & IP_DONT_FRAG_MASK;
+        info->fragmentation = dont_frag ? IP_DONTFRAG : IP_NOFRAG;
+    }
 }
 
 /*
@@ -196,20 +235,6 @@ void ip_subproto_dtor(struct ip_subproto *ip_subproto)
 /*
  * Parse
  */
-
-static bool is_fragment(struct ip_hdr const *ip)
-{
-    // No need to set fragment offset in host byte order to test for 0
-    return
-        unlikely_(READ_U8(&ip->frag_offset_lo)) ||
-        unlikely_(READ_U8(&ip->flags) & IP_FRAG_OFFSET_MASK) ||
-        unlikely_(READ_U8(&ip->flags) & IP_MORE_FRAGS_MASK);
-}
-
-static unsigned fragment_offset(struct ip_hdr const *ip)
-{
-    return (READ_U8(&ip->frag_offset_lo) + (READ_U8(&ip->flags) & IP_FRAG_OFFSET_MASK) * 256) * 8;
-}
 
 // We overload the mux_subparser to fit the pkt_wait_list required for IP reassembly
 struct ip_subparser {
@@ -462,6 +487,7 @@ static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info
         if (! (READ_U8(&iphdr->flags) & IP_MORE_FRAGS_MASK)) {
             reassembly->got_last = 1;
             reassembly->end_offset = offset + payload;
+            info.fragmentation = IP_REASSEMBLED;    // fix the info before it's copied by pkt_wait_list_add
         }
         if (PROTO_OK != pkt_wait_list_add(&reassembly->wl, offset, offset + payload, false, &info.info, info.way, packet + iphdr_len, cap_payload, payload, now, tot_cap_len, tot_packet)) {
             goto unlock_fallback;  // should not happen

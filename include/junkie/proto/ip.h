@@ -32,6 +32,12 @@ struct ip_proto_info {
     unsigned version;           ///< IP version (will be 4 or 6)
     unsigned ttl;               ///< Time To Live
     unsigned way;               ///< The way used to store the mux subparsers
+    enum ip_fragmentation {
+        IP_NOFRAG,              ///< If the received packet was not a fragment (with dont_frag flag not set)
+        IP_DONTFRAG,            ///< If the received packet has the dont_frag flag set (and so was not fragmented)
+        IP_FRAGMENT,            ///< If this is a fragment
+        IP_REASSEMBLED,         ///< If this was reassembled
+    } fragmentation;
 };
 
 /// IPv6 and IPv4 uses the same proto_info. This define is required for ASSIGN_* MACROS.
