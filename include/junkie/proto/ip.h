@@ -38,6 +38,7 @@ struct ip_proto_info {
         IP_FRAGMENT,            ///< If this is a fragment
         IP_REASSEMBLED,         ///< If this was reassembled
     } fragmentation;
+    unsigned id;                ///< Identification field (usefull for OS detection)
 };
 
 /// IPv6 and IPv4 uses the same proto_info. This define is required for ASSIGN_* MACROS.

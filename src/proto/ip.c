@@ -151,7 +151,7 @@ char const *ip_info_2_str(struct proto_info const *info_)
 {
     struct ip_proto_info const *info = DOWNCAST(info_, info, ip_proto_info);
     char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, version=%u, addr=%s->%s%s, proto=%s, ttl=%u, frag=%s",
+    snprintf(str, TEMPSTR_SIZE, "%s, version=%u, addr=%s->%s%s, proto=%s, ttl=%u, frag=%s, id=0x%04x",
         proto_info_2_str(info_),
         info->version,
         ip_addr_2_str(info->key.addr+0),
@@ -159,7 +159,8 @@ char const *ip_info_2_str(struct proto_info const *info_)
         info->way ? " (hashed the other way)":"",
         ip_proto_2_str(info->key.protocol),
         info->ttl,
-        ip_fragmentation_2_str(info->fragmentation));
+        ip_fragmentation_2_str(info->fragmentation),
+        info->id);
     return str;
 }
 
@@ -174,6 +175,7 @@ void ip_serialize(struct proto_info const *info_, uint8_t **buf)
     serialize_1(buf, info->ttl);
     serialize_1(buf, info->way);    // Not really useful to serialize this but we want to be able to compare the output to test serializer
     serialize_1(buf, info->fragmentation);
+    serialize_2(buf, info->id);
 }
 
 void ip_deserialize(struct proto_info *info_, uint8_t const **buf)
@@ -187,6 +189,7 @@ void ip_deserialize(struct proto_info *info_, uint8_t const **buf)
     info->ttl = deserialize_1(buf);
     info->way = deserialize_1(buf);
     info->fragmentation = deserialize_1(buf);
+    info->id = deserialize_2(buf);
 }
 
 static void ip_proto_info_ctor(struct ip_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, struct ip_hdr const *iphdr)
@@ -205,6 +208,7 @@ static void ip_proto_info_ctor(struct ip_proto_info *info, struct parser *parser
         bool dont_frag = READ_U8(&iphdr->flags) & IP_DONT_FRAG_MASK;
         info->fragmentation = dont_frag ? IP_DONTFRAG : IP_NOFRAG;
     }
+    info->id = READ_U16N(&iphdr->id);
 }
 
 /*
