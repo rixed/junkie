@@ -74,7 +74,7 @@ static char const *tcp_info_2_str(struct proto_info const *info_)
 {
     struct tcp_proto_info const *info = DOWNCAST(info_, info, tcp_proto_info);
     char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, ports=%"PRIu16"->%"PRIu16", flags=%s%s%s%s%s, win=%"PRIu16", ack=%"PRIu32", seq=%"PRIu32", opts=%s",
+    snprintf(str, TEMPSTR_SIZE, "%s, ports=%"PRIu16"->%"PRIu16", flags=%s%s%s%s%s, win=%"PRIu16", ack=%"PRIu32", seq=%"PRIu32", urg=%"PRIx16", opts=%s",
         proto_info_2_str(info_),
         info->key.port[0], info->key.port[1],
         info->syn ? "Syn":"",
@@ -85,6 +85,7 @@ static char const *tcp_info_2_str(struct proto_info const *info_)
         info->window,
         info->ack_num,
         info->seq_num,
+        info->urg_ptr,
         tcp_options_2_str(info));
     return str;
 }
@@ -97,6 +98,7 @@ static void tcp_serialize(struct proto_info const *info_, uint8_t **buf)
     serialize_2(buf, info->key.port[1]);
     serialize_1(buf, info->syn + (info->ack<<1) + (info->rst<<2) + (info->fin<<3) + (info->urg<<4));
     serialize_2(buf, info->window);
+    serialize_2(buf, info->urg_ptr);
     serialize_4(buf, info->ack_num);
     serialize_4(buf, info->seq_num);
     serialize_1(buf, info->set_values);
@@ -121,6 +123,7 @@ static void tcp_deserialize(struct proto_info *info_, uint8_t const **buf)
     info->fin = !!(flags & 0x08);
     info->urg = !!(flags & 0x10);
     info->window = deserialize_2(buf);
+    info->urg_ptr = deserialize_2(buf);
     info->ack_num = deserialize_4(buf);
     info->seq_num = deserialize_4(buf);
     info->set_values = deserialize_1(buf);
@@ -144,6 +147,7 @@ static void tcp_proto_info_ctor(struct tcp_proto_info *info, struct parser *pars
     info->fin = !!(READ_U8(&tcphdr->flags) & TCP_FIN_MASK);
     info->urg = !!(READ_U8(&tcphdr->flags) & TCP_URG_MASK);
     info->window = READ_U16N(&tcphdr->window);
+    info->urg_ptr = READ_U16N(&tcphdr->urg_ptr);
     info->ack_num = READ_U32N(&tcphdr->ack_seq);
     info->seq_num = READ_U32N(&tcphdr->seq_num);
     info->set_values = 0;   // options will be set later
