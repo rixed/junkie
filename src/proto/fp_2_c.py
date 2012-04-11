@@ -3,8 +3,10 @@
 import sys
 import string
 
+sigs = []
+labels = ["unknown"]
+
 def parse_p0f():
-  sigs = []
   direction = -1  # 0 if in tcp client->server section, 1 if in tcp server->client section
   for line in sys.stdin.readlines():
     line = line.rstrip()
@@ -16,12 +18,12 @@ def parse_p0f():
       elif line[0] == '[':
         direction = -1
 
-      if line[0:8] == "label = ":
+      if line[0:8] == "label = " and direction <> -1:
         label = line[8:]
+        labels.append(label)
       elif line[0:8] == "sig   = " and direction <> -1:
         assert(label is not None)
-        sigs.append(([direction] + line[8:].split(':'), label.split(':')))
-  return sigs
+        sigs.append(([direction] + line[8:].split(':'), labels.index(label)))
 
 def split_sigs(sigs):
   "Split a list of pairs of vectors according to the first coordinate of the first vector."
@@ -182,14 +184,14 @@ def tests_for(indent, num, sigs):
       code.append(tests_for(False, num+1, values["*"]))
  
   elif num == 9:  # no more tests, return the result
-    code.append("return \"%s\";" % ":".join(values['']))
+    code.append("return %s;" % values[''])
 
   code = "\n".join(code)
   if indent:
     code = reindent(2, code)
   return code
 
-sigs = parse_p0f()
+parse_p0f()
 code = tests_for(True, 0, sigs)
 
 print '// -*- c-basic-offset: 4; c-backslash-column: 79; indent-tabs-mode: nil -*-'
@@ -201,13 +203,22 @@ print '#include "junkie/proto/ip.h"'
 print '#include "junkie/proto/tcp.h"'
 print '#include "junkie/proto/os-detect.h"'
 print ''
-print 'char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *tcp)'
+print 'char const *os_name(unsigned id)'
 print '{'
-print '  if (! tcp->syn) return NULL; // we are only interrested in SYNs/SYNACKS'
+print '  switch (id) {'
+for x in range(0, len(labels)-1):
+  print '    case %d: return "%s";' % (x, labels[x])
+print '  }'
+print '  return "INVALID";'
+print '}'
+print ''
+print 'unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *tcp)'
+print '{'
+print '  if (! tcp->syn) return 0; // we are only interrested in SYNs/SYNACKS'
 print ''
 print code
 print ''
-print '  return NULL;'
+print '  return 0;'
 print '}'
 print ''
 print 'void os_detect_init(void) {}'

@@ -7,9 +7,76 @@
 #include "junkie/proto/tcp.h"
 #include "junkie/proto/os-detect.h"
 
-char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *tcp)
+char const *os_name(unsigned id)
 {
-  if (! tcp->syn) return NULL; // we are only interrested in SYNs/SYNACKS
+  switch (id) {
+    case 0: return "unknown";
+    case 1: return "s:unix:Linux:3.x";
+    case 2: return "s:unix:Linux:2.6.x";
+    case 3: return "s:unix:Linux:2.4.x";
+    case 4: return "s:unix:Linux:2.2.x";
+    case 5: return "s:unix:Linux:2.0";
+    case 6: return "s:unix:Linux:3.x (loopback)";
+    case 7: return "s:unix:Linux:2.6.x (loopback)";
+    case 8: return "s:unix:Linux:2.4.x (loopback)";
+    case 9: return "s:unix:Linux:2.2.x (loopback)";
+    case 10: return "s:unix:Linux:2.6.x (Google crawler)";
+    case 11: return "s:unix:Linux:(Android)";
+    case 12: return "g:unix:Linux:3.x";
+    case 13: return "g:unix:Linux:2.4.x-2.6.x";
+    case 14: return "g:unix:Linux:2.2.x-3.x";
+    case 15: return "g:unix:Linux:2.2.x-3.x (no timestamps)";
+    case 16: return "g:unix:Linux:2.2.x-3.x (barebone)";
+    case 17: return "s:win:Windows:XP";
+    case 18: return "s:win:Windows:7 or 8";
+    case 19: return "s:win:Windows:7 (Websense crawler)";
+    case 20: return "g:win:Windows:NT kernel 5.x";
+    case 21: return "g:win:Windows:NT kernel 6.x";
+    case 22: return "g:win:Windows:NT kernel";
+    case 23: return "s:unix:Mac OS X:10.x";
+    case 24: return "s:unix:iOS:iPhone or iPad";
+    case 25: return "g:unix:Mac OS X:";
+    case 26: return "s:unix:FreeBSD:9.x";
+    case 27: return "s:unix:FreeBSD:8.x";
+    case 28: return "g:unix:FreeBSD:";
+    case 29: return "s:unix:OpenBSD:3.x";
+    case 30: return "s:unix:OpenBSD:4.x-5.x";
+    case 31: return "s:unix:Solaris:8";
+    case 32: return "s:unix:Solaris:10";
+    case 33: return "s:unix:OpenVMS:8.x";
+    case 34: return "s:unix:OpenVMS:7.x";
+    case 35: return "s:other:NeXTSTEP:";
+    case 36: return "s:unix:Tru64:4.x";
+    case 37: return "s:!:NMap:SYN scan";
+    case 38: return "s:!:NMap:OS detection";
+    case 39: return "s:unix:p0f:sendsyn utility";
+    case 40: return "s:other:Blackberry:";
+    case 41: return "s:other:Nintendo:3DS";
+    case 42: return "s:other:Nintendo:Wii";
+    case 43: return "s:unix:BaiduSpider:";
+    case 44: return "s:unix:Linux:3.x";
+    case 45: return "s:unix:Linux:2.4-2.6";
+    case 46: return "s:unix:Linux:2.4.x";
+    case 47: return "s:unix:Linux:2.6.x";
+    case 48: return "s:win:Windows:XP";
+    case 49: return "s:win:Windows:7 or 8";
+    case 50: return "s:unix:FreeBSD:9.x";
+    case 51: return "s:unix:FreeBSD:8.x";
+    case 52: return "s:unix:FreeBSD:8.x-9.x";
+    case 53: return "s:unix:OpenBSD:5.x";
+    case 54: return "s:unix:Mac OS X:10.x";
+    case 55: return "s:unix:Solaris:6";
+    case 56: return "s:unix:Solaris:8";
+    case 57: return "s:unix:Solaris:10";
+    case 58: return "s:unix:HP-UX:11.x";
+    case 59: return "s:other:OpenVMS:7.x";
+  }
+  return "INVALID";
+}
+
+unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *tcp)
+{
+  if (! tcp->syn) return 0; // we are only interrested in SYNs/SYNACKS
 
   if (! tcp->ack) { /* client to server */
     if (ip->version == 4) {
@@ -27,7 +94,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                   true) {
                   if (tcp->info.payload > 0) {
                   } else if (tcp->info.payload == 0) {
-                    return "s:unix:OpenVMS:8.x";
+                    return 33;
                   }
                 }
               }
@@ -47,7 +114,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                   true) {
                   if (tcp->info.payload > 0) {
                   } else if (tcp->info.payload == 0) {
-                    return "s:other:NeXTSTEP:";
+                    return 35;
                   }
                 }
               }
@@ -66,7 +133,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                   true) {
                   if (tcp->info.payload > 0) {
                   } else if (tcp->info.payload == 0) {
-                    return "s:unix:Linux:2.6.x (Google crawler)";
+                    return 10;
                   }
                 }
               }
@@ -85,7 +152,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                   true) {
                   if (tcp->info.payload > 0) {
                   } else if (tcp->info.payload == 0) {
-                    return "s:other:Nintendo:Wii";
+                    return 42;
                   }
                 }
               } else if (
@@ -99,7 +166,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                   true) {
                   if (tcp->info.payload > 0) {
                   } else if (tcp->info.payload == 0) {
-                    return "s:unix:Tru64:4.x";
+                    return 36;
                   }
                 }
               }
@@ -114,7 +181,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                   true) {
                   if (tcp->info.payload > 0) {
                   } else if (tcp->info.payload == 0) {
-                    return "s:unix:OpenVMS:7.x";
+                    return 34;
                   }
                 }
               }
@@ -143,7 +210,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:other:Blackberry:";
+                  return 40;
                 }
               }
             }
@@ -162,7 +229,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "g:win:Windows:NT kernel";
+                return 22;
               }
             }
           } else if (
@@ -179,7 +246,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "g:win:Windows:NT kernel";
+                return 22;
               }
             }
           }
@@ -196,7 +263,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "g:win:Windows:NT kernel 5.x";
+                return 20;
               }
             }
           } else if (
@@ -213,7 +280,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "g:win:Windows:NT kernel 5.x";
+                return 20;
               }
             }
           }
@@ -230,7 +297,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:XP";
+                return 17;
               }
             }
           }
@@ -247,7 +314,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "g:win:Windows:NT kernel 5.x";
+                return 20;
               }
             }
           } else if (
@@ -264,7 +331,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "g:win:Windows:NT kernel 5.x";
+                return 20;
               }
             }
           }
@@ -281,7 +348,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:XP";
+                return 17;
               }
             }
           } else if (
@@ -298,7 +365,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:XP";
+                return 17;
               }
             }
           }
@@ -317,7 +384,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:XP";
+                return 17;
               }
             }
           }
@@ -336,7 +403,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:XP";
+                return 17;
               }
             }
           }
@@ -353,7 +420,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "g:win:Windows:NT kernel 6.x";
+                return 21;
               }
             }
           } else if (
@@ -370,7 +437,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "g:win:Windows:NT kernel 6.x";
+                return 21;
               }
             }
           }
@@ -387,7 +454,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:7 or 8";
+                return 18;
               }
             }
           }
@@ -406,7 +473,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:7 or 8";
+                return 18;
               }
             }
           } else if (
@@ -422,7 +489,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:7 or 8";
+                return 18;
               }
             }
           }
@@ -441,7 +508,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:7 or 8";
+                return 18;
               }
             }
           }
@@ -461,7 +528,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:unix:p0f:sendsyn utility";
+                  return 39;
                 }
               }
             } else if (
@@ -474,7 +541,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:unix:p0f:sendsyn utility";
+                  return 39;
                 }
               }
             } else if (
@@ -488,7 +555,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:unix:p0f:sendsyn utility";
+                  return 39;
                 }
               }
             } else if (
@@ -501,7 +568,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:unix:p0f:sendsyn utility";
+                  return 39;
                 }
               }
             }
@@ -516,7 +583,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:unix:p0f:sendsyn utility";
+                  return 39;
                 }
               }
             } else if (
@@ -530,7 +597,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:unix:p0f:sendsyn utility";
+                  return 39;
                 }
               }
             } else if (
@@ -545,7 +612,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:unix:p0f:sendsyn utility";
+                  return 39;
                 }
               }
             } else if (
@@ -559,7 +626,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:unix:p0f:sendsyn utility";
+                  return 39;
                 }
               }
             }
@@ -583,7 +650,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:other:Nintendo:3DS";
+                  return 41;
                 }
               }
             }
@@ -604,7 +671,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:win:Windows:7 (Websense crawler)";
+                  return 19;
                 }
               }
             }
@@ -623,7 +690,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:win:Windows:7 (Websense crawler)";
+                  return 19;
                 }
               }
             }
@@ -652,7 +719,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:unix:BaiduSpider:";
+                  return 43;
                 }
               }
             }
@@ -679,7 +746,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:unix:BaiduSpider:";
+                  return 43;
                 }
               }
             }
@@ -699,7 +766,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:unix:Linux:2.6.x (loopback)";
+                  return 7;
                 }
               }
             }
@@ -717,7 +784,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:unix:Linux:3.x (loopback)";
+                  return 6;
                 }
               }
             }
@@ -737,7 +804,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:unix:Linux:2.4.x (loopback)";
+                  return 8;
                 }
               }
             }
@@ -755,7 +822,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:unix:Linux:2.6.x (loopback)";
+                  return 7;
                 }
               }
             }
@@ -773,7 +840,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:unix:Linux:3.x (loopback)";
+                  return 6;
                 }
               }
             }
@@ -793,7 +860,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:unix:Linux:2.2.x (loopback)";
+                  return 9;
                 }
               }
             }
@@ -814,7 +881,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "g:unix:Linux:2.2.x-3.x (no timestamps)";
+                return 15;
               }
             }
           } else if (
@@ -830,7 +897,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "g:unix:Linux:2.2.x-3.x";
+                return 14;
               }
             }
           }
@@ -844,7 +911,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "g:unix:Linux:2.2.x-3.x (barebone)";
+                return 16;
               }
             }
           }
@@ -857,7 +924,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:2.0";
+                return 5;
               }
             }
           } else if (
@@ -877,7 +944,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:OpenBSD:3.x";
+                return 29;
               }
             }
           }
@@ -899,7 +966,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:OpenBSD:4.x-5.x";
+                return 30;
               }
             }
           }
@@ -921,7 +988,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Solaris:8";
+                return 31;
               }
             }
           }
@@ -941,7 +1008,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "g:unix:Mac OS X:";
+                return 25;
               }
             }
           } else if (
@@ -957,7 +1024,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "g:unix:FreeBSD:";
+                return 28;
               }
             }
           }
@@ -977,7 +1044,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Mac OS X:10.x";
+                return 23;
               }
             }
           }
@@ -997,7 +1064,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:iOS:iPhone or iPad";
+                return 24;
               }
             }
           }
@@ -1017,7 +1084,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Mac OS X:10.x";
+                return 23;
               }
             }
           } else if (
@@ -1033,7 +1100,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:FreeBSD:8.x";
+                return 27;
               }
             }
           }
@@ -1053,7 +1120,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:iOS:iPhone or iPad";
+                return 24;
               }
             }
           }
@@ -1071,7 +1138,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:FreeBSD:9.x";
+                return 26;
               }
             }
           }
@@ -1089,7 +1156,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "g:unix:Linux:3.x";
+                return 12;
               }
             }
           }
@@ -1107,7 +1174,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:3.x";
+                return 1;
               }
             }
           }
@@ -1125,7 +1192,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:3.x";
+                return 1;
               }
             }
           }
@@ -1143,7 +1210,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:3.x";
+                return 1;
               }
             }
           }
@@ -1161,7 +1228,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:3.x";
+                return 1;
               }
             }
           }
@@ -1179,7 +1246,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:2.2.x";
+                return 4;
               }
             }
           }
@@ -1192,7 +1259,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:2.0";
+                return 5;
               }
             }
           }
@@ -1210,7 +1277,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:2.2.x";
+                return 4;
               }
             }
           }
@@ -1228,7 +1295,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:2.2.x";
+                return 4;
               }
             }
           }
@@ -1247,7 +1314,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Solaris:10";
+                return 32;
               }
             }
           }
@@ -1265,7 +1332,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "g:unix:Linux:2.4.x-2.6.x";
+                return 13;
               }
             }
           }
@@ -1283,7 +1350,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:2.4.x";
+                return 3;
               }
             }
           }
@@ -1301,7 +1368,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:2.4.x";
+                return 3;
               }
             }
           }
@@ -1319,7 +1386,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:2.4.x";
+                return 3;
               }
             }
           }
@@ -1337,7 +1404,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:2.6.x";
+                return 2;
               }
             }
           }
@@ -1355,7 +1422,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:2.6.x";
+                return 2;
               }
             }
           }
@@ -1373,7 +1440,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:2.6.x";
+                return 2;
               }
             }
           }
@@ -1391,7 +1458,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:(Android)";
+                return 11;
               }
             }
           }
@@ -1409,7 +1476,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:(Android)";
+                return 11;
               }
             }
           }
@@ -1430,7 +1497,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:!:NMap:OS detection";
+                  return 38;
                 }
               }
             }
@@ -1448,7 +1515,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:!:NMap:OS detection";
+                  return 38;
                 }
               }
             }
@@ -1467,7 +1534,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:!:NMap:OS detection";
+                  return 38;
                 }
               }
             }
@@ -1480,7 +1547,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:!:NMap:SYN scan";
+                  return 37;
                 }
               }
             }
@@ -1493,7 +1560,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:!:NMap:SYN scan";
+                  return 37;
                 }
               }
             }
@@ -1512,7 +1579,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:!:NMap:OS detection";
+                  return 38;
                 }
               }
             }
@@ -1525,7 +1592,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:!:NMap:SYN scan";
+                  return 37;
                 }
               }
             }
@@ -1538,7 +1605,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:!:NMap:SYN scan";
+                  return 37;
                 }
               }
             }
@@ -1557,7 +1624,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:!:NMap:OS detection";
+                  return 38;
                 }
               }
             }
@@ -1572,7 +1639,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:!:NMap:OS detection";
+                  return 38;
                 }
               }
             }
@@ -1590,7 +1657,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:!:NMap:OS detection";
+                  return 38;
                 }
               }
             }
@@ -1610,7 +1677,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:!:NMap:OS detection";
+                  return 38;
                 }
               }
             }
@@ -1632,7 +1699,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:unix:Solaris:6";
+                  return 55;
                 }
               }
             } else if (
@@ -1647,7 +1714,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:unix:Solaris:6";
+                  return 55;
                 }
               }
             } else if (
@@ -1664,7 +1731,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:unix:Solaris:6";
+                  return 55;
                 }
               }
             } else if (
@@ -1678,7 +1745,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:unix:Solaris:6";
+                  return 55;
                 }
               }
             }
@@ -1697,7 +1764,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                   true) {
                   if (tcp->info.payload > 0) {
                   } else if (tcp->info.payload == 0) {
-                    return "s:other:OpenVMS:7.x";
+                    return 59;
                   }
                 }
               } else if (
@@ -1710,7 +1777,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                   true) {
                   if (tcp->info.payload > 0) {
                   } else if (tcp->info.payload == 0) {
-                    return "s:other:OpenVMS:7.x";
+                    return 59;
                   }
                 }
               }
@@ -1724,7 +1791,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                   true) {
                   if (tcp->info.payload > 0) {
                   } else if (tcp->info.payload == 0) {
-                    return "s:unix:Tru64:4.x";
+                    return 36;
                   }
                 }
               } else if (
@@ -1738,7 +1805,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                   true) {
                   if (tcp->info.payload > 0) {
                   } else if (tcp->info.payload == 0) {
-                    return "s:unix:Tru64:4.x";
+                    return 36;
                   }
                 }
               }
@@ -1761,7 +1828,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:XP";
+                return 17;
               }
             }
           } else if (
@@ -1776,7 +1843,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:XP";
+                return 17;
               }
             }
           } else if (
@@ -1792,7 +1859,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:XP";
+                return 17;
               }
             }
           } else if (
@@ -1811,7 +1878,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:XP";
+                return 17;
               }
             }
           } else if (
@@ -1825,7 +1892,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:XP";
+                return 17;
               }
             }
           } else if (
@@ -1842,7 +1909,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:XP";
+                return 17;
               }
             }
           } else if (
@@ -1860,7 +1927,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:XP";
+                return 17;
               }
             }
           } else if (
@@ -1881,7 +1948,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:XP";
+                return 17;
               }
             }
           }
@@ -1895,7 +1962,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:XP";
+                return 17;
               }
             }
           } else if (
@@ -1910,7 +1977,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:XP";
+                return 17;
               }
             }
           } else if (
@@ -1926,7 +1993,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:XP";
+                return 17;
               }
             }
           } else if (
@@ -1945,7 +2012,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:XP";
+                return 17;
               }
             }
           } else if (
@@ -1959,7 +2026,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:XP";
+                return 17;
               }
             }
           } else if (
@@ -1976,7 +2043,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:XP";
+                return 17;
               }
             }
           } else if (
@@ -1994,7 +2061,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:XP";
+                return 17;
               }
             }
           } else if (
@@ -2015,7 +2082,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:XP";
+                return 17;
               }
             }
           }
@@ -2029,7 +2096,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:7 or 8";
+                return 18;
               }
             }
           } else if (
@@ -2044,7 +2111,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:7 or 8";
+                return 18;
               }
             }
           } else if (
@@ -2059,7 +2126,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:7 or 8";
+                return 18;
               }
             }
           } else if (
@@ -2073,7 +2140,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:7 or 8";
+                return 18;
               }
             }
           }
@@ -2089,7 +2156,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:7 or 8";
+                return 18;
               }
             }
           } else if (
@@ -2106,7 +2173,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:7 or 8";
+                return 18;
               }
             }
           } else if (
@@ -2123,7 +2190,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:7 or 8";
+                return 18;
               }
             }
           } else if (
@@ -2139,7 +2206,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:win:Windows:7 or 8";
+                return 18;
               }
             }
           }
@@ -2162,7 +2229,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:unix:OpenBSD:5.x";
+                  return 53;
                 }
               }
             } else if (
@@ -2180,7 +2247,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:unix:OpenBSD:5.x";
+                  return 53;
                 }
               }
             } else if (
@@ -2195,7 +2262,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:unix:OpenBSD:5.x";
+                  return 53;
                 }
               }
             }
@@ -2214,7 +2281,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:unix:OpenBSD:5.x";
+                  return 53;
                 }
               }
             } else if (
@@ -2234,7 +2301,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:unix:OpenBSD:5.x";
+                  return 53;
                 }
               }
             } else if (
@@ -2248,7 +2315,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:unix:OpenBSD:5.x";
+                  return 53;
                 }
               }
             } else if (
@@ -2265,7 +2332,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
                 true) {
                 if (tcp->info.payload > 0) {
                 } else if (tcp->info.payload == 0) {
-                  return "s:unix:OpenBSD:5.x";
+                  return 53;
                 }
               }
             }
@@ -2281,7 +2348,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:HP-UX:11.x";
+                return 58;
               }
             }
           } else if (
@@ -2296,7 +2363,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:HP-UX:11.x";
+                return 58;
               }
             }
           } else if (
@@ -2314,7 +2381,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:HP-UX:11.x";
+                return 58;
               }
             }
           } else if (
@@ -2331,7 +2398,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:HP-UX:11.x";
+                return 58;
               }
             }
           } else if (
@@ -2351,7 +2418,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:HP-UX:11.x";
+                return 58;
               }
             }
           } else if (
@@ -2366,7 +2433,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:HP-UX:11.x";
+                return 58;
               }
             }
           } else if (
@@ -2380,7 +2447,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:HP-UX:11.x";
+                return 58;
               }
             }
           } else if (
@@ -2397,7 +2464,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:HP-UX:11.x";
+                return 58;
               }
             }
           }
@@ -2414,7 +2481,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Mac OS X:10.x";
+                return 23;
               }
             }
           } else if (
@@ -2430,7 +2497,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Mac OS X:10.x";
+                return 23;
               }
             }
           } else if (
@@ -2444,7 +2511,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Mac OS X:10.x";
+                return 23;
               }
             }
           } else if (
@@ -2461,7 +2528,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Mac OS X:10.x";
+                return 23;
               }
             }
           } else if (
@@ -2479,7 +2546,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Mac OS X:10.x";
+                return 23;
               }
             }
           } else if (
@@ -2494,7 +2561,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Mac OS X:10.x";
+                return 23;
               }
             }
           } else if (
@@ -2507,7 +2574,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Mac OS X:10.x";
+                return 23;
               }
             }
           } else if (
@@ -2521,7 +2588,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:FreeBSD:8.x-9.x";
+                return 52;
               }
             }
           }
@@ -2537,7 +2604,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:FreeBSD:8.x";
+                return 27;
               }
             }
           } else if (
@@ -2554,7 +2621,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:FreeBSD:8.x";
+                return 27;
               }
             }
           } else if (
@@ -2569,7 +2636,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:FreeBSD:8.x";
+                return 27;
               }
             }
           } else if (
@@ -2585,7 +2652,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:FreeBSD:8.x";
+                return 27;
               }
             }
           }
@@ -2601,7 +2668,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:FreeBSD:9.x";
+                return 26;
               }
             }
           } else if (
@@ -2618,7 +2685,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:FreeBSD:9.x";
+                return 26;
               }
             }
           } else if (
@@ -2633,7 +2700,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:FreeBSD:9.x";
+                return 26;
               }
             }
           } else if (
@@ -2649,7 +2716,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:FreeBSD:9.x";
+                return 26;
               }
             }
           }
@@ -2667,7 +2734,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:3.x";
+                return 1;
               }
             }
           } else if (
@@ -2683,7 +2750,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:3.x";
+                return 1;
               }
             }
           } else if (
@@ -2696,7 +2763,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:3.x";
+                return 1;
               }
             }
           } else if (
@@ -2711,7 +2778,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:3.x";
+                return 1;
               }
             }
           }
@@ -2724,7 +2791,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:3.x";
+                return 1;
               }
             }
           } else if (
@@ -2738,7 +2805,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:3.x";
+                return 1;
               }
             }
           } else if (
@@ -2752,7 +2819,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:3.x";
+                return 1;
               }
             }
           } else if (
@@ -2765,7 +2832,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:3.x";
+                return 1;
               }
             }
           }
@@ -2779,7 +2846,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Solaris:8";
+                return 31;
               }
             }
           } else if (
@@ -2794,7 +2861,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Solaris:8";
+                return 31;
               }
             }
           } else if (
@@ -2809,7 +2876,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Solaris:8";
+                return 31;
               }
             }
           } else if (
@@ -2827,7 +2894,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Solaris:8";
+                return 31;
               }
             }
           } else if (
@@ -2844,7 +2911,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Solaris:8";
+                return 31;
               }
             }
           } else if (
@@ -2864,7 +2931,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Solaris:8";
+                return 31;
               }
             }
           } else if (
@@ -2878,7 +2945,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Solaris:8";
+                return 31;
               }
             }
           } else if (
@@ -2895,7 +2962,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Solaris:8";
+                return 31;
               }
             }
           }
@@ -2909,7 +2976,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Solaris:10";
+                return 32;
               }
             }
           } else if (
@@ -2924,7 +2991,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Solaris:10";
+                return 32;
               }
             }
           } else if (
@@ -2938,7 +3005,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Solaris:10";
+                return 32;
               }
             }
           } else if (
@@ -2955,7 +3022,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Solaris:10";
+                return 32;
               }
             }
           } else if (
@@ -2970,7 +3037,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Solaris:10";
+                return 32;
               }
             }
           } else if (
@@ -2988,7 +3055,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Solaris:10";
+                return 32;
               }
             }
           } else if (
@@ -3005,7 +3072,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Solaris:10";
+                return 32;
               }
             }
           } else if (
@@ -3025,7 +3092,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Solaris:10";
+                return 32;
               }
             }
           }
@@ -3043,7 +3110,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:2.6.x";
+                return 2;
               }
             }
           } else if (
@@ -3059,7 +3126,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:2.6.x";
+                return 2;
               }
             }
           } else if (
@@ -3072,7 +3139,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:2.6.x";
+                return 2;
               }
             }
           } else if (
@@ -3087,7 +3154,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:2.6.x";
+                return 2;
               }
             }
           }
@@ -3100,7 +3167,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:2.4-2.6";
+                return 45;
               }
             }
           } else if (
@@ -3114,7 +3181,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:2.4-2.6";
+                return 45;
               }
             }
           } else if (
@@ -3130,7 +3197,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:2.4.x";
+                return 3;
               }
             }
           } else if (
@@ -3144,7 +3211,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:2.4-2.6";
+                return 45;
               }
             }
           } else if (
@@ -3160,7 +3227,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:2.4.x";
+                return 3;
               }
             }
           } else if (
@@ -3173,7 +3240,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:2.4.x";
+                return 3;
               }
             }
           } else if (
@@ -3186,7 +3253,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:2.4-2.6";
+                return 45;
               }
             }
           } else if (
@@ -3201,7 +3268,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
               true) {
               if (tcp->info.payload > 0) {
               } else if (tcp->info.payload == 0) {
-                return "s:unix:Linux:2.4.x";
+                return 3;
               }
             }
           }
@@ -3210,7 +3277,7 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
     }
   }
 
-  return NULL;
+  return 0;
 }
 
 void os_detect_init(void) {}

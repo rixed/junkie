@@ -12,7 +12,12 @@
  *
  * It is automatically generated from p0f.fp database of signatures, and should be quite fast.
  */
-char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *tcp);
+
+/** @return an id identifying the OS, or 0 if unknown. */
+unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *tcp);
+
+/** @return the name associated with the above id. */
+char const *os_name(unsigned id);
 
 // Dummy function called by junkie init code so that the linker include this unused (as far as the linker can tell) unit
 void os_detect_init(void);

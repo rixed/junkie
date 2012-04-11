@@ -35,8 +35,8 @@ static void tcp_callback(struct proto_subscriber unused_ *subscription, struct p
     struct tcp_proto_info const *tcp = DOWNCAST(last, info, tcp_proto_info);
     ASSIGN_INFO_CHK(ip, last, );
 
-    char const *os = os_detect(ip, tcp);
-    if (os) printf("%s: %s\n", ip_addr_2_str(ip->key.addr+0), os);
+    unsigned os = os_detect(ip, tcp);
+    if (os) printf("%s: %s\n", ip_addr_2_str(ip->key.addr+0), os_name(os));
 }
 
 /*
