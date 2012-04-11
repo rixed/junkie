@@ -54,16 +54,29 @@ static unsigned ceil_log_2(size_t s)
     return r;
 }
 
+/* These parameters specify the size of memory chunks that will be allocated for objalloc.
+ * Rules are as follow: try to allocate enough entries for having chunks of chunk_size bytes,
+ * but not less entries than min_preset_size and not more than max_preset_size.
+ * You can chance these at runtime, but it will have no effect on the redim_array that were
+ * already created. In particular, it will have no effect on the redim_arrays that are
+ * preallocated for fixed sizes. This is especially significant for the redim_array for 32
+ * bytes, which is often used and can lead to fragmentation if it's allocated on the heap,
+ * so you'd better have max_preset_size default value big enough so that its chunk are
+ * bigger than 128k (the min for using mmap). */
+static size_t chunk_size = 8*1024*1024;
+EXT_PARAM_RW(chunk_size, "mem-chunk-size", size_t, "Alloc memory by chunks of this size (in bytes)")
+static unsigned min_preset_size = 2;
+EXT_PARAM_RW(min_preset_size, "mem-min-preset-size", uint, "Use chunks big enough to hold that number of entries")
+static unsigned max_preset_size = 5000;
+EXT_PARAM_RW(max_preset_size, "mem-max-preset-size", uint, "Use chunks not bigger than this number of entries")
+
 static unsigned preset_entry_size(size_t entry_size)
 {
-#   define CHUNK_SIZE (8*1024*1024)
-#   define MIN_PRESET_SIZE 2
-#   define MAX_PRESET_SIZE 2000
     // We try to alloc objects by batch of CHUNK_SIZE bytes
-    unsigned n = CHUNK_SIZE/entry_size;
+    unsigned n = chunk_size/entry_size;
 
-    if (n < MIN_PRESET_SIZE) return MIN_PRESET_SIZE;
-    else if (n > MAX_PRESET_SIZE) return MAX_PRESET_SIZE;
+    if (n < min_preset_size) return min_preset_size;
+    else if (n > max_preset_size) return max_preset_size;
     return n;
 }
 
@@ -217,10 +230,15 @@ static unsigned inited;
 void objalloc_init(void)
 {
     if (inited++) return;
+    ext_init();
     redim_array_init();
     mutex_init();
 
     log_category_objalloc_init();
+    ext_param_chunk_size_init();
+    ext_param_min_preset_size_init();
+    ext_param_max_preset_size_init();
+
     for (unsigned m = 0; m < NB_ELEMS(spec_objallocs_mutex); m++) {
         mutex_ctor(spec_objallocs_mutex+m, "spec_objallocs");
     }
@@ -259,8 +277,14 @@ void objalloc_fini(void)
     for (unsigned m = 0; m < NB_ELEMS(spec_objallocs_mutex); m++) {
         mutex_dtor(spec_objallocs_mutex+m);
     }
+
+    ext_param_max_preset_size_fini();
+    ext_param_min_preset_size_fini();
+    ext_param_chunk_size_fini();
     log_category_objalloc_fini();
+
     mutex_fini();
     redim_array_fini();
+    ext_fini();
 }
 
