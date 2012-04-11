@@ -3212,3 +3212,5 @@ char const *os_detect(struct ip_proto_info const *ip, struct tcp_proto_info cons
 
   return NULL;
 }
+
+void os_detect_init(void) {}

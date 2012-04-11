@@ -209,4 +209,7 @@ print code
 print ''
 print '  return NULL;'
 print '}'
+print ''
+print 'void os_detect_init(void) {}'
+
 

@@ -62,6 +62,7 @@
 #include "junkie/proto/port_muxer.h"
 #include "junkie/proto/cnxtrack.h"
 #include "junkie/proto/serialize.h"
+#include "junkie/proto/os-detect.h"
 #include "proto/fuzzing.h"
 #include "pkt_source.h"
 #include "plugins.h"
@@ -102,6 +103,7 @@ static void all_init(void)
     ref_init(); // as all users do not init it...
     hash_init();    // as all users do not init it...
     redim_array_init(); // if there are no users then some ext functions used by the www interface won't be defined
+    os_detect_init();   // dummy function just to include os_detect in junkie (that does not use it, but plugins may want to)
 
     for (unsigned i = 0; i < NB_ELEMS(initers); i++) {
         initers[i].init();
