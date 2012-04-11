@@ -46,8 +46,6 @@
 
 ; Some tools mainly usefull for tests
 
-(if (defined? 'use-syntax) ; Guile 2 does not need nor provide this
-  (use-syntax (ice-9 syncase)))
 (define-syntax assert
   (syntax-rules ()
                 ((assert x)
