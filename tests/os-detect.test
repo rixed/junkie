@@ -1,0 +1,14 @@
+#!/bin/sh
+
+NAME="OS detection"
+# windows.7or8.pcap was obtained from microsoft.com, which HTTP server pretends to be ISS.
+# But we do not detect it as such (nor at all). Would it be possible for microsoft to use another OS?
+PCAPS="pcap/os-detection/linux.2.6.32.pcap pcap/os-detection/windows.7.pcap pcap/os-detection/windows.vista.pcap pcap/os-detection/openbsd.pcap"
+PLUGIN="../plugins/os-detect/.libs/os-detect.so"
+
+filter() {
+	cat -
+}
+OUTPUT="os-detect.out"
+
+. ./dump_test

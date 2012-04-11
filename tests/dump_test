@@ -16,11 +16,15 @@ if ! test -r "$OUTPUT" ; then
 	exit 1
 fi
 
+if test -z "$PLUGIN" ; then
+	PLUGIN="../plugins/dumper/.libs/dumper.so"
+fi
+
 output=`mktemp tmp.XXXXXXXXXX`
 
 for pcap in $PCAPS ; do
 	echo "-- $pcap --" | tee -a $output
-	../src/junkie -p ../plugins/dumper/.libs/dumper.so -e "$CMDLINE" -r "$pcap" | filter >> $output
+	../src/junkie -p "$PLUGIN" -e "$CMDLINE" -r "$pcap" | filter >> $output
 done
 
 if ! diff "$OUTPUT" "$output"; then

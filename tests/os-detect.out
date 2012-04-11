@@ -1,0 +1,8 @@
+-- pcap/os-detection/linux.2.6.32.pcap --
+192.168.10.9: g:unix:Linux:2.2.x-3.x (no timestamps)
+-- pcap/os-detection/windows.7.pcap --
+192.168.20.3: g:win:Windows:NT kernel
+-- pcap/os-detection/windows.vista.pcap --
+10.1.0.56: g:win:Windows:NT kernel
+-- pcap/os-detection/openbsd.pcap --
+192.168.10.254: s:unix:OpenBSD:5.x
