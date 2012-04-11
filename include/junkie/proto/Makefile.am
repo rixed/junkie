@@ -29,5 +29,6 @@ thisinclude_HEADERS = \
 	cursor.h \
 	cnxtrack.h \
 	serialize.h \
-	capfile.h
+	capfile.h \
+	os-detect.h
 

@@ -22,7 +22,12 @@ libproto_la_SOURCES = \
 	cursor.c \
 	cnxtrack.c \
 	serialize.c \
-	capfile.c
+	capfile.c \
+	os-detect.c
 
 libproto_la_LIBADD = ../tools/libjunkietools.la
 libproto_la_LDFLAGS = -export-dynamic
+
+$(srcdir)/os-detect.c: $(srcdir)/p0f.fp $(srcdir)/fp_2_c.py
+	$(srcdir)/fp_2_c.py < $< > $@
+
