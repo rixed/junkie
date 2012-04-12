@@ -39,7 +39,7 @@ struct ip_proto_info {
         IP_REASSEMBLED,         ///< If this was reassembled
     } fragmentation;
     unsigned id;                ///< Identification field (usefull for OS detection)
-    bool ecn_capable;           ///< ie. bit 0 or 1 of TOS set
+    uint8_t traffic_class;      ///< aka. TOS for IPv4
 };
 
 /// IPv6 and IPv4 uses the same proto_info. This define is required for ASSIGN_* MACROS.

@@ -13,11 +13,12 @@ struct ip_hdr {
 #   define IP_VERSION_MASK 0xF0U
 #   define IP_HDRLEN_MASK  0x0FU
     uint8_t tos;
-#   define IP_TOS_ECN_MASK                   0x3U
-#   define IP_TOS_ECN_NON_ECT                0x0U
-#   define IP_TOS_ECN_ECN_CAPABLE_1          0x1U
-#   define IP_TOS_ECN_ECN_CAPABLE_2          0x2U
-#   define IP_TOS_ECN_CONGESTION_ENCOUNTERED 0x3U
+#   define IP_DSCP_MASK                      0xFCU
+#   define IP_TOS_ECN_MASK                   0x03U
+#   define IP_TOS_ECN_NON_ECT                0x00U
+#   define IP_TOS_ECN_ECN_CAPABLE_1          0x01U
+#   define IP_TOS_ECN_ECN_CAPABLE_2          0x02U
+#   define IP_TOS_ECN_CONGESTION_ENCOUNTERED 0x03U
     uint16_t tot_len;
     uint16_t id;
     uint8_t flags;

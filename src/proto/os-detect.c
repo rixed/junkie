@@ -5,6 +5,7 @@
 #include "junkie/cpp.h"
 #include "junkie/proto/ip.h"
 #include "junkie/proto/tcp.h"
+#include "proto/ip_hdr.h"
 #include "junkie/proto/os-detect.h"
 
 char const *os_name(unsigned id)
@@ -1574,7 +1575,7 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               (5 < tcp->nb_options && tcp->options[5] == 1) &&
               true) {
               if (
-                (ip->ecn_capable) &&
+                (0 != (ip->traffic_class & IP_TOS_ECN_MASK)) &&
                 (tcp->urg_ptr != 0 && !tcp->urg) &&
                 true) {
                 if (tcp->info.payload > 0) {

@@ -146,7 +146,7 @@ def tests_for(indent, num, sigs):
       if q == "df":       return "ip->version == 6 || ip->fragmentation == IP_DONTFRAG"
       elif q == "id+":    return "ip->version == 6 || (ip->fragmentation == IP_DONTFRAG && ip->id != 0)"
       elif q == "id-":    return "ip->version == 6 || (ip->fragmentation == IP_NOFRAG && ip->id == 0)"
-      elif q == "ecn":    return "ip->ecn_capable"
+      elif q == "ecn":    return "0 != (ip->traffic_class & IP_TOS_ECN_MASK)"
       elif q == "0+":     return "true" # not supported
       elif q == "flow":   return "ip->version == 4 || ip->id != 0"
       elif q == "seq-":   return "tcp->seq_num == 0"
@@ -201,6 +201,7 @@ print '#include <stdlib.h>'
 print '#include "junkie/cpp.h"'
 print '#include "junkie/proto/ip.h"'
 print '#include "junkie/proto/tcp.h"'
+print '#include "proto/ip_hdr.h"'
 print '#include "junkie/proto/os-detect.h"'
 print ''
 print 'char const *os_name(unsigned id)'

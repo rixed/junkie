@@ -147,11 +147,27 @@ char const *ip_fragmentation_2_str(enum ip_fragmentation frag)
     return "INVALID!";
 }
 
+static char const *ecn_2_str(unsigned ecn)
+{
+    switch (ecn) {
+        case 0: return "NonECT";
+        case 1: return "ECT(0)";
+        case 2: return "ECT(2)";
+        case 3: return "CE";
+    }
+    assert(!"Invalid ECN");
+}
+
+static char const *traffic_class_2_str(uint8_t traffic_class)
+{
+    return tempstr_printf("%u:%s", (traffic_class & IP_DSCP_MASK) >> 2, ecn_2_str(traffic_class & IP_TOS_ECN_MASK));
+}
+
 char const *ip_info_2_str(struct proto_info const *info_)
 {
     struct ip_proto_info const *info = DOWNCAST(info_, info, ip_proto_info);
     char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, version=%u, addr=%s->%s%s, proto=%s, ttl=%u, frag=%s, id=0x%04x",
+    snprintf(str, TEMPSTR_SIZE, "%s, version=%u, addr=%s->%s%s, proto=%s, ttl=%u, frag=%s, id=0x%04x, Class=%s",
         proto_info_2_str(info_),
         info->version,
         ip_addr_2_str(info->key.addr+0),
@@ -160,7 +176,8 @@ char const *ip_info_2_str(struct proto_info const *info_)
         ip_proto_2_str(info->key.protocol),
         info->ttl,
         ip_fragmentation_2_str(info->fragmentation),
-        info->id);
+        info->id,
+        traffic_class_2_str(info->traffic_class));
     return str;
 }
 
@@ -176,7 +193,7 @@ void ip_serialize(struct proto_info const *info_, uint8_t **buf)
     serialize_1(buf, info->way);    // Not really useful to serialize this but we want to be able to compare the output to test serializer
     serialize_1(buf, info->fragmentation);
     serialize_2(buf, info->id);
-    serialize_1(buf, info->ecn_capable);
+    serialize_1(buf, info->traffic_class);
 }
 
 void ip_deserialize(struct proto_info *info_, uint8_t const **buf)
@@ -191,7 +208,7 @@ void ip_deserialize(struct proto_info *info_, uint8_t const **buf)
     info->way = deserialize_1(buf);
     info->fragmentation = deserialize_1(buf);
     info->id = deserialize_2(buf);
-    info->ecn_capable = deserialize_1(buf);
+    info->traffic_class = deserialize_1(buf);
 }
 
 static void ip_proto_info_ctor(struct ip_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, struct ip_hdr const *iphdr)
@@ -211,7 +228,7 @@ static void ip_proto_info_ctor(struct ip_proto_info *info, struct parser *parser
         info->fragmentation = dont_frag ? IP_DONTFRAG : IP_NOFRAG;
     }
     info->id = READ_U16N(&iphdr->id);
-    info->ecn_capable = 0 != (READ_U8(&iphdr->tos) & IP_TOS_ECN_MASK);
+    info->traffic_class = READ_U8(&iphdr->tos);
 }
 
 /*

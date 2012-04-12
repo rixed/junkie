@@ -47,7 +47,7 @@ static void ip6_proto_info_ctor(struct ip_proto_info *info, struct parser *parse
     ip_addr_ctor_from_ip6(&info->key.addr[1], &iphdr->dst);
     info->key.protocol = READ_U8(&iphdr->next);
     info->ttl = READ_U8(&iphdr->hop_limit);
-    info->ecn_capable = 0 != (READ_U8(&iphdr->flow[0]) & 0x30);
+    info->traffic_class = (READ_U8(&iphdr->version_class) << 4) | (READ_U8(&iphdr->flow[0]) >> 4);
     info->id = ((READ_U8(&iphdr->flow[0]) & 0x0f) << 16U) | READ_U16N(&iphdr->flow[1]);
 }
 
