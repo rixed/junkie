@@ -28,6 +28,7 @@
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/miscmacs.h"
 #include "junkie/tools/ip_addr.h"
+#include "junkie/tools/ext.h"
 #include "junkie/proto/serialize.h"
 #include "junkie/proto/proto.h"
 #include "junkie/proto/ip.h"
@@ -74,6 +75,12 @@ char const *eth_addr_2_str(unsigned char const addr[ETH_ADDR_LEN])
         len += snprintf(str+len, TEMPSTR_SIZE-len, "%s%.02x", len > 0 ? ":":"", addr[i]);
     }
     return str;
+}
+
+// While we are at it, convert from eth addr to SCM
+SCM scm_from_eth_addr(unsigned char const addr[ETH_ADDR_LEN])
+{
+    return scm_from_latin1_string(eth_addr_2_str(addr));
 }
 
 static void const *eth_info_addr(struct proto_info const *info_, size_t *size)
