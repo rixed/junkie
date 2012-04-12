@@ -8,6 +8,7 @@ However, some files are licensed under other licenses:
 libpcap library : BSD style license (3-clause BSD)
 guile library   : GNU Lesser General Public License, version 3 or later.
 openssl library : BSD style license + SSLeay license
+p0f.fp file     : GNU Lesser General Public License.
 
 The complete text of the AGPLv3 license can be found in LICENSE.AGPL
 The complete text of the Modified BSD licence can be found in LICENSE.BSD
