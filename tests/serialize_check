@@ -31,10 +31,11 @@ $junkie > $serlog \
         -p ../plugins/serializer/.libs/serializer.so \
         -e '(set-quit-when-done #f)' \
         -e '(for-each-file-in "pcap" (lambda (sub) (for-each-file-in sub open-pcap)))' \
+        -e '(sleep 1)' \
         -e '(exit)' || true
 
-echo "Killing deserializer"
 sleep 1 # wait for junkie to print everything
+echo "Killing deserializer"
 kill $deserpid
 
 if diff $serlog $deserlog > /dev/null ; then
