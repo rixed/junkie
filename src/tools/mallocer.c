@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+#include <unistd.h> // for sysconf
 #include "junkie/config.h"
 #ifdef HAVE_MALLOC_H
 #   include <malloc.h>
@@ -54,13 +55,99 @@ static void rem_block(struct mallocer_block *block)
 }
 
 /*
+ * Low level allocator: we use mmap for everything
+ */
+
+#include <sys/mman.h>
+
+static size_t page_size;
+
+static size_t round_up_to_page_size(size_t size)
+{
+    if ((size & (page_size - 1)) == 0) return size;
+    return (size | (page_size - 1)) + 1;
+}
+
+static void *my_alloc(size_t size)
+{
+    size = round_up_to_page_size(size + sizeof(size_t)); // we store the asked size in order to unmap it later on
+    SLOG(LOG_DEBUG, "Allocing %zu bytes", size);
+
+    size_t *ptr = mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+    if (ptr == MAP_FAILED) {
+        SLOG(LOG_ERR, "Cannot mmap(): %s", strerror(errno));
+        return NULL;
+    }
+
+    ptr[0] = size;
+    return ptr+1;
+}
+
+static void my_free(void *ptr_)
+{
+    if (! ptr_) return;
+
+    size_t *ptr = ((size_t *)ptr_) - 1;
+    SLOG(LOG_DEBUG, "Freeing %zu bytes", ptr[0]);
+
+    if (0 != munmap(ptr, ptr[0])) {
+        SLOG(LOG_CRIT, "Cannot munmap(%p): %s", ptr_, strerror(errno));
+    }
+}
+
+static void *my_realloc(void *ptr_, size_t new_size_)
+{
+    if (! ptr_) return NULL;
+    if (new_size_ == 0) {
+        my_free(ptr_);
+        return NULL;
+    }
+
+    size_t *ptr = ((size_t *)ptr_)-1;
+    size_t const prev_size = ptr[0];
+    size_t const new_size = round_up_to_page_size(new_size_ + sizeof(size_t));
+
+    if (new_size == prev_size) return ptr_;  // sucker!
+
+    SLOG(LOG_DEBUG, "Realloc %p from %zu bytes to %zu", ptr_, prev_size, new_size);
+    if (new_size < prev_size) {
+        void *end = ((char *)ptr_) + new_size;
+        if (0 != munmap(end, prev_size - new_size)) {
+            SLOG(LOG_CRIT, "Cannot munmap(%p) for realloc: %s", ptr_, strerror(errno));
+        }
+        ptr[0] = new_size;
+        return ptr_;
+    } else {
+        void *end = ((char *)ptr_) + prev_size;
+        void *new = mmap(end, new_size-prev_size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);    // or can we merely re-mmap the same addr for new_size?
+        if (new == ptr) {
+            ptr[0] = new_size;
+            return ptr_; // all is well and good
+        }
+        if (new == MAP_FAILED) {
+            SLOG(LOG_ERR, "Cannot mmap(%p) for realloc: %s", end, strerror(errno));
+        } else if (new != end) {
+            SLOG(LOG_ERR, "Cannot realloc %p, extension was at %p instead of %p", ptr, new, end);
+            if (0 != munmap(new, new_size-prev_size)) {
+                SLOG(LOG_CRIT, "Cannot unmap the extension @%p: %s", new, strerror(errno));
+            }
+        }
+        new = my_alloc(new_size_);
+        if (! new) return NULL;
+        memcpy(new, ptr_, prev_size);
+        my_free(ptr_);
+        return new;
+    }
+}
+
+/*
  * Alloc
  */
 
 void *mallocer_alloc(struct mallocer *mallocer, size_t size)
 {
     // FIXME: align return address to 16 bytes
-    struct mallocer_block *block = malloc(sizeof(*block) + size);
+    struct mallocer_block *block = my_alloc(sizeof(*block) + size);
     if (! block) return NULL;
     mutex_lock(&mallocer->mutex);
     block->size = size;
@@ -85,7 +172,7 @@ void *mallocer_realloc(struct mallocer *mallocer, void *ptr, size_t size)
     // We must first remove this block from the list, since it may be moved and the original one freed
     rem_block(block);
 
-    struct mallocer_block *block2 = realloc(block, sizeof(*block2) + size);
+    struct mallocer_block *block2 = my_realloc(block, sizeof(*block2) + size);
     if (! block2) {
         // Put the original block back in the list
         LIST_INSERT_HEAD(&block->mallocer->blocks, block, entry);
@@ -108,7 +195,7 @@ void mallocer_free(void *ptr)
     rem_block(block);
     mutex_unlock(&block->mallocer->mutex);
 
-    free(block);
+    my_free(block);
 }
 
 char *mallocer_strdup(struct mallocer *mallocer, char const *str)
@@ -221,6 +308,7 @@ static unsigned inited;
 void mallocer_init(void)
 {
     if (inited++) return;
+    page_size = sysconf(_SC_PAGE_SIZE);
     mutex_init();
     ext_init();
 
