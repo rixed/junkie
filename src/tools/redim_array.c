@@ -58,16 +58,19 @@ struct redim_array_chunk {
 static struct redim_array_chunk *chunk_new(struct redim_array *ra)
 {
     MALLOCER(redim_array);
-    struct redim_array_chunk *chunk = MALLOC(redim_array, sizeof(*chunk) + ra->alloc_size * ra->entry_size);
-    SLOG(LOG_INFO, "New chunk@%p of %zu bytes for array %s@%p", chunk, (ra->alloc_size * ra->entry_size), ra->name, ra);
+    ra->nb_chunks ++;
+    unsigned const nb_malloced = ra->alloc_size * ra->nb_chunks;    // first chunk is alloc_size entries long, second is twice this, third is 3 times this, and so on
+
+    struct redim_array_chunk *chunk = MALLOC(redim_array, sizeof(*chunk) + nb_malloced * ra->entry_size);
+    SLOG(LOG_INFO, "New chunk@%p of %zu bytes for array %s@%p", chunk, (nb_malloced * ra->entry_size), ra->name, ra);
 
     TAILQ_INSERT_TAIL(&ra->chunks, chunk, entry);
     chunk->nb_used = 0;
-    chunk->nb_malloced = ra->alloc_size;
     SLIST_INIT(&chunk->freelist);
     chunk->nb_holes = 0;
+    chunk->nb_malloced = nb_malloced;
     chunk->array = ra;
-    ra->nb_malloced += chunk->nb_malloced;
+    ra->nb_malloced += nb_malloced;
     return chunk;
 }
 
@@ -79,6 +82,7 @@ static void chunk_del(struct redim_array_chunk *chunk)
     chunk->array->nb_used -= chunk->nb_used;
     chunk->array->nb_malloced -= chunk->nb_malloced;
     chunk->array->nb_holes -= chunk->nb_holes;
+    chunk->array->nb_chunks --;
     FREE(chunk);
 }
 
@@ -93,6 +97,7 @@ int redim_array_ctor(struct redim_array *ra, unsigned alloc_size, size_t entry_s
     ra->nb_used = 0;
     ra->nb_malloced = 0;
     ra->nb_holes = 0;
+    ra->nb_chunks = 0;
     ra->alloc_size = alloc_size;
     ra->entry_size = entry_size;
     ra->name = name;
@@ -249,6 +254,7 @@ static struct redim_array *array_of_scm_name(SCM name_)
 static SCM nb_used_sym;
 static SCM nb_malloced_sym;
 static SCM nb_holes_sym;
+static SCM nb_chunks_sym;
 static SCM alloc_size_sym;
 static SCM entry_size_sym;
 
@@ -258,12 +264,14 @@ static SCM g_array_stats(SCM name_)
     struct redim_array *array = array_of_scm_name(name_);
     if (! array) return SCM_UNSPECIFIED;
 
-    return scm_list_5(
+    return scm_list_n(
         scm_cons(nb_used_sym,     scm_from_uint(array->nb_used)),
         scm_cons(nb_malloced_sym, scm_from_uint(array->nb_malloced)),
         scm_cons(nb_holes_sym,    scm_from_uint(array->nb_holes)),
+        scm_cons(nb_chunks_sym,   scm_from_uint(array->nb_chunks)),
         scm_cons(alloc_size_sym,  scm_from_uint(array->alloc_size)),
-        scm_cons(entry_size_sym,  scm_from_size_t(array->entry_size)));
+        scm_cons(entry_size_sym,  scm_from_size_t(array->entry_size)),
+        SCM_UNDEFINED);
 }
 
 static unsigned inited;
@@ -280,6 +288,7 @@ void redim_array_init(void)
     nb_used_sym     = scm_permanent_object(scm_from_latin1_symbol("nb-used"));
     nb_malloced_sym = scm_permanent_object(scm_from_latin1_symbol("nb-malloced"));
     nb_holes_sym    = scm_permanent_object(scm_from_latin1_symbol("nb-holes"));
+    nb_chunks_sym   = scm_permanent_object(scm_from_latin1_symbol("nb-chunks"));
     alloc_size_sym  = scm_permanent_object(scm_from_latin1_symbol("alloc-size"));
     entry_size_sym  = scm_permanent_object(scm_from_latin1_symbol("entry-size"));
 
