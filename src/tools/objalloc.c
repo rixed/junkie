@@ -60,15 +60,12 @@ static unsigned ceil_log_2(size_t s)
  * but not less entries than min_preset_size and not more than max_preset_size.
  * You can chance these at runtime, but it will have no effect on the redim_array that were
  * already created. In particular, it will have no effect on the redim_arrays that are
- * preallocated for fixed sizes. This is especially significant for the redim_array for 32
- * bytes, which is often used and can lead to fragmentation if it's allocated on the heap,
- * so you'd better have max_preset_size default value big enough so that its chunk are
- * bigger than 128k (the min for using mmap). */
-static size_t chunk_size = 8*1024*1024;
+ * preallocated for fixed sizes. */
+static size_t chunk_size = 4*1024*1024;
 EXT_PARAM_RW(chunk_size, "mem-chunk-size", size_t, "Alloc memory by chunks of this size (in bytes)")
 static unsigned min_preset_size = 2;
 EXT_PARAM_RW(min_preset_size, "mem-min-preset-size", uint, "Use chunks big enough to hold that number of entries")
-static unsigned max_preset_size = 5000;
+static unsigned max_preset_size = 2000;
 EXT_PARAM_RW(max_preset_size, "mem-max-preset-size", uint, "Use chunks not bigger than this number of entries")
 
 static unsigned preset_entry_size(size_t entry_size)
