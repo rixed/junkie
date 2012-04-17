@@ -32,12 +32,13 @@
 #define LOG_CAT objalloc_log_category
 LOG_CATEGORY_DEF(objalloc);
 
+#define LOG_OBJ_SIZE_MIN 6U // smallest allocator is for 64 bytes
 #define LOG_OBJ_SIZE_MAX 20U
 
 static struct fixed_objalloc {
     struct redim_array ra;
     char name[40];
-} fixed_objallocs[LOG_OBJ_SIZE_MAX];
+} fixed_objallocs[LOG_OBJ_SIZE_MAX-LOG_OBJ_SIZE_MIN];
 
 static struct specialized_objalloc {
     struct redim_array *ra;
@@ -124,7 +125,7 @@ static struct redim_array *spec_objalloc_for_size(size_t entry_size, char const 
 
 static struct redim_array *preset_objalloc_for_size(size_t entry_size, char const *requestor)
 {
-    unsigned s = ceil_log_2(entry_size);
+    unsigned s = MAX(LOG_OBJ_SIZE_MIN, ceil_log_2(entry_size));
 
     entry_size = ((size_t)1)<<s;
 
@@ -134,9 +135,9 @@ static struct redim_array *preset_objalloc_for_size(size_t entry_size, char cons
         SLOG(LOG_NOTICE, "Max obj size is now %zu (asked for %s)", entry_size, requestor);
     }
 
-    assert(s < NB_ELEMS(fixed_objallocs));
+    assert(s < LOG_OBJ_SIZE_MAX);
 
-    return &fixed_objallocs[s].ra;
+    return &fixed_objallocs[s - LOG_OBJ_SIZE_MIN].ra;
 }
 
 /*
@@ -244,7 +245,7 @@ void objalloc_init(void)
     }
 
     for (unsigned f = 0; f < NB_ELEMS(fixed_objallocs); f++) {
-        size_t const entry_size = 1U<<f;
+        size_t const entry_size = (1U<<(f+LOG_OBJ_SIZE_MIN));
         snprintf(fixed_objallocs[f].name, sizeof(fixed_objallocs[f].name), "fixed_alloc[%zu]", entry_size);
         int err = redim_array_ctor(&fixed_objallocs[f].ra, preset_entry_size(entry_size), entry_size, fixed_objallocs[f].name);
         assert(!err);
