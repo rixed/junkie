@@ -949,11 +949,10 @@ int driver3(void)
 int driver4(void)
 {
   uint8_t buf[1];
-  uint32_t h,i,state[HASHSTATE];
+  uint32_t h,i;
   uint32_t j,prev_res[8];
 
   buf[0] = ~0;
-  for (i=0; i<HASHSTATE; ++i) state[i] = 1;
   printf("These should all be different\n");
   for (i=0, h=0; i<8; ++i)
   {
