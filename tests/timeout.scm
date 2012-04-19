@@ -15,7 +15,7 @@
   (let* ((stats     (map proto-stats (mux-names)))
          (nb-muxers (map (lambda (s) (assq-ref s 'nb-parsers)) stats)))
     (apply + nb-muxers)))
-  
+
 (for-each-file-in "pcap/" (lambda (dir)
                             (simple-format #t "Playing all pcap from ~a~%" dir)
                             (for-each-file-in dir open-pcap)))

@@ -285,7 +285,7 @@
     "" '()))
 
 (define (proto->C sym) ; placeholder for more elavorate translation
-  (symbol->string sym)) 
+  (symbol->string sym))
 
 (define (deconstruct-protos protos)
   (let ((deconstruct-1 (lambda (proto prev)

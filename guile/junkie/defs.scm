@@ -34,7 +34,7 @@
               (newline))
             (?)))
 
-                 
+
 ; Start a server that executes anything (from localhost only)
 (define*-public (start-repl-server #:key
                                    (port 29000)
@@ -129,7 +129,7 @@
     (if (> tot-pkts 0)
         (exact->inexact (/ (* 100 tot-dups) tot-pkts))
         -1)))
-    
+
 ; get the percentage of dropped packets
 (define-public (dropped-percentage)
   (let* ((tot-drop (fold (lambda (iface prevs)
