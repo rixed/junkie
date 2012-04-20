@@ -71,6 +71,7 @@ char const *os_name(unsigned id)
     case 57: return "s:unix:Solaris:10";
     case 58: return "s:unix:HP-UX:11.x";
     case 59: return "s:other:OpenVMS:7.x";
+    case 60: return "s:unix:Tru64:4.x";
   }
   return "INVALID";
 }
