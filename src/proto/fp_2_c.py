@@ -3,10 +3,10 @@
 import sys
 import string
 
-sigs = []
-labels = ["unknown"]
-
 def parse_p0f():
+    sigs = []
+    labels = ["unknown"]
+
     direction = -1  # 0 if in tcp client->server section, 1 if in tcp server->client section
     for line in sys.stdin.readlines():
         line = line.rstrip()
@@ -24,6 +24,7 @@ def parse_p0f():
             elif line[0:8] == "sig   = " and direction <> -1:
                 assert(label is not None)
                 sigs.append(([direction] + line[8:].split(':'), labels.index(label)))
+    return [sigs, labels]
 
 def split_sigs(sigs):
     "Split a list of pairs of vectors according to the first coordinate of the first vector."
@@ -191,7 +192,7 @@ def tests_for(indent, num, sigs):
         code = reindent(2, code)
     return code
 
-parse_p0f()
+sigs, labels = parse_p0f()
 code = tests_for(True, 0, sigs)
 
 print '// -*- c-basic-offset: 4; c-backslash-column: 79; indent-tabs-mode: nil -*-'
