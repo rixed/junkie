@@ -7,7 +7,7 @@ def parse_p0f():
     sigs = []
     labels = ["unknown"]
 
-    direction = -1  # 0 if in tcp client->server section, 1 if in tcp server->client section
+    direction = None  # 0 if in tcp client->server section, 1 if in tcp server->client section
     for line in sys.stdin.readlines():
         line = line.rstrip()
         if len(line) > 0:
@@ -16,12 +16,12 @@ def parse_p0f():
             elif line == "[tcp:response]":
                 direction = 1
             elif line[0] == '[':
-                direction = -1
+                direction = None
 
-            if line[0:8] == "label = " and direction <> -1:
+            if line[0:8] == "label = " and direction is not None:
                 label = line[8:]
                 labels.append(label)
-            elif line[0:8] == "sig   = " and direction <> -1:
+            elif line[0:8] == "sig   = " and direction is not None:
                 assert(label is not None)
                 sigs.append(([direction] + line[8:].split(':'), labels.index(label)))
     return [sigs, labels]
