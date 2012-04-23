@@ -26,7 +26,7 @@
 #include <arpa/inet.h>
 #include "junkie/tools/ip_addr.h"
 #include "junkie/tools/tempstr.h"
-#include "junkie/tools/mallocer.h"
+#include "junkie/tools/objalloc.h"
 #include "junkie/proto/serialize.h"
 #include "junkie/proto/rtcp.h"
 #include "junkie/proto/sdp.h"
@@ -272,11 +272,10 @@ static int sdp_parser_ctor(struct sdp_parser *sdp_parser, struct proto *proto)
 
 static struct parser *sdp_parser_new(struct proto *proto)
 {
-    MALLOCER(sdp_parsers);
-    struct sdp_parser *sdp_parser = MALLOC(sdp_parsers, sizeof *sdp_parser);
+    struct sdp_parser *sdp_parser = objalloc(sizeof *sdp_parser, "SDP parser");
 
     if (-1 == sdp_parser_ctor(sdp_parser, proto)) {
-        FREE(sdp_parser);
+        objfree(sdp_parser);
         return NULL;
     }
 
@@ -288,7 +287,7 @@ static void sdp_parser_del(struct parser *parser)
     struct sdp_parser *sdp_parser = DOWNCAST(parser, parser, sdp_parser);
 
     parser_dtor(parser);
-    FREE(sdp_parser);
+    objfree(sdp_parser);
 }
 
 void sdp_init(void)

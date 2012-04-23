@@ -21,7 +21,7 @@
 #include <string.h>
 #include <assert.h>
 #include "junkie/tools/log.h"
-#include "junkie/tools/mallocer.h"
+#include "junkie/tools/objalloc.h"
 #include "junkie/proto/streambuf.h"
 
 /*
@@ -49,7 +49,7 @@ void streambuf_dtor(struct streambuf *sbuf)
 
     for (unsigned d = 0; d < 2; d++) {
         if (sbuf->dir[d].buffer) {
-            if (sbuf->dir[d].buffer_is_malloced) FREE((void*)sbuf->dir[d].buffer);
+            if (sbuf->dir[d].buffer_is_malloced) objfree((void*)sbuf->dir[d].buffer);
             sbuf->dir[d].buffer = NULL;
         }
     }
@@ -67,12 +67,10 @@ void streambuf_set_restart(struct streambuf *sbuf, unsigned way, uint8_t const *
     sbuf->dir[way].wait = wait;
 }
 
-MALLOCER_DEF(streambufs);
-
 static void streambuf_empty(struct streambuf_unidir *dir)
 {
     if (dir->buffer) {
-        if (dir->buffer_is_malloced) FREE((void*)dir->buffer);
+        if (dir->buffer_is_malloced) objfree((void*)dir->buffer);
         dir->buffer = NULL;
         dir->buffer_size = 0;
         dir->restart_offset = 0;
@@ -104,14 +102,14 @@ static enum proto_parse_status streambuf_append(struct streambuf *sbuf, unsigned
 
         if (new_size > 0) {
             if (new_size > sbuf->max_size) return PROTO_PARSE_ERR;
-            uint8_t *new_buffer = MALLOC(streambufs, new_size);
+            uint8_t *new_buffer = objalloc(new_size, "streambufs");
             if (! new_buffer) return PROTO_PARSE_ERR;
 
             // Assemble kept buffer and new payload
             memcpy(new_buffer, dir->buffer + dir->restart_offset, keep_size);
             memcpy(new_buffer + keep_size, packet, cap_len);
             assert(dir->buffer);
-            if (dir->buffer_is_malloced) FREE((void*)dir->buffer);
+            if (dir->buffer_is_malloced) objfree((void*)dir->buffer);
             dir->buffer = new_buffer;
             dir->buffer_size = new_size;
             dir->buffer_is_malloced = true;
@@ -131,7 +129,7 @@ static int streambuf_keep(struct streambuf_unidir *dir)
     if (dir->buffer_is_malloced) return 0;  // we already own a copy, do not touch it.
 
     size_t const len = dir->buffer_size - dir->restart_offset;
-    uint8_t *buf = MALLOC(streambufs, len);
+    uint8_t *buf = objalloc(len, "streambufs");
     if (! buf) {
         dir->buffer = NULL; // never escape from here with buffer referencing a non malloced packet
         return -1;
@@ -147,7 +145,6 @@ static int streambuf_keep(struct streambuf_unidir *dir)
 
 enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
-    MALLOCER_INIT(streambufs);
     assert(way < 2);
     enum proto_parse_status status = streambuf_append(sbuf, way, packet, cap_len, wire_len);
     if (status != PROTO_OK) return status;

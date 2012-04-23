@@ -24,7 +24,7 @@
 #include <stdio.h>
 #include "junkie/cpp.h"
 #include "junkie/tools/ext.h"
-#include "junkie/tools/mallocer.h"
+#include "junkie/tools/objalloc.h"
 #include "junkie/tools/hash.h"
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/log.h"
@@ -208,7 +208,7 @@ static struct mux_subparser *tcp_subparser_new(struct mux_parser *mux_parser, st
     if (! tcp_subparser) return NULL;
 
     if (0 != tcp_subparser_ctor(tcp_subparser, mux_parser, child, requestor, key, now)) {
-        FREE(tcp_subparser);
+        objfree(tcp_subparser);
         return NULL;
     }
 
@@ -241,7 +241,7 @@ static void tcp_subparser_del(struct mux_subparser *mux_subparser)
 {
     struct tcp_subparser *tcp_subparser = DOWNCAST(mux_subparser, mux_subparser, tcp_subparser);
     tcp_subparser_dtor(tcp_subparser);
-    FREE(tcp_subparser);
+    objfree(tcp_subparser);
 }
 
 struct mux_subparser *tcp_subparser_lookup(struct parser *parser, struct proto *proto, struct proto *requestor, uint16_t src, uint16_t dst, unsigned way, struct timeval const *now)

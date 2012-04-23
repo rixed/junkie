@@ -23,14 +23,12 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include "junkie/tools/ext.h"
-#include "junkie/tools/mallocer.h"
+#include "junkie/tools/objalloc.h"
 #include "junkie/tools/log.h"
 #include "junkie/tools/miscmacs.h"
 #include "junkie/tools/hash.h"
 
 struct hashes hashes = LIST_HEAD_INITIALIZER(hashes);
-
-MALLOCER_DEF(hashes);
 
 /*
  * Extensions
@@ -81,9 +79,7 @@ void hash_init(void)
 {
     if (inited++) return;
     ext_init();
-    mallocer_init();
-
-    MALLOCER_INIT(hashes);
+    objalloc_init();
 
     nb_lists_sym       = scm_permanent_object(scm_from_latin1_symbol("nb-lists"));
     nb_lists_min_sym   = scm_permanent_object(scm_from_latin1_symbol("nb-lists-min"));
@@ -105,6 +101,6 @@ void hash_fini(void)
 {
     if (--inited) return;
 
-    mallocer_fini();
+    objalloc_fini();
     ext_fini();
 }

@@ -7,7 +7,7 @@
 #include <assert.h>
 #include <junkie/cpp.h>
 #include <junkie/tools/timeval.h>
-#include <junkie/tools/mallocer.h>
+#include <junkie/tools/objalloc.h>
 #include <junkie/tools/ext.h>
 #include <junkie/tools/hash.h>
 #include <junkie/proto/pkt_wait_list.h>
@@ -348,7 +348,7 @@ int main(void)
     log_init();
     mutex_init();
     ext_init();
-    mallocer_init();
+    objalloc_init();
     hash_init();
     cnxtrack_init();
     pkt_wait_list_init();
@@ -379,7 +379,7 @@ int main(void)
     pkt_wait_list_fini();
     cnxtrack_fini();
     hash_fini();
-    mallocer_fini();
+    objalloc_fini();
     ext_fini();
     mutex_fini();
     log_fini();

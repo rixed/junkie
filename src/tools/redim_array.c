@@ -23,37 +23,66 @@
 #include "junkie/tools/log.h"
 #include "junkie/tools/redim_array.h"
 #include "junkie/tools/mallocer.h"
+#include "junkie/tools/mutex.h"
 
-struct redim_arrays redim_arrays = LIST_HEAD_INITIALIZER(redim_arrays);
+#undef LOG_CAT
+#define LOG_CAT redim_array_log_category
+LOG_CATEGORY_DEF(redim_array);
+
+static LIST_HEAD(redim_arrays, redim_array) redim_arrays = LIST_HEAD_INITIALIZER(redim_arrays);
+static struct mutex redim_arrays_mutex;
 
 /*
  * Array chunks
  */
 
+struct freecell {   // when an object is freed that is not at the last entry, add it to the free list.
+    SLIST_ENTRY(freecell) entry;
+};
+
+/* A malloced cell can be either used or unused (ie. before nb_used or after).
+ * A used cell can be freed or not (ie on the free list or not).
+ * We make no effort to reduce nb_used when cells are freed.
+ * Instead, chunks are cleared globally when nb_holes reach nb_malloced. */
 struct redim_array_chunk {
     TAILQ_ENTRY(redim_array_chunk) entry;
-    unsigned nb_entries;
+    SLIST_HEAD(freecells, freecell) freelist;    // the list of free cells in this redim_array (ie. cells before nb_used that were freed).
+    unsigned nb_used;    // either alloced to user or on the freelist
+    unsigned nb_malloced;
+    unsigned nb_holes;  // size of freelist
     struct redim_array *array;
     char bytes[];   // Beware: variable size !
 };
 
+// Caller must own chunks_mutex
 static struct redim_array_chunk *chunk_new(struct redim_array *ra)
 {
     MALLOCER(redim_array);
-    SLOG(LOG_DEBUG, "New chunk of %zu bytes for array@%p", (ra->alloc_size * ra->entry_size), ra);
-    struct redim_array_chunk *chunk = MALLOC(redim_array, sizeof(*chunk) + ra->alloc_size * ra->entry_size);
+    ra->nb_chunks ++;
+    unsigned const nb_malloced = ra->alloc_size * ra->nb_chunks;    // first chunk is alloc_size entries long, second is twice this, third is 3 times this, and so on
+
+    struct redim_array_chunk *chunk = MALLOC(redim_array, sizeof(*chunk) + nb_malloced * ra->entry_size);
+    SLOG(LOG_INFO, "New chunk@%p of %zu bytes for array %s@%p", chunk, (nb_malloced * ra->entry_size), ra->name, ra);
 
     TAILQ_INSERT_TAIL(&ra->chunks, chunk, entry);
-    chunk->nb_entries = 0;
+    chunk->nb_used = 0;
+    SLIST_INIT(&chunk->freelist);
+    chunk->nb_holes = 0;
+    chunk->nb_malloced = nb_malloced;
     chunk->array = ra;
+    ra->nb_malloced += nb_malloced;
     return chunk;
 }
 
+// Caller must own chunks_mutex
 static void chunk_del(struct redim_array_chunk *chunk)
 {
-    SLOG(LOG_DEBUG, "Del chunk of array@%p", chunk->array);
+    SLOG(LOG_INFO, "Del chunk@%p of array %s@%p", chunk, chunk->array->name, chunk->array);
     TAILQ_REMOVE(&chunk->array->chunks, chunk, entry);
-    chunk->array->nb_entries -= chunk->nb_entries;
+    chunk->array->nb_used -= chunk->nb_used;
+    chunk->array->nb_malloced -= chunk->nb_malloced;
+    chunk->array->nb_holes -= chunk->nb_holes;
+    chunk->array->nb_chunks --;
     FREE(chunk);
 }
 
@@ -63,77 +92,115 @@ static void chunk_del(struct redim_array_chunk *chunk)
 
 int redim_array_ctor(struct redim_array *ra, unsigned alloc_size, size_t entry_size, char const *name)
 {
-    ra->nb_entries = 0;
+    entry_size = MAX(entry_size, sizeof(struct freecell));
+    SLOG(LOG_INFO, "Construct redim_array %s@%p for entries of size %zu", name, ra, entry_size);
+    ra->nb_used = 0;
+    ra->nb_malloced = 0;
+    ra->nb_holes = 0;
+    ra->nb_chunks = 0;
     ra->alloc_size = alloc_size;
     ra->entry_size = entry_size;
     ra->name = name;
     TAILQ_INIT(&ra->chunks);
+    mutex_ctor(&ra->chunks_mutex, "redim_array chunks");
+    mutex_lock(&redim_arrays_mutex);
     LIST_INSERT_HEAD(&redim_arrays, ra, entry);
+    mutex_unlock(&redim_arrays_mutex);
     return 0;
 }
 
 void redim_array_dtor(struct redim_array *ra)
 {
+    SLOG(LOG_INFO, "Destruct redim_array %s@%p", ra->name, ra);
     redim_array_clear(ra);
+    mutex_lock(&redim_arrays_mutex);
     LIST_REMOVE(ra, entry);
+    mutex_unlock(&redim_arrays_mutex);
+    mutex_dtor(&ra->chunks_mutex);
 }
 
 /*
  * Access to array cells
  */
 
+/// returns the nth malloced entry in a chunk
 static void *chunk_entry(struct redim_array_chunk *chunk, unsigned n)
 {
     return chunk->bytes + n * chunk->array->entry_size;
 }
 
-void redim_array_push(struct redim_array *ra, void *cell)
+void *redim_array_get(struct redim_array *ra)
 {
-    struct redim_array_chunk *chunk = TAILQ_LAST(&ra->chunks, redim_array_chunks);
+    void *ret = NULL;
 
-    if (! chunk || chunk->nb_entries >= ra->alloc_size) {
-        chunk = chunk_new(ra);
+    mutex_lock(&ra->chunks_mutex);
+
+    // Look for the first chunk with free or unused cells
+    struct redim_array_chunk *chunk;
+    TAILQ_FOREACH(chunk, &ra->chunks, entry) {  // a specific list for unfilled chunks seams overkill
+        if (! SLIST_EMPTY(&chunk->freelist)) {
+            ret = SLIST_FIRST(&chunk->freelist);
+            SLIST_REMOVE_HEAD(&chunk->freelist, entry);
+            chunk->nb_holes --;
+            ra->nb_holes --;
+            goto quit;
+        }
+        if (chunk->nb_used < chunk->nb_malloced) {
+            ret = chunk_entry(chunk, chunk->nb_used++);
+            ra->nb_used ++;
+            goto quit;
+        }
     }
 
+    assert(! chunk);
+    chunk = chunk_new(ra);
+    assert(chunk);  // FIXME: handle NULL result from redim_array_get
+    ret = chunk_entry(chunk, chunk->nb_used++);
+    ra->nb_used ++;
+quit:
+    SLOG(LOG_DEBUG, "Get cell@%p from array@%p", ret, ra);
+    mutex_unlock(&ra->chunks_mutex);
+    return ret;
+}
+
+void redim_array_free(struct redim_array *ra, void *cell)
+{
+    SLOG(LOG_DEBUG, "Freeing cell@%p from array@%p", cell, ra);
+
+    mutex_lock(&ra->chunks_mutex);
+
+    // Find the relevant chunk
+    struct redim_array_chunk *chunk;
+    TAILQ_FOREACH(chunk, &ra->chunks, entry) {
+        if (cell >= chunk_entry(chunk, 0) && cell < chunk_entry(chunk, chunk->nb_used)) break;
+    }
     assert(chunk);
+    assert(chunk->nb_malloced >= chunk->nb_used);
+    assert(chunk->nb_used >= chunk->nb_holes+1);
 
-    memcpy(chunk->bytes + chunk->nb_entries * ra->entry_size, cell, ra->entry_size);
-    chunk->nb_entries ++;
-    chunk->array->nb_entries ++;
-}
-
-void *redim_array_last(struct redim_array *ra)
-{
-    struct redim_array_chunk *chunk = TAILQ_LAST(&ra->chunks, redim_array_chunks);
-    if (! chunk) return NULL;
-
-    assert(chunk->nb_entries != 0);
-    return chunk_entry(chunk, chunk->nb_entries-1);
-}
-
-void redim_array_chop(struct redim_array *ra)
-{
-    struct redim_array_chunk *chunk = TAILQ_LAST(&ra->chunks, redim_array_chunks);
-    assert(chunk);  // This is an error to chop an empty array
-
-    assert(chunk->nb_entries != 0);
-    if (chunk->nb_entries == 1) {
+    struct freecell *cell_ = cell;
+    SLIST_INSERT_HEAD(&chunk->freelist, cell_, entry);
+    chunk->nb_holes ++;
+    chunk->array->nb_holes ++;
+    if (chunk->nb_holes == chunk->nb_used) {
         chunk_del(chunk);
-    } else {
-        chunk->nb_entries --;
-        chunk->array->nb_entries --;
     }
+
+    mutex_unlock(&ra->chunks_mutex);
 }
 
 void redim_array_clear(struct redim_array *ra)
 {
+    mutex_lock(&ra->chunks_mutex);
     struct redim_array_chunk *chunk;
     while (NULL != (chunk = TAILQ_LAST(&ra->chunks, redim_array_chunks))) {
         chunk_del(chunk);
     }
-    assert(ra->nb_entries == 0);
+    assert(ra->nb_used == 0);
+    assert(ra->nb_malloced == 0);
+    assert(ra->nb_holes == 0);
+    mutex_unlock(&ra->chunks_mutex);
 }
-
 
 int redim_array_foreach(struct redim_array *ra, int (*cb)(struct redim_array *, void *cell, va_list), ...)
 {
@@ -141,9 +208,12 @@ int redim_array_foreach(struct redim_array *ra, int (*cb)(struct redim_array *, 
     va_list ap;
     va_start(ap, cb);
 
-    struct redim_array_chunk *chunk, *tmp;
-    TAILQ_FOREACH_SAFE(chunk, &ra->chunks, entry, tmp) {
-        for (unsigned c = 0; c < chunk->nb_entries; c++) {
+    mutex_lock(&ra->chunks_mutex);  // Callback is not allowed to mess with the redim_array
+    struct redim_array_chunk *chunk;
+    TAILQ_FOREACH(chunk, &ra->chunks, entry) {
+        assert(chunk->nb_malloced >= chunk->nb_used);
+        assert(chunk->nb_used >= chunk->nb_holes);
+        for (unsigned c = 0; c < chunk->nb_used; c++) {
             va_list aq;
             va_copy(aq, ap);
             ret = cb(ra, chunk_entry(chunk, c), aq);
@@ -152,6 +222,8 @@ int redim_array_foreach(struct redim_array *ra, int (*cb)(struct redim_array *, 
         }
     }
 quit:
+    mutex_unlock(&ra->chunks_mutex);
+
     va_end(ap);
     return ret;
 }
@@ -165,7 +237,9 @@ static SCM g_array_names(void)
 {
     SCM ret = SCM_EOL;
     struct redim_array *array;
+    mutex_lock(&redim_arrays_mutex);
     LIST_FOREACH(array, &redim_arrays, entry) ret = scm_cons(scm_from_locale_string(array->name), ret);
+    mutex_unlock(&redim_arrays_mutex);
     return ret;
 }
 
@@ -173,11 +247,14 @@ static struct redim_array *array_of_scm_name(SCM name_)
 {
     char *name = scm_to_tempstr(name_);
     struct redim_array *array;
-    LIST_LOOKUP(array, &redim_arrays, entry, 0 == strcasecmp(name, array->name));
+    LIST_LOOKUP_LOCKED(array, &redim_arrays, entry, 0 == strcasecmp(name, array->name), &redim_arrays_mutex);
     return array;
 }
 
-static SCM nb_entries_sym;
+static SCM nb_used_sym;
+static SCM nb_malloced_sym;
+static SCM nb_holes_sym;
+static SCM nb_chunks_sym;
 static SCM alloc_size_sym;
 static SCM entry_size_sym;
 
@@ -187,11 +264,14 @@ static SCM g_array_stats(SCM name_)
     struct redim_array *array = array_of_scm_name(name_);
     if (! array) return SCM_UNSPECIFIED;
 
-    return scm_list_3(
-        // See g_proto_stats
-        scm_cons(nb_entries_sym, scm_from_uint(array->nb_entries)),
-        scm_cons(alloc_size_sym, scm_from_uint(array->alloc_size)),
-        scm_cons(entry_size_sym, scm_from_size_t(array->entry_size)));
+    return scm_list_n(
+        scm_cons(nb_used_sym,     scm_from_uint(array->nb_used)),
+        scm_cons(nb_malloced_sym, scm_from_uint(array->nb_malloced)),
+        scm_cons(nb_holes_sym,    scm_from_uint(array->nb_holes)),
+        scm_cons(nb_chunks_sym,   scm_from_uint(array->nb_chunks)),
+        scm_cons(alloc_size_sym,  scm_from_uint(array->alloc_size)),
+        scm_cons(entry_size_sym,  scm_from_size_t(array->entry_size)),
+        SCM_UNDEFINED);
 }
 
 static unsigned inited;
@@ -199,14 +279,22 @@ void redim_array_init(void)
 {
     if (inited++) return;
     ext_init();
+    mutex_init();
+    mallocer_init();
 
-    nb_entries_sym = scm_permanent_object(scm_from_latin1_symbol("nb-entries"));
-    alloc_size_sym = scm_permanent_object(scm_from_latin1_symbol("alloc-size"));
-    entry_size_sym = scm_permanent_object(scm_from_latin1_symbol("entry-size"));
+    log_category_redim_array_init();
+
+    mutex_ctor(&redim_arrays_mutex, "redim_arrays");
+    nb_used_sym     = scm_permanent_object(scm_from_latin1_symbol("nb-used"));
+    nb_malloced_sym = scm_permanent_object(scm_from_latin1_symbol("nb-malloced"));
+    nb_holes_sym    = scm_permanent_object(scm_from_latin1_symbol("nb-holes"));
+    nb_chunks_sym   = scm_permanent_object(scm_from_latin1_symbol("nb-chunks"));
+    alloc_size_sym  = scm_permanent_object(scm_from_latin1_symbol("alloc-size"));
+    entry_size_sym  = scm_permanent_object(scm_from_latin1_symbol("entry-size"));
 
     ext_function_ctor(&sg_array_names,
         "array-names", 0, 0, 0, g_array_names,
-        "(array-names): returns the list of availbale array names.\n");
+        "(array-names): returns the list of available array names.\n");
 
     ext_function_ctor(&sg_array_stats,
         "array-stats", 1, 0, 0, g_array_stats,
@@ -219,5 +307,9 @@ void redim_array_fini(void)
 {
     if (--inited) return;
 
+    log_category_redim_array_fini();
+    mallocer_fini();
+    mutex_dtor(&redim_arrays_mutex);
+    mutex_fini();
     ext_fini();
 }

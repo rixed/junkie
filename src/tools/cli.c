@@ -26,7 +26,7 @@
 #include "junkie/tools/miscmacs.h"
 #include "junkie/tools/queue.h"
 #include "junkie/tools/mutex.h"
-#include "junkie/tools/mallocer.h"
+#include "junkie/tools/objalloc.h"
 #include "junkie/tools/ext.h"   // for version_string
 #include "junkie/tools/cli.h"
 
@@ -44,8 +44,7 @@ int cli_register(char const *name, struct cli_opt *opts, unsigned nb_opts)
 {
     SLOG(LOG_DEBUG, "Registering a new bloc of command line options for %s", name);
 
-    MALLOCER(cli_blocs);
-    struct cli_bloc *bloc = MALLOC(cli_blocs, sizeof(*bloc));
+    struct cli_bloc *bloc = objalloc(sizeof(*bloc), "CLI blocs");
     if (! bloc) return -1;
 
     bloc->name = name;
@@ -67,7 +66,7 @@ int cli_unregister(struct cli_opt *opts)
         if (bloc->opts != opts) continue;
         SLOG(LOG_DEBUG, "Unregistering command line option bloc for %s", bloc->name);
         TAILQ_REMOVE(&cli_blocs, bloc, entry);
-        FREE(bloc);
+        objfree(bloc);
         ret = 0;
         break;
     }

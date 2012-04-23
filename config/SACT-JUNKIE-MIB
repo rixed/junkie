@@ -342,4 +342,94 @@ guileMemory OBJECT-TYPE
 		 only sparsely scattered into these segments."
 	::= { junkieMemory 2 }
 
+arrayTable OBJECT-TYPE
+	SYNTAX SEQUENCE OF arrayEntry
+	MAX-ACCESS not-accessible
+	STATUS current
+	DESCRIPTION
+		"This table gives informations about all the arrays used by the
+		 sniffer. As (almost) all objects are allocated via arrays then
+		 this table gives insightful informations on such things as memory
+		 consumption per object type and RAM fragmentation."
+	::= { junkieMemory 3 }
+
+arrayEntry OBJECT-TYPE
+	SYNTAX ArrayEntry
+	MAX-ACCESS not-accessible
+	STATUS current
+	DESCRIPTION "A row giving statistics on a given array."
+	INDEX { arrayName }
+	::= { arrayTable 1 }
+
+ArrayEntry ::= SEQUENCE {
+	arrayName OCTET STRING,
+	usedEntries Gauge32,
+	mallocedEntries Gauge32,
+	nbHoles Gauge32,
+	nbChunks Gauge32,
+	allocSize Integer32,
+	entrySize Integer32
+}
+
+arrayName OBJECT-TYPE
+	SYNTAX OCTET STRING
+	MAX-ACCESS read-only
+	STATUS current
+	DESCRIPTION "The name of the array."
+	::= { arrayEntry 1 }
+
+usedEntries OBJECT-TYPE
+	SYNTAX Gauge32
+	MAX-ACCESS read-only
+	STATUS current
+	DESCRIPTION
+		"How many of the malloced entries are used to store a value
+		 or a free list item."
+	::= { arrayEntry 2 }
+
+mallocedEntries OBJECT-TYPE
+	SYNTAX Gauge32
+	MAX-ACCESS read-only
+	STATUS current
+	DESCRIPTION "How many entries are malloced."
+	::= { arrayEntry 3 }
+
+nbHoles OBJECT-TYPE
+	SYNTAX Gauge32
+	MAX-ACCESS read-only
+	STATUS current
+	DESCRIPTION
+		"How many objects were allocated and later freed, that
+		 we keep on the freelist."
+	::= { arrayEntry 4 }
+
+nbChunks OBJECT-TYPE
+	SYNTAX Gauge32
+	MAX-ACCESS read-only
+	STATUS current
+	DESCRIPTION
+		"How many chunks of memory are used to map this array.
+		 The more there are, the slower the allocation/free of
+		 individual entries."
+	::= { arrayEntry 5 }
+
+allocSize OBJECT-TYPE
+	SYNTAX Integer32
+	UNITS "bytes"
+	MAX-ACCESS read-only
+	STATUS current
+	DESCRIPTION
+		"Size of the initial chunk of memory. Further chunks
+		 are allocated bigger such that the nth chunk will be
+		 n times bigger than this."
+	::= { arrayEntry 6 }
+
+entrySize OBJECT-TYPE
+	SYNTAX Integer32
+	UNITS "bytes"
+	MAX-ACCESS read-only
+	STATUS current
+	DESCRIPTION "Size of a single entry."
+	::= { arrayEntry 7 }
+
 END

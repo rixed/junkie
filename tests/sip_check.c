@@ -143,7 +143,7 @@ int main(void)
     ext_init();
     log_init();
     mutex_init();
-    mallocer_init();
+    objalloc_init();
     hash_init();
     cnxtrack_init();
     pkt_wait_list_init();
@@ -177,7 +177,7 @@ int main(void)
     pkt_wait_list_fini();
     cnxtrack_fini();
     hash_fini();
-    mallocer_fini();
+    objalloc_fini();
     mutex_fini();
     log_fini();
     ext_fini();

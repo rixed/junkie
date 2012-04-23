@@ -4,27 +4,32 @@
 #define REDIM_ARRAY_H_100907
 #include <stdarg.h>
 #include <junkie/tools/queue.h>
+#include <junkie/tools/mutex.h>
 
 /** @file
  * @brief Redimentionable arrays
+ *
+ * In order to make good object allocator, each chunk of array comes
+ * with its internal freelist, and empty chunks are deleted when empty.
  */
 
 /** A redim_array is a redimentionable array.
- * Each time you hit it's lenght you can resize it, without time penalty.
- * Performence are similar than a mere array if your initial size guess is validm
+ * Each time you hit its lenght you can resize it, without much time penalty.
+ * Performences are similar than a mere array if your initial size guess is valid
  * or similar to a mere list if your initial guess is too small.
  */
 struct redim_array {
-    unsigned nb_entries;    ///< Number of used entries
-    unsigned alloc_size;    ///< Initial guess of the array size (we are going to alloc chunks of this size)
+    unsigned nb_used;       ///< Number of used entries
+    unsigned nb_malloced;   ///< Number of malloced entries
+    unsigned nb_holes;      ///< Number of used entries freed by user (on the freelist)
+    unsigned nb_chunks;     ///< How many chunks of memory are used to map this array
+    unsigned alloc_size;    ///< Size of the initial chunk of memory (nth chunk will be n times bigger)
     size_t entry_size;      ///< Size of a single value
     TAILQ_HEAD(redim_array_chunks, redim_array_chunk) chunks;   ///< List of array chunks
+    struct mutex chunks_mutex;  ///< Mutex to protect the above chunks list (and the various counters)
     LIST_ENTRY(redim_array) entry;  ///< Entry in the list of all redim_arrays
     char const *name;       ///< Name of the array, for stats purpose
 };
-
-/// List of all existing redim_array, for stats purpose.
-extern LIST_HEAD(redim_arrays, redim_array) redim_arrays;
 
 /// Construct a new redim_array
 int redim_array_ctor(struct redim_array *, unsigned alloc_size, size_t entry_size, char const *name);
@@ -32,16 +37,13 @@ int redim_array_ctor(struct redim_array *, unsigned alloc_size, size_t entry_siz
 /// Destruct a redim array
 void redim_array_dtor(struct redim_array *);
 
-/// Append a cell at the end of the array
-void redim_array_push(struct redim_array *, void *cell);
-
 /// We do not provide redim_array_pop because we don't want to return an address of an element that was removed from the array
 
-/// @return the last cell from the array, or NULL if the array is empty
-void *redim_array_last(struct redim_array *);
+/// @return the first reusable cell in the redim_array
+void *redim_array_get(struct redim_array *);
 
-/// Chop the last entry of an array.
-void redim_array_chop(struct redim_array *);
+/// Free this entry (and try to compact the redim_array by getting rid of empty chunks)
+void redim_array_free(struct redim_array *, void *);
 
 /// Empty the array.
 void redim_array_clear(struct redim_array *);

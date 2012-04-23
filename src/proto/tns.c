@@ -23,7 +23,7 @@
 #include <ctype.h>
 #include "junkie/cpp.h"
 #include "junkie/tools/log.h"
-#include "junkie/tools/mallocer.h"
+#include "junkie/tools/objalloc.h"
 #include "junkie/tools/mutex.h"
 #include "junkie/proto/tcp.h"
 #include "junkie/proto/sql.h"
@@ -57,12 +57,11 @@ static int tns_parser_ctor(struct tns_parser *tns_parser, struct proto *proto)
 
 static struct parser *tns_parser_new(struct proto *proto)
 {
-    MALLOCER(tns_parsers);
-    struct tns_parser *tns_parser = MALLOC(tns_parsers, sizeof(*tns_parser));
+    struct tns_parser *tns_parser = objalloc(sizeof(*tns_parser), "TNS parsers");
     if (! tns_parser) return NULL;
 
     if (-1 == tns_parser_ctor(tns_parser, proto)) {
-        FREE(tns_parser);
+        objfree(tns_parser);
         return NULL;
     }
 
@@ -80,7 +79,7 @@ static void tns_parser_del(struct parser *parser)
 {
     struct tns_parser *tns_parser = DOWNCAST(parser, parser, tns_parser);
     tns_parser_dtor(tns_parser);
-    FREE(tns_parser);
+    objfree(tns_parser);
 }
 
 /*

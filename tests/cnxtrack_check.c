@@ -7,7 +7,7 @@
 #include <string.h>
 #include <junkie/tools/miscmacs.h>
 #include <junkie/tools/ext.h>
-#include <junkie/tools/mallocer.h>
+#include <junkie/tools/objalloc.h>
 #include <junkie/tools/hash.h>
 #include <junkie/cpp.h>
 #include <junkie/proto/pkt_wait_list.h>
@@ -184,7 +184,7 @@ int main(void)
     log_init();
     mutex_init();
     ext_init();
-    mallocer_init();
+    objalloc_init();
     hash_init();
     cnxtrack_init();
     proto_init();
@@ -215,7 +215,7 @@ int main(void)
     proto_fini();
     cnxtrack_fini();
     hash_fini();
-    mallocer_fini();
+    objalloc_fini();
     ext_fini();
     mutex_fini();
     log_fini();

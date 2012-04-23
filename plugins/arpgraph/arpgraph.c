@@ -21,7 +21,7 @@
 #include <stdio.h>
 #include "junkie/cpp.h"
 #include "junkie/tools/cli.h"
-#include "junkie/tools/mallocer.h"
+#include "junkie/tools/objalloc.h"
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/hash.h"
 #include "junkie/proto/arp.h"
@@ -98,8 +98,7 @@ static struct edge *edge_new(struct edge_key const *key)
         return NULL;
     }
 
-    MALLOCER(edges);
-    edge = MALLOC(edges, sizeof(*edge));
+    edge = objalloc(sizeof(*edge), "edges");
     if (! edge) return NULL;
 
     edge_ctor(edge, key);
@@ -116,7 +115,7 @@ static void edge_dtor(struct edge *edge)
 static void edge_del(struct edge *edge)
 {
     edge_dtor(edge);
-    FREE(edge);
+    objfree(edge);
 }
 
 // Extension of the command line:
@@ -177,6 +176,7 @@ static struct proto_subscriber subscription;
 
 void on_load(void)
 {
+    objalloc_init();
     hash_init();
     SLOG(LOG_INFO, "Loading arpgraph");
     cli_register("Arpgraph plugin", arpgraph_opts, NB_ELEMS(arpgraph_opts));
@@ -191,5 +191,6 @@ void on_unload(void)
     cli_unregister(arpgraph_opts);
     HASH_DEINIT(&edges);
     hash_fini();
+    objalloc_fini();
 }
 

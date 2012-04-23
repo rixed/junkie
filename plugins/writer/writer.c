@@ -28,7 +28,7 @@
 #include "junkie/tools/ext.h"
 #include "junkie/tools/queue.h"
 #include "junkie/tools/mutex.h"
-#include "junkie/tools/mallocer.h"
+#include "junkie/tools/objalloc.h"
 #include "junkie/proto/capfile.h"
 #include "junkie/proto/proto.h"
 #include "junkie/proto/cap.h"
@@ -48,21 +48,18 @@ struct netmatch_filter {
     npc_match_fn *match_fun;
 };
 
-static MALLOCER_DEC(netmatches);
-
 static int netmatch_filter_ctor(struct netmatch_filter *netmatch, char const *libname, unsigned nb_regs)
 {
-    MALLOCER_INIT(netmatches);
     netmatch->nb_registers = nb_regs;
     if (nb_regs > 0) {
-        netmatch->regfile = MALLOC(netmatches, nb_regs * sizeof(*netmatch->regfile));
+        netmatch->regfile = objalloc(nb_regs * sizeof(*netmatch->regfile), "netmatches");
         if (! netmatch->regfile) goto err0;
         memset(netmatch->regfile, 0, nb_regs * sizeof(*netmatch->regfile));
     } else {
         netmatch->regfile = NULL;
     }
 
-    netmatch->libname = STRDUP(netmatches, libname);
+    netmatch->libname = objalloc_strdup(libname);
     if (! netmatch->libname) {
         goto err1;
     }
@@ -87,12 +84,12 @@ err3:
     }
 err2:
     if (netmatch->libname) {
-        FREE(netmatch->libname);
+        objfree(netmatch->libname);
         netmatch->libname = NULL;
     }
 err1:
     if (netmatch->regfile) {
-        FREE(netmatch->regfile);
+        objfree(netmatch->regfile);
         netmatch->regfile = NULL;
     }
 err0:
@@ -102,12 +99,12 @@ err0:
 static void netmatch_filter_dtor(struct netmatch_filter *netmatch)
 {
     if (netmatch->regfile) {
-        FREE(netmatch->regfile);
+        objfree(netmatch->regfile);
         netmatch->regfile = NULL;
     }
 
     if (netmatch->libname) {
-        FREE(netmatch->libname);
+        objfree(netmatch->libname);
         netmatch->libname = NULL;
     }
 
@@ -515,6 +512,7 @@ static struct proto_subscriber subscription;
 void on_load(void)
 {
     log_category_writer_init();
+    objalloc_init();
     SLOG(LOG_INFO, "Loading writer");
     cli_register("Writer plugin", writer_opts, NB_ELEMS(writer_opts));
     LIST_INIT(&capture_confs);
@@ -590,6 +588,7 @@ void on_unload(void)
     }
 
     mutex_dtor(&confs_lock);
+    objalloc_fini();
     log_category_writer_fini();
 }
 

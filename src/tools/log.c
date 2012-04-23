@@ -240,12 +240,11 @@ static unsigned inited;
 void log_init(void)
 {
     if (inited++) return;
-    files_init();
-    ext_init();
-
     SLIST_INIT(&log_categories);
     log_category_global_init();
     log_category_guile_init();
+    files_init();
+    ext_init();
 
     ext_function_ctor(&sg_set_log_level, "set-log-level", 1, 1, 0, g_set_log_level,
         "(set-log-level n): sets log level globally to n.\n"

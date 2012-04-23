@@ -33,6 +33,7 @@
 #include "junkie/tools/mallocer.h"
 #include "junkie/tools/hash.h"
 #include "junkie/tools/redim_array.h"
+#include "junkie/tools/objalloc.h"
 #include "junkie/cpp.h"
 // For initers/finiters
 #include "junkie/proto/capfile.h"
@@ -75,7 +76,7 @@ static struct {
     void (*fini)(void);
 } initers[] = {
 #   define I(x) { x##_init, x##_fini }
-    I(plugins),       I(nettrack),
+    I(objalloc),      I(plugins),     I(nettrack),
     I(cnxtrack),      I(proto),       I(fuzzing),
     I(pkt_wait_list), I(port_muxer),
     I(cap),           I(eth),         I(arp),

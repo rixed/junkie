@@ -27,7 +27,7 @@
 #include "junkie/tools/log.h"
 #include "junkie/tools/miscmacs.h"
 #include "junkie/tools/tempstr.h"
-#include "junkie/tools/mallocer.h"
+#include "junkie/tools/objalloc.h"
 #include "junkie/tools/ext.h"
 #include "junkie/proto/serialize.h"
 #include "junkie/proto/proto.h"
@@ -261,7 +261,7 @@ static struct mux_subparser *ip_subparser_new(struct mux_parser *mux_parser, str
     if (! ip_subparser) return NULL;
 
     if (0 != ip_subparser_ctor(ip_subparser, mux_parser, child, requestor, key, now)) {
-        FREE(ip_subparser);
+        objfree(ip_subparser);
         return NULL;
     }
 
@@ -295,7 +295,7 @@ static void ip_subparser_del(struct mux_subparser *mux_subparser)
     timeval_set_now(&now);
     struct ip_subparser *ip_subparser = DOWNCAST(mux_subparser, mux_subparser, ip_subparser);
     ip_subparser_dtor(ip_subparser, &now);
-    FREE(ip_subparser);
+    objfree(ip_subparser);
 }
 
 static struct pkt_wl_config ip_reassembly_config;
@@ -382,7 +382,7 @@ static enum proto_parse_status reassemble(struct ip_reassembly *reassembly, stru
     // may fail for instance if cap_len was not big enough
     uint8_t *payload = pkt_wait_list_reassemble(&reassembly->wl, 0, reassembly->end_offset);
     enum proto_parse_status status = pkt_wait_list_flush(&reassembly->wl, payload, reassembly->end_offset, reassembly->end_offset, now);
-    if (payload) FREE(payload);
+    if (payload) objfree(payload);
     ip_reassembly_dtor(reassembly, now);
     return status;
 }

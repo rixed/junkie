@@ -21,7 +21,7 @@
 #include <assert.h>
 #include <string.h>
 #include <ctype.h>
-#include "junkie/tools/mallocer.h"
+#include "junkie/tools/objalloc.h"
 #include "junkie/tools/tempstr.h"
 #include "junkie/proto/serialize.h"
 #include "junkie/proto/udp.h"
@@ -55,12 +55,11 @@ static int mgcp_parser_ctor(struct mgcp_parser *mgcp_parser, struct proto unused
 
 static struct parser *mgcp_parser_new(struct proto *proto)
 {
-    MALLOCER(mgcp_parsers);
-    struct mgcp_parser *mgcp_parser = MALLOC(mgcp_parsers, sizeof(*mgcp_parser));
+    struct mgcp_parser *mgcp_parser = objalloc(sizeof(*mgcp_parser), "MGCP parsers");
     if (! mgcp_parser) return NULL;
 
     if (-1 == mgcp_parser_ctor(mgcp_parser, proto)) {
-        FREE(mgcp_parser);
+        objfree(mgcp_parser);
         return NULL;
     }
 
@@ -77,7 +76,7 @@ static void mgcp_parser_del(struct parser *parser)
 {
     struct mgcp_parser *mgcp_parser = DOWNCAST(parser, parser, mgcp_parser);
     mgcp_parser_dtor(mgcp_parser);
-    FREE(mgcp_parser);
+    objfree(mgcp_parser);
 }
 
 /*

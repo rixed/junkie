@@ -31,7 +31,7 @@
 #include <assert.h>
 #include "junkie/tools/files.h"
 #include "junkie/tools/log.h"
-#include "junkie/tools/mallocer.h"
+#include "junkie/tools/objalloc.h"
 
 int mkdir_all(char const *path, bool is_filename)
 {
@@ -254,9 +254,7 @@ void *file_load(char const *file_name, size_t *len_)
 
     if (len == 0) return NULL;
 
-    MALLOCER(file_content);
-
-    char *buf = MALLOC(file_content, len+1);
+    char *buf = objalloc(len+1, "files");
     if (! buf) {
         SLOG(LOG_ERR, "Cannot alloc for reading %zu bytes", len);
         return NULL;
@@ -274,7 +272,7 @@ void *file_load(char const *file_name, size_t *len_)
 err2:
     file_close(fd);
 err1:
-    FREE(buf);
+    objfree(buf);
     return NULL;
 }
 
@@ -353,12 +351,12 @@ static unsigned inited;
 void files_init(void)
 {
     if (inited++) return;
-    mallocer_init();
+    objalloc_init();
 }
 
 void files_fini(void)
 {
     if (--inited) return;
 
-    mallocer_fini();
+    objalloc_fini();
 }

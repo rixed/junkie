@@ -22,7 +22,7 @@
 #include "junkie/tools/ext.h"
 #include "junkie/tools/sock.h"
 #include "junkie/tools/queue.h"
-#include "junkie/tools/mallocer.h"
+#include "junkie/tools/objalloc.h"
 #include "junkie/tools/tempstr.h"
 #include "junkie/proto/serialize.h"
 #include "pkt_source.h"
@@ -175,8 +175,6 @@ void deserialize_proto_stack(uint8_t const **buf)
  * Extentions: ability to open/close/list (de)serializers
  */
 
-MALLOCER_DEF(deserializers);
-
 struct deserializer_source {
     LIST_ENTRY(deserializer_source) entry;
     uint32_t id;
@@ -204,10 +202,10 @@ static int deserializer_source_ctor(struct deserializer_source *source, struct d
 
 static struct deserializer_source *deserializer_source_new(struct deserializer *deser, uint32_t id)
 {
-    struct deserializer_source *source = MALLOC(deserializers, sizeof(*source));
+    struct deserializer_source *source = objalloc(sizeof(*source), "deserializer srcs");
     if (! source) return NULL;
     if (0 != deserializer_source_ctor(source, deser, id)) {
-        FREE(source);
+        objfree(source);
         return NULL;
     }
     return source;
@@ -318,11 +316,11 @@ static int deserializer_ctor(struct deserializer *deser, char const *service)
 
 static struct deserializer *deserializer_new(char const *service)
 {
-    struct deserializer *deser = MALLOC(deserializers, sizeof(*deser));
+    struct deserializer *deser = objalloc(sizeof(*deser), "deserializers");
     if (! deser) return NULL;
 
     if (0 != deserializer_ctor(deser, service)) {
-        FREE(deser);
+        objfree(deser);
         return NULL;
     }
 
@@ -349,7 +347,7 @@ static void deserializer_dtor(struct deserializer *deser)
 static void deserializer_del(struct deserializer *deser)
 {
     deserializer_dtor(deser);
-    FREE(deser);
+    objfree(deser);
 }
 
 static struct ext_function sg_open_deserializer;
@@ -459,7 +457,7 @@ static unsigned inited;
 void serialize_init(void)
 {
     if (inited++) return;
-    mallocer_init();
+    objalloc_init();
     ext_init();
     sock_init();
 
@@ -469,7 +467,6 @@ void serialize_init(void)
     nb_lost_msgs_sym = scm_permanent_object(scm_from_latin1_symbol("nb-lost-msgs"));
     sources_sym      = scm_permanent_object(scm_from_latin1_symbol("sources"));
 
-    MALLOCER_INIT(deserializers);
     LIST_INIT(&deserializers);
 
     ext_function_ctor(&sg_open_deserializer,
@@ -502,5 +499,5 @@ void serialize_fini(void)
 
     ext_fini();
     sock_fini();
-    mallocer_fini();
+    objalloc_fini();
 }

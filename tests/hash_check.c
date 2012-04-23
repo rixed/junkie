@@ -10,7 +10,7 @@
 #include <junkie/cpp.h>
 #include <junkie/tools/ext.h>
 #include <junkie/tools/tempstr.h>
-#include <junkie/tools/mallocer.h>
+#include <junkie/tools/objalloc.h>
 #include "tools/hash.c"
 
 struct h_value {
@@ -124,7 +124,7 @@ int main(void)
 {
     log_init();
     ext_init();
-    mallocer_init();
+    objalloc_init();
     hash_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("hash_check.log");
@@ -134,7 +134,7 @@ int main(void)
     rehash_check();
 
     hash_fini();
-    mallocer_fini();
+    objalloc_fini();
     ext_fini();
     log_fini();
     return EXIT_SUCCESS;

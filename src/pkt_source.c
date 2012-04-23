@@ -28,7 +28,7 @@
 #include <pcap.h>
 #include <libguile.h>
 #include "pkt_source.h"
-#include "junkie/tools/mallocer.h"
+#include "junkie/tools/objalloc.h"
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/mutex.h"
 #include "junkie/tools/queue.h"
@@ -376,12 +376,11 @@ unlock_quit:
 
 static struct pkt_source *pkt_source_new(char const *name, pcap_t *pcap_handle, void *(*sniffer)(void *), bool is_file, bool patch_ts, uint8_t dev_id)
 {
-    MALLOCER(pkt_source);
-    struct pkt_source *pkt_source = mallocer_alloc(&mallocer_pkt_source, sizeof(*pkt_source));
+    struct pkt_source *pkt_source = objalloc(sizeof(*pkt_source), "pkt_sources");
     if (! pkt_source) return NULL;
 
     if (0 != pkt_source_ctor(pkt_source, name, pcap_handle, sniffer, is_file, patch_ts, dev_id)) {
-        mallocer_free(pkt_source);
+        objfree(pkt_source);
         pkt_source = NULL;
     }
 
@@ -518,7 +517,7 @@ static void pkt_source_dtor(struct pkt_source *pkt_source)
 static void pkt_source_del(struct pkt_source *pkt_source)
 {
     pkt_source_dtor(pkt_source);
-    mallocer_free(pkt_source);
+    objfree(pkt_source);
     quit_if_nothing_opened();
 }
 
@@ -704,7 +703,7 @@ void pkt_source_init(void)
     if (inited++) return;
     mutex_init();
     ext_init();
-    mallocer_init();
+    objalloc_init();
     ref_init();
 
 #   ifdef WITH_GIANT_LOCK
@@ -832,5 +831,5 @@ void pkt_source_fini(void)
     ref_fini();
     mutex_fini();
     ext_fini();
-    mallocer_fini();
+    objalloc_fini();
 }

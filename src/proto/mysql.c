@@ -24,7 +24,7 @@
 #include "junkie/cpp.h"
 #include "junkie/tools/log.h"
 #include "junkie/tools/tempstr.h"
-#include "junkie/tools/mallocer.h"
+#include "junkie/tools/objalloc.h"
 #include "junkie/tools/mutex.h"
 #include "junkie/proto/proto.h"
 #include "junkie/proto/tcp.h"
@@ -64,12 +64,11 @@ static int mysql_parser_ctor(struct mysql_parser *mysql_parser, struct proto *pr
 
 static struct parser *mysql_parser_new(struct proto *proto)
 {
-    MALLOCER(mysql_parsers);
-    struct mysql_parser *mysql_parser = MALLOC(mysql_parsers, sizeof(*mysql_parser));
+    struct mysql_parser *mysql_parser = objalloc(sizeof(*mysql_parser), "MySQL parsers");
     if (! mysql_parser) return NULL;
 
     if (-1 == mysql_parser_ctor(mysql_parser, proto)) {
-        FREE(mysql_parser);
+        objfree(mysql_parser);
         return NULL;
     }
 
@@ -88,7 +87,7 @@ static void mysql_parser_del(struct parser *parser)
 {
     struct mysql_parser *mysql_parser = DOWNCAST(parser, parser, mysql_parser);
     mysql_parser_dtor(mysql_parser);
-    FREE(mysql_parser);
+    objfree(mysql_parser);
 }
 
 /*
