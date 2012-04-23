@@ -84,6 +84,22 @@
                    (malloc-getters
                      (append! prevs malloc-getter)
                      (1+ idx)
+                     (cdr names))))))
+           (array-getters
+             (lambda (prevs idx names)
+               (if (null? names) prevs
+                 (let* ((name         (car names))
+                        (stats        (cached-stats array-stats name))
+                        (array-getter (list (cons (append mib (list 4 3 1 1 idx)) (lambda () (cons 'octet-string (string->utf8 name))))
+                                            (cons (append mib (list 4 3 1 2 idx)) (lambda () (cons 'gauge32      (assq-ref stats 'nb-used))))
+                                            (cons (append mib (list 4 3 1 3 idx)) (lambda () (cons 'gauge32      (assq-ref stats 'nb-malloced))))
+                                            (cons (append mib (list 4 3 1 4 idx)) (lambda () (cons 'gauge32      (assq-ref stats 'nb-holes))))
+                                            (cons (append mib (list 4 3 1 5 idx)) (lambda () (cons 'gauge32      (assq-ref stats 'nb-chunks))))
+                                            (cons (append mib (list 4 3 1 6 idx)) (lambda () (cons 'integer      (assq-ref stats 'alloc-size))))
+                                            (cons (append mib (list 4 3 1 7 idx)) (lambda () (cons 'integer      (assq-ref stats 'entry-size)))))))
+                   (array-getters
+                     (append! prevs array-getter)
+                     (1+ idx)
                      (cdr names)))))))
     (let* ((scalars      (list (cons (append mib '(1 1 0)) getoid-version)
                                (cons (append mib '(2 2 0)) getoid-dup-detection-delay)
@@ -91,7 +107,8 @@
            (getters-list (parser-getters scalars      1 (proto-names)))
            (muxers-list  (muxer-getters  getters-list 1 (mux-names)))
            (sources-list (source-getters muxers-list  1 (iface-names)))
-           (malloc-list  (malloc-getters sources-list 1 (mallocer-names))))
+           (malloc-list  (malloc-getters sources-list 1 (mallocer-names)))
+           (array-list   (array-getters  malloc-list  1 (array-names))))
       (sort! malloc-list oid-less))))
 
 
