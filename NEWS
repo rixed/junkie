@@ -9,6 +9,8 @@ New in 2.1.0 (since 2.0.0)
 * Primitive implementation of `nettrack`, a network event tracking language
   above packet filters
 
+* Custom memory allocator that performs marginally better on large networks
+
 New in 2.0.0 (since 1.5.0)
 --------------------------
 
