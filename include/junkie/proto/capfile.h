@@ -42,7 +42,7 @@ struct capfile *capfile_new_pcap(
     unsigned max_pkts,  ///< If >0 then stop the capture after this amount of packets
     size_t max_size,    ///< If >0 then stop the capture after this file size
     unsigned max_secs,  ///< If >0 then stop the capture after this time
-    size_t caplen,      ///< If >0 then limit the packet size to this
+    size_t cap_len,     ///< If >0 then limit the packet size to this
     unsigned rotation   ///< If >0 then a numeric prefix will be appended to file names and when a file is stopped a new file will be created, up to this number then wrap
 );
 
