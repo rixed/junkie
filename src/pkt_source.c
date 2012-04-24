@@ -41,7 +41,7 @@
 #include "digest_queue.h"
 
 static LIST_HEAD(pkt_sources, pkt_source) pkt_sources = LIST_HEAD_INITIALIZER(pkt_sources);
-static struct mutex pkt_sources_lock;
+static struct mutex pkt_sources_lock;   // only valid when !terminating
 static volatile sig_atomic_t terminating = 0;
 
 static struct parser *cap_parser;
@@ -518,7 +518,7 @@ static void pkt_source_del(struct pkt_source *pkt_source)
 {
     pkt_source_dtor(pkt_source);
     objfree(pkt_source);
-    quit_if_nothing_opened();
+    if (! terminating) quit_if_nothing_opened();
 }
 
 // Caller must own pkt_sources_lock
