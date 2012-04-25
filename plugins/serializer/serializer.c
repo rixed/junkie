@@ -56,7 +56,10 @@ static void ser_init(void)
 {
     if (inited) return;
     ser_source = getpid();
-    (void)sock_ctor_client(&sock, opt_dest_name, opt_dest_port);
+    if (0 != sock_ctor_client(&sock, opt_dest_name, opt_dest_port)) {
+        SLOG(LOG_ERR, "Cannot connect to %s:%s", opt_dest_name, opt_dest_port);
+        return;
+    }
     ASSERT_COMPILE(MSG_MAX_SIZE <= DATAGRAM_MAX_SIZE);
     if (opt_msg_size < MSG_MAX_SIZE) {
         SLOG(LOG_ERR, "Made serializer buffer "STRIZE(MSG_MAX_SIZE)" bytes large");
