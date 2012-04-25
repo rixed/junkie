@@ -24,6 +24,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/uio.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <pwd.h>
@@ -216,6 +217,22 @@ int file_write(int fd, void const *buf, size_t len)
             r += ret;
         } else if (errno != EINTR) {
             SLOG(LOG_ERR, "Cannot read %zu bytes on fd %d: %s", len, fd, strerror(errno));
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+int file_writev(int fd, struct iovec *iov, int iovcnt)
+{
+    SLOG(LOG_DEBUG, "Writing %d IOvectors onto fd %d", iovcnt, fd);
+
+    while (1) {
+        ssize_t ret = writev(fd, iov, iovcnt);
+        if (ret >= 0) break;
+        if (errno != EINTR) {
+            SLOG(LOG_ERR, "Cannot writev %d IOvectors onto fd %d: %s", iovcnt, fd, strerror(errno));
             return -1;
         }
     }

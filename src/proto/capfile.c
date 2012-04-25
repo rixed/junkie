@@ -256,8 +256,11 @@ static int write_pcap(struct capfile *capfile, struct proto_info const *info, si
         .len     = cap->info.payload,
     };
 
-    if (0 != file_write(capfile->fd, &pkthdr, sizeof(pkthdr))) goto err;
-    if (0 != file_write(capfile->fd, pkt, cap_len)) goto err;
+    struct iovec iov[] = {
+        { .iov_base = &pkthdr,     .iov_len = sizeof(pkthdr), },
+        { .iov_base = (void *)pkt, .iov_len = cap_len, },
+    };
+    if (0 != file_writev(capfile->fd, iov, NB_ELEMS(iov))) goto err;
 
     capfile->nb_pkts++;
     capfile->file_size += sizeof(pkthdr) + cap_len;

@@ -6,6 +6,7 @@
 #include <stdarg.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/uio.h>
 #include <fcntl.h>
 
 /** @file
@@ -47,6 +48,11 @@ bool file_exists(char const *file_name);
  * @return 0 on success, -1 on error.
  */
 int file_write(int fd, void const *buf, size_t len);
+
+/** Wrapper around writev, logging on error and retrying while there's progress.
+ * @return 0 on success, -1 on error.
+ */
+int file_writev(int fd, struct iovec *iov, int iovcnt);
 
 /** Reading a file, logging on error and retrying on EINTR.
  * @return the number of read bytes on success, -1 on error.

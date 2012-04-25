@@ -31,7 +31,7 @@ AC_CHECK_LIB(pthread, pthread_mutex_init, , [exit 1])
 AC_CHECK_LIB(ltdl, lt_dlopen, , [exit 1])
 
 # Checks for header files.
-AC_CHECK_HEADERS([fcntl.h grp.h libgen.h inttypes.h limits.h malloc.h netinet/in.h arpa/inet.h sys/param.h sys/socket.h sys/time.h syslog.h sys/prctl.h pcap.h])
+AC_CHECK_HEADERS([fcntl.h grp.h libgen.h inttypes.h limits.h malloc.h netinet/in.h arpa/inet.h sys/param.h sys/socket.h sys/time.h syslog.h sys/prctl.h pcap.h sys/uio.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_HEADER_STDBOOL
