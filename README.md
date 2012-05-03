@@ -39,22 +39,20 @@ As a realtime protocol analyzer, Junkie is limited in what protocols it
 supports and how deep it inspects packets. Here is a quick overview of the
 most blatant limitations:
 
-- Ethernet parser supports Linux cooked capture extension (used when capturing
-  on "any" interfaces) and 802.1q vlan tags. All other Ethernet extensions are
-  ignored.
+- Ethernet parser supports Linux cooked capture as a special case (used when
+  capturing on "any" interfaces) and 802.1q vlan tags. All other Ethernet
+  extensions are ignored.
 
 - Http parser does not support multi-line headers.
 
 - ARP parser knows only Ethernet and IP addresses.
 
-- DNS parser support MDNS, NBNS and LLMNR in the extend where these protocols
+- DNS parser supports MDNS, NBNS and LLMNR in the extend where these protocols
   mimic legacy DNS (with the exception that it can unscramble NetBios encoded
   names).
 
 - FTP connection tracking merely look for PASSV or PORT commands in the TCP
   stream without much care for the actual protocol.
-
-- TCP options are ignored.
 
 - Postgresql parser supports only protocol version 3.0 and Mysql parser
   supports only protocol version 10.  This should cover most of the installed
@@ -122,14 +120,6 @@ Nettrack language
 
 - A www plugin to display each netgraph state;
 
-Conversations matching
-----------------------
-
-Given a FSM (not necessarily fully connected) which edges are labelled with
-netmatch expressions, a plugin that tracks conversations.
-The vertices contain some rules to be executed when the vertex is entered,
-with some expression (ie possibly values from the register file) as argument.
-
 Reports
 -------
 
@@ -145,8 +135,6 @@ Minor
 -----
 
 - writer www plugin must mergecap fractionned pcap files for download;
-
-- custom objects allocator?
 
 Parsers for:
 ------------
