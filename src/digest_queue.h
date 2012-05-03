@@ -3,20 +3,12 @@
 #ifndef DIGEST_QUEUE_H_110202
 #define DIGEST_QUEUE_H_110202
 #include <stdint.h>
-#include <openssl/md4.h>
-#include "junkie/tools/mutex.h"
+#include <stdbool.h>
+#include "junkie/tools/timeval.h"
 
-#define DIGEST_SIZE MD4_DIGEST_LENGTH
+bool digest_queue_find(size_t cap_len, uint8_t *packet, uint8_t dev_id, struct timeval const *frame_tv);
 
-struct digest_queue *digest_queue_new(unsigned size);
-void digest_queue_del(struct digest_queue *);
-int digest_queue_resize(struct digest_queue *, unsigned size);
-
-enum digest_status {
-    DIGEST_MATCH, DIGEST_NOMATCH, DIGEST_UNKNOWN
-};
-enum digest_status digest_queue_find(struct digest_queue *, unsigned char buf[DIGEST_SIZE], uint8_t dev_id, struct timeval const *frame_tv, unsigned delay_usec);
-
-void digest_frame(unsigned char buf[DIGEST_SIZE], size_t size, unsigned char *restrict packet);
+void digest_init(void);
+void digest_fini(void);
 
 #endif
