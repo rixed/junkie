@@ -40,141 +40,114 @@ LOG_CATEGORY_DEF(digest);
 #undef LOG_CAT
 #define LOG_CAT digest_log_category
 
-#define NB_QUEUES (CPU_MAX < 256 ? CPU_MAX : 256)   /* Must not be greater that 256 since we use only one byte from digest to hash */
-static struct digest_queue {
-    struct queue {
-        struct digest_qcell {
-            unsigned char digest[DIGEST_SIZE];
-            struct timeval tv;
-            uint8_t dev_id; // The device this packet was recieved from
-        } *digests;
-        unsigned idx;       // Index of the lastly added frame (more recent)
-        unsigned length;    // Actually all queues have the same length, except during resizing
-        struct mutex mutex;
-    } queues[NB_QUEUES];    // The queue is chosen according to digest hash, so that several distinct threads can perform lookups simultaneously.
-} *digests;
+struct qcell {
+    TAILQ_ENTRY(qcell) entry;
+    unsigned char digest[DIGEST_SIZE];
+    struct timeval tv;
+    uint8_t dev_id; // The device this packet was recieved from
+};
+
+#define NB_QUEUES (MIN(CPU_MAX, 256))   /* Must not be greater that 256 since we use only one byte from digest to hash */
+static struct queue {
+    /* List of previously received packets, most recent first, ie loosely ordered according to frame timestamp */
+    TAILQ_HEAD(qcells, qcell) qcells;
+    struct mutex mutex; // protecting this queue
+} queues[NB_QUEUES];    // The queue is chosen according to digest hash, so that several distinct threads can perform lookups simultaneously.
 
 static int dup_detection_delay = 50000;  // microseconds
 EXT_PARAM_RW(dup_detection_delay, "dup-detection-delay", int, "Number of microseconds between two packets that can't be duplicates")
 
-// Some stats about the use of the digest queue. Protected with nb_digests lock.
-static uint_least64_t nb_dup_found, nb_nodup_found, nb_eol_found;
+/*
+ * Stats
+ */
+
+// Some stats about the use of the digest queue. Unprotected by any lock.
+static uint_least64_t nb_dup_found, nb_nodup_found;
 
 static void reset_dedup_stats(void)
 {
-    nb_dup_found = nb_nodup_found = nb_eol_found = 0;
+    nb_dup_found = nb_nodup_found = 0;
 }
 
-static int digest_queue_resize(unsigned length)
+// caller must own nb_digests lock
+static void update_dedup_stats(unsigned dup_found, unsigned nodup_found)
 {
-    for (unsigned i = 0; i < NB_ELEMS(digests->queues); i++) {
-        struct queue *const q = digests->queues + i;
+    uint64_t d, nd;
+#   ifdef __GNUC__
+    d  = __sync_add_and_fetch(&nb_dup_found, dup_found);
+    nd = __sync_add_and_fetch(&nb_nodup_found, nodup_found);
+#   else
+    d  = (nb_dup_found += dup_found);
+    nd = (nb_nodup_found += nodup_found);
+#   endif
 
-        void *new = objalloc(length * sizeof *q->digests, "pkt digests");
-        if (! new && length > 0) return -1;
-
-        mutex_lock(&q->mutex);
-        if (q->digests) objfree(q->digests);
-        q->digests = new;
-        q->idx = 0;
-        q->length = length;
-        if (q->digests) memset(q->digests, 0, q->length * sizeof q->digests);
-        mutex_unlock(&q->mutex);
+    if (d == UINT_LEAST64_MAX || nd == UINT_LEAST64_MAX) {
+        nb_dup_found >>= 1;
+        nb_nodup_found >>= 1;
     }
-
-    return 0;
 }
-
-static unsigned nb_digests = 2000;
-// The seter is a little special as it rebuild the digest queue
-static struct ext_param ext_param_nb_digests;   // This lock protects the deduplication process globally (see frame_mirror_drop)
-static SCM g_ext_param_set_nb_digests(SCM v)
-{
-    SCM ret = SCM_BOOL_F;
-    SLOG(LOG_DEBUG, "Setting value for nb_digests");
-    assert(&ext_param_nb_digests.bound);
-    scm_dynwind_begin(0);
-    pthread_mutex_lock(&ext_param_nb_digests.mutex);
-    scm_dynwind_unwind_handler(pthread_mutex_unlock_, &ext_param_nb_digests.mutex, SCM_F_WIND_EXPLICITLY);
-
-    unsigned new_nb_digests = scm_to_uint(v);
-    if (0 == digest_queue_resize(new_nb_digests)) {
-        nb_digests = new_nb_digests;
-        ret = SCM_BOOL_T;
-    }
-    scm_dynwind_end();
-    return ret;
-}
-EXT_PARAM_GET(nb_digests, uint)
-EXT_PARAM_STRUCT_RW(nb_digests, "nb-digests", "How many digests do we keep for deduplication")
-EXT_PARAM_CTORDTOR(nb_digests)
 
 /*
- * Queue object
+ * Individual digest (qcell)
  */
 
-static int digest_queue_ctor(struct digest_queue *digest, unsigned length)
+static void qcell_ctor(struct qcell *qc, struct queue *q, struct timeval const *tv, uint8_t dev_id)
 {
-    for (unsigned i = 0; i < NB_ELEMS(digest->queues); i++) {
-        struct queue *const q = digest->queues + i;
-        q->idx = 0;
-        q->length = length;
-        q->digests = objalloc(q->length * sizeof(*q->digests), "pkt digests");
-        if (! q->digests && length > 0) return -1;
-        if (q->digests) memset(q->digests, 0, q->length * sizeof q->digests);
-        mutex_ctor(&q->mutex, "digest queue");
-    }
-
-    return 0;
+    qc->tv = *tv;
+    qc->dev_id = dev_id;
+    TAILQ_INSERT_TAIL(&q->qcells, qc, entry);
 }
 
-static struct digest_queue *digest_queue_new(unsigned length)
+// Note: there is no qcell_new since the qcell is allocated before construction to avoid copying the digest
+
+static void qcell_dtor(struct qcell *qc, struct queue *q)
 {
-    struct digest_queue *digest = objalloc(sizeof(*digest), "pkt digest queues");
-    if (! digest) return NULL;
-
-    if (0 != digest_queue_ctor(digest, length)) {
-        objfree(digest);
-        return NULL;
-    }
-
-    return digest;
+    TAILQ_REMOVE(&q->qcells, qc, entry);
 }
 
-static void digest_queue_dtor(struct digest_queue *digest)
+static void qcell_del(struct qcell *qc, struct queue *q)
 {
-    for (unsigned i = 0; i < NB_ELEMS(digest->queues); i++) {
-        if (digest->queues[i].digests) objfree(digest->queues[i].digests);
-        mutex_dtor(&digest->queues[i].mutex);
+    qcell_dtor(qc, q);
+    objfree(qc);
+}
+
+static void reset_digests(void)
+{
+    for (unsigned i = 0; i < NB_ELEMS(queues); i++) {
+        struct queue *const q = queues + i;
+        mutex_lock(&q->mutex);
+        struct qcell *qc;
+        while (NULL != (qc = TAILQ_FIRST(&q->qcells))) {
+            qcell_del(qc, q);
+        }
+        mutex_unlock(&q->mutex);
     }
 }
 
-static void digest_queue_del(struct digest_queue *digest)
-{
-    digest_queue_dtor(digest);
-    objfree(digest);
-}
-
-#define BUFSIZE_TO_HASH 64
-
-#define ETHER_DST_ADDR_OFFSET   0
-#define ETHER_SRC_ADDR_OFFSET   ETHER_DST_ADDR_OFFSET + 6
-#define ETHER_ETHERTYPE_OFFSET  ETHER_SRC_ADDR_OFFSET + 6
-#define ETHER_HEADER_SIZE       ETHER_ETHERTYPE_OFFSET + 2
-
-#define IPV4_VERSION_OFFSET     0
-#define IPV4_TOS_OFFSET         IPV4_VERSION_OFFSET + 1
-#define IPV4_LEN_OFFSET         IPV4_TOS_OFFSET + 1
-#define IPV4_ID_OFFSET          IPV4_LEN_OFFSET + 2
-#define IPV4_OFF_OFFSET         IPV4_ID_OFFSET + 2
-#define IPV4_TTL_OFFSET         IPV4_OFF_OFFSET + 2
-#define IPV4_PROTO_OFFSET       IPV4_TTL_OFFSET + 1
-#define IPV4_CHECKSUM_OFFSET    IPV4_PROTO_OFFSET + 1
-#define IPV4_SRC_HOST_OFFSET    IPV4_CHECKSUM_OFFSET + 2
-#define IPV4_DST_HOST_OFFSET    IPV4_SRC_HOST_OFFSET + 4
+/*
+ * Digest Queue
+ */
 
 static void digest_frame(unsigned char buf[DIGEST_SIZE], size_t size, uint8_t *restrict packet)
 {
+#   define BUFSIZE_TO_HASH 64
+
+#   define ETHER_DST_ADDR_OFFSET   0
+#   define ETHER_SRC_ADDR_OFFSET   ETHER_DST_ADDR_OFFSET + 6
+#   define ETHER_ETHERTYPE_OFFSET  ETHER_SRC_ADDR_OFFSET + 6
+#   define ETHER_HEADER_SIZE       ETHER_ETHERTYPE_OFFSET + 2
+
+#   define IPV4_VERSION_OFFSET     0
+#   define IPV4_TOS_OFFSET         IPV4_VERSION_OFFSET + 1
+#   define IPV4_LEN_OFFSET         IPV4_TOS_OFFSET + 1
+#   define IPV4_ID_OFFSET          IPV4_LEN_OFFSET + 2
+#   define IPV4_OFF_OFFSET         IPV4_ID_OFFSET + 2
+#   define IPV4_TTL_OFFSET         IPV4_OFF_OFFSET + 2
+#   define IPV4_PROTO_OFFSET       IPV4_TTL_OFFSET + 1
+#   define IPV4_CHECKSUM_OFFSET    IPV4_PROTO_OFFSET + 1
+#   define IPV4_SRC_HOST_OFFSET    IPV4_CHECKSUM_OFFSET + 2
+#   define IPV4_DST_HOST_OFFSET    IPV4_SRC_HOST_OFFSET + 4
+
     SLOG(LOG_DEBUG, "Compute the digest of %zu bytes frame", size);
 
     unsigned iphdr_offset = ETHER_HEADER_SIZE;
@@ -242,57 +215,45 @@ static void digest_frame(unsigned char buf[DIGEST_SIZE], size_t size, uint8_t *r
     }
 }
 
-// caller must own nb_digests lock
-static void update_dedup_stats(unsigned dup_found, unsigned nodup_found, unsigned eol_found)
-{
-    nb_dup_found += dup_found;
-    nb_nodup_found += nodup_found;
-    nb_eol_found += eol_found;
-}
-
 bool digest_queue_find(size_t cap_len, uint8_t *packet, uint8_t dev_id, struct timeval const *frame_tv)
 {
     if (! dup_detection_delay) return false;
 
-    uint8_t buf[DIGEST_SIZE];
-    digest_frame(buf, cap_len, packet);
+    struct qcell *qc_new = objalloc(sizeof(*qc_new), "digest");
+    digest_frame(qc_new->digest, cap_len, packet);
 
     struct timeval min_tv = *frame_tv;
     timeval_sub_usec(&min_tv, dup_detection_delay);
-    unsigned const h = buf[0] % NB_ELEMS(digests->queues);
-    struct queue *const q = digests->queues + h;
+    unsigned const h = qc_new->digest[0] % NB_ELEMS(queues);
+    struct queue *const q = queues + h;
 
     mutex_lock(&q->mutex);
 
-    unsigned i = q->length;
-    if (q->length > 0) {
-        do {
-            unsigned j = (q->idx + i) % q->length;
-
-            if (!timeval_is_set(&q->digests[j].tv) || timeval_cmp(&q->digests[j].tv, &min_tv) < 0) break;
-
-            if (
-                (collapse_ifaces || dev_id == q->digests[j].dev_id) &&
-                0 == memcmp(q->digests[j].digest, buf, DIGEST_SIZE)
-            ) {
-                mutex_unlock(&q->mutex);
-                update_dedup_stats(1, 0, 0);
-                return true;
-            }
-        } while (--i);
-
-        q->idx = (q->idx + 1) % q->length;
-        memcpy(q->digests[q->idx].digest, buf, DIGEST_SIZE);
-        q->digests[q->idx].tv = *frame_tv;
-        q->digests[q->idx].dev_id = dev_id;
+    // start by deleting the old qcells
+    struct qcell *qc;
+    while (NULL != (qc = TAILQ_LAST(&q->qcells, qcells))) {
+        if (timeval_cmp(&qc->tv, &min_tv) > 0) break;
+        qcell_del(qc, q);
     }
 
+    // now look all qcells for a dup (TODO: up to a smart min_tv only)
+    TAILQ_FOREACH(qc, &q->qcells, entry) {  // loop over all cells from recent to old
+        if (
+            (collapse_ifaces || dev_id == qc->dev_id) &&
+            0 == memcmp(qc->digest, qc_new->digest, DIGEST_SIZE)
+        ) { // found a dup
+            // Note that we do not promote the dup in order to avoid dup + dup + dup + retrans being interpreted as 4 dups.
+            mutex_unlock(&q->mutex);
+            objfree(qc_new);
+            update_dedup_stats(1, 0);
+            return true;
+        }
+    }
+
+    // Here we have no dup thus we must store qc_new
+    update_dedup_stats(0, 1);
+    qcell_ctor(qc_new, q, frame_tv, dev_id);
     mutex_unlock(&q->mutex);
-    if (i != 0) {
-        update_dedup_stats(0, 1, 0);
-    } else {
-        update_dedup_stats(0, 0, 1);
-    }
     return false;
 }
 
@@ -302,17 +263,13 @@ bool digest_queue_find(size_t cap_len, uint8_t *packet, uint8_t dev_id, struct t
 
 static SCM dup_found_sym;
 static SCM nodup_found_sym;
-static SCM end_of_list_found_sym;
 
 static struct ext_function sg_dedup_stats;
 static SCM g_dedup_stats(void)
 {
-    EXT_LOCK(nb_digests);
-    SCM ret = scm_list_3(
+    SCM ret = scm_list_2(
         scm_cons(dup_found_sym,         scm_from_uint64(nb_dup_found)),
-        scm_cons(nodup_found_sym,       scm_from_uint64(nb_nodup_found)),
-        scm_cons(end_of_list_found_sym, scm_from_uint64(nb_eol_found)));
-    EXT_UNLOCK(nb_digests);
+        scm_cons(nodup_found_sym,       scm_from_uint64(nb_nodup_found)));
 
     return ret;
 }
@@ -324,6 +281,12 @@ static SCM g_reset_dedup_stats(void)
     return SCM_UNSPECIFIED;
 }
 
+static struct ext_function sg_reset_digests;
+static SCM g_reset_digests(void)
+{
+    reset_digests();
+    return SCM_UNSPECIFIED;
+}
 
 /*
  * Init
@@ -339,16 +302,15 @@ void digest_init(void)
 
     dup_found_sym         = scm_permanent_object(scm_from_latin1_symbol("dup-found"));
     nodup_found_sym       = scm_permanent_object(scm_from_latin1_symbol("nodup-found"));
-    end_of_list_found_sym = scm_permanent_object(scm_from_latin1_symbol("end-of-list-found"));
 
     log_category_digest_init();
     ext_param_dup_detection_delay_init();
-    ext_param_nb_digests_init();
 
-    EXT_LOCK(nb_digests);
-    digests = digest_queue_new(nb_digests);
-    if (! digests) nb_digests = 0;
-    EXT_UNLOCK(nb_digests);
+    for (unsigned i = 0; i < NB_ELEMS(queues); i++) {
+        struct queue *const q = queues + i;
+        TAILQ_INIT(&q->qcells);
+        mutex_ctor(&q->mutex, "digest queue");
+    }
 
     ext_function_ctor(&sg_dedup_stats,
         "deduplication-stats", 0, 0, 0, g_dedup_stats,
@@ -360,18 +322,21 @@ void digest_init(void)
         "(reset-deduplication-stats): does what the name suggest.\n"
         "You probably already know (? 'deduplication-stats).\n");
 
+    ext_function_ctor(&sg_reset_digests,
+        "reset-digests", 0, 0, 0, g_reset_digests,
+        "(reset-digests): clear all stored digests. Usefull when testing.\n");
 }
 
 void digest_fini(void)
 {
     if (--inited) return;
 
-    if (digests) {
-        digest_queue_del(digests);
-        digests = NULL;
+    reset_digests();
+    for (unsigned i = 0; i < NB_ELEMS(queues); i++) {
+        struct queue *const q = queues + i;
+        mutex_dtor(&q->mutex);
     }
 
-    ext_param_nb_digests_fini();
     ext_param_dup_detection_delay_fini();
     log_category_digest_fini();
 
