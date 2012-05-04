@@ -59,7 +59,7 @@ static struct queue {
     bool comprehensive; // make a comprehensive search for dups (otherwise look only up to dt_max)
     struct timeval period_start;    // start of the deduplication period
     uint64_t dt_sum, dt_sum2;   // sum of all dups dt and dt^2 (in ms not us!)
-    unsigned dt_max;     // milliseconds!
+    unsigned dt_max;     // milliseconds! (only defined if period_start is set)
     unsigned nb_dups;
 } queues[NB_QUEUES];    // The queue is chosen according to digest hash, so that several distinct threads can perform lookups simultaneously.
 
@@ -81,7 +81,7 @@ static void queue_ctor(struct queue *q)
     timeval_reset(&q->period_start);    // will be set later with TS of first packet
     q->dt_sum = q->dt_sum2 = 0;
     q->nb_dups = 0;
-    q->dt_max = max_dup_delay;
+    // defer initialization of max_dt until the first packet is met so that the user has a chance to set initial max_dup_delay from cmd line (usefull for tests)
 }
 
 /*
@@ -275,6 +275,7 @@ bool digest_queue_find(size_t cap_len, uint8_t *packet, uint8_t dev_id, struct t
     if (q->comprehensive) {
         if (! timeval_is_set(&q->period_start)) {
             q->period_start = *frame_tv;
+            q->dt_max = max_dup_delay;
         } else if (timeval_sub(frame_tv, &q->period_start) >= 2 * 1000LL * max_dup_delay) {
             // leave comprehensive mode if we are doing it for more than 2*max_dup_delay
             SLOG(LOG_INFO, "queue[%u]: Leaving comprehensive deduplication since we got from %s to %s", h, timeval_2_str(&q->period_start), timeval_2_str(frame_tv));
@@ -310,9 +311,9 @@ bool digest_queue_find(size_t cap_len, uint8_t *packet, uint8_t dev_id, struct t
     unsigned count = 0;
     // now look all qcells for a dup
     TAILQ_FOREACH(qc, &q->qcells, entry) {  // loop over all cells from recent to old
-        count ++;
         if (timeval_cmp(&qc->tv, &min_tv) < 0) {
             // too far back in time, this can't be a dup.
+            SLOG(LOG_DEBUG, "queue[%u]: Reached an old digest dating back to %s (while we limit ourself at %s, being at %s)", h, timeval_2_str(&qc->tv), timeval_2_str(&min_tv), timeval_2_str(frame_tv));
             break;
         } else if (
             (collapse_ifaces || dev_id == qc->dev_id) &&
@@ -333,6 +334,7 @@ bool digest_queue_find(size_t cap_len, uint8_t *packet, uint8_t dev_id, struct t
             objfree(qc_new);
             return true;
         }
+        count ++;
     }
 
     // Here we have no dup thus we must store qc_new
