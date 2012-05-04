@@ -15,7 +15,6 @@ get-dump-dir
 get-dump-group
 get-dump-period
 get-dump-user
-get-dup-detection-delay
 get-dynports-file
 get-icmp-metric-enabled
 get-ip-reassembly
@@ -24,6 +23,7 @@ get-limit-packets
 get-limit-seconds
 get-log-file
 get-log-level
+get-max-dup-delay
 get-mux-timeout
 get-nb-fuzzed-bits
 get-otherip-metric-enabled
@@ -65,7 +65,6 @@ set-dump-dir
 set-dump-group
 set-dump-period
 set-dump-user
-set-dup-detection-delay
 set-dynports-file
 set-ifaces
 set-ifaces-multiple
@@ -77,6 +76,7 @@ set-limit-seconds
 set-log-file
 set-log-level
 set-max-children
+set-max-dup-delay
 set-mux-hash-size
 set-nb-fuzzed-bits
 set-otherip-metric-enabled

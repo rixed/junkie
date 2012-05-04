@@ -17,7 +17,7 @@
   (cons 'octet-string (string->utf8 junkie-version)))
 
 (define (getoid-dup-detection-delay)
-  (cons 'integer (get-dup-detection-delay)))
+  (cons 'integer (get-max-dup-delay)))
 
 (define (getoid-guile-mem-stats)
   (cons 'gauge32 (guile-mem-stats)))
