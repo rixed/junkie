@@ -19,8 +19,10 @@
  */
 #include <stdio.h>
 #include <string.h>
+#include <inttypes.h>
 #include <sys/time.h>
 #include <assert.h>
+#include <math.h>
 #include <openssl/md4.h>
 #include "junkie/config.h"
 #include "junkie/tools/log.h"
@@ -49,13 +51,38 @@ struct qcell {
 
 #define NB_QUEUES (MIN(CPU_MAX, 256))   /* Must not be greater that 256 since we use only one byte from digest to hash */
 static struct queue {
-    /* List of previously received packets, most recent first, ie loosely ordered according to frame timestamp */
-    TAILQ_HEAD(qcells, qcell) qcells;
     struct mutex mutex; // protecting this queue
+    // List of previously received packets, most recent first, ie loosely ordered according to frame timestamp
+    TAILQ_HEAD(qcells, qcell) qcells;
+    unsigned length;    // size of qcells list
+    // Deduplication variables
+    bool comprehensive; // make a comprehensive search for dups (otherwise look only up to dt_max)
+    struct timeval period_start;    // start of the deduplication period
+    uint64_t dt_sum, dt_sum2;   // sum of all dups dt and dt^2 (in ms not us!)
+    unsigned dt_max;     // milliseconds!
+    unsigned nb_dups;
 } queues[NB_QUEUES];    // The queue is chosen according to digest hash, so that several distinct threads can perform lookups simultaneously.
 
-static int dup_detection_delay = 50000;  // microseconds
-EXT_PARAM_RW(dup_detection_delay, "dup-detection-delay", int, "Number of microseconds between two packets that can't be duplicates")
+static unsigned max_dup_delay = 100; // milliseconds
+EXT_PARAM_RW(max_dup_delay, "max-dup-delay", uint, "Number of milliseconds between two packets that can not be duplicates (set to 0 to disable deduplication altogether)")
+
+static unsigned fast_dedup_duration = 10000;    // milliseconds
+EXT_PARAM_RW(fast_dedup_duration, "fast-dedup-duration", uint, "Number of milliseconds between two phases of comprehensive deduplication");
+
+static double fast_dedup_distance = 1.;
+EXT_PARAM_RW(fast_dedup_distance, "fast-dedup-distance", double, "How many sigmas beyond average dup DT should we search for dups in fast dedup phases");
+
+static void queue_ctor(struct queue *q)
+{
+    mutex_ctor(&q->mutex, "digest queue");
+    TAILQ_INIT(&q->qcells);
+    q->length = 0;
+    q->comprehensive = true;
+    timeval_reset(&q->period_start);    // will be set later with TS of first packet
+    q->dt_sum = q->dt_sum2 = 0;
+    q->nb_dups = 0;
+    q->dt_max = max_dup_delay;
+}
 
 /*
  * Stats
@@ -91,20 +118,26 @@ static void update_dedup_stats(unsigned dup_found, unsigned nodup_found)
  * Individual digest (qcell)
  */
 
+// Caller must own q->mutex
 static void qcell_ctor(struct qcell *qc, struct queue *q, struct timeval const *tv, uint8_t dev_id)
 {
     qc->tv = *tv;
     qc->dev_id = dev_id;
-    TAILQ_INSERT_TAIL(&q->qcells, qc, entry);
+    q->length ++;
+    TAILQ_INSERT_HEAD(&q->qcells, qc, entry);
 }
 
 // Note: there is no qcell_new since the qcell is allocated before construction to avoid copying the digest
 
+// Caller must own q->mutex
 static void qcell_dtor(struct qcell *qc, struct queue *q)
 {
+    assert(q->length > 0);
+    q->length --;
     TAILQ_REMOVE(&q->qcells, qc, entry);
 }
 
+// Caller must own q->mutex
 static void qcell_del(struct qcell *qc, struct queue *q)
 {
     qcell_dtor(qc, q);
@@ -217,40 +250,93 @@ static void digest_frame(unsigned char buf[DIGEST_SIZE], size_t size, uint8_t *r
 
 bool digest_queue_find(size_t cap_len, uint8_t *packet, uint8_t dev_id, struct timeval const *frame_tv)
 {
-    if (! dup_detection_delay) return false;
+    if (! max_dup_delay) return false;
 
     struct qcell *qc_new = objalloc(sizeof(*qc_new), "digest");
     digest_frame(qc_new->digest, cap_len, packet);
 
-    struct timeval min_tv = *frame_tv;
-    timeval_sub_usec(&min_tv, dup_detection_delay);
     unsigned const h = qc_new->digest[0] % NB_ELEMS(queues);
     struct queue *const q = queues + h;
 
     mutex_lock(&q->mutex);
 
-    // start by deleting the old qcells
+    struct timeval min_tv = *frame_tv;
+    timeval_sub_msec(&min_tv, max_dup_delay);
+    // min_tv is now set to minimal TS for a packet we want to keep for dup detection.
+
+    // First of all, delete the old qcells
     struct qcell *qc;
     while (NULL != (qc = TAILQ_LAST(&q->qcells, qcells))) {
         if (timeval_cmp(&qc->tv, &min_tv) > 0) break;
         qcell_del(qc, q);
     }
 
-    // now look all qcells for a dup (TODO: up to a smart min_tv only)
+    // set min_tv to the min TS we want to check at this run
+    if (q->comprehensive) {
+        if (! timeval_is_set(&q->period_start)) {
+            q->period_start = *frame_tv;
+        } else if (timeval_sub(frame_tv, &q->period_start) >= 2 * 1000LL * max_dup_delay) {
+            // leave comprehensive mode if we are doing it for more than 2*max_dup_delay
+            SLOG(LOG_INFO, "queue[%u]: Leaving comprehensive deduplication since we got from %s to %s", h, timeval_2_str(&q->period_start), timeval_2_str(frame_tv));
+            if (q->nb_dups == 0) {
+                q->dt_max = 0;  // welcome in the autobahn!
+            } else {
+                int64_t const avg = q->dt_sum / q->nb_dups;
+                int64_t const sigma = sqrt(avg*avg - (q->dt_sum2 / q->nb_dups));
+                q->dt_max = avg + fast_dedup_distance * sigma;
+                if (q->dt_max > max_dup_delay) SLOG(LOG_NOTICE, "queue[%u]: dt_max = %u > max_dup_delay = %u!", h, q->dt_max, max_dup_delay);
+                SLOG(LOG_DEBUG, "queue[%u]: New dt_max=%u, since nb_dups=%u, dt_sum=%"PRId64", dt_sum2=%"PRId64" -> avg=%"PRId64", sigma=%"PRId64, h, q->dt_max, q->nb_dups, q->dt_sum, q->dt_sum2, avg, sigma);
+            }
+            q->comprehensive = false;
+        }
+    }
+
+    if (! q->comprehensive) {
+        // Enter comprehensive mode once in a while
+        if (timeval_sub(frame_tv, &q->period_start) >= 1000LL * MAX(2*max_dup_delay, fast_dedup_duration)) {
+            SLOG(LOG_INFO, "queue[%u]: Entering comprehensive deduplication", h);
+            q->period_start = *frame_tv;
+            q->dt_sum = q->dt_sum2 = 0;
+            q->nb_dups = 0;
+            q->dt_max = max_dup_delay;
+            q->comprehensive = true;
+        }
+    }
+
+    // we are going to look dt_max msecs in the past
+    min_tv = *frame_tv;
+    timeval_sub_msec(&min_tv, q->dt_max);
+
+    unsigned count = 0;
+    // now look all qcells for a dup
     TAILQ_FOREACH(qc, &q->qcells, entry) {  // loop over all cells from recent to old
-        if (
+        count ++;
+        if (timeval_cmp(&qc->tv, &min_tv) < 0) {
+            // too far back in time, this can't be a dup.
+            break;
+        } else if (
             (collapse_ifaces || dev_id == qc->dev_id) &&
             0 == memcmp(qc->digest, qc_new->digest, DIGEST_SIZE)
         ) { // found a dup
+            SLOG(LOG_DEBUG, "queue[%u]: Found a dup after %u/%u digests (max_dt=%ums)", h, count, q->length, q->dt_max);
             // Note that we do not promote the dup in order to avoid dup + dup + dup + retrans being interpreted as 4 dups.
+            if (q->comprehensive) {
+                int64_t const dt = timeval_sub(frame_tv, &qc->tv)/1000;
+                // update the infos
+                q->dt_sum += dt;
+                q->dt_sum2 += dt*dt;
+                q->nb_dups ++;
+            }
+
+            update_dedup_stats(1, 0);
             mutex_unlock(&q->mutex);
             objfree(qc_new);
-            update_dedup_stats(1, 0);
             return true;
         }
     }
 
     // Here we have no dup thus we must store qc_new
+    SLOG(LOG_DEBUG, "queue[%u]: No dup found after %u/%u digests (max_dt=%ums)", h, count, q->length, q->dt_max);
     update_dedup_stats(0, 1);
     qcell_ctor(qc_new, q, frame_tv, dev_id);
     mutex_unlock(&q->mutex);
@@ -304,12 +390,12 @@ void digest_init(void)
     nodup_found_sym       = scm_permanent_object(scm_from_latin1_symbol("nodup-found"));
 
     log_category_digest_init();
-    ext_param_dup_detection_delay_init();
+    ext_param_max_dup_delay_init();
+    ext_param_fast_dedup_duration_init();
+    ext_param_fast_dedup_distance_init();
 
     for (unsigned i = 0; i < NB_ELEMS(queues); i++) {
-        struct queue *const q = queues + i;
-        TAILQ_INIT(&q->qcells);
-        mutex_ctor(&q->mutex, "digest queue");
+        queue_ctor(queues + i);
     }
 
     ext_function_ctor(&sg_dedup_stats,
@@ -337,7 +423,9 @@ void digest_fini(void)
         mutex_dtor(&q->mutex);
     }
 
-    ext_param_dup_detection_delay_fini();
+    ext_param_fast_dedup_distance_fini();
+    ext_param_fast_dedup_duration_fini();
+    ext_param_max_dup_delay_fini();
     log_category_digest_fini();
 
     ext_fini();

@@ -32,6 +32,7 @@ int timeval_cmp(struct timeval const *restrict, struct timeval const *restrict);
 void timeval_add_usec(struct timeval *, int64_t usec);
 void timeval_add_sec(struct timeval *, int32_t sec);
 void timeval_sub_usec(struct timeval *, int64_t usec);
+void timeval_sub_msec(struct timeval *, int64_t msec);
 void timeval_sub_sec(struct timeval *, int32_t sec);
 char const *timeval_2_str(struct timeval const *);
 void timeval_set_now(struct timeval *);
