@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
+#include <limits.h>
 #include <sys/time.h>
 #include <assert.h>
 #include <math.h>
@@ -351,13 +352,50 @@ bool digest_queue_find(size_t cap_len, uint8_t *packet, uint8_t dev_id, struct t
 
 static SCM dup_found_sym;
 static SCM nodup_found_sym;
+static SCM queue_len_sym;
+static SCM delta_queue_len_sym;
+static SCM dt_sym;
+static SCM delta_dt_sym;
 
 static struct ext_function sg_dedup_stats;
 static SCM g_dedup_stats(void)
 {
-    SCM ret = scm_list_2(
+    // Compute avgs/delta on all queues
+    unsigned dt_max_sum = 0;
+    unsigned dt_max_count = 0;
+    unsigned max_dt_max = 0;
+    unsigned min_dt_max = UINT_MAX;
+    unsigned queue_len_sum = 0;
+    unsigned queue_len_count = 0;
+    unsigned max_queue_len = 0;
+    unsigned min_queue_len = UINT_MAX;
+
+    for (unsigned i = 0; i < NB_ELEMS(queues); i++) {
+        struct queue *const q = queues + i;
+        mutex_lock(&q->mutex);
+        queue_len_sum += q->length;
+        if (q->length > max_queue_len) max_queue_len = q->length;
+        if (q->length < min_queue_len) min_queue_len = q->length;
+        queue_len_count ++;
+        if (timeval_is_set(&q->period_start)) {
+            dt_max_sum += q->dt_max;
+            if (q->dt_max > max_dt_max) max_dt_max = q->dt_max;
+            if (q->dt_max < min_dt_max) min_dt_max = q->dt_max;
+            dt_max_count ++;
+        }
+        mutex_unlock(&q->mutex);
+    }
+
+    unsigned const avg_queue_len = queue_len_count ? queue_len_sum / queue_len_count : 0;
+    unsigned const avg_dt_max = dt_max_count ? dt_max_sum / dt_max_count : 0;
+    SCM ret = scm_list_n(
         scm_cons(dup_found_sym,         scm_from_uint64(nb_dup_found)),
-        scm_cons(nodup_found_sym,       scm_from_uint64(nb_nodup_found)));
+        scm_cons(nodup_found_sym,       scm_from_uint64(nb_nodup_found)),
+        scm_cons(queue_len_sym,         scm_from_uint(avg_queue_len)),
+        scm_cons(delta_queue_len_sym,   scm_from_uint(MAX(max_queue_len-avg_queue_len, avg_queue_len-min_queue_len))),
+        scm_cons(dt_sym,                scm_from_uint(avg_dt_max)),
+        scm_cons(delta_dt_sym,          scm_from_uint(MAX(max_dt_max-avg_dt_max, avg_dt_max-min_dt_max))),
+        SCM_UNDEFINED);
 
     return ret;
 }
@@ -388,8 +426,12 @@ void digest_init(void)
     objalloc_init();
     ext_init();
 
-    dup_found_sym         = scm_permanent_object(scm_from_latin1_symbol("dup-found"));
-    nodup_found_sym       = scm_permanent_object(scm_from_latin1_symbol("nodup-found"));
+    dup_found_sym       = scm_permanent_object(scm_from_latin1_symbol("dup-found"));
+    nodup_found_sym     = scm_permanent_object(scm_from_latin1_symbol("nodup-found"));
+    queue_len_sym       = scm_permanent_object(scm_from_latin1_symbol("avg-queue-len"));
+    delta_queue_len_sym = scm_permanent_object(scm_from_latin1_symbol("delta-queue-len"));
+    dt_sym              = scm_permanent_object(scm_from_latin1_symbol("avg-dt"));
+    delta_dt_sym        = scm_permanent_object(scm_from_latin1_symbol("delta-dt"));
 
     log_category_digest_init();
     ext_param_max_dup_delay_init();
