@@ -30,6 +30,7 @@ struct pkt_source {
     /** A numerical id used to distinguish various interfaces during parsing
         (same underlying interface will have same dev_id, while same pcap files will have distinct dev_id). */
     uint8_t dev_id;
+    char *filter;                   ///< Packet filter expression in use for this device (for reference only)
 };
 
 /** Now the frame structure that will be given to the cap parser, since

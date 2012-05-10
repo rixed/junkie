@@ -263,7 +263,7 @@ static int set_filter(pcap_t *pcap_handle, char const *filter)
     return 0;
 }
 
-static int pkt_source_ctor(struct pkt_source *pkt_source, char const *name, pcap_t *pcap_handle, void *(*sniffer)(void *), bool is_file, bool patch_ts, uint8_t dev_id)
+static int pkt_source_ctor(struct pkt_source *pkt_source, char const *name, pcap_t *pcap_handle, void *(*sniffer)(void *), bool is_file, bool patch_ts, uint8_t dev_id, char const *filter)
 {
     SLOG(LOG_DEBUG, "Construct pkt_source@%p of name %s and dev_id %"PRIu8, pkt_source, name, dev_id);
     int ret = 0;
@@ -277,6 +277,7 @@ static int pkt_source_ctor(struct pkt_source *pkt_source, char const *name, pcap
     pkt_source->nb_wire_bytes = 0;
     pkt_source->is_file = is_file;
     pkt_source->patch_ts = patch_ts;
+    pkt_source->filter = filter ? objalloc_strdup(filter) : NULL;
 
     mutex_lock(&pkt_sources_lock);
     if (terminating) {
@@ -306,12 +307,12 @@ unlock_quit:
     return ret;
 }
 
-static struct pkt_source *pkt_source_new(char const *name, pcap_t *pcap_handle, void *(*sniffer)(void *), bool is_file, bool patch_ts, uint8_t dev_id)
+static struct pkt_source *pkt_source_new(char const *name, pcap_t *pcap_handle, void *(*sniffer)(void *), bool is_file, bool patch_ts, uint8_t dev_id, char const *filter)
 {
     struct pkt_source *pkt_source = objalloc(sizeof(*pkt_source), "pkt_sources");
     if (! pkt_source) return NULL;
 
-    if (0 != pkt_source_ctor(pkt_source, name, pcap_handle, sniffer, is_file, patch_ts, dev_id)) {
+    if (0 != pkt_source_ctor(pkt_source, name, pcap_handle, sniffer, is_file, patch_ts, dev_id, filter)) {
         objfree(pkt_source);
         pkt_source = NULL;
     }
@@ -345,7 +346,7 @@ static struct pkt_source *pkt_source_new_file(char const *filename, char const *
     }
 
     void *(*sniff)(void *) = rt ? file_sniffer_rt : file_sniffer;
-    struct pkt_source *pkt_source = pkt_source_new(basename, handle, sniff, true, patch_ts, pcap_id_seq++);
+    struct pkt_source *pkt_source = pkt_source_new(basename, handle, sniff, true, patch_ts, pcap_id_seq++, filter);
     if (! pkt_source) {
         pcap_close(handle);
     }
@@ -421,7 +422,7 @@ static struct pkt_source *pkt_source_new_if(char const *ifname, bool promisc, ch
     }
 
     uint8_t dev_id = dev_id_of_ifname(ifname);
-    struct pkt_source *pkt_source = pkt_source_new(ifname, handle, iface_sniffer, false, false, dev_id);
+    struct pkt_source *pkt_source = pkt_source_new(ifname, handle, iface_sniffer, false, false, dev_id, filter);
     if (! pkt_source) {
         pcap_close(handle);
     }
@@ -443,7 +444,14 @@ static void pkt_source_dtor(struct pkt_source *pkt_source)
     LIST_REMOVE(pkt_source, entry);
     mutex_unlock(&pkt_sources_lock);
 
-    if (pkt_source->pcap_handle) pcap_close(pkt_source->pcap_handle);
+    if (pkt_source->pcap_handle) {
+        pcap_close(pkt_source->pcap_handle);
+        pkt_source->pcap_handle = NULL;
+    }
+    if (pkt_source->filter) {
+        objfree(pkt_source->filter);
+        pkt_source->filter = NULL;
+    }
 }
 
 static void pkt_source_del(struct pkt_source *pkt_source)
@@ -572,6 +580,7 @@ static SCM tot_dropped_sym;
 static SCM nb_cap_bytes_sym;
 static SCM nb_wire_bytes_sym;
 static SCM filep_sym;
+static SCM filter_sym;
 
 static struct ext_function sg_iface_stats;
 static SCM g_iface_stats(SCM ifname_)
@@ -597,6 +606,9 @@ static SCM g_iface_stats(SCM ifname_)
         scm_cons(nb_cap_bytes_sym,  scm_from_uint64(pkt_source->nb_cap_bytes)),
         scm_cons(nb_wire_bytes_sym, scm_from_uint64(pkt_source->nb_wire_bytes)),
         scm_cons(filep_sym,         scm_from_bool(pkt_source->is_file)),
+        pkt_source->filter ?
+            scm_cons(filter_sym,    scm_from_latin1_string(pkt_source->filter)) :
+            SCM_UNDEFINED,
         SCM_UNDEFINED);
 
 err:
@@ -629,6 +641,7 @@ void pkt_source_init(void)
     nb_cap_bytes_sym      = scm_permanent_object(scm_from_latin1_symbol("nb-cap-bytes"));
     nb_wire_bytes_sym     = scm_permanent_object(scm_from_latin1_symbol("nb-wire-bytes"));
     filep_sym             = scm_permanent_object(scm_from_latin1_symbol("file?"));
+    filter_sym            = scm_permanent_object(scm_from_latin1_symbol("filter"));
 
     ext_param_quit_when_done_init();
     log_category_pkt_sources_init();
