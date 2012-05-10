@@ -50,46 +50,9 @@ static struct parser *cap_parser;
 // Starts at 100 so that id below 100 are available for actual interfaces.
 static unsigned pcap_id_seq = 100;
 
-static int dup_detection_delay = 5000;  // microseconds
-EXT_PARAM_RW(dup_detection_delay, "dup-detection-delay", int, "Number of microseconds between two packets that can't be duplicates")
-
-static struct digest_queue *digests;
-
-// Some stats about the use of the digest queue. Protected with nb_digests lock.
-static uint_least64_t nb_dup_found, nb_nodup_found, nb_eol_found;
-
 #ifdef WITH_GIANT_LOCK
 static struct mutex giant_lock;
 #endif
-
-static void reset_dedup_stats(void)
-{
-    nb_dup_found = nb_nodup_found = nb_eol_found = 0;
-}
-
-static unsigned nb_digests = 100;
-// The seter is a little special as it rebuild the digest queue
-static struct ext_param ext_param_nb_digests;   // This lock protects the deduplication process globally (see frame_mirror_drop)
-static SCM g_ext_param_set_nb_digests(SCM v)
-{
-    SCM ret = SCM_BOOL_F;
-    SLOG(LOG_DEBUG, "Setting value for nb_digests");
-    assert(&ext_param_nb_digests.bound);
-    scm_dynwind_begin(0);
-    pthread_mutex_lock(&ext_param_nb_digests.mutex);
-    scm_dynwind_unwind_handler(pthread_mutex_unlock_, &ext_param_nb_digests.mutex, SCM_F_WIND_EXPLICITLY);
-
-    unsigned new_nb_digests = scm_to_uint(v);
-    if (0 == digest_queue_resize(digests, new_nb_digests)) {
-        nb_digests = new_nb_digests;
-        ret = SCM_BOOL_T;
-    }
-    scm_dynwind_end();
-    return ret;
-}
-EXT_PARAM_GET(nb_digests, uint)
-EXT_PARAM_STRUCT_RW(nb_digests, "nb-digests", "How many digests do we keep for deduplication")
-EXT_PARAM_CTORDTOR(nb_digests)
 
 static bool quit_when_done = true;
 EXT_PARAM_RW(quit_when_done, "quit-when-done", bool, "Should junkie exits when the last packet source is closed ?")
@@ -133,38 +96,6 @@ static char const *pkt_source_guile_name(struct pkt_source *pkt_source)
  * For now both iface and files are treated the same.
  */
 
-// caller must own nb_digests lock
-static void update_dedup_stats(unsigned dup_found, unsigned nodup_found, unsigned eol_found)
-{
-    nb_dup_found += dup_found;
-    nb_nodup_found += nodup_found;
-    nb_eol_found += eol_found;
-}
-
-// drop the frame if we previously saw it in the last 5ms.
-static int frame_mirror_drop(struct frame *frame)
-{
-    if (! dup_detection_delay) return 0;
-
-    uint8_t digest[DIGEST_SIZE];
-    digest_frame(digest, frame->cap_len, frame->data);
-
-    switch (digest_queue_find(digests, digest, frame->pkt_source->dev_id, &frame->tv, dup_detection_delay)) {
-        case DIGEST_MATCH:
-            update_dedup_stats(1, 0, 0);
-            return 1;
-        case DIGEST_NOMATCH:
-            update_dedup_stats(0, 1, 0);
-            return 0;
-        case DIGEST_UNKNOWN:
-            update_dedup_stats(0, 0, 1);
-            return 0;
-    }
-
-    assert(!"Bad return value from digest_queue_find");
-    return 0;
-}
-
 static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, const u_char *packet)
 {
     struct pkt_source *pkt_source = (struct pkt_source *)pkt_source_;
@@ -186,7 +117,8 @@ static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, 
 
     if (pkt_source->patch_ts) timeval_set_now(&frame.tv);
 
-    if (frame_mirror_drop(&frame)) {
+    // drop the frame if we previously saw it in the last 5ms.
+    if (digest_queue_find(header->caplen, (uint8_t *)packet, pkt_source->dev_id, &header->ts)) {
         SLOG(LOG_DEBUG, "Drop duplicated packet");
         pkt_source->nb_duplicates ++;
         return;
@@ -672,30 +604,6 @@ err:
     return ret;
 }
 
-static SCM dup_found_sym;
-static SCM nodup_found_sym;
-static SCM end_of_list_found_sym;
-
-static struct ext_function sg_dedup_stats;
-static SCM g_dedup_stats(void)
-{
-    EXT_LOCK(nb_digests);
-    SCM ret = scm_list_3(
-        scm_cons(dup_found_sym,         scm_from_uint64(nb_dup_found)),
-        scm_cons(nodup_found_sym,       scm_from_uint64(nb_nodup_found)),
-        scm_cons(end_of_list_found_sym, scm_from_uint64(nb_eol_found)));
-    EXT_UNLOCK(nb_digests);
-
-    return ret;
-}
-
-static struct ext_function sg_reset_dedup_stats;
-static SCM g_reset_dedup_stats(void)
-{
-    reset_dedup_stats();
-    return SCM_UNSPECIFIED;
-}
-
 // The first thing to do when quitting is to stop parsing traffic
 static unsigned inited;
 void pkt_source_init(void)
@@ -705,16 +613,13 @@ void pkt_source_init(void)
     ext_init();
     objalloc_init();
     ref_init();
+    digest_init();
 
 #   ifdef WITH_GIANT_LOCK
     mutex_ctor(&giant_lock, "Giant Lock");
 #   endif
 
     mutex_ctor(&pkt_sources_lock, "pkt_sources");
-    EXT_LOCK(nb_digests);
-    digests = digest_queue_new(nb_digests);
-    if (! digests) nb_digests = 0;
-    EXT_UNLOCK(nb_digests);
 
     id_sym                = scm_permanent_object(scm_from_latin1_symbol("id"));
     nb_packets_sym        = scm_permanent_object(scm_from_latin1_symbol("nb-packets"));
@@ -724,14 +629,8 @@ void pkt_source_init(void)
     nb_cap_bytes_sym      = scm_permanent_object(scm_from_latin1_symbol("nb-cap-bytes"));
     nb_wire_bytes_sym     = scm_permanent_object(scm_from_latin1_symbol("nb-wire-bytes"));
     filep_sym             = scm_permanent_object(scm_from_latin1_symbol("file?"));
-    dup_found_sym         = scm_permanent_object(scm_from_latin1_symbol("dup-found"));
-    nodup_found_sym       = scm_permanent_object(scm_from_latin1_symbol("nodup-found"));
-    end_of_list_found_sym = scm_permanent_object(scm_from_latin1_symbol("end-of-list-found"));
 
-
-    ext_param_dup_detection_delay_init();
     ext_param_quit_when_done_init();
-    ext_param_nb_digests_init();
     log_category_pkt_sources_init();
 
     cap_parser = proto_cap->ops->parser_new(proto_cap);
@@ -780,16 +679,6 @@ void pkt_source_init(void)
         "iface-stats", 1, 0, 0, g_iface_stats,
         "(iface-stats \"iface-name\"): return detailed statistics about that packet source.\n"
         "See also (? 'get-ifaces).\n");
-
-    ext_function_ctor(&sg_dedup_stats,
-        "deduplication-stats", 0, 0, 0, g_dedup_stats,
-        "(deduplication-stats): return some statistics about the deduplication mechanism.\n"
-        "See also (? 'reset-deduplication-stats).\n");
-
-    ext_function_ctor(&sg_reset_dedup_stats,
-        "reset-deduplication-stats", 0, 0, 0, g_reset_dedup_stats,
-        "(reset-deduplication-stats): does what the name suggest.\n"
-        "You probably already know (? 'deduplication-stats).\n");
 }
 
 void pkt_source_fini(void)
@@ -814,20 +703,15 @@ void pkt_source_fini(void)
 
     if (cap_parser) cap_parser = parser_unref(cap_parser);
     mutex_dtor(&pkt_sources_lock);
-    if (digests) {
-        digest_queue_del(digests);
-        digests = NULL;
-    }
 
 #   ifdef WITH_GIANT_LOCK
     mutex_dtor(&giant_lock);
 #   endif
 
     log_category_pkt_sources_fini();
-    ext_param_nb_digests_fini();
-    ext_param_dup_detection_delay_fini();
     ext_param_quit_when_done_fini();
 
+    digest_fini();
     ref_fini();
     mutex_fini();
     ext_fini();

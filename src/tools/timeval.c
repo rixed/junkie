@@ -81,6 +81,11 @@ void timeval_sub_usec(struct timeval *tv, int64_t usec)
     usec_2_timeval(tv, timeval_2_usec(tv) - usec);
 }
 
+void timeval_sub_msec(struct timeval *tv, int64_t msec)
+{
+    usec_2_timeval(tv, timeval_2_usec(tv) - 1000*msec);
+}
+
 void timeval_sub_sec(struct timeval *tv, int32_t sec)
 {
     tv->tv_sec -= sec;

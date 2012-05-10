@@ -12,6 +12,8 @@ sactJunkieModule MODULE-IDENTITY
 	ORGANIZATION "SecurActive SA"
 	CONTACT-INFO "info@securactive.net"
 	DESCRIPTION  "Junkie MIB"
+	REVISION     "201205040000Z"
+	DESCRIPTION  "Dup detection delay is now in milliseconds"
 	REVISION     "201107080000Z"
 	DESCRIPTION  "Add statistics about RAM consumption"
 	REVISION     "201101310000Z"
@@ -124,11 +126,11 @@ wireBytes OBJECT-TYPE
 
 dupDetectionDelay OBJECT-TYPE
 	SYNTAX Integer32
-	UNITS "microseconds"
+	UNITS "milliseconds"
 	MAX-ACCESS read-write
 	STATUS current
 	DESCRIPTION
-		"Number of seconds between two packets that can't be duplicates.
+		"Number of milliseconds between two packets that can't be duplicates.
 		 Set to zero to disable deduplication altogether."
 	::= { junkieSniffer 2 }
 

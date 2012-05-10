@@ -22,8 +22,7 @@
 (define (play file)
   (simple-format #t "Playing ~a~%" file)
   ; reset dedup
-  (set-nb-digests 0)
-  (set-nb-digests 100)
+  (reset-digests)
   ; play
   (open-pcap file)
   ; wait completion
