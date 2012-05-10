@@ -283,9 +283,9 @@ bool digest_queue_find(size_t cap_len, uint8_t *packet, uint8_t dev_id, struct t
             if (q->nb_dups == 0) {
                 q->dt_max = 0;  // welcome in the autobahn!
             } else {
-                int64_t const avg = q->dt_sum / q->nb_dups;
-                int64_t const sigma = sqrt(avg*avg - (q->dt_sum2 / q->nb_dups));
-                q->dt_max = avg + fast_dedup_distance * sigma;
+                int64_t const avg = (q->dt_sum + (q->nb_dups>>1)) / q->nb_dups;
+                int64_t const sigma = sqrt((q->dt_sum2 + (q->nb_dups>>1)) / q->nb_dups - avg*avg);
+                q->dt_max = 1 + avg + fast_dedup_distance * sigma;
                 if (q->dt_max > max_dup_delay) SLOG(LOG_NOTICE, "queue[%u]: dt_max = %u > max_dup_delay = %u!", h, q->dt_max, max_dup_delay);
                 SLOG(LOG_DEBUG, "queue[%u]: New dt_max=%u, since nb_dups=%u, dt_sum=%"PRId64", dt_sum2=%"PRId64" -> avg=%"PRId64", sigma=%"PRId64, h, q->dt_max, q->nb_dups, q->dt_sum, q->dt_sum2, avg, sigma);
             }
@@ -377,7 +377,7 @@ static SCM g_dedup_stats(void)
         if (q->length > max_queue_len) max_queue_len = q->length;
         if (q->length < min_queue_len) min_queue_len = q->length;
         queue_len_count ++;
-        if (timeval_is_set(&q->period_start)) {
+        if (timeval_is_set(&q->period_start) && ! q->comprehensive) {
             dt_max_sum += q->dt_max;
             if (q->dt_max > max_dt_max) max_dt_max = q->dt_max;
             if (q->dt_max < min_dt_max) min_dt_max = q->dt_max;
