@@ -257,6 +257,7 @@ bool digest_queue_find(size_t cap_len, uint8_t *packet, uint8_t dev_id, struct t
     digest_frame(qc_new->digest, cap_len, packet);
 
     unsigned const h = qc_new->digest[0] % NB_ELEMS(queues);
+    SLOG(LOG_DEBUG, "digest[0] = %u -> h = %u", qc_new->digest[0], h);
     struct queue *const q = queues + h;
 
     mutex_lock(&q->mutex);
@@ -284,7 +285,7 @@ bool digest_queue_find(size_t cap_len, uint8_t *packet, uint8_t dev_id, struct t
                 q->dt_max = 0;  // welcome in the autobahn!
             } else {
                 uint64_t const avg = (q->dt_sum + (q->nb_dups>>1)) / q->nb_dups;
-                uint64_t const sigma = sqrt((q->dt_sum2 + (q->nb_dups>>1)) / q->nb_dups - avg*avg);
+                uint64_t const sigma = q->nb_dups > 1 ? sqrt((q->dt_sum2 + (q->nb_dups>>1)) / q->nb_dups - avg*avg) : avg/2;
                 q->dt_max = 1U + avg + fast_dedup_distance * sigma;
                 if (q->dt_max > max_dup_delay) SLOG(LOG_NOTICE, "queue[%u]: dt_max = %uus > max_dup_delay = %uus!", h, q->dt_max, max_dup_delay);
                 SLOG(LOG_DEBUG, "queue[%u]: New dt_max=%uus, since nb_dups=%u, dt_sum=%"PRId64"us, dt_sum2=%"PRId64"us2 -> avg=%"PRId64"us, sigma=%"PRId64"us", h, q->dt_max, q->nb_dups, q->dt_sum, q->dt_sum2, avg, sigma);
