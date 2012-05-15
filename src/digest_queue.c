@@ -59,16 +59,16 @@ static struct queue {
     // Deduplication variables
     bool comprehensive; // make a comprehensive search for dups (otherwise look only up to dt_max)
     struct timeval period_start;    // start of the deduplication period
-    uint64_t dt_sum, dt_sum2;   // sum of all dups dt and dt^2 (in ms not us!)
-    unsigned dt_max;     // milliseconds! (only defined if period_start is set)
+    uint64_t dt_sum, dt_sum2;   // sum of all dups dt and dt^2 (in microseconds)
+    unsigned dt_max;     // microseconds (only defined if period_start is set)
     unsigned nb_dups;
 } queues[NB_QUEUES];    // The queue is chosen according to digest hash, so that several distinct threads can perform lookups simultaneously.
 
-static unsigned max_dup_delay = 100; // milliseconds
-EXT_PARAM_RW(max_dup_delay, "max-dup-delay", uint, "Number of milliseconds between two packets that can not be duplicates (set to 0 to disable deduplication altogether)")
+static unsigned max_dup_delay = 100000; // microseconds
+EXT_PARAM_RW(max_dup_delay, "max-dup-delay", uint, "Number of microseconds between two packets that can not be duplicates (set to 0 to disable deduplication altogether)")
 
-static unsigned fast_dedup_duration = 10000;    // milliseconds
-EXT_PARAM_RW(fast_dedup_duration, "fast-dedup-duration", uint, "Number of milliseconds between two phases of comprehensive deduplication");
+static unsigned fast_dedup_duration = 10000000;    // microseconds
+EXT_PARAM_RW(fast_dedup_duration, "fast-dedup-duration", uint, "Number of microseconds between two phases of comprehensive deduplication");
 
 static double fast_dedup_distance = 1.;
 EXT_PARAM_RW(fast_dedup_distance, "fast-dedup-distance", double, "How many sigmas beyond average dup DT should we search for dups in fast dedup phases");
@@ -249,6 +249,33 @@ static void digest_frame(unsigned char buf[DIGEST_SIZE], size_t size, uint8_t *r
     }
 }
 
+// Add a sample dt and return the new global average dt_max
+static unsigned dt_max_sum;
+static unsigned dt_max_count;
+static unsigned dt_max_avg;
+static struct mutex dt_max_avg_lock;
+static unsigned new_avg_dt_max(unsigned dt)
+{
+    mutex_lock(&dt_max_avg_lock);
+
+    if (dt_max_count >= NB_ELEMS(queues)) { // approx when all queues are done, keep only a faint memory of what the previous dt_max was
+        dt_max_count = 1;
+        dt_max_sum = dt_max_avg;
+    }
+    dt_max_sum += dt;
+    dt_max_count++;
+    unsigned const ret = dt_max_avg = (dt_max_sum + (dt_max_count>>1))/dt_max_count;
+
+    if (dt_max_avg > max_dup_delay) {
+        SLOG(LOG_NOTICE, "avg dt_max = %uus > max_dup_delay = %uus!", dt_max_avg, max_dup_delay);
+        dt_max_avg = max_dup_delay;
+    }
+    
+    mutex_unlock(&dt_max_avg_lock);
+
+    return ret;
+}
+
 bool digest_queue_find(size_t cap_len, uint8_t *packet, uint8_t dev_id, struct timeval const *frame_tv)
 {
     if (! max_dup_delay) return false;
@@ -262,7 +289,7 @@ bool digest_queue_find(size_t cap_len, uint8_t *packet, uint8_t dev_id, struct t
     mutex_lock(&q->mutex);
 
     struct timeval min_tv = *frame_tv;
-    timeval_sub_msec(&min_tv, max_dup_delay);
+    timeval_sub_usec(&min_tv, max_dup_delay);
     // min_tv is now set to minimal TS for a packet we want to keep for dup detection.
 
     // First of all, delete the old qcells
@@ -277,17 +304,17 @@ bool digest_queue_find(size_t cap_len, uint8_t *packet, uint8_t dev_id, struct t
         if (! timeval_is_set(&q->period_start)) {
             q->period_start = *frame_tv;
             q->dt_max = max_dup_delay;
-        } else if (timeval_sub(frame_tv, &q->period_start) >= 2 * 1000LL * max_dup_delay) {
+        } else if (timeval_sub(frame_tv, &q->period_start) >= 2 * max_dup_delay) {
             // leave comprehensive mode if we are doing it for more than 2*max_dup_delay
             SLOG(LOG_INFO, "queue[%u]: Leaving comprehensive deduplication since we got from %s to %s", h, timeval_2_str(&q->period_start), timeval_2_str(frame_tv));
             if (q->nb_dups == 0) {
-                q->dt_max = 0;  // welcome in the autobahn!
+                // FIXME: non: on ne trouvera jamais de dup alors! Il faut mettre à jour un dt_max global !
+                q->dt_max = new_avg_dt_max(0);  // welcome in the autobahn!
             } else {
-                int64_t const avg = (q->dt_sum + (q->nb_dups>>1)) / q->nb_dups;
-                int64_t const sigma = sqrt((q->dt_sum2 + (q->nb_dups>>1)) / q->nb_dups - avg*avg);
-                q->dt_max = 1 + avg + fast_dedup_distance * sigma;
-                if (q->dt_max > max_dup_delay) SLOG(LOG_NOTICE, "queue[%u]: dt_max = %u > max_dup_delay = %u!", h, q->dt_max, max_dup_delay);
-                SLOG(LOG_DEBUG, "queue[%u]: New dt_max=%u, since nb_dups=%u, dt_sum=%"PRId64", dt_sum2=%"PRId64" -> avg=%"PRId64", sigma=%"PRId64, h, q->dt_max, q->nb_dups, q->dt_sum, q->dt_sum2, avg, sigma);
+                uint64_t const avg = (q->dt_sum + (q->nb_dups>>1)) / q->nb_dups;
+                uint64_t const sigma = q->nb_dups > 1 ? sqrt((q->dt_sum2 + (q->nb_dups>>1)) / q->nb_dups - avg*avg) : avg/2;
+                q->dt_max = new_avg_dt_max(1U + avg + fast_dedup_distance * sigma);
+                SLOG(LOG_DEBUG, "queue[%u]: New dt_max=%uus, since nb_dups=%u, dt_sum=%"PRId64"us, dt_sum2=%"PRId64"us2 -> avg=%"PRId64"us, sigma=%"PRId64"us", h, q->dt_max, q->nb_dups, q->dt_sum, q->dt_sum2, avg, sigma);
             }
             q->comprehensive = false;
         }
@@ -295,7 +322,7 @@ bool digest_queue_find(size_t cap_len, uint8_t *packet, uint8_t dev_id, struct t
 
     if (! q->comprehensive) {
         // Enter comprehensive mode once in a while
-        if (timeval_sub(frame_tv, &q->period_start) >= 1000LL * MAX(2*max_dup_delay, fast_dedup_duration)) {
+        if (timeval_sub(frame_tv, &q->period_start) >= MAX(2*max_dup_delay, fast_dedup_duration)) {
             SLOG(LOG_INFO, "queue[%u]: Entering comprehensive deduplication", h);
             q->period_start = *frame_tv;
             q->dt_sum = q->dt_sum2 = 0;
@@ -305,9 +332,9 @@ bool digest_queue_find(size_t cap_len, uint8_t *packet, uint8_t dev_id, struct t
         }
     }
 
-    // we are going to look dt_max msecs in the past
+    // we are going to look dt_max usecs in the past
     min_tv = *frame_tv;
-    timeval_sub_msec(&min_tv, q->dt_max);
+    timeval_sub_usec(&min_tv, q->dt_max);
 
     unsigned count = 0;
     // now look all qcells for a dup
@@ -320,12 +347,12 @@ bool digest_queue_find(size_t cap_len, uint8_t *packet, uint8_t dev_id, struct t
             (collapse_ifaces || dev_id == qc->dev_id) &&
             0 == memcmp(qc->digest, qc_new->digest, DIGEST_SIZE)
         ) { // found a dup
-            SLOG(LOG_DEBUG, "queue[%u]: Found a dup after %u/%u digests (max_dt=%ums)", h, count, q->length, q->dt_max);
+            SLOG(LOG_DEBUG, "queue[%u]: Found a dup after %u/%u digests (max_dt=%uus)", h, count, q->length, q->dt_max);
             // Note that we do not promote the dup in order to avoid dup + dup + dup + retrans being interpreted as 4 dups.
             if (q->comprehensive) {
-                int64_t const dt = timeval_sub(frame_tv, &qc->tv)/1000;
+                int64_t const dt = timeval_sub(frame_tv, &qc->tv);
                 // update the infos
-                q->dt_sum += dt;
+                q->dt_sum += llabs(dt);
                 q->dt_sum2 += dt*dt;
                 q->nb_dups ++;
             }
@@ -339,7 +366,7 @@ bool digest_queue_find(size_t cap_len, uint8_t *packet, uint8_t dev_id, struct t
     }
 
     // Here we have no dup thus we must store qc_new
-    SLOG(LOG_DEBUG, "queue[%u]: No dup found after %u/%u digests (max_dt=%ums)", h, count, q->length, q->dt_max);
+    SLOG(LOG_DEBUG, "queue[%u]: No dup found after %u/%u digests (max_dt=%uus)", h, count, q->length, q->dt_max);
     update_dedup_stats(0, 1);
     qcell_ctor(qc_new, q, frame_tv, dev_id);
     mutex_unlock(&q->mutex);
@@ -361,8 +388,6 @@ static struct ext_function sg_dedup_stats;
 static SCM g_dedup_stats(void)
 {
     // Compute avgs/delta on all queues
-    unsigned dt_max_sum = 0;
-    unsigned dt_max_count = 0;
     unsigned max_dt_max = 0;
     unsigned min_dt_max = UINT_MAX;
     unsigned queue_len_sum = 0;
@@ -378,6 +403,7 @@ static SCM g_dedup_stats(void)
         if (q->length < min_queue_len) min_queue_len = q->length;
         queue_len_count ++;
         if (timeval_is_set(&q->period_start) && ! q->comprehensive) {
+            SLOG(LOG_INFO, "queue[%u]: dt_max = %uus, queue_len = %u", i, q->dt_max, q->length);
             dt_max_sum += q->dt_max;
             if (q->dt_max > max_dt_max) max_dt_max = q->dt_max;
             if (q->dt_max < min_dt_max) min_dt_max = q->dt_max;
@@ -392,9 +418,9 @@ static SCM g_dedup_stats(void)
         scm_cons(dup_found_sym,         scm_from_uint64(nb_dup_found)),
         scm_cons(nodup_found_sym,       scm_from_uint64(nb_nodup_found)),
         scm_cons(queue_len_sym,         scm_from_uint(avg_queue_len)),
-        scm_cons(delta_queue_len_sym,   scm_from_uint(MAX(max_queue_len-avg_queue_len, avg_queue_len-min_queue_len))),
+        scm_cons(delta_queue_len_sym,   scm_from_uint(queue_len_count ? MAX(max_queue_len-avg_queue_len, avg_queue_len-min_queue_len) : 0)),
         scm_cons(dt_sym,                scm_from_uint(avg_dt_max)),
-        scm_cons(delta_dt_sym,          scm_from_uint(MAX(max_dt_max-avg_dt_max, avg_dt_max-min_dt_max))),
+        scm_cons(delta_dt_sym,          scm_from_uint(dt_max_count ? MAX(max_dt_max-avg_dt_max, avg_dt_max-min_dt_max) : 0)),
         SCM_UNDEFINED);
 
     return ret;
@@ -425,6 +451,8 @@ void digest_init(void)
     mutex_init();
     objalloc_init();
     ext_init();
+
+    mutex_ctor(&dt_max_avg_lock, "dt_max_avg");
 
     dup_found_sym       = scm_permanent_object(scm_from_latin1_symbol("dup-found"));
     nodup_found_sym     = scm_permanent_object(scm_from_latin1_symbol("nodup-found"));
@@ -471,6 +499,8 @@ void digest_fini(void)
     ext_param_fast_dedup_duration_fini();
     ext_param_max_dup_delay_fini();
     log_category_digest_fini();
+
+    mutex_dtor(&dt_max_avg_lock);
 
     ext_fini();
     objalloc_fini();
