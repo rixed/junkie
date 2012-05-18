@@ -185,14 +185,20 @@
            (next-filter (lambda (prevs i)
                           (if (> i mask)
                             prevs
-                            (let* ((flt         (format #f
-                                                        "(ip[11] & 0x~x = ~d) or (vlan and ip[11] & 0x~x = ~d)"
-                                                        mask i mask i))
-                                   (this-filter (if (not (eqv? capfilter ""))
-                                                    (format #f "(~a) and (~a)" capfilter flt)
-                                                    flt)))
-                              (next-filter (cons this-filter prevs) (1+ i)))))))
-    (next-filter (list "not ip and not (vlan and ip)") 0)))
+                            (let* ((partition   (format #f "ip[11] & 0x~x = ~d" mask i))
+                                   (with-user   (if (string-null? capfilter)
+                                                    partition
+                                                    (format #f "((~a) and (~a))" capfilter partition)))
+                                   ; **BEWARE**: Due to a bug in libpcap 'test or (vlan and test)' works as expected
+                                   ;             while '(vlan and test) or test' DO NOT!
+                                   ;             Also, 'not vlan' does not work as expected.
+                                   (vlan-aware  (format #f "(~a) or (vlan and (~a))" with-user with-user)))
+                              (next-filter (cons vlan-aware prevs) (1+ i))))))
+           (unpartionable (if (string-null? capfilter)
+                              "not ip and not (vlan and ip)"
+                              ; You'd better not mess with this one, this is not your ordinary logic!
+                              (format #f "not ip and (~a) and not (vlan and ip) and (~a)" capfilter capfilter))))
+    (next-filter (list unpartionable) 0)))
 
 ; Equivalent of set-ifaces for multiple CPUs
 (define*-public (open-iface-multiple n ifname #:key (capfilter "") (bufsize 0) (caplen 0) (promisc #t))
