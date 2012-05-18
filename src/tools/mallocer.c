@@ -73,7 +73,10 @@ static void *my_alloc(size_t size)
     size = round_up_to_page_size(size + sizeof(size_t)); // we store the asked size in order to unmap it later on
     SLOG(LOG_DEBUG, "Allocing %zu bytes", size);
 
-    size_t *ptr = mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+#   ifndef MAP_UNINITIALIZED
+#       define MAP_UNINITIALIZED 0
+#   endif
+    size_t *ptr = mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_UNINITIALIZED, -1, 0);
     if (ptr == MAP_FAILED) {
         SLOG(LOG_ERR, "Cannot mmap(): %s", strerror(errno));
         return NULL;

@@ -164,7 +164,7 @@ void *objalloc(size_t entry_size, char const *requestor)
 
     size_t spec_size = entry_size + sizeof(struct obj);
     struct redim_array *ra;
-    
+
     if (spec_size < NB_ELEMS(spec_objallocs)) {
         ra = spec_objalloc_for_size(spec_size, requestor);
         if (ra) {
@@ -175,7 +175,7 @@ void *objalloc(size_t entry_size, char const *requestor)
             return obj->userdata;
         }
     }
-    
+
     // use a preset allocator then
     ra = preset_objalloc_for_size(entry_size + sizeof(struct preset_obj), requestor);
     assert(ra);
