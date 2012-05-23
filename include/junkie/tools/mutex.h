@@ -26,29 +26,6 @@ void mutex_ctor(struct mutex *, char const *name);
 void mutex_ctor_with_type(struct mutex *, char const *, int);
 void mutex_dtor(struct mutex *);
 
-/// A supermutex is a mutex wich allow recursive lock _and_ deadlock detection (through timedlock)
-struct supermutex {
-    struct mutex mutex;
-    pthread_rwlock_t metalock;  ///< Protects owner
-    int rec_count;  ///< Recursive count (1 when the supermutex is locked once, 2 when the same thread relocked it, and so on)
-    pthread_t owner; ///< The owner of the lock (if rec_count > 0) or 0
-};
-
-void supermutex_ctor(struct supermutex *, char const *name);
-void supermutex_dtor(struct supermutex *);
-
-#define MUTEX_DEADLOCK        (-1)
-#define MUTEX_TOO_MANY_RECURS (-2)
-#define MUTEX_SYS_ERROR       (-3)
-/// @return 0 if the lock was granted, MUTEX_DEADLOCK in case of deadlock, MUTEX_TOO_MANY_RECURS in case of too many recursion, MUTEX_SYS_ERROR in other error cases
-int warn_unused supermutex_lock(struct supermutex *);
-
-/// For those cases when you are ready to wait forever
-void supermutex_lock_maydeadlock(struct supermutex *);
-
-/// Will abort if you are not the owner of the lock
-void supermutex_unlock(struct supermutex *);
-
 /// Assert you own a lock (works only for mutex created without the RECURSIVE attribute !)
 #define PTHREAD_ASSERT_LOCK(mutex) assert(EDEADLK == pthread_mutex_lock(mutex))
 
@@ -69,5 +46,37 @@ void mutex_fini(void);
     SLIST_LOOKUP(var, head, field, cond); \
     mutex_unlock(mutex); \
 } while (0)
+
+/*
+ * Supermutexes
+ */
+
+struct supermutex_user_lock {
+    unsigned rec_count;             /// how many time do I own this lock. Not protected, only the actual user can read/write this
+    struct supermutex *supermutex;  /// set if I'm owning or waiting this lock, ie the list entry is valid. only written by actual user with supermutex_meta_lock (so can be read by others with supermutex_meta_lock).
+    LIST_ENTRY(supermutex_user_lock) entry; /// in the supermutex->holders list, protected by supermutex_meta_lock
+    struct supermutex_user *user;   /// backlink
+};
+
+/// A supermutex is a mutex wich allow recursive lock while preventing deadlocks
+struct supermutex {
+    struct mutex mutex;
+    LIST_HEAD(supermutex_user_locks, supermutex_user_lock) holders;   // List of threads that are waiting for this supermutex + the one that holds it, protected by supermutex_meta_lock
+};
+
+void supermutex_ctor(struct supermutex *, char const *name);
+void supermutex_dtor(struct supermutex *);
+
+#define MUTEX_DEADLOCK        (-1)
+#define MUTEX_TOO_MANY_RECURS (-2)
+#define MUTEX_SYS_ERROR       (-3)
+/// @return 0 if the lock was granted, MUTEX_DEADLOCK in case of deadlock, MUTEX_TOO_MANY_RECURS in case of too many recursion, MUTEX_SYS_ERROR in other error cases
+int warn_unused supermutex_lock(struct supermutex *);
+
+/// For those cases when you are ready to wait forever
+void supermutex_lock_maydeadlock(struct supermutex *);
+
+/// Will abort if you are not the owner of the lock
+void supermutex_unlock(struct supermutex *);
 
 #endif

@@ -17,6 +17,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with Junkie.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
 #include <time.h>
@@ -31,13 +32,11 @@
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/ext.h"
 #include "junkie/tools/timeval.h"
+#include "junkie/tools/objalloc.h"
 
 LOG_CATEGORY_DEF(mutex)
 #undef LOG_CAT
 #define LOG_CAT mutex_log_category
-
-static int64_t timedlock_timeout = 1000;    // us
-EXT_PARAM_RW(timedlock_timeout, "timedlock-timeout", int64, "Timeout a timedlock (and assume deadlock) after this number of microseconds")
 
 static char const *mutex_name(struct mutex const *mutex)
 {
@@ -127,6 +126,49 @@ void mutex_dtor(struct mutex *mutex)
  * Supermutexes
  */
 
+static struct mutex supermutex_meta_lock;
+
+/* We cannot use thread local storage for the supermutex_user structure since
+ * we want to access them from other threads as well.  Instead, we use thread
+ * local storage to store the address of the current thread supermutex_user. */
+struct supermutex_user {
+    unsigned nb_locks;  /// how many locks I own or wait for
+#   define NB_MAX_LOCKED_SUPERMUTEX_PER_THREAD 16
+    struct supermutex_user_lock locks[NB_MAX_LOCKED_SUPERMUTEX_PER_THREAD];
+};
+
+static __thread struct supermutex_user *my_supermutex_user;
+
+
+static void supermutex_user_ctor(struct supermutex_user *usr)
+{
+    usr->nb_locks = 0;
+    for (unsigned l = 0; l < NB_ELEMS(usr->locks); l ++) {
+        usr->locks[l].user = usr;
+    }
+}
+
+static struct supermutex_user *supermutex_user_new(void)
+{
+    struct supermutex_user *usr = objalloc(sizeof(*usr), "supermutex_user");
+    if (! usr) {
+        SLOG(LOG_CRIT, "Cannot allocate for a supermutex_user! I'm sorry there's no alternative!");
+        abort();
+    }
+    supermutex_user_ctor(usr);
+    return usr;
+}
+
+// This will never get called, but hopefully no thread will quit with some supermutex locked.
+// FIXME: use TLS pthread API to register a finalizer?
+#if 0
+static void supermutex_user_dtor(struct supermutex_user *usr)
+{
+    // We are supposed to release our locks first
+    assert(usr->nb_locks == 0);
+}
+#endif
+
 static char const *supermutex_name(struct supermutex const *super)
 {
     return tempstr_printf("%s@%p", super->mutex.name, super);
@@ -135,84 +177,99 @@ static char const *supermutex_name(struct supermutex const *super)
 void supermutex_ctor(struct supermutex *super, char const *name)
 {
     SLOG(LOG_DEBUG, "Construct supermutex %s@%p", name, super);
-    super->rec_count = 0;
-    super->owner = (pthread_t)0;
-    pthread_rwlock_init(&super->metalock, NULL);
-    mutex_ctor_with_type(&super->mutex, name, PTHREAD_MUTEX_NORMAL);    // Other types may not allow timed lock
+    mutex_lock(&supermutex_meta_lock);
+    mutex_ctor(&super->mutex, name);
+    LIST_INIT(&super->holders);
+    mutex_unlock(&supermutex_meta_lock);
 }
 
 void supermutex_dtor(struct supermutex *super)
 {
     SLOG(LOG_DEBUG, "Destruct supermutex %s", supermutex_name(super));
-    pthread_rwlock_destroy(&super->metalock);
+    mutex_lock(&supermutex_meta_lock);
+    assert(LIST_EMPTY(&super->holders));
     mutex_dtor(&super->mutex);
+    mutex_unlock(&supermutex_meta_lock);
 }
 
-static int metalock_r(struct supermutex *super)
+/* Starting from the mutex super owned by user usr, try all other threads owning it, and look for cycle back to target.
+ * Caller must own supermutex_meta_lock. */
+static bool supermutex_is_cycling(struct supermutex_user *usr, struct supermutex *super, struct supermutex_user *target)
 {
-    int const err = pthread_rwlock_rdlock(&super->metalock);
-    if (err) {
-        SLOG(LOG_ERR, "Cannot get reader metalock for %s: %s", supermutex_name(super), strerror(err));
+    // Look for all other threads owning/waiting this supermutex
+    struct supermutex_user_lock *sul;
+    LIST_FOREACH(sul, &super->holders, entry) {
+        struct supermutex_user *const usr_ = sul->user;
+        if (usr_ == usr) continue;  // in the special case where usr == target dont report a cycle
+        if (usr_ == target) return true;
+        // Now look over all *other* locks owned by this other thread
+        for (unsigned l = 0; l < usr_->nb_locks; l++) {
+            if (! usr_->locks[l].supermutex) continue;
+            if (usr_->locks[l].supermutex == super) continue;
+            // Can I reach target from this one?
+            if (supermutex_is_cycling(usr_, usr_->locks[l].supermutex, target)) return true;
+        }
     }
-    return err;
-}
 
-static int metalock_w(struct supermutex *super)
-{
-    int const err = pthread_rwlock_wrlock(&super->metalock);
-    if (err) {
-        SLOG(LOG_ERR, "Cannot get writer metalock for %s: %s", supermutex_name(super), strerror(err));
-    }
-    return err;
-}
-
-static void metaunlock(struct supermutex *super)
-{
-    int const err = pthread_rwlock_unlock(&super->metalock);
-    if (err) {
-        SLOG(LOG_CRIT, "Cannot unlock metalock for %s: %s", supermutex_name(super), strerror(err));
-    }
+    return false;
 }
 
 int supermutex_lock(struct supermutex *super)
 {
-    pthread_t const self = pthread_self();
-    if (0 != metalock_r(super)) return MUTEX_SYS_ERROR;
-    if (super->owner == self) {
-        if (super->rec_count == INT_MAX) {
-            metaunlock(super);
+    if (! my_supermutex_user) {
+        my_supermutex_user = supermutex_user_new();
+    }
+
+    assert(my_supermutex_user->nb_locks <= NB_ELEMS(my_supermutex_user->locks));
+
+    // Easy case: maybe I already own it?
+    unsigned l;
+    unsigned free_l = ~0U;
+    for (l = 0; l < my_supermutex_user->nb_locks; l++) {
+        if (my_supermutex_user->locks[l].supermutex == super) break;
+        if (my_supermutex_user->locks[l].supermutex == NULL) free_l = l;
+    }
+    if (l < my_supermutex_user->nb_locks) {
+        SLOG(LOG_DEBUG, "Locking again supermutex %s", supermutex_name(super));
+        assert(my_supermutex_user->locks[l].rec_count > 0);
+
+        if (my_supermutex_user->locks[l].rec_count == UINT_MAX) {
             SLOG(LOG_CRIT, "Too many recursive locking of supermutex %s", supermutex_name(super));
             return MUTEX_TOO_MANY_RECURS;
         }
-        super->rec_count ++;
-        metaunlock(super);
+        my_supermutex_user->locks[l].rec_count ++;
         return 0;
     }
 
-    // We are not the owner of the lock
-    metaunlock(super);
-    SLOG(LOG_DEBUG, "Locking supermutex %s", supermutex_name(super));
-    // From now on the metadata can change, but we shall not become the owner of the lock
-    struct timeval now;
-    timeval_set_now(&now);
-    timeval_add_usec(&now, timedlock_timeout);
-    int const err = pthread_mutex_timedlock(&super->mutex.mutex, &(struct timespec){ .tv_sec = now.tv_sec, .tv_nsec = now.tv_usec*1000ULL });
-    if (err == ETIMEDOUT) {
-        SLOG(LOG_ERR, "Deadlock while waiting for supermutex %s", supermutex_name(super));
+    mutex_lock(&supermutex_meta_lock);
+
+    // From this lock (supposed I go for it), look for a circular dependancy
+    if (supermutex_is_cycling(my_supermutex_user, super, my_supermutex_user)) {
+        SLOG(LOG_NOTICE, "Locking supermutex %s may deadlock!", supermutex_name(super));
+        mutex_unlock(&supermutex_meta_lock);
         return MUTEX_DEADLOCK;
-    } else if (err != 0) {
-        SLOG(LOG_ERR, "Cannot pthread_mutex_timedlock() supermutex %s: %s", supermutex_name(super), strerror(err));
-        return MUTEX_SYS_ERROR;
     }
-    // So we now own the lock
-    if (0 != metalock_w(super)) {
-        (void)pthread_mutex_unlock(&super->mutex.mutex);
-        return MUTEX_SYS_ERROR;
+
+    // Adding me in the list of holders
+    if (free_l != ~0U) {
+        l = free_l;
+    } else {
+        if (my_supermutex_user->nb_locks == NB_ELEMS(my_supermutex_user->locks)) {
+            SLOG(LOG_ERR, "Cannot lock supermutex %s since I'm holding too many locks already!?", supermutex_name(super));
+            mutex_unlock(&supermutex_meta_lock);
+            return MUTEX_SYS_ERROR;
+        }
+        l = my_supermutex_user->nb_locks++;
     }
-    super->owner = self;
-    super->rec_count = 1;
-    metaunlock(super);
-    SLOG(LOG_DEBUG, "Locked supermutex %s", supermutex_name(super));
+    my_supermutex_user->locks[l].rec_count = 1;
+    my_supermutex_user->locks[l].supermutex = super;
+    LIST_INSERT_HEAD(&super->holders, my_supermutex_user->locks+l, entry);
+
+    mutex_unlock(&supermutex_meta_lock);
+
+    // Wait for the lock
+    mutex_lock(&super->mutex);
+
     return 0;
 }
 
@@ -234,16 +291,29 @@ void supermutex_lock_maydeadlock(struct supermutex *super)
 void supermutex_unlock(struct supermutex *super)
 {
     SLOG(LOG_DEBUG, "Unlocking supermutex %s", supermutex_name(super));
-    pthread_t const self = pthread_self();
-    metalock_r(super);
-    assert(super->owner == self);
-    assert(super->rec_count > 0);
-    if (--super->rec_count == 0) {
-        super->owner = (pthread_t)0;
-        metaunlock(super);
-        mutex_unlock(&super->mutex);
-    } else {
-        metaunlock(super);
+
+    assert(my_supermutex_user->nb_locks <= NB_ELEMS(my_supermutex_user->locks));
+    assert(my_supermutex_user->nb_locks > 0);
+
+    unsigned l;
+    for (l = 0; l < my_supermutex_user->nb_locks; l++) {
+        if (my_supermutex_user->locks[l].supermutex == super) break;
+    }
+    assert(l < my_supermutex_user->nb_locks);  // Or I'm releasing something I do not own?
+
+    if (--my_supermutex_user->locks[l].rec_count > 0) return;
+
+    mutex_lock(&supermutex_meta_lock);
+
+    LIST_REMOVE(my_supermutex_user->locks+l, entry);
+    my_supermutex_user->locks[l].supermutex = NULL;
+    mutex_unlock(&super->mutex);
+
+    mutex_unlock(&supermutex_meta_lock);
+
+    // Compact nb_locks
+    while (my_supermutex_user->nb_locks > 0 && my_supermutex_user->locks[my_supermutex_user->nb_locks-1].supermutex == NULL) {
+        my_supermutex_user->nb_locks--;
     }
 }
 
@@ -290,7 +360,7 @@ void mutex_init(void)
     log_init();
 
     log_category_mutex_init();
-    ext_param_timedlock_timeout_init();
+    mutex_ctor(&supermutex_meta_lock, "supermutex_meta");
 
     ext_function_ctor(&sg_set_thread_name,
         "set-thread-name", 1, 0, 0, g_set_thread_name,
@@ -301,7 +371,7 @@ void mutex_fini(void)
 {
     if (--inited) return;
 
-    ext_param_timedlock_timeout_fini();
+    mutex_dtor(&supermutex_meta_lock);
     log_category_mutex_fini();
 
     log_init();

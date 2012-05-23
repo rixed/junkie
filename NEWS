@@ -1,6 +1,12 @@
 For a detailed Changelog, see git logs.
 Here are only reported the most visible changes.
 
+NEW in 2.2.0 (since 2.1.0)
+--------------------------
+
+* Faster deadlock detection
+
+
 New in 2.1.0 (since 2.0.0)
 --------------------------
 
