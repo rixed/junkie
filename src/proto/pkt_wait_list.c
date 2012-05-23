@@ -225,7 +225,7 @@ enum proto_parse_status pkt_wait_list_flush(struct pkt_wait_list *pkt_wl, uint8_
     if (! payload) {
         // start by cleaning the parser so that the subparse method won't be called
         pkt_wl->parser = parser_unref(pkt_wl->parser);
-        last_status = pkt_wait_list_empty(pkt_wl, now);
+        last_status = pkt_wait_list_empty(pkt_wl, now); // may deadlock
     } else { // slightly different version
         struct parser *parser = pkt_wl->parser; // transfert the ref to this local variable
         pkt_wl->parser = NULL;
@@ -235,7 +235,7 @@ enum proto_parse_status pkt_wait_list_flush(struct pkt_wait_list *pkt_wl, uint8_
                 last_status = proto_parse(parser, pkt->parent, pkt->way, payload, cap_len, wire_len, now, pkt->tot_cap_len, pkt->packet);   // FIXME: once again, payload not within pkt->packet !
                 pkt_wait_del_nolock(pkt, pkt_wl);
             } else {
-                last_status = pkt_wait_finalize(pkt, pkt_wl, now);
+                last_status = pkt_wait_finalize(pkt, pkt_wl, now);  // may deadlock
             }
         }
         parser_unref(parser);
@@ -381,7 +381,7 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
 
     if (0 != supermutex_lock(&pkt_wl->list->mutex)) return PROTO_PARSE_ERR;
 
-    pkt_wait_list_timeout(pkt_wl->config, pkt_wl->list, now);
+    pkt_wait_list_timeout(pkt_wl->config, pkt_wl->list, now);   // may deadlock
 
     if (pkt_wl->config->nb_pkts_max && pkt_wl->nb_pkts >= pkt_wl->config->nb_pkts_max) {
         SLOG(LOG_DEBUG, "Waiting list too long, disbanding");
@@ -395,7 +395,7 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
 
     if (! pkt_wl->parser) {
         // Empty the list and ack this packet
-        pkt_wait_list_empty(pkt_wl, now);
+        pkt_wait_list_empty(pkt_wl, now);   // may deadlock
         ret = proto_parse(NULL, parent, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
         goto quit;
     }
@@ -419,6 +419,7 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
          * Not if the parser called create a new list on the same config (since the mutex is recursive),
          * but if he wants to create a new list on another config which is already locked by another thread
          * who also want to lock the one we already own!
+         * For instance, when several FTP parsers create simultaneously new TCP parsers because of contracking.
          * Yes, this does happen :-( */
         ret = proto_parse(pkt_wl->parser, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
 
@@ -460,7 +461,7 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
 
     // Maybe this packet content is enough to allow parsing (we end here in case its content overlap what's already there)
     if (can_parse && pkt->offset <= pkt_wl->next_offset) {
-        ret = pkt_wait_finalize(pkt, pkt_wl, now);
+        ret = pkt_wait_finalize(pkt, pkt_wl, now);  // may deadlock
     }   // else just wait
 
 quit:

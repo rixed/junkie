@@ -21,6 +21,7 @@
 #include <pthread.h>
 #include <time.h>
 #include <limits.h>
+#include <stdint.h>
 #include "junkie/config.h"
 #ifdef HAVE_SYS_PRCTL_H
 #   include <sys/prctl.h>
@@ -34,6 +35,9 @@
 LOG_CATEGORY_DEF(mutex)
 #undef LOG_CAT
 #define LOG_CAT mutex_log_category
+
+static int64_t timedlock_timeout = 1000;    // us
+EXT_PARAM_RW(timedlock_timeout, "timedlock-timeout", int64, "Timeout a timedlock (and assume deadlock) after this number of microseconds")
 
 static char const *mutex_name(struct mutex const *mutex)
 {
@@ -189,10 +193,9 @@ int supermutex_lock(struct supermutex *super)
     metaunlock(super);
     SLOG(LOG_DEBUG, "Locking supermutex %s", supermutex_name(super));
     // From now on the metadata can change, but we shall not become the owner of the lock
-#   define USEC_DEADLOCK 100000 // 100ms
     struct timeval now;
     timeval_set_now(&now);
-    timeval_add_usec(&now, USEC_DEADLOCK);
+    timeval_add_usec(&now, timedlock_timeout);
     int const err = pthread_mutex_timedlock(&super->mutex.mutex, &(struct timespec){ .tv_sec = now.tv_sec, .tv_nsec = now.tv_usec*1000ULL });
     if (err == ETIMEDOUT) {
         SLOG(LOG_ERR, "Deadlock while waiting for supermutex %s", supermutex_name(super));
@@ -287,6 +290,7 @@ void mutex_init(void)
     log_init();
 
     log_category_mutex_init();
+    ext_param_timedlock_timeout_init();
 
     ext_function_ctor(&sg_set_thread_name,
         "set-thread-name", 1, 0, 0, g_set_thread_name,
@@ -297,6 +301,7 @@ void mutex_fini(void)
 {
     if (--inited) return;
 
+    ext_param_timedlock_timeout_fini();
     log_category_mutex_fini();
 
     log_init();
