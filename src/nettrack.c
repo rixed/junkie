@@ -39,7 +39,6 @@ LOG_CATEGORY_DEF(nettrack);
  * We need to register a callback for every parsers, then try all nodes whose last proto matches the called one.
  */
 
-
 static struct nt_parser_hook {
     struct proto_subscriber subscriber;
     // list of edges which test ends with this proto

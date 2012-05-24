@@ -102,6 +102,7 @@ static void deserialize_proto_info_rec(unsigned depth, uint8_t const **buf, stru
         struct udp_proto_info udp;
         struct tcp_proto_info tcp;
         struct dns_proto_info dns;
+        struct dns_proto_info dns_tcp;
         struct ftp_proto_info ftp;
         struct gre_proto_info gre;
         struct http_proto_info http;
@@ -128,7 +129,8 @@ static void deserialize_proto_info_rec(unsigned depth, uint8_t const **buf, stru
             break
         CASE(CAP, cap); CASE(ETH, eth); CASE(ARP, arp);
         CASE(IP, ip); CASE(IP6, ip6); CASE(UDP, udp);
-        CASE(TCP, tcp); CASE(DNS, dns); CASE(FTP, ftp);
+        CASE(TCP, tcp); CASE(FTP, ftp);
+        CASE(DNS, dns); CASE(DNSoTCP, dns_tcp);
         CASE(GRE, gre); CASE(HTTP, http); CASE(ICMP, icmp);
         CASE(MGCP, mgcp); CASE(RTCP, rtcp); CASE(RTP, rtp);
         CASE(SDP, sdp); CASE(SIP, sip); CASE(TNS, tns);
