@@ -306,6 +306,8 @@
                               (otype  (type:op-otype op)))
                          (slog log-debug " compiling operator ~a, taking ~a and returning a ~a"
                                (type:op-name op) (map type:type-name itypes) (type:type-name otype))
+                         ; If we were expecting any type, we now expect an otype
+                         (type-check-or-set otype)
                          (type:check otype (fluid-ref expected-type))
                          (if (eqv? (length params) (length itypes))
                              (apply
@@ -454,13 +456,7 @@
                             (lambda (x)
                               (let* ((proto (car x))
                                      (canon-name (fieldname proto (cdr x))))
-                                (if (eq? (fluid-ref expected-type) type:any)
-                                    (let ((actual-type (field->type proto canon-name)))
-                                      (slog log-debug "set expected type of field ~a: ~a" canon-name (type:type-name actual-type))
-                                      (fluid-set! expected-type actual-type))
-                                    ; else check the type
-                                    (type:check (field->type proto canon-name)
-                                                (fluid-ref expected-type)))
+                                (type-check-or-set (field->type proto canon-name))
                                 ((type:type-fetch (fluid-ref expected-type))
                                  (type:symbol->C-ident proto) (field->C proto canon-name)))))
          (else ; A register name
