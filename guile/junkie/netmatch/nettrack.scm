@@ -80,10 +80,10 @@
                 (type:make-stub
                   (string-append
                     "{\n"
-                    "    .name = \"" (symbol->string name) "\",\n" ; FIXME: escape double quotes within name (ll:string->C)
-                    "    .entry_fn = " (type:stub-result entry-func) ",\n"
-                    "    .index_size = " (number->string index-size) ",\n"
-                    "}, ")
+                    "        .name = \"" (symbol->string name) "\",\n" ; FIXME: escape double quotes within name (ll:string->C)
+                    "        .entry_fn = " (type:stub-result entry-func) ",\n"
+                    "        .index_size = " (number->string index-size) ",\n"
+                    "    }, ")
                   "" '()))))]
          [_ (throw 'you-must-be-joking (simple-format #f "can't understand vertice ~a" vertice))])
   (cons preamble defs))
@@ -98,7 +98,7 @@
                  (cons type:empty-stub ; empty preamble
                        (type:make-stub ; start of defs
                          (string-append
-                           "struct nt_vertex_def vertice_defs[" (number->string nb-vertices) "] = {\n")
+                           "struct nt_vertex_def vertice_defs[" (number->string nb-vertices) "] = {\n    ")
                          "" '()))
                  vertices)
            [(preamble . defs)
@@ -107,8 +107,8 @@
               defs
               (type:make-stub
                 (string-append
-                  "};\n"
-                  "unsigned nb_vertice_defs = " (number->string nb-vertices) ";\n")
+                  "\n};\n"
+                  "unsigned nb_vertice_defs = " (number->string nb-vertices) ";\n\n")
                 "vertice_defs" '()))])))
 
 ; returns the stub for a given edge
@@ -148,15 +148,15 @@
                                     (type:make-stub
                                       (string-append
                                         "{\n"
-                                        "    .match_fn = " (type:stub-result match-func) ",\n"
-                                        "    .inner_proto = " (ll:proto-code->C proto-code) ",\n"
-                                        "    .from_vertex = \"" (symbol->string from) "\",\n" ; FIXME: escape double quotes within name (ll:string->C)
-                                        "    .to_vertex = \"" (symbol->string to) "\",\n" ; FIXME: escape double quotes within name (ll:string->C)
-                                        "    .from_index_fn = " (type:stub-result src-index-func) ",\n"
-                                        "    .to_index_fn = " (type:stub-result dst-index-func) ",\n"
-                                        "    .spawn = " (ll:bool->C spawn) ",\n"
-                                        "    .grab = " (ll:bool->C grab) ",\n"
-                                        "}, ")
+                                        "        .match_fn = " (type:stub-result match-func) ",\n"
+                                        "        .inner_proto = " (ll:proto-code->C proto-code) ",\n"
+                                        "        .from_vertex = \"" (symbol->string from) "\",\n" ; FIXME: escape double quotes within name (ll:string->C)
+                                        "        .to_vertex = \"" (symbol->string to) "\",\n" ; FIXME: escape double quotes within name (ll:string->C)
+                                        "        .from_index_fn = " (type:stub-result src-index-func) ",\n"
+                                        "        .to_index_fn = " (type:stub-result dst-index-func) ",\n"
+                                        "        .spawn = " (ll:bool->C spawn) ",\n"
+                                        "        .grab = " (ll:bool->C grab) ",\n"
+                                        "    }, ")
                                       "" '()))))]
          [_ (throw 'you-must-be-joking (simple-format #f "can't understand edge ~a" edge))]))
 
@@ -170,7 +170,7 @@
                  (cons type:empty-stub ; empty preamble
                        (type:make-stub ; start of defs
                          (string-append
-                           "struct nt_edge_def edge_defs[" (number->string nb-edges) "] = {\n")
+                           "struct nt_edge_def edge_defs[" (number->string nb-edges) "] = {\n    ")
                          "" '()))
                  edges)
            [(preamble . defs)
@@ -179,8 +179,8 @@
               defs
               (type:make-stub
                 (string-append
-                  "};\n"
-                  "unsigned nb_edge_defs = " (number->string nb-edges) ";\n")
+                  "\n};\n"
+                  "unsigned nb_edge_defs = " (number->string nb-edges) ";\n\n")
                 "edge_defs" '()))])))
 
 ; takes a nettrack expression and returns the nettrack SMOB
@@ -200,7 +200,7 @@
             (module-ref (resolve-module '(junkie netmatch types)) typename))))
       decls)
     (let* ((init (type:make-stub
-                   "unsigned default_index_size = 1;\n" ; FIXME
+                   "unsigned default_index_size = 1;\n\n" ; FIXME
                    "" '()))
            (v-stub (vertices->stub vertices))
            (e-stub (edges->stub edges))
