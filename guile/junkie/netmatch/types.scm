@@ -118,6 +118,7 @@
 (export gensymC)
 
 ; FIXME: move this into ll-compiler
+; FIXME: we should avoid C keywords and the identifiers already used by junkie (such as 'name' for instance. Try to have a register named 'name'!)
 (define string->C-ident
   (let ((ident-charset (char-set-intersection char-set:ascii char-set:letter)))
     (lambda (str)
@@ -225,7 +226,7 @@
           '())))
     boxed-ref
     (lambda (regname value) ; bind needs special attention since sizeof(*res) won't work, we need strlen(*res)+1
-      (let ((tmp (gensymC)))
+      (let ((tmp (gensymC "strbind")))
         (make-stub
           (string-append
             (stub-code value)
