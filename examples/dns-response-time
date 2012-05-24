@@ -1,0 +1,45 @@
+#!/usr/bin/junkie -c
+; vim:syntax=scheme filetype=scheme expandtab
+Or just run: junkie -c this_file
+!#
+
+(use-modules ((junkie netmatch nettrack) :renamer (symbol-prefix-proc 'nt:))
+			 (junkie runtime))
+
+(define nt (nt:compile "dns-response-time"
+  '(; declarations (of those variables used in the entry function which is too small for our type inference)
+	[(server ip)
+     (qry-name str)
+     (duration uint)]
+	; vertices
+	[(dns-answer
+	   (on-entry (pass "printf(\"server=%s, name=%s, resptime=%\"PRId64\"us\\n\",
+                        ip_addr_2_str(" server "), " qry-name ", " duration ");\n")))
+	 (dns-query
+	   (index-size 1024))]
+	; edges
+	[(root
+	   dns-query
+	   (match (cap ip dns) (do
+						 (client := ip.src)
+						 (server := ip.dst)
+						 (txid := dns.txid)
+                         (qry-name := dns.name)
+                         (qry-ts := cap.ts)
+                         #t))
+	   (dst-index-on () txid)
+	   spawn)
+	 (dns-query
+	   dns-answer
+	   (match (cap ip dns) (do
+                             (duration := (timestamp-sub cap.ts qry-ts))
+                             (and
+                               (ip.src == server)
+                               (ip.dst == client)
+                               (dns.txid == txid))))
+       (src-index-on (dns) dns.txid) ; note that one CAN NOT use any register in a src-index-on expression (since it's used precisely to find the regfile)
+	   ; TODO: kill parent
+       )])))
+
+(nettrack-start nt)
+

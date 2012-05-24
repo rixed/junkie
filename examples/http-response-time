@@ -1,0 +1,66 @@
+#!/usr/bin/junkie -c
+; vim:syntax=scheme filetype=scheme expandtab
+Or just run: junkie -c this_file
+!#
+
+(use-modules ((junkie netmatch nettrack) :renamer (symbol-prefix-proc 'nt:))
+			 (junkie runtime))
+
+(define nt (nt:compile "http-response-time"
+  '(; declarations (of those variables used in the entry function which is too small for our type inference)
+	[(server ip)
+     (client-port uint)
+     (http-status uint)
+     (qry-url str)
+     (duration uint)]
+	; vertices
+	[(http-answer
+	   (on-entry (pass "printf(\"server=%s, url=%s, status=%\"PRId64\", resptime=%\"PRId64\"us\\n\",
+                        ip_addr_2_str(" server "), " qry-url ", " http-status ", " duration ");\n")))
+     (web-syn
+       (index-size 1024))]
+	; edges
+	[(root
+	   web-syn ; we start our timer with the initial SYN
+	   (match (cap ip tcp) (do
+                             (client := ip.src)
+                             (server := ip.dst)
+                             (client-port := tcp.src-port)
+                             (server-port := tcp.dst-port)
+                             (start-ts := cap.ts)
+                             (tcp.syn && ((tcp.dst-port == 80) || (tcp.dst-port == 8080) || (tcp.dst-port == 8000)))))
+	   (dst-index-on () client-port)
+	   spawn)
+     (web-syn
+       http-query ; then we wait for an HTTP query
+       (match (ip tcp http) (do
+                              (qry-url := http.url)
+                              (and (ip.src == client)
+                                   (ip.dst == server)
+                                   (tcp.src-port == client-port)
+                                   (tcp.dst-port == server-port)
+                                   (set? http.url)
+                                   (set? http.method)
+                                   ((http.method == GET) || (http.method == POST)))))
+       ; spawn NOT! We'd like to stay there for future requests on same socket,
+       ; but we'd have to reset out start-ts then. This will be doable when we will have
+       ; conditional expressions (reset start-ts in the above match on certain condition...)
+       ; Also, we'd have to beware of HTTP pipelining
+       (src-index-on (tcp) tcp.src-port) ; note that one CAN NOT use a register in a src-index-on expression (since it's used precisely to search for the regfile)
+       (dst-index-on () client-port))
+	 (http-query
+       http-answer ; then we wait for the answer
+	   (match (cap ip tcp http) (do
+                                  (duration := (timestamp-sub cap.ts start-ts))
+                                  (http-status := http.status)
+                                  (and (ip.src == server)
+                                       (ip.dst == client)
+                                       (tcp.src-port == server-port)
+                                       (tcp.dst-port == client-port)
+                                       (set? http.status))))
+       (src-index-on (tcp) tcp.dst-port)
+	   ; TODO: kill parent
+       )])))
+
+(nettrack-start nt)
+
