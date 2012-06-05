@@ -1,0 +1,12 @@
+#!/usr/bin/env guile
+; vim:syntax=scheme expandtab
+; coding: iso-8859-1
+!#
+;;; This test the classifier functions
+
+(define-module (check))
+
+(use-modules (junkie tools))
+
+(assert (string=? (eth->string #x123456789abc) "12:34:56:78:9a:bc"))
+

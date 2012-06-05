@@ -24,6 +24,7 @@
 #include <stdbool.h>
 #include <inttypes.h>
 #include "junkie/cpp.h"
+#include "junkie/config.h"
 #include "junkie/tools/log.h"
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/miscmacs.h"
@@ -77,10 +78,13 @@ char const *eth_addr_2_str(unsigned char const addr[ETH_ADDR_LEN])
     return str;
 }
 
-// While we are at it, convert from eth addr to SCM
+// While we are at it, convert from eth addr to SCM (as a uint64!)
 SCM scm_from_eth_addr(unsigned char const addr[ETH_ADDR_LEN])
 {
-    return scm_from_latin1_string(eth_addr_2_str(addr));
+#   define A(idx, loc) (((uint64_t)addr[idx])<<((loc)*8))
+    uint64_t const v = A(0,5) | A(1,4) | A(2,3) | A(3,2) | A(4,1) | A(5,0);
+    return scm_from_uint64(v);
+#   undef A
 }
 
 static void const *eth_info_addr(struct proto_info const *info_, size_t *size)

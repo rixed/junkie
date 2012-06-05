@@ -22,7 +22,8 @@ dist_check_SCRIPTS = \
 	ip.test timeout.scm eth.test sip.test \
 	serialize_check writer_check.scm \
 	dedup_conf1.test dedup_conf2.test \
-	http-chunked.test tcp.test os-detect.test
+	http-chunked.test tcp.test os-detect.test \
+	tools-check
 
 TESTS = $(check_PROGRAMS) $(dist_check_SCRIPTS)
 

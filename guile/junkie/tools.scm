@@ -44,6 +44,19 @@
 
 (export for-each-file-in)
 
+; Convert (quickly, aka no format) an eth address as a number into usual string representation
+(define (eth->string e)
+  (let ((digits "0123456789abcdef")
+        (str    (string-copy "00:00:00:00:00:00")))
+    (do ((e e (ash e -4)) ; move one digit at a time
+         (new-digit #t (not new-digit)) ; are we patching the first digit of a 2 byte value?
+         (p 16 (- p (if new-digit 1 2)))) ; offset in str
+      ((zero? e))
+      (string-set! str p (string-ref digits (logand #b1111 e))))
+    str))
+
+(export eth->string)
+
 ; Some tools mainly usefull for tests
 
 (define-syntax assert
