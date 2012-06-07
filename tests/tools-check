@@ -9,4 +9,4 @@
 (use-modules (junkie tools))
 
 (assert (string=? (eth->string #x123456789abc) "12:34:56:78:9a:bc"))
-
+(assert (eqv? #x123456789abc (string->eth "12:34:56:78:9a:bc")))

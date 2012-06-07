@@ -57,6 +57,18 @@
 
 (export eth->string)
 
+; And the other way around (no need to be fast here)
+(define (string->eth s)
+  (fold (lambda (d e)
+          ; add this digit to e
+          (logior (ash e 8) d))
+        0
+        (map (lambda (b)
+               (string->number b 16))
+             (string-split s #\:))))
+
+(export string->eth)
+
 ; Some tools mainly usefull for tests
 
 (define-syntax assert
