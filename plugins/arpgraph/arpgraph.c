@@ -61,7 +61,7 @@ static HASH_TABLE(edges, edge) edges;
 
 static void edge_key_ctor(struct edge_key *key, struct ip_addr const *a_ip, struct ip_addr const *b_ip)
 {
-    memset(key, 0, sizeof(key));    // as it's used as a hash key
+    memset(key, 0, sizeof(*key));    // as it's used as a hash key
     host_ctor(key->hosts+0, a_ip);
     host_ctor(key->hosts+1, b_ip);
 }

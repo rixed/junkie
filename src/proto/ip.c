@@ -449,7 +449,7 @@ static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info
     unsigned const version = IP_VERSION(iphdr);
     size_t const iphdr_len = IP_HDR_LENGTH(iphdr);
 
-    SLOG(LOG_DEBUG, "New packet of %zu bytes, proto %hu, %"PRINIPQUAD"->%"PRINIPQUAD,
+    SLOG(LOG_DEBUG, "New packet of %zu bytes, proto %u, %"PRINIPQUAD"->%"PRINIPQUAD,
         wire_len, protocol, NIPQUAD(&iphdr->src), NIPQUAD(&iphdr->dst));
 
     size_t ip_len = READ_U16N(&iphdr->tot_len);

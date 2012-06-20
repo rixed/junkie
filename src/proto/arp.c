@@ -138,7 +138,7 @@ static enum proto_parse_status arp_parse(struct parser *parser, struct proto_inf
     size_t const hard_addr_len = READ_U8(&arp->hard_addr_len);
     size_t const prot_addr_len = READ_U8(&arp->prot_addr_len);
 
-    SLOG(LOG_DEBUG, "New ARP packet with hard addr type %hu and proto addr type %hu", hard_addr_fmt, prot_addr_fmt);
+    SLOG(LOG_DEBUG, "New ARP packet with hard addr type %u and proto addr type %u", hard_addr_fmt, prot_addr_fmt);
 
     size_t arp_msg_size = sizeof(*arp) + 2*hard_addr_len + 2*prot_addr_len;
     if (wire_len < arp_msg_size) return PROTO_PARSE_ERR;

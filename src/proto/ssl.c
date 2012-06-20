@@ -107,7 +107,7 @@ static void ssl_proto_info_ctor(struct ssl_proto_info *info, struct parser *pars
 
 static int session_is_sslv2(uint8_t const *packet, size_t packet_len)
 {
-    if (packet_len > 2 && (packet[0] >> 6 && 3) == 1) {
+    if (packet_len > 2 && ((packet[0] >> 6) & 3) == 1) {
         uint16_t l = (((uint16_t)(packet[0] & 0x3f)) << 8) + packet[1];
         return l == packet_len && packet[2] == 4;
     }
