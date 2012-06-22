@@ -17,7 +17,7 @@
 
 #define CHECK_LAST_FIELD(container, field_name, content) do { \
     ASSERT_COMPILE(sizeof(struct container) <= PAD_SIZE(offsetof(struct container, field_name) + sizeof (content))); \
-} while (0/*CONSTCOND*/)
+} while (0)
 
 /// Various utilities
 #ifndef MAX
@@ -59,7 +59,7 @@
             SLOG(LOG_ERR, "assertion failed '%s'\n", #c); \
             abort(); \
         } \
-    } while(/*CONSTCOND*/0)
+    } while(0)
 #else
 #   define GUARD(c)
 #endif

@@ -30,24 +30,36 @@ char const *log_get_file(void);
 
 #define SLOG(prio, ...) do { \
     if (LOG_CAT.level >= (prio)) slog(prio, __FILE__, __func__, ##__VA_ARGS__); \
-} while(/*CONSTCOND*/0)
+} while(0)
 
 void slog(int priority, char const *filename, char const *funcname, char* fmt, ...) a_la_printf_(4, 5);
 
 #define SLOG_HEX(prio, buf, size) do { \
     if (LOG_CAT.level >= prio) slog_hex(prio, __FILE__, __func__, (unsigned char *)buf, size); \
-} while (/*CONSTCOND*/0)
+} while (0)
 void slog_hex(int priority, char const *filename, char const *funcname, unsigned char *buf, size_t size);
+
+#include <time.h>
+#define TIMED_SLOG(prio, ...) do { \
+    if (LOG_CAT.level >= (prio)) { \
+        static time_t last_loged; \
+        time_t now = time(NULL); \
+        if (now - last_loged > 5) { \
+            last_loged = now; \
+            slog(prio, __FILE__, __func__, ##__VA_ARGS__); \
+        } \
+    } \
+} while (0)
 
 #define DIE(fmt, ...) do { \
         slog(LOG_EMERG, NULL, NULL, fmt, ##__VA_ARGS__); \
         exit(EXIT_FAILURE); \
-    } while (/*CONSTCOND*/0)
+    } while (0)
 
 #define FAIL(fmt, ...) do {                               \
         char unused_ *str = tempstr_printf(fmt, ##__VA_ARGS__);   \
         assert(!str);                                     \
-} while (/*CONSTCOND*/0)
+} while (0)
 
 /*
  * Log categories
