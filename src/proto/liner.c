@@ -216,6 +216,9 @@ extern inline size_t liner_rem_length(struct liner *);
 extern inline size_t liner_parsed(struct liner *);
 extern inline void liner_expand(struct liner *liner);
 
+// XXX: Should we keep both ": " and ":" for colons (and likewise for
+// semicols), since spaces are skipped anyway?  A single case (":")
+// should suffice.
 static struct liner_delimiter
     eols[]     = { { "\r\n", 2 }, { "\n", 1 } },
     blanks[]   = { { " ", 1 }, { "\r\n", 2 }, { "\n", 1 } },

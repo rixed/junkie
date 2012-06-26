@@ -11,7 +11,7 @@ struct liner {
     // You should not access other fields directly (as they are subject to change)
     size_t tok_size;    // token length
     size_t delim_size;  // and its delimiter
-    size_t rem_size;    // remaining size
+    size_t rem_size;    // remaining size, including the current token
     size_t tot_size;    // initial buffer size
     struct liner_delimiter_set {
         unsigned nb_delims;
