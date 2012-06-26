@@ -6,6 +6,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <junkie/tools/ext.h>
+#include <junkie/proto/eth.h>   // for ETH_ADDR_LEN
 
 /** @file
  * @brief Utilities to handle IPv4/6 addresses
@@ -41,7 +42,11 @@ bool ip_addr_is_broadcast(struct ip_addr const *);
 
 bool ip_addr_match_mask(struct ip_addr const *host, struct ip_addr const *net, struct ip_addr const *mask);
 
+/// convert an IP addr into a SCM number
 SCM scm_from_ip_addr(struct ip_addr const *ip);
+
+/// Convert an eth addr into a SCM number
+SCM scm_from_eth_addr(unsigned char const addr[ETH_ADDR_LEN]);
 
 void ip_addr_serialize(struct ip_addr const *addr, uint8_t **buf);
 void ip_addr_deserialize(struct ip_addr *addr, uint8_t const **buf);

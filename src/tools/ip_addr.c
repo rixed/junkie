@@ -249,6 +249,15 @@ SCM scm_from_ip_addr(struct ip_addr const *ip)
     }
 }
 
+// While we are at it, convert from eth addr to SCM (as a uint64!)
+SCM scm_from_eth_addr(unsigned char const addr[ETH_ADDR_LEN])
+{
+#   define A(idx, loc) (((uint64_t)addr[idx])<<((loc)*8))
+    uint64_t const v = A(0,5) | A(1,4) | A(2,3) | A(3,2) | A(4,1) | A(5,0);
+    return scm_from_uint64(v);
+#   undef A
+}
+
 void ip_addr_serialize(struct ip_addr const *addr, uint8_t **buf)
 {
 	if (addr->family == AF_INET) {

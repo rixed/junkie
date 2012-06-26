@@ -59,9 +59,6 @@ bool eth_addr_is_broadcast(unsigned char const addr[ETH_ADDR_LEN]);
 /// Wether or not vlans must be ignored
 bool collapse_vlans;
 
-/// Convert an eth addr into a SCM string
-SCM scm_from_eth_addr(unsigned char const addr[ETH_ADDR_LEN]);
-
 void eth_init(void);
 void eth_fini(void);
 

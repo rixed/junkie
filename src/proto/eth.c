@@ -78,15 +78,6 @@ char const *eth_addr_2_str(unsigned char const addr[ETH_ADDR_LEN])
     return str;
 }
 
-// While we are at it, convert from eth addr to SCM (as a uint64!)
-SCM scm_from_eth_addr(unsigned char const addr[ETH_ADDR_LEN])
-{
-#   define A(idx, loc) (((uint64_t)addr[idx])<<((loc)*8))
-    uint64_t const v = A(0,5) | A(1,4) | A(2,3) | A(3,2) | A(4,1) | A(5,0);
-    return scm_from_uint64(v);
-#   undef A
-}
-
 static void const *eth_info_addr(struct proto_info const *info_, size_t *size)
 {
     struct eth_proto_info const *info = DOWNCAST(info_, info, eth_proto_info);
