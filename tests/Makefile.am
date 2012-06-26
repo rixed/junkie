@@ -23,7 +23,7 @@ dist_check_SCRIPTS = \
 	serialize_check writer_check.scm \
 	dedup_conf1.test dedup_conf2.test \
 	http-chunked.test tcp.test os-detect.test \
-	tools-check
+	http-multiline.test tools-check
 
 TESTS = $(check_PROGRAMS) $(dist_check_SCRIPTS)
 

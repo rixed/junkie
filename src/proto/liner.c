@@ -40,6 +40,15 @@ void copy_token(char *dest, size_t dest_sz, struct liner *liner)
     dest[len] = '\0';
 }
 
+// Grow the liner up to the given position.
+void liner_grow(struct liner *liner, char const *end)
+{
+    assert(end >= liner->start + liner->tok_size + liner->delim_size);
+    ssize_t diff = end - (liner->start + liner->rem_size);
+    liner->rem_size += diff;
+    liner->tot_size += diff;
+}
+
 static void liner_skip(struct liner *liner, size_t len)
 {
     assert(liner->rem_size >= len);

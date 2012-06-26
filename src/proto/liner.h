@@ -29,6 +29,8 @@ void liner_init(struct liner *, struct liner_delimiter_set const *, char const *
 
 void liner_next(struct liner *);
 
+void liner_grow(struct liner *, char const *end);
+
 static inline bool liner_eof(struct liner *liner)
 {
     return liner->tok_size == 0 && liner->delim_size == 0;

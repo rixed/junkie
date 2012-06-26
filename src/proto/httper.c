@@ -65,6 +65,10 @@ no_command:
 
     // Parse header fields
     unsigned nb_hdr_lines = 0;
+
+    int field_idx = -1;
+    char* field_end = 0;
+
     while (true) {
         // Next line
         bool const has_newline = liner.delim_size > 0;
@@ -79,25 +83,45 @@ no_command:
         // If empty line we reached the end of the headers
         if (liner_tok_length(&liner) == 0) break;
 
-        // Otherwise tokenize the header line
-        liner_init(&tokenizer, &delim_colons, liner.start, liner_tok_length(&liner));
+        // Check if we reached the end of a multiline field.
+        // FIXME: Is isspace appropriate here?
+        if (! isspace(liner.start[0])) {
+            if (field_idx >= 0) {
+                liner_grow(&tokenizer, field_end);
+                // Absorb all remaining of line onto this token
+                liner_expand(&tokenizer);
+                int ret = httper->fields[field_idx].cb(field_idx, &tokenizer, user_data);
+                if (ret) return PROTO_PARSE_ERR;
+            }
 
-        for (unsigned f = 0; f < httper->nb_fields; f++) {
-            struct httper_field const *field = httper->fields + f;
+            // Tokenize the header line
+            liner_init(&tokenizer, &delim_colons, liner.start, liner_tok_length(&liner));
 
-            if (liner_tok_length(&tokenizer) < field->len) continue;
-            if (0 != strncasecmp(field->name, tokenizer.start, liner_tok_length(&tokenizer))) continue;
+            field_idx = -1;
+            for (unsigned f = 0; f < httper->nb_fields; f++) {
+                struct httper_field const *field = httper->fields + f;
 
-            SLOG(LOG_DEBUG, "Found field %s", field->name);
-            liner_next(&tokenizer);
-            // Absorb all remaining of line onto this token
-            liner_expand(&tokenizer);
-            int ret = field->cb(f, &tokenizer, user_data);
-            if (ret) return PROTO_PARSE_ERR;
-            break;
+                if (liner_tok_length(&tokenizer) < field->len) continue;
+                if (0 != strncasecmp(field->name, tokenizer.start, liner_tok_length(&tokenizer))) continue;
+
+                SLOG(LOG_DEBUG, "Found field %s", field->name);
+                liner_next(&tokenizer);
+                field_idx = f;
+                field_end = tokenizer.start + tokenizer.rem_size; // FIXME: utility function?
+                break;
+            }
+        } else {
+            field_end = liner.start + liner.tok_size; // FIXME: utility function?
         }
-
         nb_hdr_lines ++;
+    }
+
+    if (field_idx >= 0) {
+        liner_grow(&tokenizer, field_end);
+        // Absorb all remaining of line onto this token
+        liner_expand(&tokenizer);
+        int ret = httper->fields[field_idx].cb(field_idx, &tokenizer, user_data);
+        if (ret) return PROTO_PARSE_ERR;
     }
 
     if (head_sz) *head_sz = liner_parsed(&liner);

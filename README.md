@@ -43,8 +43,6 @@ most blatant limitations:
   capturing on "any" interfaces) and 802.1q vlan tags. All other Ethernet
   extensions are ignored.
 
-- Http parser does not support multi-line headers.
-
 - ARP parser knows only Ethernet and IP addresses.
 
 - DNS parser supports MDNS, NBNS and LLMNR in the extend where these protocols
