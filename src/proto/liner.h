@@ -52,6 +52,7 @@ static inline size_t liner_parsed(struct liner *liner)
 static inline void liner_expand(struct liner *liner)
 {
     liner->tok_size = liner->rem_size;
+    liner->delim_size = 0;
 }
 
 unsigned long long liner_strtoull(struct liner *, char const **end, int base);
