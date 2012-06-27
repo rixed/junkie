@@ -68,7 +68,7 @@ no_command:
     unsigned nb_hdr_lines = 0;
 
     int field_idx = -1;
-    char const *field_end = 0;
+    char const *field_end = NULL;
 
     while (true) {
         // Next line
@@ -108,12 +108,10 @@ no_command:
                 SLOG(LOG_DEBUG, "Found field %s", field->name);
                 liner_next(&tokenizer);
                 field_idx = f;
-                field_end = tokenizer.start + tokenizer.rem_size; // FIXME: utility function?
                 break;
             }
-        } else {
-            field_end = liner.start + liner.tok_size; // FIXME: utility function?
         }
+        field_end = liner.start + liner.tok_size;   // save end of line position in field_end
         nb_hdr_lines ++;
     }
 
