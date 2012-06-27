@@ -40,6 +40,15 @@ void copy_token(char *dest, size_t dest_sz, struct liner *liner)
     dest[len] = '\0';
 }
 
+// Grow the liner up to the given position.
+void liner_grow(struct liner *liner, char const *end)
+{
+    assert(end >= liner->start + liner->tok_size + liner->delim_size);
+    ssize_t diff = end - (liner->start + liner->rem_size);
+    liner->rem_size += diff;
+    liner->tot_size += diff;
+}
+
 static void liner_skip(struct liner *liner, size_t len)
 {
     assert(liner->rem_size >= len);
@@ -216,6 +225,9 @@ extern inline size_t liner_rem_length(struct liner *);
 extern inline size_t liner_parsed(struct liner *);
 extern inline void liner_expand(struct liner *liner);
 
+// FIXME: Should we keep both ": " and ":" for colons (and likewise
+// for semicols), since spaces are skipped anyway?  A single case
+// (":") should suffice.
 static struct liner_delimiter
     eols[]     = { { "\r\n", 2 }, { "\n", 1 } },
     blanks[]   = { { " ", 1 }, { "\r\n", 2 }, { "\n", 1 } },

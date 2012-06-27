@@ -11,7 +11,7 @@ struct liner {
     // You should not access other fields directly (as they are subject to change)
     size_t tok_size;    // token length
     size_t delim_size;  // and its delimiter
-    size_t rem_size;    // remaining size
+    size_t rem_size;    // remaining size, including the current token
     size_t tot_size;    // initial buffer size
     struct liner_delimiter_set {
         unsigned nb_delims;
@@ -28,6 +28,8 @@ void copy_token(char *, size_t, struct liner *);
 void liner_init(struct liner *, struct liner_delimiter_set const *, char const *, size_t);
 
 void liner_next(struct liner *);
+
+void liner_grow(struct liner *, char const *end);
 
 static inline bool liner_eof(struct liner *liner)
 {
@@ -52,6 +54,7 @@ static inline size_t liner_parsed(struct liner *liner)
 static inline void liner_expand(struct liner *liner)
 {
     liner->tok_size = liner->rem_size;
+    liner->delim_size = 0;
 }
 
 unsigned long long liner_strtoull(struct liner *, char const **end, int base);
