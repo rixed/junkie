@@ -6,7 +6,7 @@ filter() {
 	# We keep only the GET because:
 	# 1- it's enough to show that chunks are decoded properly
 	# 2- proto for info are likely to change in the future (now dumper works as a per-packet basis which is not perfect)
-	grep -e '^HTTP.*method=GET' -e $'^[\t ]'
+	grep -e '^HTTP.*method=GET' -e '^[[:space:]]'
 }
 OUTPUT="http-multiline.out"
 
