@@ -18,6 +18,7 @@
  * along with Junkie.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <string.h>
+#include <ctype.h>
 #include "junkie/cpp.h"
 #include "junkie/tools/log.h"
 #include "junkie/tools/miscmacs.h"
@@ -67,7 +68,7 @@ no_command:
     unsigned nb_hdr_lines = 0;
 
     int field_idx = -1;
-    char* field_end = 0;
+    char const *field_end = 0;
 
     while (true) {
         // Next line
