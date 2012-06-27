@@ -31,6 +31,12 @@
 
 /*
  * Parse Command
+ *
+ * Note: The field callback function receives the raw field value,
+ * possibly including newlines if it was on multiple line.
+ *
+ * FIXME: Add a copy_token_striped function to pass a stripped value
+ * to the callback function.
  */
 
 enum proto_parse_status httper_parse(struct httper const *httper, size_t *head_sz, uint8_t const *packet, size_t packet_len, void *user_data)
