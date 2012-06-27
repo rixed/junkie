@@ -6,6 +6,8 @@ NEW in 2.2.0 (since 2.1.0)
 
 * Faster deadlock detection
 
+* Can replay pcap in a loop
+
 
 New in 2.1.0 (since 2.0.0)
 --------------------------

@@ -142,6 +142,19 @@ static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, 
 
 static void pkt_source_del(struct pkt_source *);
 
+static void rewind_file(struct pkt_source *pkt_source)
+{
+    SLOG(LOG_DEBUG, "Looping over pcap file %s", pkt_source_name(pkt_source));
+    FILE *f = pcap_file(pkt_source->pcap_handle);
+    if (f) {
+        if (-1 == fseek(f, 24, SEEK_SET)) {
+            SLOG(LOG_ERR, "Cannot rewind pcap file %s", pkt_source_name(pkt_source));
+        }
+    } else {
+        SLOG(LOG_ERR, "Cannot get file handler for pcap %s", pkt_source_name(pkt_source));
+    }
+}
+
 // Callback is responsible for updating pkt_source stats.
 static void *sniffer(struct pkt_source *pkt_source, pcap_handler callback)
 {
@@ -158,9 +171,13 @@ static void *sniffer(struct pkt_source *pkt_source, pcap_handler callback)
             return NULL;
         } else if (nb_packets == 0) {
             if (pkt_source->is_file) {
-                SLOG(LOG_INFO, "Stop sniffing from file %s (%"PRIuLEAST64" packets read)", pkt_source_name(pkt_source), pkt_source->nb_packets);
-                pkt_source_del(pkt_source);
-                return NULL;
+                if (pkt_source->loop) {
+                    rewind_file(pkt_source);
+                } else {
+                    SLOG(LOG_INFO, "Stop sniffing from file %s (%"PRIuLEAST64" packets read)", pkt_source_name(pkt_source), pkt_source->nb_packets);
+                    pkt_source_del(pkt_source);
+                    return NULL;
+                }
             }
         }
     } while (! terminating);
@@ -186,6 +203,7 @@ static void sync_times(struct timeval const *file_start, struct timeval const *r
         // Don't sleep more than 400ms straight so that we can check for terminating flag from time to time
         usleep(MIN(MIN_SLEEP, wait_time));
     } while (! terminating);
+    SLOG(LOG_DEBUG, "Patching packet TS from %s to %s", timeval_2_str(pkt), timeval_2_str(&tv));
     *pkt = tv; // Set ideal 'now' time in pkt
 }
 
@@ -202,10 +220,20 @@ static void *sniffer_rt(struct pkt_source *pkt_source, pcap_handler callback)
         const unsigned char *packet;
         int res = pcap_next_ex(pkt_source->pcap_handle, &pkt_hdr, &packet);
         if (res < 0) {
-            if (res != -2) {
+            if (res == -2) {    // end of file
+                assert(pkt_source->is_file);
+                if (pkt_source->loop) {
+                    rewind_file(pkt_source);
+                    timeval_set_now(&replay_start);
+                    continue;
+                } else {
+                    SLOG(LOG_INFO, "Stop sniffing from %s (%"PRIuLEAST64" packets read)", pkt_source_name(pkt_source), pkt_source->nb_packets);
+                    break;
+                }
+            } else { // error
                 SLOG(LOG_ERR, "Cannot pcap_dispatch on pkt_source %s: %s", pkt_source_name(pkt_source), pcap_geterr(pkt_source->pcap_handle));
+                break;
             }
-            break;
         }
         assert(res == 1);   // 0 should not happen
         if (pkt_hdr->ts.tv_sec == 0) continue;   // should not happen, but does occur sometime (same goes for all other pcap header fields)
@@ -263,7 +291,7 @@ static int set_filter(pcap_t *pcap_handle, char const *filter)
     return 0;
 }
 
-static int pkt_source_ctor(struct pkt_source *pkt_source, char const *name, pcap_t *pcap_handle, void *(*sniffer)(void *), bool is_file, bool patch_ts, uint8_t dev_id, char const *filter)
+static int pkt_source_ctor(struct pkt_source *pkt_source, char const *name, pcap_t *pcap_handle, void *(*sniffer)(void *), bool is_file, bool patch_ts, uint8_t dev_id, char const *filter, bool loop)
 {
     SLOG(LOG_DEBUG, "Construct pkt_source@%p of name %s and dev_id %"PRIu8, pkt_source, name, dev_id);
     int ret = 0;
@@ -277,6 +305,7 @@ static int pkt_source_ctor(struct pkt_source *pkt_source, char const *name, pcap
     pkt_source->nb_wire_bytes = 0;
     pkt_source->is_file = is_file;
     pkt_source->patch_ts = patch_ts;
+    pkt_source->loop = loop;
     pkt_source->filter = filter ? objalloc_strdup(filter) : NULL;
 
     mutex_lock(&pkt_sources_lock);
@@ -307,12 +336,12 @@ unlock_quit:
     return ret;
 }
 
-static struct pkt_source *pkt_source_new(char const *name, pcap_t *pcap_handle, void *(*sniffer)(void *), bool is_file, bool patch_ts, uint8_t dev_id, char const *filter)
+static struct pkt_source *pkt_source_new(char const *name, pcap_t *pcap_handle, void *(*sniffer)(void *), bool is_file, bool patch_ts, uint8_t dev_id, char const *filter, bool loop)
 {
     struct pkt_source *pkt_source = objalloc(sizeof(*pkt_source), "pkt_sources");
     if (! pkt_source) return NULL;
 
-    if (0 != pkt_source_ctor(pkt_source, name, pcap_handle, sniffer, is_file, patch_ts, dev_id, filter)) {
+    if (0 != pkt_source_ctor(pkt_source, name, pcap_handle, sniffer, is_file, patch_ts, dev_id, filter, loop)) {
         objfree(pkt_source);
         pkt_source = NULL;
     }
@@ -320,7 +349,7 @@ static struct pkt_source *pkt_source_new(char const *name, pcap_t *pcap_handle, 
     return pkt_source;
 }
 
-static struct pkt_source *pkt_source_new_file(char const *filename, char const *filter, bool rt, bool patch_ts)
+static struct pkt_source *pkt_source_new_file(char const *filename, char const *filter, bool rt, bool patch_ts, bool loop)
 {
     char errbuf[PCAP_ERRBUF_SIZE] = "";
 
@@ -346,7 +375,7 @@ static struct pkt_source *pkt_source_new_file(char const *filename, char const *
     }
 
     void *(*sniff)(void *) = rt ? file_sniffer_rt : file_sniffer;
-    struct pkt_source *pkt_source = pkt_source_new(basename, handle, sniff, true, patch_ts, pcap_id_seq++, filter);
+    struct pkt_source *pkt_source = pkt_source_new(basename, handle, sniff, true, patch_ts, pcap_id_seq++, filter, loop);
     if (! pkt_source) {
         pcap_close(handle);
     }
@@ -422,7 +451,7 @@ static struct pkt_source *pkt_source_new_if(char const *ifname, bool promisc, ch
     }
 
     uint8_t dev_id = dev_id_of_ifname(ifname);
-    struct pkt_source *pkt_source = pkt_source_new(ifname, handle, iface_sniffer, false, false, dev_id, filter);
+    struct pkt_source *pkt_source = pkt_source_new(ifname, handle, iface_sniffer, false, false, dev_id, filter, false);
     if (! pkt_source) {
         pcap_close(handle);
     }
@@ -464,7 +493,7 @@ static void pkt_source_del(struct pkt_source *pkt_source)
 // Caller must own pkt_sources_lock
 static void pkt_source_terminate(struct pkt_source *pkt_source)
 {
-    SLOG(LOG_DEBUG, "Terminating packet source '%s'", pkt_source_name(pkt_source));
+    SLOG(LOG_DEBUG, "Terminating packet source '%s' after %"PRIu64" packets (%"PRIu64" dups)", pkt_source_name(pkt_source), pkt_source->nb_packets, pkt_source->nb_duplicates);
     pcap_breakloop(pkt_source->pcap_handle);
 }
 
@@ -529,14 +558,15 @@ static SCM g_open_iface(SCM ifname_, SCM promisc_, SCM filter_, SCM snaplen_, SC
 }
 
 static struct ext_function sg_open_pcap;
-static SCM g_open_pcap(SCM filename_, SCM rt_, SCM filter_, SCM patch_ts_)
+static SCM g_open_pcap(SCM filename_, SCM rt_, SCM filter_, SCM patch_ts_, SCM loop_)
 {
     char const *filename = scm_to_tempstr(filename_);
     char const *filter = SCM_UNBNDP(filter_) ? NULL : scm_to_tempstr(filter_);
     bool const rt = SCM_UNBNDP(rt_) ? false : scm_to_bool(rt_);
     bool const patch_ts = SCM_UNBNDP(patch_ts_) ? false : scm_to_bool(patch_ts_);
+    bool const loop = SCM_UNBNDP(loop_) ? false : scm_to_bool(loop_);
 
-    struct pkt_source *pkt_source = pkt_source_new_file(filename, filter, rt, patch_ts);
+    struct pkt_source *pkt_source = pkt_source_new_file(filename, filter, rt, patch_ts, loop);
     return pkt_source ? SCM_BOOL_T : SCM_BOOL_F;
 }
 
@@ -676,10 +706,12 @@ void pkt_source_init(void)
         "See also (? 'open-iface).\n");
 
     ext_function_ctor(&sg_open_pcap,
-        "open-pcap", 1, 3, 0, g_open_pcap,
+        "open-pcap", 1, 4, 0, g_open_pcap,
         "(open-pcap \"pcap-file\"): read the content of this pcap file, full speed.\n"
         "(open-pcap \"pcap-file\" #t): read this pcap file using its packet rate rather than full speed.\n"
         "(open-pcap \"pcap-file\" #f \"filter\"): same as above, applying given filter.\n"
+        "(open-pcap \"pcap-file\" #f \"filter\" #t): same as above, patching current localtime on every packets.\n"
+        "(open-pcap \"pcap-file\" #f \"filter\" #t #t): same as above, looping the pcap.\n"
         "Will return #t or #f according to the status of the operation.\n"
         "See also (? 'open-iface)\n");
 

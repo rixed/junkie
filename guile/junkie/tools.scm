@@ -38,8 +38,9 @@
   (let ((dir (opendir path)))
     (do ((entry (readdir dir) (readdir dir)))
       ((eof-object? entry))
-      (if (not (string-match "^\\.\\.?$" entry))
-          (fun (string-append path "/" entry))))
+      (let ((name (string-append path "/" entry)))
+        (if (not (eqv? 'directory (stat:type (stat name))))
+            (fun name))))
     (closedir dir)))
 
 (export for-each-file-in)

@@ -26,7 +26,8 @@ struct pkt_source {
     uint64_t nb_cap_bytes;          ///< Number of captured bytes from this source
     uint64_t nb_wire_bytes;         ///< Number of bytes on the wire for this source
     bool is_file;                   ///< A flag to distinguish between files and ifaces
-    bool patch_ts;                  ///< If set, all frame timestamps will be overwritten with current time
+    bool patch_ts;                  ///< If set, all frame timestamps will be overwritten with current time (only valid when is_file)
+    bool loop;                      ///< If set, the pcap will be read in a loop (only valid when is_file)
     /** A numerical id used to distinguish various interfaces during parsing
         (same underlying interface will have same dev_id, while same pcap files will have distinct dev_id). */
     uint8_t dev_id;
