@@ -8,6 +8,6 @@ libjunkietools_la_SOURCES = \
 	log.c mallocer.c mutex.c redim_array.c \
 	tempstr.c timeval.c ext.c cli.c ref.c \
 	sock.c serialization.c netflow.c \
-	objalloc.c
+	objalloc.c proto.c
 libjunkietools_la_LDFLAGS = --export-dynamic
 

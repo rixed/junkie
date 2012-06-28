@@ -22,6 +22,7 @@
 #include <arpa/inet.h>
 #include <inttypes.h>
 #include "junkie/tools/tempstr.h"
+#include "junkie/tools/proto.h"
 #include "junkie/proto/serialize.h"
 #include "junkie/proto/proto.h"
 #include "junkie/proto/rtp.h"
@@ -48,23 +49,6 @@ struct rtp_hdr {
 /*
  * Proto infos
  */
-
-char const *rtp_payload_type_2_str(uint8_t type)
-{
-    static char const *strs[] = {
-        "PCMU", "reserved", "reserved", "GSM", "G723", "DVI4/8k", "DVI4/16k", "LPC",
-        "PCMA", "G722", "L16/2chan", "L16/mono", "QCELP", "CN", "MPA", "G728",
-        "DVI4/11k", "DVI4/22k", "G729", "reserved", "unassigned", "unassigned", "unassigned", "unassigned",
-        "unasigned", "CelB", "JPEG", "unassigned", "nv", "unassigned", "unassigned", "H261",
-        "MPV", "MP2T", "H263"
-    };
-    if (type < NB_ELEMS(strs)) return strs[type];
-    else if (type >= 35 && type <= 71) return "unasigned";
-    else if (type >= 72 && type <= 76) return "reserved";
-    else if (type >= 77 && type <= 95) return "unassigned";
-    else if (type >= 96 && type <= 127) return "dynamic";
-    return "invalid";
-}
 
 static void const *rtp_info_addr(struct proto_info const *info_, size_t *size)
 {

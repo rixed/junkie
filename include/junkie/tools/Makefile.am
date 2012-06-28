@@ -19,5 +19,6 @@ thisinclude_HEADERS = \
 	sock.h \
 	serialization.h \
 	netflow.h \
-	objalloc.h
+	objalloc.h \
+	proto.h
 
