@@ -24,7 +24,7 @@
       (client-port uint)]
      ; vertices (notice that edges are filled with default attributes as required)
      [(http-answer
-        (on-entry (pass "printf(\"%u\\n\", " http-status ");\n"))) ; an action to perform whenever the http-answer node is entered
+        (on-entry (pass "printf(\"%\"PRIuPTR\"\\n\", " http-status ");\n"))) ; an action to perform whenever the http-answer node is entered
       (web-syn
         (index-size 1024))]
      ; edges
