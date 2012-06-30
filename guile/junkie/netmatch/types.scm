@@ -109,6 +109,9 @@
     (string-append "new_regfile[" regname "].value")
     (cons regname (stub-regnames value))))
 
+; FIXME: move all the thing->C-thing into a separate module,
+; included both by this one and ll-compiler.
+
 (define gensymC
   (let ((c 0))
     (lambda (prefix)
@@ -117,7 +120,6 @@
 
 (export gensymC)
 
-; FIXME: move this into ll-compiler
 ; FIXME: we should avoid C keywords and the identifiers already used by junkie (such as 'name' for instance. Try to have a register named 'name'!)
 (define string->C-ident
   (let ((ident-charset (char-set-intersection char-set:ascii char-set:letter)))
@@ -134,8 +136,38 @@
 
 (export symbol->C-ident)
 
+(define (string->C-string s)
+  (string-append "\"" s "\"")) ; TODO: escape quotes
+
+(export string->C-string)
+
+(define (symbol->C-string s)
+  (string->C-string (symbol->string s)))
+
+(export symbol->C-string)
+
 (define (indent-more str)
   (regexp-substitute/global #f (make-regexp "^ {4}" regexp/newline) str 'pre "        " 'post))
+
+; Given a number, returns a string like "{ 12, 43, 4 }" suitable to initialize a C byte array
+(define (number->C-byte-array n)
+  (let* ((number->bytes (lambda (n)
+                          (letrec ((aux (lambda (prev n)
+                                         (if (eqv? 0 n)
+                                             prev
+                                             (let ((lo (logand n #xff))
+                                                   (hi (ash n -8)))
+                                               (aux (cons lo prev) hi))))))
+                            (aux '() n))))
+         (bytes         (number->bytes n)))
+    (string-append
+      "{ "
+      (fold (lambda (n s)
+              (if (eqv? 0 (string-length s))
+                  (number->string n)
+                  (string-append s ", " (number->string n))))
+            "" bytes)
+      " }")))
 
 ;;; The unit type
 
@@ -264,33 +296,19 @@
 (export timestamp)
 
 
-;;; Eth addresses
-
-(define mac ; the stub-result will be a pointer to an array of ETH_ADDR_LEN chars
-  (make-type
-    'mac
-    (lambda (v) ; imm
-      #f)
-    (lambda (proto field) ; fetch (TODO: factorize with other types)
-      (let* ((res (gensymC (string-append (string->C-ident field) "_field"))))
-        (make-stub
-          (string-append
-            "    char const (*" res ")[ETH_ADDR_LEN] = &" proto "->" field ";\n")
-          res
-          '())))
-    boxed-ref
-    boxed-bind))
-
-(export mac) ; TODO: a constructor
-
-
 ;;; IP addresses
 
 (define ip ; the stub-result will be a pointer to a struct ip_addr
   (make-type
     'ip
     (lambda (v) ; imm
-      #f)
+      (let ((res (gensymC "ip")))
+        (make-stub
+          (string-append
+            "    struct ip_addr " res ";\n"
+            "    ip_addr_ctor_from_str_any(&" res ", " (symbol->C-string v) ");\n")
+          (string-append "&" res)
+          '())))
     (lambda (proto field) ; fetch (TODO: factorize with other types)
       (let* ((res (gensymC (string-append (string->C-ident field) "_field"))))
         (make-stub
@@ -302,6 +320,46 @@
     boxed-bind))
 
 (export ip)
+
+; Is this symbol an IP address?
+(define (looks-like-ip? s)
+  (let ((s (symbol->string s)))
+    (or (false-if-exception (inet-pton AF_INET s))
+        (false-if-exception (inet-pton AF_INET6 s)))))
+
+(export looks-like-ip?)
+
+;;; Ethernet addresses
+
+(define mac ; the stub-result will be a pointer to an array of ETH_ADDR_LEN chars
+  (make-type
+    'mac
+    (lambda (v) ; imm
+      (let ((res (gensymC "mac")))
+        (make-stub
+          (string-append
+            "    unsigned char " res "[ETH_ADDR_LEN] = " (number->C-byte-array (string->eth (symbol->string v))) ";\n")
+          res
+          '())))
+    (lambda (proto field) ; fetch (TODO: factorize with other types)
+      (let* ((res (gensymC (string-append (string->C-ident field) "_field"))))
+        (make-stub
+          (string-append
+            "    char const (*" res ")[ETH_ADDR_LEN] = &" proto "->" field ";\n")
+          res
+          '())))
+    boxed-ref
+    boxed-bind))
+
+(export mac)
+
+; Is this symbol a mac address?
+(define (looks-like-mac? s)
+  (string-match
+    "^[0-9a-f]{1,2}:[0-9a-f]{1,2}:[0-9a-f]{1,2}:[0-9a-f]{1,2}:[0-9a-f]{1,2}:[0-9a-f]{1,2}$"
+    (symbol->string s)))
+
+(export looks-like-mac?)
 
 
 ;;;
@@ -508,20 +566,6 @@
 
 ;; IP addresses manipulation
 
-(define make-ip ; build an ip addr from a string
-  (make-op 'make-ip ip (list str)
-           (lambda (s)
-             (let ((res (gensymC "ts_diff")))
-               (make-stub
-                 (string-append
-                   (stub-code s)
-                   "    struct ip_addr " res ";\n"
-                   "    ip_addr_ctor_from_str_any(&" res ", (struct ip_addr *)" (stub-result s) ");\n")
-                 (string-append "&" res)
-                 (stub-regnames s))))))
-
-(add-operator 'make-ip make-ip)
-
 (define routable?
   (make-op 'routable? bool (list ip)
            (lambda (ip)
@@ -567,6 +611,26 @@
 (add-operator '== ip-eq?)
 
 (export make-ip routable? broadcast?)
+
+;; Eth addresses manipulation
+
+; TODO: add is-broadcast and so on
+
+(define mac-eq?
+  (make-op 'mac-eq? bool (list mac mac)
+           (lambda (mac1 mac2)
+             (let ((res (gensymC "same_macs")))
+               (make-stub
+                 (string-append
+                   (stub-code mac1)
+                   (stub-code mac2)
+                   "    bool " res " = 0 == memcmp(" (stub-result mac1) ", " (stub-result mac2) ", ETH_ADDR_LEN);\n")
+                 res
+                 (append (stub-regnames mac1) (stub-regnames mac2)))))))
+
+(add-operator '=E mac-eq?)
+(add-operator '=e mac-eq?)
+(add-operator '== mac-eq?)
 
 ;; String manipulation
 

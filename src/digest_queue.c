@@ -270,7 +270,7 @@ static unsigned new_avg_dt_max(unsigned dt)
         SLOG(LOG_NOTICE, "avg dt_max = %uus > max_dup_delay = %uus!", dt_max_avg, max_dup_delay);
         dt_max_avg = max_dup_delay;
     }
-    
+
     mutex_unlock(&dt_max_avg_lock);
 
     return ret;

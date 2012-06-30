@@ -8,7 +8,7 @@
              (junkie defs) ; for slog
              (srfi srfi-1)
              ((junkie netmatch netmatch)    :renamer (symbol-prefix-proc 'netmatch:))
-             ((junkie netmatch types)       :renamer (symbol-prefix-proc 'type:)) ; for string->C-ident
+             ((junkie netmatch types)       :renamer (symbol-prefix-proc 'type:)) ; for string->C-ident and friends
              ((junkie netmatch ll-compiler) :renamer (symbol-prefix-proc 'll:)))
 
 ;;; This takes a name and a nettrack expression with all tests developped, and returns:
@@ -80,7 +80,7 @@
                 (type:make-stub
                   (string-append
                     "{\n"
-                    "        .name = \"" (symbol->string name) "\",\n" ; FIXME: escape double quotes within name (ll:string->C)
+                    "        .name = " (type:symbol->C-string name) ",\n"
                     "        .entry_fn = " (type:stub-result entry-func) ",\n"
                     "        .index_size = " (number->string index-size) ",\n"
                     "    }, ")
@@ -150,8 +150,8 @@
                                         "{\n"
                                         "        .match_fn = " (type:stub-result match-func) ",\n"
                                         "        .inner_proto = " (ll:proto-code->C proto-code) ",\n"
-                                        "        .from_vertex = \"" (symbol->string from) "\",\n" ; FIXME: escape double quotes within name (ll:string->C)
-                                        "        .to_vertex = \"" (symbol->string to) "\",\n" ; FIXME: escape double quotes within name (ll:string->C)
+                                        "        .from_vertex = " (type:symbol->C-string from) ",\n"
+                                        "        .to_vertex = " (type:symbol->C-string to) ",\n"
                                         "        .from_index_fn = " (type:stub-result src-index-func) ",\n"
                                         "        .to_index_fn = " (type:stub-result dst-index-func) ",\n"
                                         "        .spawn = " (ll:bool->C spawn) ",\n"

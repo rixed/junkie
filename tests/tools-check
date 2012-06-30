@@ -1,5 +1,5 @@
 #!/usr/bin/env guile
-; vim:syntax=scheme expandtab
+; vim:syntax=scheme expandtab filetype=scheme
 ; coding: iso-8859-1
 !#
 ;;; This test the classifier functions
@@ -10,3 +10,25 @@
 
 (assert (string=? (eth->string #x123456789abc) "12:34:56:78:9a:bc"))
 (assert (eqv? #x123456789abc (string->eth "12:34:56:78:9a:bc")))
+
+
+(let ((number->C-byte-array (@@ (junkie netmatch types) number->C-byte-array)))
+  (assert (equal? (number->C-byte-array 1) "{ 1 }"))
+  (assert (equal? (number->C-byte-array 1024) "{ 4, 0 }")))
+
+(let ((looks-like-ip? (@ (junkie netmatch types) looks-like-ip?)))
+  (assert (looks-like-ip? '#{192.168.10.1}#))
+  (assert (looks-like-ip? '#{1234:5678::9abc}#))
+  (assert (looks-like-ip? '#{::1234}#))
+  (assert (not (looks-like-ip? '#{192.168.34.65.22}#)))
+  (assert (not (looks-like-ip? '#{192.168.300.2}#)))
+  (assert (not (looks-like-ip? '#{192.168.23}#)))
+  (assert (not (looks-like-ip? 'please-believe-me-Im-an-IP))))
+
+(let ((looks-like-mac? (@ (junkie netmatch types) looks-like-mac?)))
+  (assert (looks-like-mac? '#{56:78:9a:bc:de:f0}#))
+  (assert (not (looks-like-mac? '#{12:34:56:78:9a}#)))
+  (assert (not (looks-like-mac? '#{12:34:56:78:9a:bc:de}#)))
+  (assert (not (looks-like-mac? '#{ab:cd:ef:gh:ij:kl}#)))
+  (assert (not (looks-like-mac? 'you-suspicious))))
+

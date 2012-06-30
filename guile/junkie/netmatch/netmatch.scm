@@ -162,7 +162,7 @@
            (('cap 'tv) type:timestamp)
            (('dns 'query) type:bool)
            (('dns 'name) type:str)
-           ((or ('eth 'src) ('eth 'dst)) type:6bytes)
+           ((or ('eth 'src) ('eth 'dst)) type:mac)
            ((or ('ip 'src) ('ip 'dst)) type:ip)
            ((or ('http 'mime-type) ('http 'host) ('http 'url)) type:str)
            ((or ('icmp 'src) ('icmp 'dst)) type:ip)
@@ -446,19 +446,23 @@
       ((symbol? expr)
        (slog log-debug " compiling symbol ~a" expr)
        ; A symbol might be:
+       ; - an immediate value for ip, mac...
        ; - a well-known constant
        ; - a field name (proto.field)
        ; - otherwise, a register name
        (cond
-         ((well-known-cst? expr) => ; Well known constant?
-                                 (lambda (x) expr->stub x))
-         ((fieldname? expr) => ; Proto.field reference
-                            (lambda (x)
-                              (let* ((proto (car x))
-                                     (canon-name (fieldname proto (cdr x))))
-                                (type-check-or-set (field->type proto canon-name))
-                                ((type:type-fetch (fluid-ref expected-type))
-                                 (type:symbol->C-ident proto) (field->C proto canon-name)))))
+         ((type:looks-like-ip? expr)
+          ((type:type-imm type:ip) expr))
+         ((type:looks-like-mac? expr)
+          ((type:type-imm type:mac) expr))
+         ((well-known-cst? expr) => expr->stub)
+         ((fieldname? expr) =>
+          (lambda (x)
+            (let* ((proto (car x))
+                   (canon-name (fieldname proto (cdr x))))
+              (type-check-or-set (field->type proto canon-name))
+              ((type:type-fetch (fluid-ref expected-type))
+               (type:symbol->C-ident proto) (field->C proto canon-name)))))
          (else ; A register name
            ; Notice: if we don't know the type yet it's time to think about it.
            (let* ((regname     (type:symbol->C-ident expr))
