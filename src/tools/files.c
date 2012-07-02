@@ -78,7 +78,7 @@ static uid_t get_uid(const char * const user)
     if (u) {
         uid = u->pw_uid;
     } else {
-        SLOG(LOG_ERR, "getpwnam: can't get the uid of '%s': %s", user, strerror(errno));
+        SLOG(LOG_ERR, "getpwnam: can't get the uid of '%s': %s", user, errno ? "No such user probably" : strerror(errno));
         uid = getuid(); // default one
     }
 
@@ -95,7 +95,7 @@ static gid_t get_gid(const char * const group)
     if (g) {
         gid = g->gr_gid;
     } else {
-        SLOG(LOG_ERR, "getgrnam: can't get the uid of '%s': %s", group, strerror(errno));
+        SLOG(LOG_ERR, "getgrnam: can't get the uid of '%s': %s", group, errno ? "No such group probably" : strerror(errno));
         gid = getgid(); // default one
     }
 
