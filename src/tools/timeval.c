@@ -93,6 +93,8 @@ void timeval_sub_sec(struct timeval *tv, int32_t sec)
 
 char const *timeval_2_str(struct timeval const *tv)
 {
+    if (! tv->tv_sec) return "unset";
+
     char *str = tempstr();
     int len = 0;
     if (tv->tv_sec) len += snprintf(str, TEMPSTR_SIZE, "%"PRIu32"s", (uint32_t)tv->tv_sec);
