@@ -121,6 +121,7 @@
          [(from to . cfgs)
           (let ((spawn          #f)
                 (grab           #f)
+                (min-age        0) ; minimal age (in usecs) to match this edge
                 (proto-code     'cap)
                 (src-index-func (type:make-stub "" "NULL" '()))
                 (dst-index-func (type:make-stub "" "NULL" '()))
@@ -133,6 +134,8 @@
                                   ; Would fail if no protos are given, since we use this to register a callback
                                   (if (not (null? protos))
                                       (set! proto-code (car protos))))]
+                               [('older n)
+                                (set! min-age n)]
                                [('src-index-on protos expr)
                                 (set! src-index-func (netmatch:function->stub type:uint protos expr #f))]
                                [('dst-index-on protos expr)
@@ -159,6 +162,7 @@
                                         "        .to_vertex = " (type:symbol->C-string to) ",\n"
                                         "        .from_index_fn = " (type:stub-result src-index-func) ",\n"
                                         "        .to_index_fn = " (type:stub-result dst-index-func) ",\n"
+                                        "        .min_age = " (number->string min-age) "LL,\n"
                                         "        .spawn = " (ll:bool->C spawn) ",\n"
                                         "        .grab = " (ll:bool->C grab) ",\n"
                                         "    }, ")

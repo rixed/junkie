@@ -284,7 +284,7 @@ static void nt_vertex_del(struct nt_vertex *vertex, struct nt_graph *graph)
  */
 
 static proto_cb_t parser_hook;
-static int nt_edge_ctor(struct nt_edge *edge, struct nt_graph *graph, struct nt_vertex *from, struct nt_vertex *to, npc_match_fn *match_fn, npc_match_fn *from_index_fn, npc_match_fn *to_index_fn, bool spawn, bool grab, struct proto *inner_proto)
+static int nt_edge_ctor(struct nt_edge *edge, struct nt_graph *graph, struct nt_vertex *from, struct nt_vertex *to, npc_match_fn *match_fn, npc_match_fn *from_index_fn, npc_match_fn *to_index_fn, int64_t min_age, bool spawn, bool grab, struct proto *inner_proto)
 {
     SLOG(LOG_DEBUG, "Construct new edge@%p from %s to %s on proto %s", edge, from->name, to->name, inner_proto->name);
 
@@ -293,6 +293,7 @@ static int nt_edge_ctor(struct nt_edge *edge, struct nt_graph *graph, struct nt_
     edge->to_index_fn = to_index_fn;
     edge->from = from;
     edge->to = to;
+    edge->min_age = min_age;
     edge->spawn = spawn;
     edge->grab = grab;
     edge->nb_matches = edge->nb_tries = 0;
@@ -310,11 +311,11 @@ static int nt_edge_ctor(struct nt_edge *edge, struct nt_graph *graph, struct nt_
     return 0;
 }
 
-static struct nt_edge *nt_edge_new(struct nt_graph *graph, struct nt_vertex *from, struct nt_vertex *to, npc_match_fn *match_fn, npc_match_fn *from_index_fn, npc_match_fn *to_index_fn, bool spawn, bool grab, struct proto *inner_proto)
+static struct nt_edge *nt_edge_new(struct nt_graph *graph, struct nt_vertex *from, struct nt_vertex *to, npc_match_fn *match_fn, npc_match_fn *from_index_fn, npc_match_fn *to_index_fn, int64_t min_age, bool spawn, bool grab, struct proto *inner_proto)
 {
     struct nt_edge *edge = objalloc(sizeof(*edge), "nettrack edges");
     if (! edge) return NULL;
-    if (0 != nt_edge_ctor(edge, graph, from, to, match_fn, from_index_fn, to_index_fn, spawn, grab, inner_proto)) {
+    if (0 != nt_edge_ctor(edge, graph, from, to, match_fn, from_index_fn, to_index_fn, min_age, spawn, grab, inner_proto)) {
         objfree(edge);
         return NULL;
     }
@@ -458,6 +459,7 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
     LIST_FOREACH(edge, &hook->edges, same_hook) {
         // Test this edge for transition
         struct nt_state *state, *tmp;
+
         unsigned index_start = 0, index_stop = edge->from->index_size;  // by default, prepare to look into all hash buckets
         if (index_stop > 1 && edge->from_index_fn) {
             // Notice that the hash function for incomming packet is *not* allowed to use the regfile nor to bind anything
@@ -492,7 +494,11 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                  */
                 struct npc_register tmp_regfile[edge->graph->nb_registers];
                 npc_regfile_ctor(tmp_regfile, edge->graph->nb_registers);
-                if (edge->match_fn(last, state->regfile, tmp_regfile)) {
+
+                if (
+                    (edge->min_age == 0 || timeval_sub(now, &state->last_used) >= edge->min_age) &&
+                    (edge->match_fn == NULL || edge->match_fn(last, state->regfile, tmp_regfile))
+                ) {
                     SLOG(LOG_DEBUG, "Match!");
                     edge->nb_matches ++;
                     // We need the merged state in all cases but when we have no action and don't keep the result
@@ -651,7 +657,7 @@ static SCM g_make_nettrack(SCM name_, SCM libname_)
         if (! to) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_1(scm_from_locale_string(e_def[e].to_vertex)));
         struct proto *inner_proto = proto_of_code(e_def[e].inner_proto);
         if (! inner_proto) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_2(scm_from_latin1_string("no such proto"), scm_from_uint(e_def[e].inner_proto)));
-        struct nt_edge *edge = nt_edge_new(graph, from, to, e_def[e].match_fn, e_def[e].from_index_fn, e_def[e].to_index_fn, e_def[e].spawn, e_def[e].grab, inner_proto);
+        struct nt_edge *edge = nt_edge_new(graph, from, to, e_def[e].match_fn, e_def[e].from_index_fn, e_def[e].to_index_fn, e_def[e].min_age, e_def[e].spawn, e_def[e].grab, inner_proto);
         if (! edge) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_2(scm_from_locale_string(e_def[e].from_vertex), scm_from_locale_string(e_def[e].to_vertex)));
     }
 

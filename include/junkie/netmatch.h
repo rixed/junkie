@@ -28,6 +28,7 @@ struct nt_edge_def {
     enum proto_code inner_proto;
     char const *from_vertex, *to_vertex;
     npc_match_fn *from_index_fn, *to_index_fn;
+    int64_t min_age;
     bool spawn;
     bool grab;
 };
