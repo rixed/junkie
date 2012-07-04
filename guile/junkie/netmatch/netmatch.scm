@@ -329,6 +329,7 @@
          (perform-op (lambda (op-name params)
                        (let* ((ops (or (type:symbol->ops op-name)
                                        (throw 'you-must-be-joking 'unknown-operator op-name))))
+                         (slog log-debug "We have all these operators to test: ~s" (map type:op-name ops))
                          (or (any (lambda (op)
                                     ; save register types
                                     (let ((saved-regs (fluid-ref register-types)))
@@ -340,7 +341,7 @@
                                              (lambda () (perf-op op params))
                                              (lambda (key . args)
                                                ; restore register types
-                                               (slog log-debug "Cannot type, rollback")
+                                               (slog log-debug "Cannot type (because (~s ~s)), rollback" key args)
                                                (for-each (lambda (a)
                                                            (slog log-debug "  ~a of type ~a->~a"
                                                                  (car a)
@@ -350,7 +351,7 @@
                                                (fluid-set! register-types saved-regs)
                                                #f))))
                                   ops)
-                             (throw 'type-error op-name)))))
+                             (throw 'type-error (simple-format #f "Cannot find a suitable type for (~s ~s)" op-name params))))))
          (is-infix   (let ((prefix-chars (string->char-set "!@#$%^&*-+=|~/:><")))
                        (lambda (op)
                          (slog log-debug "is ~s an infix op?" op)

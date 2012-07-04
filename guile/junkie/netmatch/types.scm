@@ -608,6 +608,7 @@
 
 (add-operator '=I ip-eq?)
 (add-operator '=i ip-eq?)
+(add-operator '= ip-eq?)
 (add-operator '== ip-eq?)
 
 (export make-ip routable? broadcast?)
@@ -630,7 +631,21 @@
 
 (add-operator '=E mac-eq?)
 (add-operator '=e mac-eq?)
+(add-operator '= mac-eq?)
 (add-operator '== mac-eq?)
+
+(define mac-hash
+  (make-op 'mac-hash uint (list mac)
+           (lambda (mac)
+             (let ((res (gensymC "mac_hash")))
+               (make-stub
+                 (string-append
+                   (stub-code mac)
+                   "    uint32_t " res " = hashlittle(" (stub-result mac) ", ETH_ADDR_LEN, 0x432317F5U);\n")
+                 res
+                 (stub-regnames mac))))))
+
+(add-operator 'hash mac-hash)
 
 ;; String manipulation
 
@@ -662,6 +677,8 @@
 (add-operator 'str-eq? str-eq?)
 (add-operator '=S str-eq?)
 (add-operator '=s str-eq?)
+(add-operator '= str-eq?)
+(add-operator '== str-eq?)
 
 (export str-null? str-eq?)
 
