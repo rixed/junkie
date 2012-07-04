@@ -13,7 +13,7 @@
 
 ;; Some definitions the user likely want to use
 
-(define-public log-emerg   0) (define-public log-alert  1) (define-public log-crit 2) (define-public log-err   3)
+(define-public log-emerg   0) (define-public log-alert  1) (define-public log-crit 2) (define-public log-err   3) (define-public log-error 3)
 (define-public log-warning 4) (define-public log-notice 5) (define-public log-info 6) (define-public log-debug 7)
 
 (define-syntax slog
