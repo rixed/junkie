@@ -20,6 +20,7 @@ struct nt_vertex_def {
     char const *name;
     npc_match_fn *entry_fn;
     unsigned index_size;    // 0 for default
+    int64_t timeout;
 };
 
 struct nt_edge_def {

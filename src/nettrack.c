@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <string.h>
+#include <inttypes.h>
 #include "junkie/proto/proto.h"
 #include "junkie/cpp.h"
 #include "junkie/tools/ext.h"
@@ -194,9 +195,9 @@ static void nt_state_move(struct nt_state *state, struct nt_vertex *from, struct
  * Vertices
  */
 
-static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_graph *graph, npc_match_fn *entry_fn, unsigned index_size)
+static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_graph *graph, npc_match_fn *entry_fn, unsigned index_size, int64_t timeout)
 {
-    SLOG(LOG_DEBUG, "Construct new vertex %s with %u buckets", name, index_size);
+    SLOG(LOG_DEBUG, "Construct new vertex %s with %u buckets (timeout=%"PRId64"us)", name, index_size, timeout);
 
     vertex->name = objalloc_strdup(name);
     vertex->index_size = index_size;
@@ -222,7 +223,7 @@ static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_
         }
         vertex->timeout = 0;
     } else {
-        vertex->timeout = 1000000;  // 1 second (FIXME: make this a parameter)
+        vertex->timeout = timeout;
     }
 
     // Additionally, there may be an entry function to be called whenever this vertex is entered.
@@ -231,12 +232,12 @@ static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_
     return 0;
 }
 
-static struct nt_vertex *nt_vertex_new(char const *name, struct nt_graph *graph, npc_match_fn *entry_fn, unsigned index_size)
+static struct nt_vertex *nt_vertex_new(char const *name, struct nt_graph *graph, npc_match_fn *entry_fn, unsigned index_size, int64_t timeout)
 {
     if (! index_size) index_size = graph->default_index_size;
     struct nt_vertex *vertex = objalloc(sizeof(*vertex) + index_size*sizeof(vertex->states[0]), "nettrack vertices");
     if (! vertex) return NULL;
-    if (0 != nt_vertex_ctor(vertex, name, graph, entry_fn, index_size)) {
+    if (0 != nt_vertex_ctor(vertex, name, graph, entry_fn, index_size, timeout)) {
         objfree(vertex);
         return NULL;
     }
@@ -466,7 +467,7 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
         }
         for (unsigned index = index_start; index < index_stop; index++) {
             LIST_FOREACH_SAFE(state, &edge->from->states[index], same_vertex, tmp) {   // Beware that this state may move
-                if (edge->from->timeout > 0 && edge->from->timeout < timeval_sub(now, &state->last_used)) {
+                if (edge->from->timeout > 0LL && edge->from->timeout < timeval_sub(now, &state->last_used)) {
                     SLOG(LOG_DEBUG, "Timeouting state in vertex %s", edge->from->name);
                     nt_state_del(state, edge->graph);
                     continue;
@@ -562,7 +563,7 @@ static struct nt_vertex *nt_vertex_lookup(struct nt_graph *graph, char const *na
     }
 
     // Create a new one
-    return nt_vertex_new(name, graph, NULL, 1);
+    return nt_vertex_new(name, graph, NULL, 1, 1000000LL);
 }
 
 static scm_t_bits graph_tag;
@@ -625,7 +626,7 @@ static SCM g_make_nettrack(SCM name_, SCM libname_)
         assert(!"Never reached");
     }
     for (unsigned vi = 0; vi < *nb_vertice_defs; vi++) {
-        struct nt_vertex *vertex = nt_vertex_new(v_def[vi].name, graph, v_def[vi].entry_fn, v_def[vi].index_size);
+        struct nt_vertex *vertex = nt_vertex_new(v_def[vi].name, graph, v_def[vi].entry_fn, v_def[vi].index_size, v_def[vi].timeout);
         if (! vertex) {
             scm_throw(scm_from_latin1_symbol("cannot-create-nt-vertex"), scm_list_1(scm_from_locale_string(v_def[vi].name)));
             assert(!"Never reached");

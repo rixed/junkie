@@ -61,13 +61,16 @@
   (match vertice
          [(name . cfgs)
           (let ((entry-func (type:make-stub "" "NULL" '()))
-                (index-size 0))
+                (index-size 0)
+                (timeout    1000000)) ; 1 second by default
             (for-each (lambda (cfg)
                         (match cfg
                                [('on-entry expr) ; FIXME: check we do not set this several times
                                 (set! entry-func (netmatch:function->stub type:any '() expr #f))]
                                [('index-size sz) ; FIXME: idem
                                 (set! index-size sz)]
+                               [('timeout n)
+                                (set! timeout n)]
                                [_ (throw 'you-must-be-joking cfg)]))
                       cfgs)
             (set! preamble
@@ -83,6 +86,7 @@
                     "        .name = " (type:symbol->C-string name) ",\n"
                     "        .entry_fn = " (type:stub-result entry-func) ",\n"
                     "        .index_size = " (number->string index-size) ",\n"
+                    "        .timeout = " (number->string timeout) "LL,\n"
                     "    }, ")
                   "" '()))))]
          [_ (throw 'you-must-be-joking (simple-format #f "can't understand vertice ~a" vertice))])
@@ -136,7 +140,8 @@
                                ['spawn
                                 (set! spawn #t)]
                                ['grab
-                                (set! grab #t)]))
+                                (set! grab #t)]
+                               [_ (throw 'you-must-be-joking cfg)]))
                       cfgs)
             (slog log-debug "Done, got proto-code = ~s (~s)" proto-code (ll:proto-code->C proto-code))
             (cons (type:stub-concat
