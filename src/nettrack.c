@@ -37,18 +37,6 @@ LOG_CATEGORY_DEF(nettrack);
 #define LOG_CAT nettrack_log_category
 
 /*
- * We need to register a callback for every parsers, then try all nodes whose last proto matches the called one.
- */
-
-static struct nt_parser_hook {
-    struct proto_subscriber subscriber;
-    // list of edges which test ends with this proto
-    struct nt_edges edges;
-    bool registered;    // we only subscribe to this hook when used
-} parser_hooks[PROTO_CODE_MAX];
-
-
-/*
  * Register Files
  */
 
@@ -301,10 +289,10 @@ static int nt_edge_ctor(struct nt_edge *edge, struct nt_graph *graph, struct nt_
     LIST_INSERT_HEAD(&from->outgoing_edges, edge, same_from);
     LIST_INSERT_HEAD(&to->incoming_edges, edge, same_to);
     LIST_INSERT_HEAD(&graph->edges, edge, same_graph);
-    LIST_INSERT_HEAD(&parser_hooks[inner_proto->code].edges, edge, same_hook);
-    if (! parser_hooks[inner_proto->code].registered) {
-        if (0 == proto_subscriber_ctor(&parser_hooks[inner_proto->code].subscriber, inner_proto, parser_hook)) {
-            parser_hooks[inner_proto->code].registered = true;
+    LIST_INSERT_HEAD(&graph->parser_hooks[inner_proto->code].edges, edge, same_hook);
+    if (! graph->parser_hooks[inner_proto->code].registered) {
+        if (0 == proto_subscriber_ctor(&graph->parser_hooks[inner_proto->code].subscriber, inner_proto, parser_hook)) {
+            graph->parser_hooks[inner_proto->code].registered = true;
         }
     }
 
@@ -350,6 +338,13 @@ static LIST_HEAD(nt_graphs, nt_graph) started_graphs;
 static int nt_graph_ctor(struct nt_graph *graph, char const *name, char const *libname)
 {
     SLOG(LOG_DEBUG, "Construct new graph %s", name);
+
+    // Init parser_hooks
+    for (unsigned h = 0; h < NB_ELEMS(graph->parser_hooks); h++) {
+        graph->parser_hooks[h].registered = false;
+        graph->parser_hooks[h].graph = graph;
+        LIST_INIT(&graph->parser_hooks[h].edges);
+    }
 
     graph->lib = lt_dlopen(libname);
     if (! graph->lib) {
@@ -447,13 +442,13 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
     (void)cap_len;
     (void)packet;
 
-    SLOG(LOG_DEBUG, "Updating graph with inner info from %s", last->parser->proto->name);
-
     // Find the parser_hook
     struct nt_parser_hook *hook = DOWNCAST(subscriber, subscriber, nt_parser_hook);
-    assert(hook >= parser_hooks+0);
-    assert(hook < parser_hooks+(NB_ELEMS(parser_hooks)));
+    assert(hook >= hook->graph->parser_hooks+0);
+    assert(hook < hook->graph->parser_hooks+(NB_ELEMS(hook->graph->parser_hooks)));
     assert(hook->registered);
+
+    SLOG(LOG_DEBUG, "Updating graph %s with inner info from %s", hook->graph->name, last->parser->proto->name);
 
     struct nt_edge *edge;
     LIST_FOREACH(edge, &hook->edges, same_hook) {
@@ -700,12 +695,6 @@ void nettrack_init(void)
     objalloc_init();
 
     LIST_INIT(&started_graphs);
-
-    // Init parser_hooks
-    for (unsigned h = 0; h < NB_ELEMS(parser_hooks); h++) {
-        parser_hooks[h].registered = false;
-        LIST_INIT(&parser_hooks[h].edges);
-    }
 
     // Create a SMOB for nt_graph
     graph_tag = scm_make_smob_type("nettrack-graph", sizeof(struct nt_graph));

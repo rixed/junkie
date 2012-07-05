@@ -63,6 +63,15 @@ struct nt_graph {
     unsigned default_index_size;    // index size if not specified in the vertex
     // for statistics
     uint64_t nb_frames;
+    // The hooks
+    // We need to register a callback for every parsers, then try all nodes whose last proto matches the called one.
+    struct nt_parser_hook {
+        struct proto_subscriber subscriber;
+        // list of edges which test ends with this proto
+        struct nt_edges edges;
+        bool registered;    // we only subscribe to this hook when used (and avoid registering twice)
+        struct nt_graph *graph; // backlink to the graph
+    } parser_hooks[PROTO_CODE_MAX];
 };
 
 void nettrack_init(void);
