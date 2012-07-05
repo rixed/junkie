@@ -490,6 +490,26 @@
 (define eq
   (make-op '= bool (list uint uint) (simple-binary-op "==" "bool")))
 
+(define (simple-binary-fun fun)
+  (lambda (v1 v2)
+    (let ((tmp1 (gensymC "tmp_1_"))
+          (tmp2 (gensymC "tmp_2_"))
+          (res  (gensymC "result")))
+      (make-stub
+        (string-append
+          (stub-code v1)
+          (stub-code v2)
+          "    uint_least64_t " tmp1 " = " (stub-result v1) ", " tmp2 " = " (stub-result v2) ";\n"
+          "    uint_least64_t " res " = MAX(" tmp1 ", " tmp2 ");\n")
+        res
+        (append (stub-regnames v1) (stub-regnames v2))))))
+
+(define max
+  (make-op 'max uint (list uint uint) (simple-binary-fun "MAX")))
+
+(define min
+  (make-op 'max uint (list uint uint) (simple-binary-fun "MIN")))
+
 (add-operator '+ add)
 (add-operator '- sub)
 (add-operator '* mult)
@@ -502,6 +522,8 @@
 (add-operator '<= le)
 (add-operator '= eq)
 (add-operator '== eq)
+(add-operator 'max max)
+(add-operator 'min min)
 
 (export add sub mult div mod gt ge lt le eq)
 
