@@ -123,7 +123,7 @@ static int nt_state_ctor(struct nt_state *state, struct nt_state *parent, struct
     if (parent) LIST_INSERT_HEAD(&parent->children, state, same_parent);
     LIST_INSERT_HEAD(&vertex->states[index], state, same_vertex);
     LIST_INIT(&state->children);
-    state->last_used = *now;
+    state->last_used = state->last_enter = *now;
 
     return 0;
 }
@@ -168,9 +168,13 @@ static void nt_state_del(struct nt_state *state, struct nt_graph *graph)
     objfree(state);
 }
 
-static void nt_state_move(struct nt_state *state, struct nt_vertex *from, struct nt_vertex *to, unsigned index_h)
+static void nt_state_move(struct nt_state *state, struct nt_vertex *from, struct nt_vertex *to, unsigned index_h, struct timeval const *now)
 {
+    state->last_used = *now;
+
     if (from == to) return;
+
+    state->last_enter = *now;
 
     unsigned const index = index_h % to->index_size;
 
@@ -471,7 +475,8 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                     nt_state_del(state, edge->graph);
                     continue;
                 }
-                SLOG(LOG_DEBUG, "Testing state from vertex %s for %s into %s",
+                SLOG(LOG_DEBUG, "Testing state@%p from vertex %s for %s into %s",
+                        state,
                         edge->from->name,
                         edge->spawn ? "spawn":"move",
                         edge->to->name);
@@ -493,7 +498,7 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                 npc_regfile_ctor(tmp_regfile, edge->graph->nb_registers);
 
                 if (
-                    (edge->min_age == 0 || timeval_sub(now, &state->last_used) >= edge->min_age) &&
+                    (edge->min_age == 0 || timeval_sub(now, &state->last_enter) >= edge->min_age) &&
                     (edge->match_fn == NULL || edge->match_fn(last, state->regfile, tmp_regfile))
                 ) {
                     SLOG(LOG_DEBUG, "Match!");
@@ -537,8 +542,7 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                         } else if (merged_regfile) {    // replace former regfile with new one
                             npc_regfile_del(state->regfile, edge->graph->nb_registers);
                             state->regfile = merged_regfile;
-                            nt_state_move(state, edge->from, edge->to, index_h);
-                            state->last_used = *now;
+                            nt_state_move(state, edge->from, edge->to, index_h, now);
                         }
                     }
 hell:

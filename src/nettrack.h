@@ -21,6 +21,7 @@ struct nt_state {
     LIST_HEAD(nt_states, nt_state) children;
     struct npc_register *regfile;
     struct timeval last_used;
+    struct timeval last_enter;  // used to find out the age of a state. states are ordered on same_vertex list according to this field (more recently entered at head)
 };
 
 struct nt_vertex {

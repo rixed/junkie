@@ -122,7 +122,7 @@
           (let ((spawn          #f)
                 (grab           #f)
                 (min-age        0) ; minimal age (in usecs) to match this edge
-                (proto-code     'cap)
+                (proto-code     'cap) ; even when we have no actual match function we need to be called from time to time...
                 (src-index-func (type:make-stub "" "NULL" '()))
                 (dst-index-func (type:make-stub "" "NULL" '()))
                 (match-func     (type:make-stub "" "NULL" '())))
