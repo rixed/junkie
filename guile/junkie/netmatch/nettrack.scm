@@ -61,13 +61,16 @@
   (match vertice
          [(name . cfgs)
           (let ((entry-func (type:make-stub "" "NULL" '()))
-                (index-size 0))
+                (index-size 0)
+                (timeout    1000000)) ; 1 second by default
             (for-each (lambda (cfg)
                         (match cfg
                                [('on-entry expr) ; FIXME: check we do not set this several times
                                 (set! entry-func (netmatch:function->stub type:any '() expr #f))]
                                [('index-size sz) ; FIXME: idem
                                 (set! index-size sz)]
+                               [('timeout n)
+                                (set! timeout n)]
                                [_ (throw 'you-must-be-joking cfg)]))
                       cfgs)
             (set! preamble
@@ -83,6 +86,7 @@
                     "        .name = " (type:symbol->C-string name) ",\n"
                     "        .entry_fn = " (type:stub-result entry-func) ",\n"
                     "        .index_size = " (number->string index-size) ",\n"
+                    "        .timeout = " (number->string timeout) "LL,\n"
                     "    }, ")
                   "" '()))))]
          [_ (throw 'you-must-be-joking (simple-format #f "can't understand vertice ~a" vertice))])
@@ -117,7 +121,8 @@
          [(from to . cfgs)
           (let ((spawn          #f)
                 (grab           #f)
-                (proto-code     'cap)
+                (min-age        0) ; minimal age (in usecs) to match this edge
+                (proto-code     'cap) ; even when we have no actual match function we need to be called from time to time...
                 (src-index-func (type:make-stub "" "NULL" '()))
                 (dst-index-func (type:make-stub "" "NULL" '()))
                 (match-func     (type:make-stub "" "NULL" '())))
@@ -129,6 +134,8 @@
                                   ; Would fail if no protos are given, since we use this to register a callback
                                   (if (not (null? protos))
                                       (set! proto-code (car protos))))]
+                               [('older n)
+                                (set! min-age n)]
                                [('src-index-on protos expr)
                                 (set! src-index-func (netmatch:function->stub type:uint protos expr #f))]
                                [('dst-index-on protos expr)
@@ -136,7 +143,8 @@
                                ['spawn
                                 (set! spawn #t)]
                                ['grab
-                                (set! grab #t)]))
+                                (set! grab #t)]
+                               [_ (throw 'you-must-be-joking cfg)]))
                       cfgs)
             (slog log-debug "Done, got proto-code = ~s (~s)" proto-code (ll:proto-code->C proto-code))
             (cons (type:stub-concat
@@ -154,6 +162,7 @@
                                         "        .to_vertex = " (type:symbol->C-string to) ",\n"
                                         "        .from_index_fn = " (type:stub-result src-index-func) ",\n"
                                         "        .to_index_fn = " (type:stub-result dst-index-func) ",\n"
+                                        "        .min_age = " (number->string min-age) "LL,\n"
                                         "        .spawn = " (ll:bool->C spawn) ",\n"
                                         "        .grab = " (ll:bool->C grab) ",\n"
                                         "    }, ")

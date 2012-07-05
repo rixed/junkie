@@ -20,6 +20,7 @@ struct nt_vertex_def {
     char const *name;
     npc_match_fn *entry_fn;
     unsigned index_size;    // 0 for default
+    int64_t timeout;
 };
 
 struct nt_edge_def {
@@ -27,6 +28,7 @@ struct nt_edge_def {
     enum proto_code inner_proto;
     char const *from_vertex, *to_vertex;
     npc_match_fn *from_index_fn, *to_index_fn;
+    int64_t min_age;
     bool spawn;
     bool grab;
 };

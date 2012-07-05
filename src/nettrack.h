@@ -21,6 +21,7 @@ struct nt_state {
     LIST_HEAD(nt_states, nt_state) children;
     struct npc_register *regfile;
     struct timeval last_used;
+    struct timeval last_enter;  // used to find out the age of a state. states are ordered on same_vertex list according to this field (more recently entered at head)
 };
 
 struct nt_vertex {
@@ -30,7 +31,7 @@ struct nt_vertex {
     struct nt_edges incoming_edges;
     // User defined actions on entry
     npc_match_fn *entry_fn;
-    unsigned timeout;   // if >0, number of seconds to keep an inactive state in here
+    int64_t timeout;   // if >0, number of seconds to keep an inactive state in here
     unsigned index_size;   // the index size (>=1)
     struct nt_states states[]; // the states currently waiting in this node (BEWARE: variable size!)
 };
@@ -43,6 +44,7 @@ struct nt_edge {
     LIST_ENTRY(nt_edge) same_hook;
     npc_match_fn *match_fn;
     npc_match_fn *from_index_fn, *to_index_fn;
+    int64_t min_age;    // cross the edge only if its age is greater than this
     // what to do when taken
     bool spawn;  // ie create a new child (otherwise bring the matching state right here)
     bool grab;   // stop looking for other possible transitions
@@ -62,6 +64,15 @@ struct nt_graph {
     unsigned default_index_size;    // index size if not specified in the vertex
     // for statistics
     uint64_t nb_frames;
+    // The hooks
+    // We need to register a callback for every parsers, then try all nodes whose last proto matches the called one.
+    struct nt_parser_hook {
+        struct proto_subscriber subscriber;
+        // list of edges which test ends with this proto
+        struct nt_edges edges;
+        bool registered;    // we only subscribe to this hook when used (and avoid registering twice)
+        struct nt_graph *graph; // backlink to the graph
+    } parser_hooks[PROTO_CODE_MAX];
 };
 
 void nettrack_init(void);
