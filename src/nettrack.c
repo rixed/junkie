@@ -448,6 +448,8 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
     assert(hook < hook->graph->parser_hooks+(NB_ELEMS(hook->graph->parser_hooks)));
     assert(hook->registered);
 
+    if (! hook->graph->started) return;
+
     SLOG(LOG_DEBUG, "Updating graph %s with inner info from %s", hook->graph->name, last->parser->proto->name);
 
     struct nt_edge *edge;
