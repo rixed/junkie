@@ -103,5 +103,5 @@ cursor_check_LDADD = ../src/tools/libjunkietools.la
 clean-local:
 	rm -f *.log vgcore.* core.* core
 
-EXTRA_DIST = foreach.txt http-truncation.out mysql.out oracle.out postgres.out
+EXTRA_DIST = foreach.txt http-truncation.out mysql.out oracle.out postgres.out http-multiline.out
 
