@@ -129,10 +129,12 @@ static int icmpv6_extract_err_infos(struct icmp_proto_info *info, uint8_t const 
                 info->set_values |= ICMP_ERR_PORT_SET;
                 return icmp_extract_err_ports(err, packet + sizeof(*iphdr));
             }
+            break;
         default:
             SLOG(LOG_DEBUG, "ICMPv6 Error for unsuported protocol %u", iphdr->next);
-            return 0;
+            break;
     }
+    return 0;
 }
 
 static bool icmpv6_is_err(uint8_t type)
