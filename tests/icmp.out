@@ -1,2 +1,4 @@
 -- pcap/icmp/protocol-unreachable.pcap --
 head_len=28, payload=0, type=ProtoUnreachable, err=protocol=224, src=172.25.3.66:0, dst=172.25.3.255:0, id=-1
+-- pcap/icmp/destination-unreachable.pcap --
+head_len=556, payload=0, type=PortUnreachable, err=protocol=17, src=192.168.10.252:16621, dst=192.168.80.199:5678, id=-1

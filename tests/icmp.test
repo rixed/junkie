@@ -1,7 +1,7 @@
 #!/bin/sh
 
 NAME="ICMP"
-PCAPS="pcap/icmp/protocol-unreachable.pcap"
+PCAPS="pcap/icmp/protocol-unreachable.pcap pcap/icmp/destination-unreachable.pcap"
 filter() {
 	grep '^ICMP' | cut -d' ' -f 2-
 }
