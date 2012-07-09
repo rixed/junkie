@@ -1,0 +1,10 @@
+#!/bin/sh
+
+NAME="ICMP"
+PCAPS="pcap/icmp/protocol-unreachable.pcap"
+filter() {
+	grep '^ICMP' | cut -d' ' -f 2-
+}
+OUTPUT="icmp.out"
+
+. ./dump_test
