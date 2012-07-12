@@ -638,7 +638,20 @@
 (add-operator '= ip-eq?)
 (add-operator '== ip-eq?)
 
-(export make-ip routable? broadcast?)
+(define ip-hash
+  (make-op 'ip-hash uint (list ip)
+           (lambda (ip)
+             (let ((res (gensymC "ip_hash")))
+               (make-stub
+                 (string-append
+                   (stub-code ip)
+                   "    uint32_t " res " = hashlittle(" (stub-result ip) ", sizeof(struct ip_addr), 0x432317F5U);\n")
+                 res
+                 (stub-regnames ip))))))
+
+(add-operator 'hash ip-hash)
+
+(export routable? broadcast?)
 
 ;; Eth addresses manipulation
 
