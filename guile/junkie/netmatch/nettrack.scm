@@ -121,6 +121,7 @@
          [(from to . cfgs)
           (let ((spawn          #f)
                 (grab           #f)
+                (per-packet     #f) ; ie. one test per packet, not per proto
                 (min-age        0) ; minimal age (in usecs) to match this edge
                 (proto-code     'cap) ; even when we have no actual match function we need to be called from time to time...
                 (src-index-func (type:make-stub "" "NULL" '()))
@@ -128,6 +129,8 @@
                 (match-func     (type:make-stub "" "NULL" '())))
             (for-each (lambda (cfg)
                         (match cfg
+                               [('on 'full-parse)
+                                (set! per-packet #t)]
                                [('match protos expr)
                                 (let ((protos (reverse protos)))
                                   (set! match-func (netmatch:function->stub type:bool protos expr #f))
@@ -158,6 +161,7 @@
                                         "{\n"
                                         "        .match_fn = " (type:stub-result match-func) ",\n"
                                         "        .inner_proto = " (ll:proto-code->C proto-code) ",\n"
+                                        "        .per_packet = " (type:bool->C per-packet) ",\n"
                                         "        .from_vertex = " (type:symbol->C-string from) ",\n"
                                         "        .to_vertex = " (type:symbol->C-string to) ",\n"
                                         "        .from_index_fn = " (type:stub-result src-index-func) ",\n"

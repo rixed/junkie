@@ -146,6 +146,11 @@
 
 (export symbol->C-string)
 
+(define (bool->C v)
+  (if v "true" "false"))
+
+(export bool->C)
+
 (define (indent-more str)
   (regexp-substitute/global #f (make-regexp "^ {4}" regexp/newline) str 'pre "        " 'post))
 

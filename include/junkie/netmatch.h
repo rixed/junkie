@@ -26,6 +26,7 @@ struct nt_vertex_def {
 struct nt_edge_def {
     npc_match_fn *match_fn;
     enum proto_code inner_proto;
+    bool per_packet;    // Ideally, we'd like to choose any trigger by "name". But for now we have only two kinds of trigger: per packet and per proto.
     char const *from_vertex, *to_vertex;
     npc_match_fn *from_index_fn, *to_index_fn;
     int64_t min_age;
