@@ -146,6 +146,11 @@
 
 (export symbol->C-string)
 
+(define (bool->C v)
+  (if v "true" "false"))
+
+(export bool->C)
+
 (define (indent-more str)
   (regexp-substitute/global #f (make-regexp "^ {4}" regexp/newline) str 'pre "        " 'post))
 
@@ -633,7 +638,20 @@
 (add-operator '= ip-eq?)
 (add-operator '== ip-eq?)
 
-(export make-ip routable? broadcast?)
+(define ip-hash
+  (make-op 'ip-hash uint (list ip)
+           (lambda (ip)
+             (let ((res (gensymC "ip_hash")))
+               (make-stub
+                 (string-append
+                   (stub-code ip)
+                   "    uint32_t " res " = hashlittle(" (stub-result ip) ", sizeof(struct ip_addr), 0x432317F5U);\n")
+                 res
+                 (stub-regnames ip))))))
+
+(add-operator 'hash ip-hash)
+
+(export routable? broadcast?)
 
 ;; Eth addresses manipulation
 

@@ -72,7 +72,8 @@ struct nt_graph {
         struct nt_edges edges;
         bool registered;    // we only subscribe to this hook when used (and avoid registering twice)
         struct nt_graph *graph; // backlink to the graph
-    } parser_hooks[PROTO_CODE_MAX];
+    } parser_hooks[PROTO_CODE_MAX+1];
+#   define FULL_PARSE_EVENT PROTO_CODE_MAX
 };
 
 void nettrack_init(void);

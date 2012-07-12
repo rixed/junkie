@@ -397,7 +397,7 @@
                (let* ((x-stub  (expr->stub x)) ; should set expected-type if unset yet
                       (regname (type:symbol->C-ident name))
                       (e-type  (fluid-ref expected-type)))
-                 (slog log-debug " compiling actual bind")
+                 (slog log-debug " compiling actual bind of ~s, of type ~s" x (type:type-name e-type))
                  (set-register-type regname e-type)
                  ((type:type-bind e-type) regname x-stub)))
               ; Sequencing operator (special typing, returns the last evaluated expression)
@@ -453,8 +453,12 @@
        ; - otherwise, a register name
        (cond
          ((type:looks-like-ip? expr)
+          (slog log-debug " ...which is an IP")
+          (type-check-or-set type:ip)
           ((type:type-imm type:ip) expr))
          ((type:looks-like-mac? expr)
+          (slog log-debug " ...which is a MAC")
+          (type-check-or-set type:mac)
           ((type:type-imm type:mac) expr))
          ((well-known-cst? expr) => expr->stub)
          ((fieldname? expr) =>

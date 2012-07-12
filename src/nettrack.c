@@ -276,7 +276,7 @@ static void nt_vertex_del(struct nt_vertex *vertex, struct nt_graph *graph)
  */
 
 static proto_cb_t parser_hook;
-static int nt_edge_ctor(struct nt_edge *edge, struct nt_graph *graph, struct nt_vertex *from, struct nt_vertex *to, npc_match_fn *match_fn, npc_match_fn *from_index_fn, npc_match_fn *to_index_fn, int64_t min_age, bool spawn, bool grab, struct proto *inner_proto)
+static int nt_edge_ctor(struct nt_edge *edge, struct nt_graph *graph, struct nt_vertex *from, struct nt_vertex *to, npc_match_fn *match_fn, npc_match_fn *from_index_fn, npc_match_fn *to_index_fn, int64_t min_age, bool spawn, bool grab, struct proto *inner_proto, bool per_packet)
 {
     SLOG(LOG_DEBUG, "Construct new edge@%p from %s to %s on proto %s", edge, from->name, to->name, inner_proto->name);
 
@@ -293,21 +293,26 @@ static int nt_edge_ctor(struct nt_edge *edge, struct nt_graph *graph, struct nt_
     LIST_INSERT_HEAD(&from->outgoing_edges, edge, same_from);
     LIST_INSERT_HEAD(&to->incoming_edges, edge, same_to);
     LIST_INSERT_HEAD(&graph->edges, edge, same_graph);
-    LIST_INSERT_HEAD(&graph->parser_hooks[inner_proto->code].edges, edge, same_hook);
-    if (! graph->parser_hooks[inner_proto->code].registered) {
-        if (0 == proto_subscriber_ctor(&graph->parser_hooks[inner_proto->code].subscriber, inner_proto, parser_hook)) {
-            graph->parser_hooks[inner_proto->code].registered = true;
+    unsigned const hook = per_packet ? FULL_PARSE_EVENT : inner_proto->code;
+    LIST_INSERT_HEAD(&graph->parser_hooks[hook].edges, edge, same_hook);
+    if (! graph->parser_hooks[hook].registered) {
+        if (0 == (
+            per_packet ?
+                proto_pkt_subscriber_ctor(&graph->parser_hooks[hook].subscriber, parser_hook) :
+                proto_subscriber_ctor(&graph->parser_hooks[hook].subscriber, inner_proto, parser_hook))
+        ) {
+            graph->parser_hooks[hook].registered = true;
         }
     }
 
     return 0;
 }
 
-static struct nt_edge *nt_edge_new(struct nt_graph *graph, struct nt_vertex *from, struct nt_vertex *to, npc_match_fn *match_fn, npc_match_fn *from_index_fn, npc_match_fn *to_index_fn, int64_t min_age, bool spawn, bool grab, struct proto *inner_proto)
+static struct nt_edge *nt_edge_new(struct nt_graph *graph, struct nt_vertex *from, struct nt_vertex *to, npc_match_fn *match_fn, npc_match_fn *from_index_fn, npc_match_fn *to_index_fn, int64_t min_age, bool spawn, bool grab, struct proto *inner_proto, bool per_packet)
 {
     struct nt_edge *edge = objalloc(sizeof(*edge), "nettrack edges");
     if (! edge) return NULL;
-    if (0 != nt_edge_ctor(edge, graph, from, to, match_fn, from_index_fn, to_index_fn, min_age, spawn, grab, inner_proto)) {
+    if (0 != nt_edge_ctor(edge, graph, from, to, match_fn, from_index_fn, to_index_fn, min_age, spawn, grab, inner_proto, per_packet)) {
         objfree(edge);
         return NULL;
     }
@@ -658,7 +663,7 @@ static SCM g_make_nettrack(SCM name_, SCM libname_)
         if (! to) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_1(scm_from_locale_string(e_def[e].to_vertex)));
         struct proto *inner_proto = proto_of_code(e_def[e].inner_proto);
         if (! inner_proto) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_2(scm_from_latin1_string("no such proto"), scm_from_uint(e_def[e].inner_proto)));
-        struct nt_edge *edge = nt_edge_new(graph, from, to, e_def[e].match_fn, e_def[e].from_index_fn, e_def[e].to_index_fn, e_def[e].min_age, e_def[e].spawn, e_def[e].grab, inner_proto);
+        struct nt_edge *edge = nt_edge_new(graph, from, to, e_def[e].match_fn, e_def[e].from_index_fn, e_def[e].to_index_fn, e_def[e].min_age, e_def[e].spawn, e_def[e].grab, inner_proto, e_def[e].per_packet);
         if (! edge) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_2(scm_from_locale_string(e_def[e].from_vertex), scm_from_locale_string(e_def[e].to_vertex)));
     }
 
