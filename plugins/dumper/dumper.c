@@ -25,7 +25,7 @@
 
 static bool display_caplen;
 static struct cli_opt dumper_opts[] = {
-    { { "show-caplen", NULL }, false, "Display the captured length", CLI_SET_BOOL, { .boolean = &display_caplen } },
+    { { "show-caplen", NULL }, NULL, "Display the captured length", CLI_SET_BOOL, { .boolean = &display_caplen } },
 };
 
 // Default parse continuation :

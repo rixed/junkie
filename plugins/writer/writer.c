@@ -492,19 +492,19 @@ static SCM g_capture_stats(SCM conf_smob)
 
 // Extension of the command line:
 static struct cli_opt writer_opts[] = {
-    { { "file", NULL },     true, "name of the capture file",                 CLI_DUP_STR,  { .str = &cli_conf.file } },
-    { { "method", NULL },   true, "pcap|csv",                                 CLI_SET_ENUM, { .uint = &cli_conf.method } },
-    { { "match-re", NULL }, true, "save only packets matching this "
-                                  "regular expression",                       CLI_CALL,     { .call = &cli_match_re } },
-    { { "netmatch", NULL }, true, "save only packets matching this "
-                                  "netmatch expression",                      CLI_CALL,     { .call = &cli_netmatch } },
-    { { "max-pkts", NULL }, true, "max number of packets to capture",         CLI_SET_UINT, { .uint = &cli_conf.max_pkts } },
-    { { "max-size", NULL }, true, "max size of the file",                     CLI_SET_UINT, { .uint = &cli_conf.max_size } },
-    { { "max-secs", NULL }, true, "max lifespan of the file (in secs)",       CLI_SET_UINT, { .uint = &cli_conf.max_secs } },
-    { { "caplen", NULL },   true, "max capture size of each packets",         CLI_SET_UINT, { .uint = &cli_conf.cap_len } },
-    { { "rotation", NULL }, true, "when a file is done, opens another one, "
-                                  "up to this number after which rotates. "
-                                  "will create files suffixed with numbers.", CLI_SET_UINT, { .uint = &cli_conf.rotation } },
+    { { "file", NULL },     "file",    "name of the capture file",                 CLI_DUP_STR,  { .str = &cli_conf.file } },
+    { { "method", NULL },   NEEDS_ARG, "pcap|csv",                                 CLI_SET_ENUM, { .uint = &cli_conf.method } },
+    { { "match-re", NULL }, "regex",   "save only packets matching this "
+                                       "regular expression",                       CLI_CALL,     { .call = &cli_match_re } },
+    { { "netmatch", NULL }, "s-expr",  "save only packets matching this "
+                                       "netmatch expression",                      CLI_CALL,     { .call = &cli_netmatch } },
+    { { "max-pkts", NULL }, NEEDS_ARG, "max number of packets to capture",         CLI_SET_UINT, { .uint = &cli_conf.max_pkts } },
+    { { "max-size", NULL }, NEEDS_ARG, "max size of the file",                     CLI_SET_UINT, { .uint = &cli_conf.max_size } },
+    { { "max-secs", NULL }, NEEDS_ARG, "max lifespan of the file (in secs)",       CLI_SET_UINT, { .uint = &cli_conf.max_secs } },
+    { { "caplen", NULL },   NEEDS_ARG, "max capture size of each packets",         CLI_SET_UINT, { .uint = &cli_conf.cap_len } },
+    { { "rotation", NULL }, NEEDS_ARG, "when a file is done, opens another one, "
+                                       "up to this number after which rotates. "
+                                       "will create files suffixed with numbers.", CLI_SET_UINT, { .uint = &cli_conf.rotation } },
 };
 
 static struct proto_subscriber subscription;

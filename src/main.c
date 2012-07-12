@@ -232,15 +232,15 @@ int main(int nb_args, char **args)
 
     // Default command line arguments
     static struct cli_opt main_opts[] = {
-        { { "version", "v" }, false, "display version",               CLI_CALL,     { .call = opt_version } },
-        { { "config", "c" },  true,  "load configuration file (will prevent default config file to be loaded)",
-                                                                      CLI_CALL,     { .call = opt_config } },
-        { { "syslog", NULL }, false, "use syslog for critical msgs",  CLI_SET_BOOL, { .boolean = &use_syslog } },
-        { { "exec", "e" },    true,  "execute given command",         CLI_CALL,     { .call = ext_eval } },
-        { { "log", "l" },     true,  "log into this file",            CLI_CALL,     { .call = opt_logfile } },
-        { { "load", "p" },    true,  "load this plugin",              CLI_CALL,     { .call = opt_plugin } },
-        { { "iface", "i" },   true,  "listen this interface",         CLI_CALL,     { .call = opt_iface } },
-        { { "read", "r" },    true,  "read this pcap file",           CLI_CALL,     { .call = opt_read } },
+        { { "version", "v" }, NULL,      "display version",               CLI_CALL,     { .call = opt_version } },
+        { { "config", "c" },  "file",    "load configuration (will prevent default config file to be loaded)",
+                                                                          CLI_CALL,     { .call = opt_config } },
+        { { "syslog", NULL }, NULL,      "use syslog for critical msgs",  CLI_SET_BOOL, { .boolean = &use_syslog } },
+        { { "exec", "e" },    "s-expr",  "execute given command",         CLI_CALL,     { .call = ext_eval } },
+        { { "log", "l" },     "file",    "log into this file",            CLI_CALL,     { .call = opt_logfile } },
+        { { "load", "p" },    "file.so", "load this plugin",              CLI_CALL,     { .call = opt_plugin } },
+        { { "iface", "i" },   "iface",   "listen this interface",         CLI_CALL,     { .call = opt_iface } },
+        { { "read", "r" },    "file",    "read this pcap file",           CLI_CALL,     { .call = opt_read } },
     };
 
     cli_register(NULL, main_opts, NB_ELEMS(main_opts));

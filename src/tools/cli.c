@@ -130,7 +130,7 @@ int cli_parse(unsigned nb_args, char **args)
         fprintf(stderr, "Unkown option '%s'\n", args[0]);
         return -1;
     }
-    if (opt->need_argument && nb_args < 2) {
+    if (opt->arg_name && nb_args < 2) {
         fprintf(stderr, "Option '%s' requires an argument\n", args[0]);
         return -1;
     }
@@ -138,10 +138,10 @@ int cli_parse(unsigned nb_args, char **args)
     int err = -1;
     switch (opt->action) {
         case CLI_CALL:
-            err = opt->u.call(opt->need_argument ? args[1] : NULL);
+            err = opt->u.call(opt->arg_name ? args[1] : NULL);
             break;
         case CLI_SET_UINT:
-            assert(opt->need_argument);
+            assert(opt->arg_name);
             char *end;
             *opt->u.uint = strtoul(args[1], &end, 0);
             if (*end != '\0') {
@@ -151,7 +151,7 @@ int cli_parse(unsigned nb_args, char **args)
             }
             break;
         case CLI_SET_BOOL:
-            if (! opt->need_argument) { // then the presence of the flag means yes
+            if (! opt->arg_name) { // then the presence of the flag means yes
                 *opt->u.boolean = true;
                 err = 0;
             } else {
@@ -164,12 +164,12 @@ int cli_parse(unsigned nb_args, char **args)
             }
             break;
         case CLI_DUP_STR:
-            assert(opt->need_argument);
+            assert(opt->arg_name);
             *opt->u.str = strdup(args[1]);
             err = *opt->u.str == NULL ? -1:0;
             break;
         case CLI_SET_ENUM:
-            assert(opt->need_argument);
+            assert(opt->arg_name);
             unsigned v = 0;
             size_t opt_len = strlen(args[1]);
             char const *c;
@@ -193,7 +193,7 @@ int cli_parse(unsigned nb_args, char **args)
     }
 
     if (err) return err;
-    unsigned const shift = opt->need_argument ? 2:1;
+    unsigned const shift = opt->arg_name ? 2:1;
     return cli_parse(nb_args - shift, args + shift);
 }
 
@@ -264,6 +264,19 @@ static void print_tabuled(struct cli_opt const *opt, int margin)
     puts("");
 }
 
+static char const *param_action_2_str(enum cli_action a)
+{
+    switch (a) {
+        case CLI_DUP_STR:
+        case CLI_CALL:     return "param";
+        case CLI_SET_UINT: return "N";
+        case CLI_SET_BOOL: return "t|f";
+        case CLI_SET_ENUM: return ""; // not needed since the help has it
+    }
+    assert(!"Bad cli_action");
+    return "";
+}
+
 static void help_block(struct cli_bloc const *bloc)
 {
     if (bloc->name) {
@@ -271,12 +284,18 @@ static void help_block(struct cli_bloc const *bloc)
     }
     for (unsigned o = 0; o < bloc->nb_cli_opts; o++) {
         struct cli_opt const *opt = bloc->opts+o;
-        int len = printf("    %s%s%s%s%s",
+        int len = printf("    %s%s%s%s%s%s%s",
             opt->arg[0] ? "--" : "",
             opt->arg[0] ? opt->arg[0] : "",
             opt->arg[1] ? ", " : "",
             opt->arg[1] ? "-" : "",
-            opt->arg[1] ? opt->arg[1] : "");
+            opt->arg[1] ? opt->arg[1] : "",
+            opt->arg_name ? " ":"",
+            opt->arg_name ? (
+                opt->arg_name != NEEDS_ARG ?
+                    opt->arg_name :
+                    param_action_2_str(opt->action)
+            ) : "");
         print_tabuled(opt, len);
     }
 }

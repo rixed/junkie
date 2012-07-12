@@ -38,16 +38,16 @@ static unsigned opt_lower_bound;
 
 // Extension of the command line:
 static struct cli_opt rater_opts[] = {
-    { { "upper-bound", NULL }, true, "Start capturing above this throughput (bytes/sec)", CLI_SET_UINT, { .uint = &opt_upper_bound } },
-    { { "lower-bound", NULL }, true, "Stop capturing below this throughput (bytes/sec)",  CLI_SET_UINT, { .uint = &opt_lower_bound } },
-    { { "file",        NULL }, true, "Name of the pcap file to write",                    CLI_DUP_STR,  { .str  = &opt_file } },
-    { { "max-pkts", NULL },    true, "max number of packets to capture",                  CLI_SET_UINT, { .uint = &opt_max_pkts } },
-    { { "max-size", NULL },    true, "max size of the file",                              CLI_SET_UINT, { .uint = &opt_max_size } },
-    { { "max-secs", NULL },    true, "max lifespan of the file (in secs)",                CLI_SET_UINT, { .uint = &opt_max_secs } },
-    { { "caplen", NULL },      true, "max capture size of each packets",                  CLI_SET_UINT, { .uint = &opt_cap_len } },
-    { { "rotation", NULL },    true, "when a file is done, opens another one, "
-                                     "up to this number after which rotates. "
-                                     "will create files suffixed with numbers.",          CLI_SET_UINT, { .uint = &opt_rotation } },
+    { { "upper-bound", NULL }, NEEDS_ARG, "Start capturing above this throughput (bytes/sec)", CLI_SET_UINT, { .uint = &opt_upper_bound } },
+    { { "lower-bound", NULL }, NEEDS_ARG, "Stop capturing below this throughput (bytes/sec)",  CLI_SET_UINT, { .uint = &opt_lower_bound } },
+    { { "file",        NULL }, "file",    "Name of the pcap file to write",                    CLI_DUP_STR,  { .str  = &opt_file } },
+    { { "max-pkts", NULL },    NEEDS_ARG, "max number of packets to capture",                  CLI_SET_UINT, { .uint = &opt_max_pkts } },
+    { { "max-size", NULL },    NEEDS_ARG, "max size of the file",                              CLI_SET_UINT, { .uint = &opt_max_size } },
+    { { "max-secs", NULL },    NEEDS_ARG, "max lifespan of the file (in secs)",                CLI_SET_UINT, { .uint = &opt_max_secs } },
+    { { "caplen", NULL },      NEEDS_ARG, "max capture size of each packets",                  CLI_SET_UINT, { .uint = &opt_cap_len } },
+    { { "rotation", NULL },    NEEDS_ARG, "when a file is done, opens another one, "
+                                          "up to this number after which rotates. "
+                                          "will create files suffixed with numbers.",          CLI_SET_UINT, { .uint = &opt_rotation } },
 };
 
 static void init_capture(void)

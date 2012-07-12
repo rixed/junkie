@@ -121,11 +121,11 @@ static void edge_del(struct edge *edge)
 // Extension of the command line:
 static struct cli_opt arpgraph_opts[] = {
     {
-        { "monitoring-period", NULL }, true,
+        { "monitoring-period", NULL }, NEEDS_ARG,
         "Listen ARP messages for this amount of second before outputing the graph (default: "STRIZE(DEFAULT_MONITORING_PERIOD)"s)",
         CLI_SET_UINT, { .uint = &opt_monitoring_period }
     }, {
-        { "loop", NULL }, false,
+        { "loop", NULL }, NULL,
         "Loop once a graph is outputed instead of quiting",
         CLI_SET_BOOL, { .boolean = &opt_loop }
     }

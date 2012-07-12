@@ -121,9 +121,9 @@ quit:
 
 // Extension of the command line:
 static struct cli_opt serializer_opts[] = {
-    { { "dest", NULL },     true, "peer where to send infos", CLI_DUP_STR,  { .str = &opt_dest_name } },
-    { { "port", NULL },     true, "destination port",         CLI_DUP_STR,  { .str = &opt_dest_port } },
-    { { "msg-size", NULL }, true, "max message size",         CLI_SET_UINT, { .uint = &opt_msg_size } },
+    { { "dest", NULL },     "hostname", "peer where to send infos", CLI_DUP_STR,  { .str = &opt_dest_name } },
+    { { "port", NULL },     "port",     "destination port",         CLI_DUP_STR,  { .str = &opt_dest_port } },
+    { { "msg-size", NULL }, NEEDS_ARG,  "max message size",         CLI_SET_UINT, { .uint = &opt_msg_size } },
 };
 
 static struct proto_subscriber subscription;
