@@ -214,13 +214,18 @@ static int icmp_extract_err_infos(struct icmp_proto_info *info, uint8_t const *p
 {
     struct icmp_err *err = &info->err;
 
-    if (packet_len < 20 + 8) {
+    /* We are supposed to have 20 bytes of IP header + 8 bytes of TCP/UDP header.
+     * But sometime (observed for protocol unreachable) we have only the IP
+     * header. */
+
+    // Extract IP headers
+    if (packet_len < 20) {
         SLOG(LOG_DEBUG, "Bogus ICMP err: packet too short for IP header");
         return -1;
     }
     struct ip_hdr const *iphdr = (struct ip_hdr const *)packet;
     size_t iphdr_len = IP_HDR_LENGTH(iphdr);
-    if (iphdr_len > packet_len - 8) {
+    if (iphdr_len > packet_len) {
         SLOG(LOG_DEBUG, "Bogus ICMP packet IP header too long (%zu > %zu)",
             iphdr_len, packet_len = 8);
         return -1;
@@ -230,15 +235,20 @@ static int icmp_extract_err_infos(struct icmp_proto_info *info, uint8_t const *p
     ip_addr_ctor_from_ip4(err->addr+0, READ_U32(&iphdr->src));
     ip_addr_ctor_from_ip4(err->addr+1, READ_U32(&iphdr->dst));
 
+    // Extract ports
     switch (err->protocol) {
         case IPPROTO_TCP:
         case IPPROTO_UDP:
-            info->set_values |= ICMP_ERR_PORT_SET;
-            return icmp_extract_err_ports(err, packet + iphdr_len);
+            if (packet_len - iphdr_len >= 4) {
+                info->set_values |= ICMP_ERR_PORT_SET;
+                return icmp_extract_err_ports(err, packet + iphdr_len);
+            }
+            break;
         default:
             SLOG(LOG_DEBUG, "ICMP Error for unsuported protocol %u", err->protocol);
-            return 0;
+            break;
     }
+    return 0;
 }
 
 static bool icmp_is_err(uint8_t type)

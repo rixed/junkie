@@ -23,7 +23,7 @@ dist_check_SCRIPTS = \
 	serialize_check writer_check.scm \
 	dedup_conf1.test dedup_conf2.test \
 	http-chunked.test tcp.test os-detect.test \
-	http-multiline.test tools-check
+	http-multiline.test icmp.test tools-check
 
 TESTS = $(check_PROGRAMS) $(dist_check_SCRIPTS)
 
@@ -103,5 +103,12 @@ cursor_check_LDADD = ../src/tools/libjunkietools.la
 clean-local:
 	rm -f *.log vgcore.* core.* core
 
-EXTRA_DIST = foreach.txt http-truncation.out mysql.out oracle.out postgres.out
+EXTRA_DIST = \
+	foreach.txt \
+	http-truncation.out \
+	mysql.out \
+	oracle.out \
+	postgres.out \
+	http-multiline.out \
+	icmp.out
 
