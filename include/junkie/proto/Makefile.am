@@ -30,5 +30,6 @@ thisinclude_HEADERS = \
 	cnxtrack.h \
 	serialize.h \
 	capfile.h \
-	os-detect.h
+	os-detect.h \
+	discovery.h
 

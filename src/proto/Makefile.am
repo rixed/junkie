@@ -23,7 +23,8 @@ libproto_la_SOURCES = \
 	cnxtrack.c \
 	serialize.c \
 	capfile.c \
-	os-detect.c
+	os-detect.c \
+	discovery.c
 
 libproto_la_LIBADD = ../tools/libjunkietools.la
 libproto_la_LDFLAGS = -export-dynamic

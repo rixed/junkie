@@ -78,6 +78,7 @@ void serialize_proto_stack(uint8_t **buf, struct proto_info const *last, struct 
 #include "junkie/proto/mgcp.h"
 #include "junkie/proto/sdp.h"
 #include "junkie/proto/sql.h"
+#include "junkie/proto/discovery.h"
 
 static void deserialize_proto_info_rec(unsigned depth, uint8_t const **buf, struct proto_info *last, struct timeval const *now)
 {
@@ -118,6 +119,7 @@ static void deserialize_proto_info_rec(unsigned depth, uint8_t const **buf, stru
         struct bittorrent_proto_info bittorrent;
         struct netbios_proto_info netbios;
         struct ssl_proto_info ssl;
+        struct discovery_proto_info discovery;
     } i;
     struct proto_info *info = NULL;
     struct proto *proto = NULL;
@@ -135,7 +137,7 @@ static void deserialize_proto_info_rec(unsigned depth, uint8_t const **buf, stru
         CASE(MGCP, mgcp); CASE(RTCP, rtcp); CASE(RTP, rtp);
         CASE(SDP, sdp); CASE(SIP, sip); CASE(TNS, tns);
         CASE(PGSQL, pgsql); CASE(MYSQL, mysql); CASE(BITTORRENT, bittorrent);
-        CASE(NETBIOS, netbios); CASE(SSL, ssl);
+        CASE(NETBIOS, netbios); CASE(SSL, ssl); CASE(DISCOVERY, discovery);
 #       undef CASE
         case PROTO_CODE_DUMMY:
         case PROTO_CODE_MAX:
