@@ -63,6 +63,7 @@
 #include "junkie/proto/cnxtrack.h"
 #include "junkie/proto/serialize.h"
 #include "junkie/proto/os-detect.h"
+#include "junkie/proto/discovery.h"
 #include "proto/fuzzing.h"
 #include "pkt_source.h"
 #include "plugins.h"
@@ -88,7 +89,7 @@ static struct {
     I(ssl),           I(dns),         I(rtcp),
     I(dns_tcp),       I(ftp),         I(mgcp),
     I(sdp),           I(pgsql),       I(mysql),
-    I(tns),
+    I(tns),           I(discovery),
     I(pkt_source),    I(capfile),     I(serialize)
 #   undef I
 };

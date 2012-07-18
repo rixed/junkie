@@ -22,22 +22,16 @@ extern struct proto *proto_discovery;
 
 struct discovery_proto_info {
     struct proto_info info;
-    enum discovery_protocol {
-        DISC_SSL_v2,
-        DISC_SSL_v3,
-        DISC_SSL_TLS,
-        DISC_BITTORRENT,
-        DISC_GNUTELLA,
+    struct discovery_protocol {
+        enum discovery_trust {
+            DISC_HIGH,
+            DISC_MEDIUM,
+            DISC_LOW,
+        } trust;
+        uint16_t id;
+        char name[128];
     } protocol;
-    enum discovery_trust {
-        DISC_HIGH,
-        DISC_MEDIUM,
-        DISC_LOW,
-    } trust;
 };
-
-/// Returns the human readable identifier for the protocol
-char const *discovery_protocol_2_str(enum discovery_protocol);
 
 void discovery_init(void);
 void discovery_fini(void);

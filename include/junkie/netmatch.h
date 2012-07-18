@@ -3,9 +3,14 @@
 #ifndef NETMATCH_H_111229
 #define NETMATCH_H_111229
 
+#include <ltdl.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <junkie/proto/proto.h>
+
+/*
+ * Netmatch is a simple way to define C-compiled packet matching functions from guile
+ */
 
 struct npc_register {
     uintptr_t value;
@@ -14,7 +19,21 @@ struct npc_register {
 
 typedef uintptr_t npc_match_fn(struct proto_info const *info, struct npc_register const *prev_regfile, struct npc_register *new_regfile);
 
-// The following structures are used by nettrack to describe the event graph
+// handy structure to stores a netmatch in C
+struct netmatch_filter {
+    char *libname;
+    unsigned nb_registers;
+    struct npc_register *regfile;
+    lt_dlhandle handle;
+    npc_match_fn *match_fun;
+};
+
+int netmatch_filter_ctor(struct netmatch_filter *netmatch, char const *libname, unsigned nb_regs);
+void netmatch_filter_dtor(struct netmatch_filter *netmatch);
+
+/*
+ * NetTrack uses NetMatch to build a state machine to match consecutive events.
+ */
 
 struct nt_vertex_def {
     char const *name;

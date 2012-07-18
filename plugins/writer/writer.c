@@ -22,7 +22,6 @@
 #include <string.h>
 #include <sys/types.h>
 #include <regex.h>
-#include <ltdl.h>
 #include "junkie/cpp.h"
 #include "junkie/tools/cli.h"
 #include "junkie/tools/ext.h"
@@ -38,81 +37,6 @@
 #define LOG_CAT writer_log_category
 
 LOG_CATEGORY_DEF(writer);
-
-
-struct netmatch_filter {
-    char *libname;
-    unsigned nb_registers;
-    struct npc_register *regfile;
-    lt_dlhandle handle;
-    npc_match_fn *match_fun;
-};
-
-static int netmatch_filter_ctor(struct netmatch_filter *netmatch, char const *libname, unsigned nb_regs)
-{
-    netmatch->nb_registers = nb_regs;
-    if (nb_regs > 0) {
-        netmatch->regfile = objalloc(nb_regs * sizeof(*netmatch->regfile), "netmatches");
-        if (! netmatch->regfile) goto err0;
-        memset(netmatch->regfile, 0, nb_regs * sizeof(*netmatch->regfile));
-    } else {
-        netmatch->regfile = NULL;
-    }
-
-    netmatch->libname = objalloc_strdup(libname);
-    if (! netmatch->libname) {
-        goto err1;
-    }
-
-    netmatch->handle = lt_dlopen(libname);
-    if (! netmatch->handle) {
-        SLOG(LOG_CRIT, "Cannot load netmatch shared object %s: %s", libname, lt_dlerror());
-        goto err2;
-    }
-
-    netmatch->match_fun = lt_dlsym(netmatch->handle, "match");
-    if (! netmatch->match_fun) {
-        SLOG(LOG_CRIT, "Cannot find match function in netmatch shared object %s", libname);
-        goto err3;
-    }
-
-    return 0;
-err3:
-    if (netmatch->handle) {
-        (void)lt_dlclose(netmatch->handle);
-        netmatch->handle = NULL;
-    }
-err2:
-    if (netmatch->libname) {
-        objfree(netmatch->libname);
-        netmatch->libname = NULL;
-    }
-err1:
-    if (netmatch->regfile) {
-        objfree(netmatch->regfile);
-        netmatch->regfile = NULL;
-    }
-err0:
-    return -1;
-}
-
-static void netmatch_filter_dtor(struct netmatch_filter *netmatch)
-{
-    if (netmatch->regfile) {
-        objfree(netmatch->regfile);
-        netmatch->regfile = NULL;
-    }
-
-    if (netmatch->libname) {
-        objfree(netmatch->libname);
-        netmatch->libname = NULL;
-    }
-
-    if (netmatch->handle) {
-        (void)lt_dlclose(netmatch->handle);
-        netmatch->handle = NULL;
-    }
-}
 
 
 /*
