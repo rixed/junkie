@@ -215,10 +215,22 @@ static SCM g_proto_signature_stats(SCM name_)
  * Parse
  */
 
-static enum proto_parse_status discovery_parse(struct parser unused_ *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status discovery_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
-    // TODO: iter on all filters until one matches
-    (void)proto_parse(NULL, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
+    // iter on all filters until one matches
+    struct proto_signature *sig;
+    LIST_LOOKUP(sig, &proto_signatures, entry, 0 != sig->filter.match_fun(parent, sig->filter.regfile, NULL));
+
+    if (! sig) {
+        (void)proto_parse(NULL, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
+        return PROTO_OK;
+    }
+
+    struct discovery_proto_info info;
+    proto_info_ctor(&info.info, parser, parent, 0, wire_len);
+    info.protocol = sig->protocol;
+
+    (void)proto_parse(NULL, &info.info, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
     return PROTO_OK;
 }
 
@@ -257,7 +269,7 @@ void discovery_init(void)
     proto_libname_sym = scm_permanent_object(scm_from_latin1_symbol("libname"));
 
     ext_function_ctor(&sg_add_proto_signature,
-        "add-proto-signature", 4, 0, 0, g_add_proto_signature,
+        "add-proto-signature", 4, 0, 0, g_add_proto_signature,  // TODO: additional optional parameter indicating what regular parser to run next
         "(add-proto-signature name id trust netmatch-filter): add this filter for given name/id with given trust level\n"
         "   trust can be either 'high, 'medium or 'low.\n"
         "   netmatch-filter is a pair (libname . nb-registers) as returned by netmatch compiler\n");
