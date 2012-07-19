@@ -52,7 +52,6 @@
 #include "junkie/proto/http.h"
 #include "junkie/proto/rtp.h"
 #include "junkie/proto/netbios.h"
-#include "junkie/proto/ssl.h"
 #include "junkie/proto/dns.h"
 #include "junkie/proto/rtcp.h"
 #include "junkie/proto/ftp.h"
@@ -86,7 +85,7 @@ static struct {
     I(udp),           I(icmpv6),      I(tcp),
     I(icmp),          I(sip),         I(bittorrent),
     I(http),          I(rtp),         I(netbios),
-    I(ssl),           I(dns),         I(rtcp),
+    I(dns),           I(rtcp),
     I(dns_tcp),       I(ftp),         I(mgcp),
     I(sdp),           I(pgsql),       I(mysql),
     I(tns),           I(discovery),

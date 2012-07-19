@@ -178,7 +178,7 @@ struct proto {
         PROTO_CODE_MGCP, PROTO_CODE_RTCP, PROTO_CODE_RTP,
         PROTO_CODE_SDP, PROTO_CODE_SIP, PROTO_CODE_TNS,
         PROTO_CODE_PGSQL, PROTO_CODE_MYSQL,
-        PROTO_CODE_BITTORRENT, PROTO_CODE_NETBIOS, PROTO_CODE_SSL,
+        PROTO_CODE_BITTORRENT, PROTO_CODE_NETBIOS,
         PROTO_CODE_DISCOVERY,
         PROTO_CODE_DUMMY, PROTO_CODE_MAX
     } code;                 ///< Numeric code used for instance to serialize these events

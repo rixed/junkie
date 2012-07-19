@@ -17,7 +17,6 @@ thisinclude_HEADERS = \
 	netbios.h \
 	ip.h \
 	gre.h \
-	ssl.h \
 	cifs.h \
 	mgcp.h \
 	rtcp.h \

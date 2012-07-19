@@ -11,7 +11,7 @@ libproto_la_SOURCES = \
 	port_muxer.c proto.c \
 	rtcp.c rtp.c \
 	sdp.c sdper.c sdper.h \
-	sip.c ssl.c \
+	sip.c \
 	tcp.c udp.c \
 	postgres.c \
 	mysql.c \
