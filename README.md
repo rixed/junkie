@@ -104,7 +104,9 @@ Netmatch language
   that really care should exist in two variants?);
 
 - a type for byte strings (ideally a special form that build a `char[]` from a
-  byte string such as `f1:ab:01:14:00:a7`;
+  byte string such as `f1:ab:01:14:00:a7`);
+
+- a special proto 'rest' for the unparsed payload (at this point);
 
 - another special form for converting a name to an `ip_addr` (or a regular
   function if we optimize constant away from runtime exec - see below about
@@ -119,7 +121,7 @@ Netmatch language
 
 - a slice operator to extract a string from another string;
 
-- binary operators on integers (`&`, `|`, `^` and `!`)
+- binary operators on integers (`&`, `|`, `^`, `!`, `<<` and `>>`)
 
 - it should be correct to match with: `(eth) ((ip) (...) or (arp) (...))`.
   in other words, the proto list should be a special form (binding current
