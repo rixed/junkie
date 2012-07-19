@@ -107,8 +107,6 @@ static void parse_check(void)
  * Make sure that we have 1 subparser until the stream is over, then 0
  */
 
-#include "proto/ssl.c"
-
 static void term_check(void)
 {
     struct timeval now;
@@ -155,7 +153,6 @@ int main(void)
     ip_init();
     ip6_init();
     tcp_init();
-    ssl_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("tcp_check.log");
 
@@ -165,7 +162,6 @@ int main(void)
     stress_check(proto_tcp);
 
     doomer_stop();
-    ssl_fini();
     tcp_fini();
     ip6_fini();
     ip_fini();
