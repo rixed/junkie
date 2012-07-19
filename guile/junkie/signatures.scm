@@ -30,3 +30,13 @@
                                               ((rest @ 1) == 3)
                                               ((rest @ 2) == 1))))
 
+(add-proto-signature "bittorrent" 4 'medium
+                     (nm:compile
+                       type:bool '(tcp) '(or
+                                           (and ((nb-bytes rest) >= 6)
+                                                ((firsts 6 rest) == 00,00,00,0d,06,00))
+                                           (and ((nb-bytes rest) >= 8)
+                                                ((firsts 8 rest) == 00,00,40,09,07,00,00,00))
+                                           (str-in-bytes rest "BitTorrent Protocol")
+                                           (str-in-bytes rest "/announce"))))
+

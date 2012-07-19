@@ -50,8 +50,8 @@ static bool is_bittorrent(uint8_t const *packet, size_t packet_len)
     return
         (packet_len >= sizeof(pattern1) && 0 == memcmp(pattern1, packet, sizeof(pattern1))) ||
         (packet_len >= sizeof(pattern2) && 0 == memcmp(pattern2, packet, sizeof(pattern2))) ||
-        (packet_len >= strlen(STR1) && 0 == strnstr((char const *)packet, STR1, strlen(STR1))) ||
-        (packet_len >= strlen(STR2) && 0 == strnstr((char const *)packet, STR2, strlen(STR2)));
+        (packet_len >= strlen(STR1) && 0 == strnstr((char const *)packet, STR1, strlen(STR1))) ||   // BUG: len is supposed to be the length of heystack!
+        (packet_len >= strlen(STR2) && 0 == strnstr((char const *)packet, STR2, strlen(STR2)));     // BUG: idem
 }
 
 static enum proto_parse_status bittorrent_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)

@@ -468,6 +468,10 @@
           (slog log-debug " ...which is a MAC")
           (type-check-or-set type:mac)
           ((type:type-imm type:mac) expr))
+         ((type:looks-like-bytes? expr)
+          (slog log-debug " ...which is a byte array")
+          (type-check-or-set type:bytes)
+          ((type:type-imm type:bytes) expr))
          ((well-known-cst? expr) => expr->stub)
          ((fieldname? expr) =>
           (lambda (x)
