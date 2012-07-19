@@ -28,7 +28,7 @@ struct netmatch_filter {
     npc_match_fn *match_fun;
 };
 
-int netmatch_filter_ctor(struct netmatch_filter *netmatch, char const *libname, unsigned nb_regs);
+int netmatch_filter_ctor(struct netmatch_filter *netmatch, char const *libname);
 void netmatch_filter_dtor(struct netmatch_filter *netmatch);
 
 /*

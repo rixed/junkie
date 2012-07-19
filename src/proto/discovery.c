@@ -99,24 +99,24 @@ struct proto_signature {
     struct netmatch_filter filter;
 };
 
-static int proto_signature_ctor(struct proto_signature *sig, uint16_t proto_id, char const *proto_name, enum discovery_trust trust, char const *filter_libname, unsigned nb_regs)
+static int proto_signature_ctor(struct proto_signature *sig, uint16_t proto_id, char const *proto_name, enum discovery_trust trust, char const *filter_libname)
 {
     SLOG(LOG_DEBUG, "Constructing proto_signature@%p", sig);
     sig->protocol.id = proto_id;
     sig->protocol.trust = trust;
     snprintf(sig->protocol.name, sizeof(sig->protocol.name), "%s", proto_name);
-    if (0 != netmatch_filter_ctor(&sig->filter, filter_libname, nb_regs)) {
+    if (0 != netmatch_filter_ctor(&sig->filter, filter_libname)) {
         return -1;
     }
     LIST_INSERT_HEAD(&proto_signatures, sig, entry);
     return 0;
 }
 
-static struct proto_signature *proto_signature_new(uint16_t proto_id, char const *proto_name, enum discovery_trust trust, char const *filter_libname, unsigned nb_regs)
+static struct proto_signature *proto_signature_new(uint16_t proto_id, char const *proto_name, enum discovery_trust trust, char const *filter_libname)
 {
     struct proto_signature *sig = objalloc(sizeof(*sig), "proto_signature");
     if (! sig) return NULL;
-    if (0 != proto_signature_ctor(sig, proto_id, proto_name, trust, filter_libname, nb_regs)) {
+    if (0 != proto_signature_ctor(sig, proto_id, proto_name, trust, filter_libname)) {
         objfree(sig);
         return NULL;
     }
@@ -167,14 +167,10 @@ static SCM g_add_proto_signature(SCM name_, SCM id_, SCM trust_, SCM filter_)
         scm_throw(scm_from_latin1_symbol("no-such-trust"), scm_list_1(trust_));
     }
 
-    if (! scm_is_pair(filter_)) {
-        scm_throw(scm_from_latin1_symbol("not-a-netfilter"), scm_list_1(filter_));
-    }
-    char *libname = scm_to_locale_string(SCM_CAR(filter_));
+    char *libname = scm_to_locale_string(filter_);
     scm_dynwind_free(libname);
-    unsigned nb_regs = scm_to_uint(SCM_CDR(filter_));
 
-    struct proto_signature *sig = proto_signature_new(id, name, trust, libname, nb_regs);
+    struct proto_signature *sig = proto_signature_new(id, name, trust, libname);
     if (! sig) {
         scm_throw(scm_from_latin1_symbol("cannot-create-signature"), SCM_EOL);
     }
@@ -183,8 +179,8 @@ static SCM g_add_proto_signature(SCM name_, SCM id_, SCM trust_, SCM filter_)
     return SCM_UNSPECIFIED;
 }
 
-static struct ext_function sg_proto_signature_names;
-static SCM g_proto_signature_names(void)
+static struct ext_function sg_proto_signatures;
+static SCM g_proto_signatures(void)
 {
     SCM ret = SCM_EOL;
     struct proto_signature *sig;
@@ -258,7 +254,7 @@ void discovery_init(void)
         .serialize   = discovery_serialize,
         .deserialize = discovery_deserialize,
     };
-    uniq_proto_ctor(&uniq_proto_discovery, &ops, "Protocol Discovery", PROTO_CODE_DISCOVERY);
+    uniq_proto_ctor(&uniq_proto_discovery, &ops, "PIPI", PROTO_CODE_DISCOVERY);
     port_muxer_ctor(&tcp_port_muxer, &tcp_port_muxers, 1024, 65535, proto_discovery);
     port_muxer_ctor(&udp_port_muxer, &udp_port_muxers, 1024, 65535, proto_discovery);
 
@@ -273,10 +269,10 @@ void discovery_init(void)
         "add-proto-signature", 4, 0, 0, g_add_proto_signature,  // TODO: additional optional parameter indicating what regular parser to run next
         "(add-proto-signature name id trust netmatch-filter): add this filter for given name/id with given trust level\n"
         "   trust can be either 'high, 'medium or 'low.\n"
-        "   netmatch-filter is a pair (libname . nb-registers) as returned by netmatch compiler\n");
-    ext_function_ctor(&sg_proto_signature_names,
-        "proto-signature-names", 0, 0, 0, g_proto_signature_names,
-        "(proto-signature-names): list all currently defined protocol signatures.\n");
+        "   netmatch-filter is the name of a sofile containing a \"match\" function (as returned by netmatch compiler)\n");
+    ext_function_ctor(&sg_proto_signatures,
+        "proto-signatures", 0, 0, 0, g_proto_signatures,
+        "(proto-signatures): list all currently defined protocol signatures.\n");
     ext_function_ctor(&sg_proto_signature_stats,
         "proto-signature-stats", 1, 0, 0, g_proto_signature_stats,
         "(proto-signature-stats name): display the definition and some stats about this signature.\n");

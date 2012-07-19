@@ -123,19 +123,16 @@ static int set_netmatch(struct capture_conf *conf, char const *value)
 
     /* value is an expression that we are supposed to compile with (@ (junkie netmatch netmatch) compile) as
      * a matching function named "match" */
-    char *cmd = tempstr_printf("((@ (junkie netmatch netmatch) compile) '((\"match\" . %s)) '() \"\")", value);
+    char *cmd = tempstr_printf("((@ (junkie netmatch netmatch) compile) (@ (junkie netmatch type) bool) '() '%s)", value);
     SLOG(LOG_DEBUG, "Evaluating scheme string '%s'", cmd);
-    SCM pair = scm_c_eval_string(cmd);
+    SCM libname_ = scm_c_eval_string(cmd);
 
-    if (scm_is_pair(pair)) {
-        char *libname = scm_to_locale_string(SCM_CAR(pair));
-        scm_dynwind_free(libname);
-        unsigned nb_regs = scm_to_uint(SCM_CDR(pair));
+    char *libname = scm_to_locale_string(libname_);
+    scm_dynwind_free(libname);
 
-        if (0 == netmatch_filter_ctor(&conf->netmatch, libname, nb_regs)) {
-            conf->netmatch_set = true;
-            err = 0;
-        }
+    if (0 == netmatch_filter_ctor(&conf->netmatch, libname)) {
+        conf->netmatch_set = true;
+        err = 0;
     }
 
     scm_dynwind_end();

@@ -21,49 +21,55 @@
 #include "junkie/tools/objalloc.h"
 #include "junkie/netmatch.h"
 
-int netmatch_filter_ctor(struct netmatch_filter *netmatch, char const *libname, unsigned nb_regs)
+int netmatch_filter_ctor(struct netmatch_filter *netmatch, char const *libname)
 {
-    netmatch->nb_registers = nb_regs;
-    if (nb_regs > 0) {
-        netmatch->regfile = objalloc(nb_regs * sizeof(*netmatch->regfile), "netmatches");
-        if (! netmatch->regfile) goto err0;
-        memset(netmatch->regfile, 0, nb_regs * sizeof(*netmatch->regfile));
-    } else {
-        netmatch->regfile = NULL;
-    }
-
     netmatch->libname = objalloc_strdup(libname);
     if (! netmatch->libname) {
-        goto err1;
+        goto err0;
     }
 
     netmatch->handle = lt_dlopen(libname);
     if (! netmatch->handle) {
         SLOG(LOG_CRIT, "Cannot load netmatch shared object %s: %s", libname, lt_dlerror());
-        goto err2;
+        goto err1;
     }
 
     netmatch->match_fun = lt_dlsym(netmatch->handle, "match");
     if (! netmatch->match_fun) {
         SLOG(LOG_CRIT, "Cannot find match function in netmatch shared object %s", libname);
-        goto err3;
+        goto err2;
+    }
+
+    unsigned const *nb_regs_ptr = lt_dlsym(netmatch->handle, "nb_registers");
+    if (! nb_regs_ptr) {
+        SLOG(LOG_CRIT, "Cannot find nb_registers symbol in netmatch shared object %s", libname);
+        goto err2;
+    }
+
+    netmatch->nb_registers = *nb_regs_ptr;
+    if (netmatch->nb_registers > 0) {
+        netmatch->regfile = objalloc(netmatch->nb_registers * sizeof(*netmatch->regfile), "netmatches");
+        if (! netmatch->regfile) goto err3;
+        memset(netmatch->regfile, 0, netmatch->nb_registers * sizeof(*netmatch->regfile));
+    } else {
+        netmatch->regfile = NULL;
     }
 
     return 0;
 err3:
+    if (netmatch->regfile) {
+        objfree(netmatch->regfile);
+        netmatch->regfile = NULL;
+    }
+err2:
     if (netmatch->handle) {
         (void)lt_dlclose(netmatch->handle);
         netmatch->handle = NULL;
     }
-err2:
+err1:
     if (netmatch->libname) {
         objfree(netmatch->libname);
         netmatch->libname = NULL;
-    }
-err1:
-    if (netmatch->regfile) {
-        objfree(netmatch->regfile);
-        netmatch->regfile = NULL;
     }
 err0:
     return -1;

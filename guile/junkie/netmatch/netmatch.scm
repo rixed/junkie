@@ -5,6 +5,7 @@
 (use-modules (ice-9 match)
              (srfi srfi-1) ; for fold
              ((junkie netmatch types) :renamer (symbol-prefix-proc 'type:))
+             ((junkie netmatch ll-compiler) :renamer (symbol-prefix-proc 'll:))
              (junkie tools)
              (junkie defs)) ; thus, junkie runtime as well
 
@@ -508,4 +509,22 @@
         name '()))))
 
 (export function->stub)
+
+; takes an expression and return a pair (libname . nb-regs)
+(define (compile otype protos expr)
+  (let* ((funname "match")
+         (stub    (function->stub otype protos expr #f))
+         (stub    (type:make-stub
+                    (string-append
+                      (type:stub-code stub)
+                      "\n"
+                      "uintptr_t " funname "(struct proto_info const *info, struct npc_register rest, struct npc_register const *prev_regfile, struct npc_register *new_regfile)\n"
+                      "{\n"
+                      "    return " (type:stub-result stub) "(info, rest, prev_regfile, new_regfile);\n"
+                      "}\n")
+                    funname
+                    (type:stub-regnames stub))))
+    (ll:stub->so stub)))
+
+(export compile)
 

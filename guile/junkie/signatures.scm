@@ -2,34 +2,31 @@
 
 (define-module (junkie signatures)
                #:use-module ((junkie netmatch netmatch)    :renamer (symbol-prefix-proc 'nm:))
-               #:use-module ((junkie netmatch ll-compiler) :renamer (symbol-prefix-proc 'll:))
                #:use-module ((junkie netmatch types)       :renamer (symbol-prefix-proc 'type:))
-               #:use-module (junkie defs))
+               #:use-module (junkie defs)
+               #:use-module (junkie runtime))
 
-(let* ((stub (nm:function->stub type:bool '(tcp)
-                                '(and (rest.cap-length >= 3)
-                                      ((rest @ 2) == 4)
-                                      (((rest @ 0) & #xc0) == #x40)
-                                      (((((rest @ 0) & #x3f) << 8) + (rest @ 1)) == rest.wire-length))
-                                #t))
-       (flt  (ll:stub->so stub)))
-  (add-proto-signature "SSLv2" 1 'medium flt))
+(nm:reset-register-types)
 
-(let* ((stub (nm:function->stub type:bool '(tcp)
-                                '(and (rest.cap-length >= 3)
-                                      ((rest @ 0) == 23)
-                                      ((rest @ 1) == 3)
-                                      ((rest @ 2) == 0))
-                                #t))
-       (flt  (ll:stub->so stub)))
-  (add-proto-signature "SSLv3" 2 'medium flt))
+(add-proto-signature "SSLv2" 1 'medium
+                     (nm:compile
+                       type:bool '(tcp) '(and ((nb-bytes rest) >= 3)
+                                              ((rest @ 2) == 4)
+                                              (((rest @ 0) & #xc0) == #x40)
+                                              (((((rest @ 0) & #x3f) << 8) + (rest @ 1)) == (nb-bytes rest))))) ; FIXME: we'd rather compare with wire-length!
 
-(let* ((stub (nm:function->stub type:bool '(tcp)
-                                '(and (rest.cap-length >= 3)
-                                      ((rest @ 0) == 23)
-                                      ((rest @ 1) == 3)
-                                      ((rest @ 2) == 1))
-                                #t))
-       (flt  (ll:stub->so stub)))
-  (add-proto-signature "TLS" 3 'medium flt))
+(add-proto-signature "SSLv3" 2 'medium
+                     (nm:compile
+                       type:bool '(tcp) '(and ((nb-bytes rest) >= 3)
+                                              ((rest @ 0) == 23)
+                                              ((rest @ 1) == 3)
+                                              ((rest @ 2) == 0))))
+
+
+(add-proto-signature "TLS" 3 'medium
+                     (nm:compile
+                       type:bool '(tcp) '(and ((nb-bytes rest) >= 3)
+                                              ((rest @ 0) == 23)
+                                              ((rest @ 1) == 3)
+                                              ((rest @ 2) == 1))))
 
