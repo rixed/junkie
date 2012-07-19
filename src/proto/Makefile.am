@@ -4,7 +4,7 @@ AM_CPPFLAGS = -I $(top_srcdir)/include -I $(top_srcdir)/src -D_GNU_SOURCE
 noinst_LTLIBRARIES = libproto.la
 
 libproto_la_SOURCES = \
-	arp.c bittorrent.c cap.c cifs.c dns.c dns_tcp.c \
+	arp.c cap.c cifs.c dns.c dns_tcp.c \
 	eth.c ftp.c fuzzing.c fuzzing.h \
 	http.c liner.c liner.h httper.c httper.h \
 	icmp.c icmpv6.c ip_hdr.h ip.c ip6.c mgcp.c netbios.c \

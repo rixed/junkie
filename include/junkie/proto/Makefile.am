@@ -9,7 +9,6 @@ thisinclude_HEADERS = \
 	arp.h \
 	sdp.h \
 	udp.h \
-	bittorrent.h \
 	eth.h \
 	dns.h \
 	icmp.h \

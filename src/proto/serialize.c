@@ -67,7 +67,6 @@ void serialize_proto_stack(uint8_t **buf, struct proto_info const *last, struct 
 #include "junkie/proto/icmp.h"
 #include "junkie/proto/tcp.h"
 #include "junkie/proto/sip.h"
-#include "junkie/proto/bittorrent.h"
 #include "junkie/proto/http.h"
 #include "junkie/proto/rtp.h"
 #include "junkie/proto/netbios.h"
@@ -115,7 +114,6 @@ static void deserialize_proto_info_rec(unsigned depth, uint8_t const **buf, stru
         struct sql_proto_info tns;
         struct sql_proto_info pgsql;
         struct sql_proto_info mysql;
-        struct bittorrent_proto_info bittorrent;
         struct netbios_proto_info netbios;
         struct discovery_proto_info discovery;
     } i;
@@ -134,7 +132,7 @@ static void deserialize_proto_info_rec(unsigned depth, uint8_t const **buf, stru
         CASE(GRE, gre); CASE(HTTP, http); CASE(ICMP, icmp);
         CASE(MGCP, mgcp); CASE(RTCP, rtcp); CASE(RTP, rtp);
         CASE(SDP, sdp); CASE(SIP, sip); CASE(TNS, tns);
-        CASE(PGSQL, pgsql); CASE(MYSQL, mysql); CASE(BITTORRENT, bittorrent);
+        CASE(PGSQL, pgsql); CASE(MYSQL, mysql);
         CASE(NETBIOS, netbios); CASE(DISCOVERY, discovery);
 #       undef CASE
         case PROTO_CODE_DUMMY:
