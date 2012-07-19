@@ -281,6 +281,38 @@
 
 (export str)
 
+;;; Bytes (represented in C as struct npc_register so we have both addr and size)
+
+(define bytes
+  (make-type
+    'bytes
+    (lambda (v) ; imm, v is a number (yes!)
+      (let ((res (gensymC "bytes"))
+            (tmp (gensymC "bytes_tmp")))
+        (make-stub
+          (string-append
+            "    unsigned char *" tmp " = " (number->C-byte-array v) ";\n"
+            "    struct npc_register " res " = { .value = (uintptr_t)&" tmp "; size = sizeof(" tmp "); };\n")
+          res
+          '())))
+    (lambda (proto field)
+      ; we cannot do much since we have no size indication
+      (throw 'type-error "Cannot fetch bytes"))
+    (lambda (regname) ; ref
+      (make-stub
+        ""
+        (string-append "prev_regfile[" regname "]")
+        (list regname)))
+    (lambda (regname value) ; bind
+      (make-stub
+        (string-append
+          (stub-code value)
+          "    memcpy(&new_regfile[" regname "], &" (stub-result value) ", sizeof(new_regfile[0]));\n"
+        (string-append "new_regfile[" regname "]")
+        (cons regname (stub-regnames value)))))))
+
+(export bytes)
+
 ;;; Timestamps
 
 (define timestamp ; the stub-result will be a pointer to a struct timeval
@@ -299,7 +331,6 @@
     boxed-bind))
 
 (export timestamp)
-
 
 ;;; IP addresses
 
@@ -495,6 +526,12 @@
 (define eq
   (make-op '= bool (list uint uint) (simple-binary-op "==" "bool")))
 
+(define shift-left
+  (make-op 'shift-left uint (list uint uint) (simple-binary-op "<<" "uint_least64_t")))
+
+(define shift-right
+  (make-op 'shift-right uint (list uint uint) (simple-binary-op ">>" "uint_least64_t")))
+
 (define (simple-binary-fun fun)
   (lambda (v1 v2)
     (let ((tmp1 (gensymC "tmp_1_"))
@@ -529,8 +566,10 @@
 (add-operator '== eq)
 (add-operator 'max max)
 (add-operator 'min min)
+(add-operator '<< shift-left)
+(add-operator '>> shift-right)
 
-(export add sub mult div mod gt ge lt le eq)
+(export add sub mult div mod gt ge lt le eq shift-left shift-right)
 
 ;;; Timestamp manipulation
 
@@ -722,4 +761,32 @@
 
 (export str-null? str-eq?)
 
+;; Bytes manipulation
+
+(define nb-bytes
+  (make-op 'nb-bytes uint (list bytes)
+           (lambda (b)
+             (let ((res (gensymC "nb_bytes")))
+               (make-stub
+                 (string-append
+                   (stub-code b)
+                   "    uint_least64_t " res " = " (stub-result b) ".size;\n")
+                 res
+                (stub-regnames b))))))
+
+(add-operator 'nb-bytes nb-bytes)
+
+(define byte-at
+  (make-op 'byte-at uint (list bytes uint)
+           (lambda (b i)
+             (let ((res (gensymC "byte_at")))
+               (make-stub
+                 (string-append
+                   (stub-code i)
+                   (stub-code b)
+                   "    uint8_t " res " = ((uint8_t *)" (stub-result b) ".value)[" (stub-result i) "];\n")
+                 res
+                 (append (stub-regnames i) (stub-regnames b)))))))
+
+(add-operator '@ byte-at)
 
