@@ -436,7 +436,6 @@
           res
           (append (stub-regnames v1) (stub-regnames v2)))))))
 
-(add-operator '| log-or)
 (add-operator '|| log-or)
 (add-operator 'or log-or)
 (add-operator 'log-or log-or)
@@ -459,7 +458,6 @@
           res
           (append (stub-regnames v1) (stub-regnames v2)))))))
 
-(add-operator '& log-and)
 (add-operator '&& log-and)
 (add-operator 'and log-and)
 (add-operator 'log-and log-and)
@@ -532,6 +530,13 @@
 (define shift-right
   (make-op 'shift-right uint (list uint uint) (simple-binary-op ">>" "uint_least64_t")))
 
+(define int-and
+  (make-op '& uint (list uint uint) (simple-binary-op "&" "uint_least64_t")))
+
+(define int-or
+  (make-op '| uint (list uint uint) (simple-binary-op "|" "uint_least64_t")))
+
+
 (define (simple-binary-fun fun)
   (lambda (v1 v2)
     (let ((tmp1 (gensymC "tmp_1_"))
@@ -568,6 +573,8 @@
 (add-operator 'min min)
 (add-operator '<< shift-left)
 (add-operator '>> shift-right)
+(add-operator '& int-and)
+(add-operator '| int-or)
 
 (export add sub mult div mod gt ge lt le eq shift-left shift-right)
 
