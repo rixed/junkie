@@ -276,10 +276,11 @@
   (type:make-stub
     (string-append
       (if public "" "static ")
-      "uintptr_t " name "(struct proto_info const *info, struct npc_register const *prev_regfile, struct npc_register *new_regfile)\n"
+      "uintptr_t " name "(struct proto_info const *info, struct npc_register rest, struct npc_register const *prev_regfile, struct npc_register *new_regfile)\n"
       "{\n"
       "    /* We may not use any of these: */\n"
       "    (void)info;\n"
+      "    (void)rest;\n"
       "    (void)prev_regfile;\n"
       "    (void)new_regfile;\n")
     "" '()))
@@ -450,8 +451,14 @@
        ; - an immediate value for ip, mac...
        ; - a well-known constant
        ; - a field name (proto.field)
+       ; - rest (the payload as a byte array)
        ; - otherwise, a register name
        (cond
+         ((eq? 'rest expr)
+          (slog log-debug " ...with is the 'rest' bytes")
+          (type-check-or-set type:bytes)
+          ; So we return this 'rest' function parameter
+          (type:make-stub "" "rest" '()))
          ((type:looks-like-ip? expr)
           (slog log-debug " ...which is an IP")
           (type-check-or-set type:ip)

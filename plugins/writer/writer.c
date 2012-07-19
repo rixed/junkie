@@ -196,7 +196,7 @@ static int cli_netmatch(char const *value)
  * Per packet Callback
  */
 
-static bool info_match(struct capture_conf const *conf, struct proto_info const *info)
+static bool info_match(struct capture_conf const *conf, struct proto_info const *info, size_t cap_len, uint8_t const *packet)
 {
     if (conf->re_set) {
         char const *repr = capfile_csv_from_info(info);
@@ -205,8 +205,9 @@ static bool info_match(struct capture_conf const *conf, struct proto_info const 
     }
 
     if (conf->netmatch_set) {
+        struct npc_register rest = { .size = cap_len, .value = (uintptr_t)packet };
         // FIXME: here we pass NULL as the new regfile since we are not supposed to bind anything. Ensure this using match purity property.
-        if (! conf->netmatch.match_fun(info, conf->netmatch.regfile, NULL)) return false;
+        if (! conf->netmatch.match_fun(info, rest, NULL, NULL)) return false;
     }
 
     return true;
@@ -214,7 +215,7 @@ static bool info_match(struct capture_conf const *conf, struct proto_info const 
 
 static void try_write(struct capture_conf *conf, struct proto_info const *info, size_t cap_len, uint8_t const *packet)
 {
-    if (conf->capfile && !conf->paused && info_match(conf, info)) {
+    if (conf->capfile && !conf->paused && info_match(conf, info, cap_len, packet)) {
         //SLOG(LOG_DEBUG, "Saving a packet into %s", conf->file);
         (void)conf->capfile->ops->write(conf->capfile, info, cap_len, packet);
     }

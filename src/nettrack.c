@@ -448,8 +448,7 @@ static void nt_graph_del(struct nt_graph *graph)
 
 static void parser_hook(struct proto_subscriber *subscriber, struct proto_info const *last, size_t cap_len, uint8_t const *packet, struct timeval const *now)
 {
-    (void)cap_len;
-    (void)packet;
+    struct npc_register rest = { .size = cap_len, .value = (uintptr_t)packet };
 
     // Find the parser_hook
     struct nt_parser_hook *hook = DOWNCAST(subscriber, subscriber, nt_parser_hook);
@@ -469,7 +468,7 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
         unsigned index_start = 0, index_stop = edge->from->index_size;  // by default, prepare to look into all hash buckets
         if (index_stop > 1 && edge->from_index_fn) {
             // Notice that the hash function for incomming packet is *not* allowed to use the regfile nor to bind anything
-            index_start = edge->from_index_fn(last, NULL, NULL) % edge->from->index_size;
+            index_start = edge->from_index_fn(last, rest, NULL, NULL) % edge->from->index_size;
             index_stop = index_start + 1;
             SLOG(LOG_DEBUG, "Using index at location %u", index_start);
         }
@@ -504,7 +503,7 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
 
                 if (
                     (edge->min_age == 0 || timeval_sub(now, &state->last_enter) >= edge->min_age) &&
-                    (edge->match_fn == NULL || edge->match_fn(last, state->regfile, tmp_regfile))
+                    (edge->match_fn == NULL || edge->match_fn(last, rest, state->regfile, tmp_regfile))
                 ) {
                     SLOG(LOG_DEBUG, "Match!");
                     edge->nb_matches ++;
@@ -520,7 +519,7 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                     // Call the entry function
                     if (edge->to->entry_fn && merged_regfile) {
                         SLOG(LOG_DEBUG, "Calling entry function for vertex '%s'", edge->to->name);
-                        edge->to->entry_fn(last, merged_regfile, NULL); // entry function is not supposed to bind anything... for now (FIXME).
+                        edge->to->entry_fn(last, rest, merged_regfile, NULL); // entry function is not supposed to bind anything... for now (FIXME).
                     }
                     // Now move/spawn/dispose of the state
                     // first we need to know the location in the index
@@ -532,7 +531,7 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                             goto hell;
                         }
                         // Notice this hashing function can use the regfile but can still perform no bindings
-                        index_h = edge->to_index_fn(last, merged_regfile, NULL) % edge->to->index_size;
+                        index_h = edge->to_index_fn(last, rest, merged_regfile, NULL) % edge->to->index_size;
                         SLOG(LOG_DEBUG, "Will store at index location %u", index_h);
                     }
                     if (edge->spawn) {
