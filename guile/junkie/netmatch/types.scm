@@ -154,7 +154,8 @@
 (define (indent-more str)
   (regexp-substitute/global #f (make-regexp "^ {4}" regexp/newline) str 'pre "        " 'post))
 
-; Given a number, returns a string like "{ 12, 43, 4 }" suitable to initialize a C byte array
+; Given a length and a number, returns a string like "{ 12, 43, 4 }" suitable to initialize a C byte array.
+; The first argument is the number of expected digits (thus (number->C-byte-array 3 1) will yield "{0,0,1}")
 (define (number->C-byte-array l n)
   (let* ((number->bytes (lambda (l n)
                           (letrec ((aux (lambda (prev l n)
