@@ -170,15 +170,15 @@ static enum proto_parse_status udp_parse(struct parser *parser, struct proto_inf
     if (subparser) SLOG(LOG_DEBUG, "Found subparser for this cnx, for proto %s", subparser->parser->proto->name);
 
     if (! subparser) {
-        // Use predefined ports first
         struct proto *requestor = NULL;
-        struct proto *sub_proto = port_muxer_find(&udp_port_muxers, info.key.port[0]);
-        if (! sub_proto) sub_proto = port_muxer_find(&udp_port_muxers, info.key.port[1]);
-        // Then try connection tracking
-        if (! sub_proto) {
-            ASSIGN_INFO_OPT2(ip, ip6, parent);
-            if (! ip) ip = ip6;
-            if (ip) sub_proto = cnxtrack_ip_lookup(IPPROTO_UDP, ip->key.addr+0, sport, ip->key.addr+1, dport, now, &requestor);
+        struct proto *sub_proto = NULL;
+        // Use connection tracking first
+        ASSIGN_INFO_OPT2(ip, ip6, parent);
+        if (! ip) ip = ip6;
+        if (ip) sub_proto = cnxtrack_ip_lookup(IPPROTO_UDP, ip->key.addr+0, sport, ip->key.addr+1, dport, now, &requestor);
+        if (! sub_proto) { // Then try predefined ports first
+            sub_proto = port_muxer_find(&udp_port_muxers, info.key.port[0]);
+            if (! sub_proto) sub_proto = port_muxer_find(&udp_port_muxers, info.key.port[1]);
         }
         if (sub_proto) subparser = mux_subparser_and_parser_new(mux_parser, sub_proto, requestor, &key, now);
     }

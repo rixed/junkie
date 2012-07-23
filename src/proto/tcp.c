@@ -421,15 +421,15 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
     if (subparser) SLOG(LOG_DEBUG, "Found subparser for this cnx, for proto %s", subparser->parser->proto->name);
 
     if (! subparser) {
-        // Use predefined ports first
         struct proto *requestor = NULL;
-        struct proto *sub_proto = port_muxer_find(&tcp_port_muxers, info.key.port[0]);
-        if (! sub_proto) sub_proto = port_muxer_find(&tcp_port_muxers, info.key.port[1]);
-        // Then try connection tracking
-        if (! sub_proto) {
-            ASSIGN_INFO_OPT2(ip, ip6, parent);
-            if (! ip) ip = ip6;
-            if (ip) sub_proto = cnxtrack_ip_lookup(IPPROTO_TCP, ip->key.addr+0, sport, ip->key.addr+1, dport, now, &requestor);
+        struct proto *sub_proto = NULL;
+        // Use connection tracking first
+        ASSIGN_INFO_OPT2(ip, ip6, parent);
+        if (! ip) ip = ip6;
+        if (ip) sub_proto = cnxtrack_ip_lookup(IPPROTO_TCP, ip->key.addr+0, sport, ip->key.addr+1, dport, now, &requestor);
+        if (! sub_proto) { // Then try predefined ports
+            sub_proto = port_muxer_find(&tcp_port_muxers, info.key.port[0]);
+            if (! sub_proto) sub_proto = port_muxer_find(&tcp_port_muxers, info.key.port[1]);
         }
         if (sub_proto) subparser = mux_subparser_and_parser_new(mux_parser, sub_proto, requestor, &key, now);
     }
@@ -470,6 +470,8 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
         size_t const packet_len = wire_len - tcphdr_len;
         unsigned const offset = info.seq_num - tcp_sub->isn[way];
         unsigned const next_offset = offset + packet_len + info.syn + info.fin;
+        // FIXME: Here the parser is chosen before we actually parse anything. If later the parser fails we cannot try another one.
+        //        Choice of parser should be delayed until we start actual parse.
         err = pkt_wait_list_add(tcp_sub->wl+way, offset, next_offset, true, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, packet_len, now, tot_cap_len, tot_packet);
     } else {    // Without the ISN, the pkt_wait_list is unusable. FIXME: the pkt_wait_list should work nonetheless.
         err = proto_parse(subparser->parser, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, wire_len - tcphdr_len, now, tot_cap_len, tot_packet);
