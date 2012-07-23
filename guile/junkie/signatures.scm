@@ -18,7 +18,9 @@
 (add-proto-signature "SSLv3" 2 'medium
                      (nm:compile
                        type:bool '(tcp) '(and ((nb-bytes rest) >= 3)
-                                              ((rest @ 0) == 23)
+                                              (or
+                                                ((rest @ 0) == 22) ; handshake
+                                                ((rest @ 0) == 23)) ; application data
                                               ((rest @ 1) == 3)
                                               ((rest @ 2) == 0))))
 
@@ -26,7 +28,9 @@
 (add-proto-signature "TLS" 3 'medium
                      (nm:compile
                        type:bool '(tcp) '(and ((nb-bytes rest) >= 3)
-                                              ((rest @ 0) == 23)
+                                              (or
+                                                ((rest @ 0) == 22) ; handshake
+                                                ((rest @ 0) == 23)) ; application data
                                               ((rest @ 1) == 3)
                                               ((rest @ 2) == 1))))
 

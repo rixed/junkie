@@ -1,0 +1,11 @@
+#!/bin/sh
+
+NAME="Discovery"
+PCAPS="pcap/https/tlsv1.pcap"
+filter() {
+	grep '^PIPI' | cut -d' ' -f 2-
+}
+CMDLINE='(load "../guile/junkie/signatures.scm")'
+OUTPUT="discovery.out"
+
+. ./dump_test
