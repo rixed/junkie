@@ -42,10 +42,10 @@ void port_muxer_dtor(struct port_muxer *, struct port_muxer_list *);
 struct port_muxer *port_muxer_new(struct port_muxer_list *, uint16_t port_min, uint16_t port_max, struct proto *proto);
 void port_muxer_del(struct port_muxer *, struct port_muxer_list *);
 
-/** Retrieve the lastly inserted proto handling this port.
+/** Retrieve the lastly inserted proto handling one of these ports.
  * FIXME: add a pointer to the lastly returned proto and return the next one (in a cursor fashion)
  */
-struct proto *port_muxer_find(struct port_muxer_list *, uint16_t port);
+struct proto *port_muxer_find(struct port_muxer_list *, uint16_t port1, uint16_t port2);
 
 struct port_key {
     uint16_t port[2];
