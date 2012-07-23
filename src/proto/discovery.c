@@ -97,6 +97,7 @@ struct proto_signature {
     LIST_ENTRY(proto_signature) entry;
     struct discovery_protocol protocol;
     struct netmatch_filter filter;
+    struct proto *actual_proto;
 };
 
 static int proto_signature_ctor(struct proto_signature *sig, uint16_t proto_id, char const *proto_name, enum discovery_trust trust, char const *filter_libname)
@@ -108,6 +109,9 @@ static int proto_signature_ctor(struct proto_signature *sig, uint16_t proto_id, 
     if (0 != netmatch_filter_ctor(&sig->filter, filter_libname)) {
         return -1;
     }
+    // Look for a proper proto with same name to handle this payload
+    sig->actual_proto = proto_of_name(proto_name);
+    if (sig->actual_proto) SLOG(LOG_INFO, "Signature for %s migh trigger proper parser", proto_name);
     LIST_INSERT_HEAD(&proto_signatures, sig, entry);
     return 0;
 }
@@ -218,8 +222,15 @@ static enum proto_parse_status discovery_parse(struct parser *parser, struct pro
     struct npc_register rest = { .size = cap_len, .value = (uintptr_t)packet };
     LIST_LOOKUP(sig, &proto_signatures, entry, 0 != sig->filter.match_fun(parent, rest, NULL, NULL));
 
-    if (! sig) {
-        return PROTO_PARSE_ERR;
+    if (! sig) return PROTO_PARSE_ERR;
+
+    if (sig->actual_proto) {
+        struct parser *parser = sig->actual_proto->ops->parser_new(sig->actual_proto);
+        if (parser) {
+            enum proto_parse_status status = proto_parse(parser, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
+            parser_unref(parser);
+            return status;
+        }
     }
 
     struct discovery_proto_info info;

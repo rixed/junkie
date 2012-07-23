@@ -84,3 +84,11 @@
                                                     (str-in-bytes rest "user-agent: limewire")
                                                     (str-in-bytes rest "user-agent: imesh"))))))
 
+(add-proto-signature "RTP" 6 'medium
+                     (nm:compile
+                       type:bool '(udp) '(and ((udp.src-port & 1) == 0)
+                                              ((udp.dst-port & 1) == 0)
+                                              ; ^\x80[\x01-"`-\x7f\x80-\xa2\xe0-\xff]?..........*\x80
+                                              ((nb-bytes rest) >= 11)
+                                              ((rest @ 0) == #x80)))) ; the rest does not worth the trouble
+
