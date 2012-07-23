@@ -13,6 +13,7 @@
 #include <junkie/proto/ip.h>
 #include <junkie/proto/tcp.h>
 #include <junkie/proto/http.h>
+#include <junkie/proto/cnxtrack.h>
 #include "lib.h"
 
 /*
@@ -314,6 +315,7 @@ int main(void)
     log_init();
     ext_init();
     objalloc_init();
+    cnxtrack_init();
     pkt_wait_list_init();
     ref_init();
     proto_init();
@@ -340,6 +342,7 @@ int main(void)
     proto_fini();
     ref_fini();
     pkt_wait_list_fini();
+    cnxtrack_fini();
     objalloc_fini();
     ext_fini();
     log_fini();
