@@ -9,7 +9,6 @@ thisinclude_HEADERS = \
 	arp.h \
 	sdp.h \
 	udp.h \
-	bittorrent.h \
 	eth.h \
 	dns.h \
 	icmp.h \
@@ -17,7 +16,6 @@ thisinclude_HEADERS = \
 	netbios.h \
 	ip.h \
 	gre.h \
-	ssl.h \
 	cifs.h \
 	mgcp.h \
 	rtcp.h \
@@ -30,5 +28,6 @@ thisinclude_HEADERS = \
 	cnxtrack.h \
 	serialize.h \
 	capfile.h \
-	os-detect.h
+	os-detect.h \
+	discovery.h
 

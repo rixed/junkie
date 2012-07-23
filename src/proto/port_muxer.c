@@ -94,12 +94,20 @@ void port_muxer_del(struct port_muxer *muxer, struct port_muxer_list *muxers)
     }
 }
 
-struct proto *port_muxer_find(struct port_muxer_list *muxers, uint16_t port)
+static bool port_belongs_to_muxer(struct port_muxer const *muxer, uint16_t port)
+{
+    return port >= muxer->port_min && port <= muxer->port_max;
+}
+
+struct proto *port_muxer_find(struct port_muxer_list *muxers, uint16_t port1, uint16_t port2)
 {
     struct port_muxer *muxer;
     mutex_lock(&muxers->mutex);
     TAILQ_FOREACH(muxer, &muxers->muxers, entry) {
-        if (port >= muxer->port_min && port <= muxer->port_max) {
+        if (
+            port_belongs_to_muxer(muxer, port1) ||
+            port_belongs_to_muxer(muxer, port2)
+        ) {
             break;
         }
     }

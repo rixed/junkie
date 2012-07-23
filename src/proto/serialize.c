@@ -67,17 +67,16 @@ void serialize_proto_stack(uint8_t **buf, struct proto_info const *last, struct 
 #include "junkie/proto/icmp.h"
 #include "junkie/proto/tcp.h"
 #include "junkie/proto/sip.h"
-#include "junkie/proto/bittorrent.h"
 #include "junkie/proto/http.h"
 #include "junkie/proto/rtp.h"
 #include "junkie/proto/netbios.h"
-#include "junkie/proto/ssl.h"
 #include "junkie/proto/dns.h"
 #include "junkie/proto/rtcp.h"
 #include "junkie/proto/ftp.h"
 #include "junkie/proto/mgcp.h"
 #include "junkie/proto/sdp.h"
 #include "junkie/proto/sql.h"
+#include "junkie/proto/discovery.h"
 
 static void deserialize_proto_info_rec(unsigned depth, uint8_t const **buf, struct proto_info *last, struct timeval const *now)
 {
@@ -115,9 +114,8 @@ static void deserialize_proto_info_rec(unsigned depth, uint8_t const **buf, stru
         struct sql_proto_info tns;
         struct sql_proto_info pgsql;
         struct sql_proto_info mysql;
-        struct bittorrent_proto_info bittorrent;
         struct netbios_proto_info netbios;
-        struct ssl_proto_info ssl;
+        struct discovery_proto_info discovery;
     } i;
     struct proto_info *info = NULL;
     struct proto *proto = NULL;
@@ -134,8 +132,8 @@ static void deserialize_proto_info_rec(unsigned depth, uint8_t const **buf, stru
         CASE(GRE, gre); CASE(HTTP, http); CASE(ICMP, icmp);
         CASE(MGCP, mgcp); CASE(RTCP, rtcp); CASE(RTP, rtp);
         CASE(SDP, sdp); CASE(SIP, sip); CASE(TNS, tns);
-        CASE(PGSQL, pgsql); CASE(MYSQL, mysql); CASE(BITTORRENT, bittorrent);
-        CASE(NETBIOS, netbios); CASE(SSL, ssl);
+        CASE(PGSQL, pgsql); CASE(MYSQL, mysql);
+        CASE(NETBIOS, netbios); CASE(DISCOVERY, discovery);
 #       undef CASE
         case PROTO_CODE_DUMMY:
         case PROTO_CODE_MAX:

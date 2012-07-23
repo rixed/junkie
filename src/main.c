@@ -48,11 +48,9 @@
 #include "junkie/proto/icmp.h"
 #include "junkie/proto/tcp.h"
 #include "junkie/proto/sip.h"
-#include "junkie/proto/bittorrent.h"
 #include "junkie/proto/http.h"
 #include "junkie/proto/rtp.h"
 #include "junkie/proto/netbios.h"
-#include "junkie/proto/ssl.h"
 #include "junkie/proto/dns.h"
 #include "junkie/proto/rtcp.h"
 #include "junkie/proto/ftp.h"
@@ -63,6 +61,7 @@
 #include "junkie/proto/cnxtrack.h"
 #include "junkie/proto/serialize.h"
 #include "junkie/proto/os-detect.h"
+#include "junkie/proto/discovery.h"
 #include "proto/fuzzing.h"
 #include "pkt_source.h"
 #include "plugins.h"
@@ -83,12 +82,12 @@ static struct {
     I(cap),           I(eth),         I(arp),
     I(ip6),           I(ip),          I(gre),
     I(udp),           I(icmpv6),      I(tcp),
-    I(icmp),          I(sip),         I(bittorrent),
+    I(icmp),          I(sip),
     I(http),          I(rtp),         I(netbios),
-    I(ssl),           I(dns),         I(rtcp),
+    I(dns),           I(rtcp),
     I(dns_tcp),       I(ftp),         I(mgcp),
     I(sdp),           I(pgsql),       I(mysql),
-    I(tns),
+    I(tns),           I(discovery),
     I(pkt_source),    I(capfile),     I(serialize)
 #   undef I
 };

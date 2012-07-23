@@ -1,3 +1,4 @@
+add-proto-signature
 array-names
 array-stats
 hash-names
@@ -54,6 +55,8 @@ parameter-names
 plugins
 proto-names
 proto-stats
+proto-signatures
+proto-signature-stats
 quit
 reset-deduplication-stats
 ring-buffer-names

@@ -13,6 +13,7 @@
 #include <junkie/proto/ip.h>
 #include "lib.h"
 #include "proto/tcp.c"
+#include "proto/mysql.c"
 
 /*
  * Some unit tests
@@ -107,14 +108,12 @@ static void parse_check(void)
  * Make sure that we have 1 subparser until the stream is over, then 0
  */
 
-#include "proto/ssl.c"
-
 static void term_check(void)
 {
     struct timeval now;
     timeval_set_now(&now);
     struct tcp_stream stream;
-    assert(0 == tcp_stream_ctor(&stream, 5000, 2000, 443));
+    assert(0 == tcp_stream_ctor(&stream, 5000, 2000, 3306 /* mysql */));
 
     struct parser *tcp_parser = proto_tcp->ops->parser_new(proto_tcp);
     assert(tcp_parser);
@@ -155,7 +154,7 @@ int main(void)
     ip_init();
     ip6_init();
     tcp_init();
-    ssl_init();
+    mysql_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("tcp_check.log");
 
@@ -165,7 +164,7 @@ int main(void)
     stress_check(proto_tcp);
 
     doomer_stop();
-    ssl_fini();
+    mysql_fini();
     tcp_fini();
     ip6_fini();
     ip_fini();

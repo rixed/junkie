@@ -1,0 +1,14 @@
+#!/bin/sh
+# Test that:
+# - tlsv1.pcap: detect most https packets as TLSv1
+# - single-rtp.pcap: a single RTP packet (without signalisation) is passed to RTP parser
+
+NAME="Discovery"
+PCAPS="pcap/https/tlsv1.pcap pcap/voip/single-rtp.pcap"
+filter() {
+	grep -E '^(PIPI|RTP)'
+}
+CMDLINE='(load "../guile/junkie/signatures.scm")'
+OUTPUT="discovery.out"
+
+. ./dump_test

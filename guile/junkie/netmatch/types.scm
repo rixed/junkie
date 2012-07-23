@@ -154,17 +154,18 @@
 (define (indent-more str)
   (regexp-substitute/global #f (make-regexp "^ {4}" regexp/newline) str 'pre "        " 'post))
 
-; Given a number, returns a string like "{ 12, 43, 4 }" suitable to initialize a C byte array
-(define (number->C-byte-array n)
-  (let* ((number->bytes (lambda (n)
-                          (letrec ((aux (lambda (prev n)
-                                         (if (eqv? 0 n)
-                                             prev
-                                             (let ((lo (logand n #xff))
-                                                   (hi (ash n -8)))
-                                               (aux (cons lo prev) hi))))))
-                            (aux '() n))))
-         (bytes         (number->bytes n)))
+; Given a length and a number, returns a string like "{ 12, 43, 4 }" suitable to initialize a C byte array.
+; The first argument is the number of expected digits (thus (number->C-byte-array 3 1) will yield "{0,0,1}")
+(define (number->C-byte-array l n)
+  (let* ((number->bytes (lambda (l n)
+                          (letrec ((aux (lambda (prev l n)
+                                          (if (<= l 0)
+                                              prev
+                                              (let ((lo (logand n #xff))
+                                                    (hi (ash n -8)))
+                                                (aux (cons lo prev) (- l 1) hi))))))
+                            (aux '() l n))))
+         (bytes         (number->bytes l n)))
     (string-append
       "{ "
       (fold (lambda (n s)
@@ -281,6 +282,50 @@
 
 (export str)
 
+;;; Bytes (represented in C as struct npc_register so we have both addr and size)
+
+(define bytes
+  (make-type
+    'bytes
+    (lambda (v) ; imm, v is a symbol like 12,34,56,72,fc,5a,90
+      (let ((res   (gensymC "bytes"))
+            (tmp   (gensymC "bytes_tmp"))
+            (Cinit (string-join (map (lambda (s)
+                                       (string-append "0x" s))
+                                     (string-split (symbol->string v) #\,))
+                                ",")))
+        (make-stub
+          (string-append
+            "    static unsigned char " tmp "[] = { " Cinit " };\n"
+            "    struct npc_register " res " = { .value = (uintptr_t)" tmp ", .size = sizeof(" tmp ") };\n")
+          res
+          '())))
+    (lambda (proto field)
+      ; we cannot do much since we have no size indication
+      (throw 'type-error "Cannot fetch bytes"))
+    (lambda (regname) ; ref
+      (make-stub
+        ""
+        (string-append "prev_regfile[" regname "]")
+        (list regname)))
+    (lambda (regname value) ; bind
+      (make-stub
+        (string-append
+          (stub-code value)
+          "    memcpy(&new_regfile[" regname "], &" (stub-result value) ", sizeof(new_regfile[0]));\n"
+        (string-append "new_regfile[" regname "]")
+        (cons regname (stub-regnames value)))))))
+
+(export bytes)
+
+; Is this symbol a mac address?
+(define (looks-like-bytes? s)
+  (let ((s (symbol->string s)))
+    (or (string-match "^[0-9a-f]+$" s)
+        (string-match "^[0-9a-f]+,[0-9a-f,]*[0-9a-f]$" s))))
+
+(export looks-like-bytes?)
+
 ;;; Timestamps
 
 (define timestamp ; the stub-result will be a pointer to a struct timeval
@@ -299,7 +344,6 @@
     boxed-bind))
 
 (export timestamp)
-
 
 ;;; IP addresses
 
@@ -343,7 +387,7 @@
       (let ((res (gensymC "mac")))
         (make-stub
           (string-append
-            "    unsigned char " res "[ETH_ADDR_LEN] = " (number->C-byte-array (string->eth (symbol->string v))) ";\n")
+            "    unsigned char " res "[ETH_ADDR_LEN] = " (number->C-byte-array 6 (string->eth (symbol->string v))) ";\n")
           res
           '())))
     (lambda (proto field) ; fetch (TODO: factorize with other types)
@@ -405,7 +449,6 @@
           res
           (append (stub-regnames v1) (stub-regnames v2)))))))
 
-(add-operator '| log-or)
 (add-operator '|| log-or)
 (add-operator 'or log-or)
 (add-operator 'log-or log-or)
@@ -428,7 +471,6 @@
           res
           (append (stub-regnames v1) (stub-regnames v2)))))))
 
-(add-operator '& log-and)
 (add-operator '&& log-and)
 (add-operator 'and log-and)
 (add-operator 'log-and log-and)
@@ -495,6 +537,19 @@
 (define eq
   (make-op '= bool (list uint uint) (simple-binary-op "==" "bool")))
 
+(define shift-left
+  (make-op 'shift-left uint (list uint uint) (simple-binary-op "<<" "uint_least64_t")))
+
+(define shift-right
+  (make-op 'shift-right uint (list uint uint) (simple-binary-op ">>" "uint_least64_t")))
+
+(define int-and
+  (make-op '& uint (list uint uint) (simple-binary-op "&" "uint_least64_t")))
+
+(define int-or
+  (make-op '| uint (list uint uint) (simple-binary-op "|" "uint_least64_t")))
+
+
 (define (simple-binary-fun fun)
   (lambda (v1 v2)
     (let ((tmp1 (gensymC "tmp_1_"))
@@ -529,8 +584,12 @@
 (add-operator '== eq)
 (add-operator 'max max)
 (add-operator 'min min)
+(add-operator '<< shift-left)
+(add-operator '>> shift-right)
+(add-operator '& int-and)
+(add-operator '| int-or)
 
-(export add sub mult div mod gt ge lt le eq)
+(export add sub mult div mod gt ge lt le eq shift-left shift-right)
 
 ;;; Timestamp manipulation
 
@@ -722,4 +781,80 @@
 
 (export str-null? str-eq?)
 
+;; Bytes manipulation
+
+(define nb-bytes
+  (make-op 'nb-bytes uint (list bytes)
+           (lambda (b)
+             (let ((res (gensymC "nb_bytes")))
+               (make-stub
+                 (string-append
+                   (stub-code b)
+                   "    uint_least64_t " res " = " (stub-result b) ".size;\n")
+                 res
+                (stub-regnames b))))))
+
+(add-operator 'nb-bytes nb-bytes)
+
+(define byte-at
+  (make-op 'byte-at uint (list bytes uint)
+           (lambda (b i)
+             (let ((res (gensymC "byte_at")))
+               (make-stub
+                 (string-append
+                   (stub-code i)
+                   (stub-code b)
+                   "    uint8_t " res " = ((uint8_t *)" (stub-result b) ".value)[" (stub-result i) "];\n")
+                 res
+                 (append (stub-regnames i) (stub-regnames b)))))))
+
+(add-operator '@ byte-at)
+
+(define bytes-eq?
+  (make-op 'bytes-eq? bool (list bytes bytes)
+           (lambda (b1 b2)
+             (let ((res (gensymC "same_bytes")))
+               (make-stub
+                 (string-append
+                   (stub-code b1)
+                   (stub-code b2)
+                   "    bool " res " = "(stub-result b1)".size == "(stub-result b2)".size &&\n"
+                   "        0 == memcmp((void *)"(stub-result b1)".value, (void *)"(stub-result b2)".value, "(stub-result b1)".size);\n")
+                 res
+                 (append (stub-regnames b1) (stub-regnames b2)))))))
+
+(add-operator 'bytes-eq? bytes-eq?)
+(add-operator '=B bytes-eq?)
+(add-operator '=b bytes-eq?)
+(add-operator '= bytes-eq?)
+(add-operator '== bytes-eq?)
+
+(define firsts
+  (make-op 'firsts bytes (list uint bytes)
+           (lambda (n b)
+             (let ((res (gensymC "firsts_res")))
+               (make-stub
+                 (string-append
+                   (stub-code n)
+                   (stub-code b)
+                   "    struct npc_register " res " = { .value = " (stub-result b) ".value, .size = " (stub-result n) " };\n")
+                 res
+                 (append (stub-regnames n) (stub-regnames b)))))))
+
+(add-operator 'firsts firsts)
+
+(define str-in-bytes
+  (make-op 'str-in-bytes bool (list bytes str)
+           (lambda (b s)
+             (let ((res (gensymC "str_in_bytes_res")))
+               (make-stub
+                 (string-append
+                   (stub-code b)
+                   (stub-code s)
+                   ; FIXME: strnstr does not look into haystack after a nul byte, which is not what we want!
+                   "    bool " res " = NULL != strnstr((char const *)" (stub-result b) ".value, " (stub-result s) ", " (stub-result b) ".size);\n")
+                 res
+                 (append (stub-regnames b) (stub-regnames s)))))))
+
+(add-operator 'str-in-bytes str-in-bytes)
 

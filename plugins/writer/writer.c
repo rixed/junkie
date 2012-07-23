@@ -22,7 +22,6 @@
 #include <string.h>
 #include <sys/types.h>
 #include <regex.h>
-#include <ltdl.h>
 #include "junkie/cpp.h"
 #include "junkie/tools/cli.h"
 #include "junkie/tools/ext.h"
@@ -38,81 +37,6 @@
 #define LOG_CAT writer_log_category
 
 LOG_CATEGORY_DEF(writer);
-
-
-struct netmatch_filter {
-    char *libname;
-    unsigned nb_registers;
-    struct npc_register *regfile;
-    lt_dlhandle handle;
-    npc_match_fn *match_fun;
-};
-
-static int netmatch_filter_ctor(struct netmatch_filter *netmatch, char const *libname, unsigned nb_regs)
-{
-    netmatch->nb_registers = nb_regs;
-    if (nb_regs > 0) {
-        netmatch->regfile = objalloc(nb_regs * sizeof(*netmatch->regfile), "netmatches");
-        if (! netmatch->regfile) goto err0;
-        memset(netmatch->regfile, 0, nb_regs * sizeof(*netmatch->regfile));
-    } else {
-        netmatch->regfile = NULL;
-    }
-
-    netmatch->libname = objalloc_strdup(libname);
-    if (! netmatch->libname) {
-        goto err1;
-    }
-
-    netmatch->handle = lt_dlopen(libname);
-    if (! netmatch->handle) {
-        SLOG(LOG_CRIT, "Cannot load netmatch shared object %s: %s", libname, lt_dlerror());
-        goto err2;
-    }
-
-    netmatch->match_fun = lt_dlsym(netmatch->handle, "match");
-    if (! netmatch->match_fun) {
-        SLOG(LOG_CRIT, "Cannot find match function in netmatch shared object %s", libname);
-        goto err3;
-    }
-
-    return 0;
-err3:
-    if (netmatch->handle) {
-        (void)lt_dlclose(netmatch->handle);
-        netmatch->handle = NULL;
-    }
-err2:
-    if (netmatch->libname) {
-        objfree(netmatch->libname);
-        netmatch->libname = NULL;
-    }
-err1:
-    if (netmatch->regfile) {
-        objfree(netmatch->regfile);
-        netmatch->regfile = NULL;
-    }
-err0:
-    return -1;
-}
-
-static void netmatch_filter_dtor(struct netmatch_filter *netmatch)
-{
-    if (netmatch->regfile) {
-        objfree(netmatch->regfile);
-        netmatch->regfile = NULL;
-    }
-
-    if (netmatch->libname) {
-        objfree(netmatch->libname);
-        netmatch->libname = NULL;
-    }
-
-    if (netmatch->handle) {
-        (void)lt_dlclose(netmatch->handle);
-        netmatch->handle = NULL;
-    }
-}
 
 
 /*
@@ -199,19 +123,16 @@ static int set_netmatch(struct capture_conf *conf, char const *value)
 
     /* value is an expression that we are supposed to compile with (@ (junkie netmatch netmatch) compile) as
      * a matching function named "match" */
-    char *cmd = tempstr_printf("((@ (junkie netmatch netmatch) compile) '((\"match\" . %s)) '() \"\")", value);
+    char *cmd = tempstr_printf("((@ (junkie netmatch netmatch) compile) (@ (junkie netmatch type) bool) '() '%s)", value);
     SLOG(LOG_DEBUG, "Evaluating scheme string '%s'", cmd);
-    SCM pair = scm_c_eval_string(cmd);
+    SCM libname_ = scm_c_eval_string(cmd);
 
-    if (scm_is_pair(pair)) {
-        char *libname = scm_to_locale_string(SCM_CAR(pair));
-        scm_dynwind_free(libname);
-        unsigned nb_regs = scm_to_uint(SCM_CDR(pair));
+    char *libname = scm_to_locale_string(libname_);
+    scm_dynwind_free(libname);
 
-        if (0 == netmatch_filter_ctor(&conf->netmatch, libname, nb_regs)) {
-            conf->netmatch_set = true;
-            err = 0;
-        }
+    if (0 == netmatch_filter_ctor(&conf->netmatch, libname)) {
+        conf->netmatch_set = true;
+        err = 0;
     }
 
     scm_dynwind_end();
@@ -272,7 +193,7 @@ static int cli_netmatch(char const *value)
  * Per packet Callback
  */
 
-static bool info_match(struct capture_conf const *conf, struct proto_info const *info)
+static bool info_match(struct capture_conf const *conf, struct proto_info const *info, size_t cap_len, uint8_t const *packet)
 {
     if (conf->re_set) {
         char const *repr = capfile_csv_from_info(info);
@@ -281,8 +202,9 @@ static bool info_match(struct capture_conf const *conf, struct proto_info const 
     }
 
     if (conf->netmatch_set) {
+        struct npc_register rest = { .size = cap_len, .value = (uintptr_t)packet };
         // FIXME: here we pass NULL as the new regfile since we are not supposed to bind anything. Ensure this using match purity property.
-        if (! conf->netmatch.match_fun(info, conf->netmatch.regfile, NULL)) return false;
+        if (! conf->netmatch.match_fun(info, rest, NULL, NULL)) return false;
     }
 
     return true;
@@ -290,7 +212,7 @@ static bool info_match(struct capture_conf const *conf, struct proto_info const 
 
 static void try_write(struct capture_conf *conf, struct proto_info const *info, size_t cap_len, uint8_t const *packet)
 {
-    if (conf->capfile && !conf->paused && info_match(conf, info)) {
+    if (conf->capfile && !conf->paused && info_match(conf, info, cap_len, packet)) {
         //SLOG(LOG_DEBUG, "Saving a packet into %s", conf->file);
         (void)conf->capfile->ops->write(conf->capfile, info, cap_len, packet);
     }

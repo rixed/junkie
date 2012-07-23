@@ -5,6 +5,7 @@
 (use-modules (ice-9 match)
              (srfi srfi-1) ; for fold
              ((junkie netmatch types) :renamer (symbol-prefix-proc 'type:))
+             ((junkie netmatch ll-compiler) :renamer (symbol-prefix-proc 'll:))
              (junkie tools)
              (junkie defs)) ; thus, junkie runtime as well
 
@@ -276,10 +277,11 @@
   (type:make-stub
     (string-append
       (if public "" "static ")
-      "uintptr_t " name "(struct proto_info const *info, struct npc_register const *prev_regfile, struct npc_register *new_regfile)\n"
+      "uintptr_t " name "(struct proto_info const *info, struct npc_register rest, struct npc_register const *prev_regfile, struct npc_register *new_regfile)\n"
       "{\n"
       "    /* We may not use any of these: */\n"
       "    (void)info;\n"
+      "    (void)rest;\n"
       "    (void)prev_regfile;\n"
       "    (void)new_regfile;\n")
     "" '()))
@@ -450,8 +452,14 @@
        ; - an immediate value for ip, mac...
        ; - a well-known constant
        ; - a field name (proto.field)
+       ; - rest (the payload as a byte array)
        ; - otherwise, a register name
        (cond
+         ((eq? 'rest expr)
+          (slog log-debug " ...with is the 'rest' bytes")
+          (type-check-or-set type:bytes)
+          ; So we return this 'rest' function parameter
+          (type:make-stub "" "rest" '()))
          ((type:looks-like-ip? expr)
           (slog log-debug " ...which is an IP")
           (type-check-or-set type:ip)
@@ -460,6 +468,10 @@
           (slog log-debug " ...which is a MAC")
           (type-check-or-set type:mac)
           ((type:type-imm type:mac) expr))
+         ((type:looks-like-bytes? expr)
+          (slog log-debug " ...which is a byte array")
+          (type-check-or-set type:bytes)
+          ((type:type-imm type:bytes) expr))
          ((well-known-cst? expr) => expr->stub)
          ((fieldname? expr) =>
           (lambda (x)
@@ -501,4 +513,22 @@
         name '()))))
 
 (export function->stub)
+
+; takes an expression and return a pair (libname . nb-regs)
+(define (compile otype protos expr)
+  (let* ((funname "match")
+         (stub    (function->stub otype protos expr #f))
+         (stub    (type:make-stub
+                    (string-append
+                      (type:stub-code stub)
+                      "\n"
+                      "uintptr_t " funname "(struct proto_info const *info, struct npc_register rest, struct npc_register const *prev_regfile, struct npc_register *new_regfile)\n"
+                      "{\n"
+                      "    return " (type:stub-result stub) "(info, rest, prev_regfile, new_regfile);\n"
+                      "}\n")
+                    funname
+                    (type:stub-regnames stub))))
+    (ll:stub->so stub)))
+
+(export compile)
 
