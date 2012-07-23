@@ -44,3 +44,43 @@
                                            (str-in-bytes rest "BitTorrent Protocol")
                                            (str-in-bytes rest "/announce"))))
 
+; Adapted from http://protocolinfo.org/
+
+; Small tool to convert string to bytes:
+; (define (string->numbers s) (map char->integer (string->list s)))
+; (define (string->hexstr s) (string-join (map (lambda (n) (format #f "~2,'0x" n)) (string->numbers s)) ",") )
+
+(add-proto-signature "gnutella" 5 'low ; until proven otherwise
+                     (nm:compile
+                       type:bool '(tcp) '(or
+                                           (and ((nb-bytes rest) >= 4)
+                                                ((firsts 3 rest) == 67,6e,64)
+                                                (or ((rest @ 3) == 1)
+                                                    ((rest @ 3) == 2)))
+                                           (and ((nb-bytes rest) >= 22)
+                                                ; "gnutella connect/[012]\.[0-9]\x0d\x0a"
+                                                ((firsts 17 rest) == 67,6e,75,74,65,6c,6c,61,20,63,6f,6e,6e,65,63,74,2f)
+                                                ((rest @ 17) >= 48)
+                                                ((rest @ 17) <= 50)
+                                                ((rest @ 19) >= 48)
+                                                ((rest @ 19) <= 57)
+                                                ((rest @ 20) == 13)
+                                                ((rest @ 21) == 10))
+                                           (and ((nb-bytes rest) >= 26)
+                                                ; "get /uri-res/n2r\?urn:sha1:"
+                                                ((firsts 26 rest) == 67,65,74,20,2f,75,72,69,2d,72,65,73,2f,6e,32,72,3f,75,72,6e,3a,73,68,61,31,3a))
+                                           (and ((nb-bytes rest) >= 44)
+                                                ; gnutella.*content-type: application/x-gnutella
+                                                ((firsts 8 rest) == 67,6e,75,74,65,6c,6c,61)
+                                                (str-in-bytes rest "content-type: application/x-gnutella"))
+                                           (and ((nb-bytes rest) >= 5)
+                                                ((firsts 5 rest) == 67,65,74,20,2f)
+                                                (or (str-in-bytes rest "content-type: application/x-gnutella-packets")
+                                                    (str-in-bytes rest "user-agent: gtk-gnutella")
+                                                    (str-in-bytes rest "user-agent: bearshare")
+                                                    (str-in-bytes rest "user-agent: mactella")
+                                                    (str-in-bytes rest "user-agent: gnucleus")
+                                                    (str-in-bytes rest "user-agent: gnotella")
+                                                    (str-in-bytes rest "user-agent: limewire")
+                                                    (str-in-bytes rest "user-agent: imesh"))))))
+
