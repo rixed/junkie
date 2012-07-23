@@ -96,6 +96,9 @@ regexes, simple header field checks...) + the optional follow-up parser.
 A particularity of bro rules is that one can combine several rules but this is
 seldom used.
 
+For these filters, one would want to have in `tcp_info` the relavetive sequence
+number.
+
 
 Netmatch language
 -----------------

@@ -219,8 +219,7 @@ static enum proto_parse_status discovery_parse(struct parser *parser, struct pro
     LIST_LOOKUP(sig, &proto_signatures, entry, 0 != sig->filter.match_fun(parent, rest, NULL, NULL));
 
     if (! sig) {
-        (void)proto_parse(NULL, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
-        return PROTO_OK;
+        return PROTO_PARSE_ERR;
     }
 
     struct discovery_proto_info info;
