@@ -31,17 +31,20 @@
 
 (export start-server)
 
-; (list-ifaces) will only report the currently mounted network devices.
-; So we merely up all devices here. This works because we are the allmighty root.
-; First we start by a function that can execute a function per file :
-(define (for-each-file-in path fun)
+; A function that can execute a function per file :
+(define (for-each-entry-in path fun)
   (let ((dir (opendir path)))
     (do ((entry (readdir dir) (readdir dir)))
       ((eof-object? entry))
-      (let ((name (string-append path "/" entry)))
-        (if (not (eqv? 'directory (stat:type (stat name))))
-            (fun name))))
+      (fun (string-append path "/" entry)))
     (closedir dir)))
+
+(export for-each-entry-in)
+
+(define (for-each-file-in path fun)
+  (for-each-entry-in path (lambda (path)
+                            (if (not (eqv? 'directory (stat:type (stat path))))
+                                (fun path)))))
 
 (export for-each-file-in)
 

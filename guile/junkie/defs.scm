@@ -216,13 +216,6 @@
       (sleep 30)
       (loop)))))
 
-(define-public (up-all-ifaces)
-  (let* ((up-iface    (lambda (path)
-                        (let* ((file (basename path))
-                               (cmd (simple-format #f "/sbin/ifconfig ~a up" file)))
-                          (system cmd)))))
-    (for-each-file-in "/sys/class/net" up-iface)))
-
 ; A simple function to check wether the agentx module is available or not
 (define-public have-snmp (false-if-exception (resolve-interface '(agentx tools))))
 
