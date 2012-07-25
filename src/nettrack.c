@@ -120,10 +120,17 @@ static int nt_state_ctor(struct nt_state *state, struct nt_state *parent, struct
 
     state->regfile = regfile;
     state->parent = parent;
+    state->vertex = vertex;
+    state->index_h = index_h;
     if (parent) LIST_INSERT_HEAD(&parent->children, state, same_parent);
-    LIST_INSERT_HEAD(&vertex->states[index], state, same_vertex);
+    TAILQ_INSERT_HEAD(&vertex->states[index], state, same_vertex);
     LIST_INIT(&state->children);
     state->last_used = state->last_enter = *now;
+#   ifdef __GNUC__
+    __sync_fetch_and_add(&vertex->nb_states, 1);
+#   else
+    vertex->nb_states ++;
+#   endif
 
     return 0;
 }
@@ -154,7 +161,12 @@ static void nt_state_dtor(struct nt_state *state, struct nt_graph *graph)
         LIST_REMOVE(state, same_parent);
         state->parent = NULL;
     }
-    LIST_REMOVE(state, same_vertex);
+    TAILQ_REMOVE(&state->vertex->states[state->index_h], state, same_vertex);
+#   ifdef __GNUC__
+    __sync_fetch_and_sub(&state->vertex->nb_states, 1);
+#   else
+    state->vertex.nb_states --;
+#   endif
 
     if (state->regfile) {
         npc_regfile_del(state->regfile, graph->nb_registers);
@@ -168,19 +180,30 @@ static void nt_state_del(struct nt_state *state, struct nt_graph *graph)
     objfree(state);
 }
 
-static void nt_state_move(struct nt_state *state, struct nt_vertex *from, struct nt_vertex *to, unsigned index_h, struct timeval const *now)
+static void nt_state_move(struct nt_state *state, struct nt_vertex *to, unsigned index_h, struct timeval const *now)
 {
     state->last_used = *now;
 
-    if (from == to) return;
+    if (state->vertex == to) return;
 
     state->last_enter = *now;
 
+    SLOG(LOG_DEBUG, "Moving state@%p to vertex %s", state, to->name);
+
+#   ifdef __GNUC__
+    __sync_fetch_and_sub(&state->vertex->nb_states, 1);
+    __sync_fetch_and_add(&to->nb_states, 1);
+#   else
+    state->vertex->nb_states --;
+    to->nb_states ++;
+#   endif
+
     unsigned const index = index_h % to->index_size;
 
-    SLOG(LOG_DEBUG, "Moving state@%p to vertex %s", state, to->name);
-    LIST_REMOVE(state, same_vertex);
-    LIST_INSERT_HEAD(&to->states[index], state, same_vertex);
+    TAILQ_REMOVE(&state->vertex->states[state->index_h], state, same_vertex);
+    TAILQ_INSERT_HEAD(&to->states[index], state, same_vertex);
+    state->vertex = to;
+    state->index_h = index;
 }
 
 /*
@@ -198,8 +221,9 @@ static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_
     LIST_INIT(&vertex->incoming_edges);
     LIST_INSERT_HEAD(&graph->vertices, vertex, same_graph);
     for (unsigned i = 0; i < vertex->index_size; i++) {
-        LIST_INIT(&vertex->states[i]);
+        TAILQ_INIT(&vertex->states[i]);
     }
+    vertex->nb_states = 0;
 
     // A vertex named "root" starts with an initial state (and is not timeouted)
     if (0 == strcmp("root", name)) {
@@ -244,7 +268,7 @@ static void nt_vertex_dtor(struct nt_vertex *vertex, struct nt_graph *graph)
     // Delete all our states
     for (unsigned i = 0; i < vertex->index_size; i++) {
         struct nt_state *state;
-        while (NULL != (state = LIST_FIRST(&vertex->states[i]))) {
+        while (NULL != (state = TAILQ_FIRST(&vertex->states[i]))) {
             nt_state_del(state, graph);
         }
     }
@@ -473,12 +497,19 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
             SLOG(LOG_DEBUG, "Using index at location %u", index_start);
         }
         for (unsigned index = index_start; index < index_stop; index++) {
-            LIST_FOREACH_SAFE(state, &edge->from->states[index], same_vertex, tmp) {   // Beware that this state may move
+            unsigned nb_collisions = 0;
+            TAILQ_FOREACH_REVERSE_SAFE(state, &edge->from->states[index], nt_states_tq, same_vertex, tmp) {   // Beware that this state may move
                 if (edge->from->timeout > 0LL && edge->from->timeout < timeval_sub(now, &state->last_used)) {
                     SLOG(LOG_DEBUG, "Timeouting state in vertex %s", edge->from->name);
                     nt_state_del(state, edge->graph);
                     continue;
                 }
+                if (!edge->match_fn && edge->min_age != 0 && timeval_sub(now, &state->last_enter) < edge->min_age) {
+                    // if we are looking only for old states then exit early as soon as we met one that's young
+                    break;
+                }
+
+                if (edge->match_fn && ++nb_collisions > 16) TIMED_SLOG(LOG_NOTICE, "%u collisions searching in %s, size=%u, index=%u/%u", nb_collisions, edge->from->name, edge->from->nb_states, index_stop-index_start, edge->from->index_size);
                 SLOG(LOG_DEBUG, "Testing state@%p from vertex %s for %s into %s",
                         state,
                         edge->from->name,
@@ -546,12 +577,12 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                         } else if (merged_regfile) {    // replace former regfile with new one
                             npc_regfile_del(state->regfile, edge->graph->nb_registers);
                             state->regfile = merged_regfile;
-                            nt_state_move(state, edge->from, edge->to, index_h, now);
+                            nt_state_move(state, edge->to, index_h, now);
                         }
                     }
 hell:
                     npc_regfile_dtor(tmp_regfile, edge->graph->nb_registers);
-                    if (edge->grab) return; // FIXME: oups! there can be more than one graph in this hook, and we don't want to skip all
+                    if (edge->grab) return;
                 } else {
                     SLOG(LOG_DEBUG, "No match");
                     npc_regfile_dtor(tmp_regfile, edge->graph->nb_registers);

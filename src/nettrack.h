@@ -14,10 +14,13 @@ LOG_CATEGORY_DEC(nettrack);
 // FIXME: some locks for all these lists
 
 struct nt_state {
-    LIST_ENTRY(nt_state) same_parent, same_vertex;
+    LIST_ENTRY(nt_state) same_parent;
+    TAILQ_ENTRY(nt_state) same_vertex;
     /* When a new state is spawned we keep a relationship with parent/children,
      * so that it's possible to terminate a whole family. */
     struct nt_state *parent;
+    struct nt_vertex *vertex;
+    unsigned index_h; // where I'm located on vertex->states[]
     LIST_HEAD(nt_states, nt_state) children;
     struct npc_register *regfile;
     struct timeval last_used;
@@ -33,7 +36,8 @@ struct nt_vertex {
     npc_match_fn *entry_fn;
     int64_t timeout;   // if >0, number of seconds to keep an inactive state in here
     unsigned index_size;   // the index size (>=1)
-    struct nt_states states[]; // the states currently waiting in this node (BEWARE: variable size!)
+    unsigned nb_states;
+    TAILQ_HEAD(nt_states_tq, nt_state) states[]; // the states currently waiting in this node (BEWARE: variable size!)
 };
 
 struct nt_edge {
