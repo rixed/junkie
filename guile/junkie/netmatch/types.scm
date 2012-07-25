@@ -77,36 +77,36 @@
 (define (unboxed-ref regname)
   (make-stub
     ""
-    (string-append "prev_regfile[" regname "].value")
+    (string-append "prev_regfile[nm_reg_" regname "__].value")
     (list regname)))
 
 (define (unboxed-bind regname value)
   (make-stub
     (string-append
       (stub-code value)
-      "    new_regfile[" regname "].value = " (stub-result value) ";\n"
-      "    new_regfile[" regname "].size = 0;\n")
-    (string-append "new_regfile[" regname "].value")
+      "    new_regfile[nm_reg_" regname "__].value = " (stub-result value) ";\n"
+      "    new_regfile[nm_reg_" regname "__].size = 0;\n")
+    (string-append "new_regfile[nm_reg_" regname "__].value")
     (cons regname (stub-regnames value))))
 
 (define (boxed-ref regname)
   (make-stub
     ""
-    (string-append "prev_regfile[" regname "].value")
+    (string-append "prev_regfile[nm_reg_" regname "__].value")
     (list regname)))
 
 (define (boxed-bind regname value)
   (make-stub
     (string-append
       (stub-code value) ; FIXME: this won't work when rebinding the same boxed register (ie (%foo as foo)), which should not be possible anyway
-      "    if (new_regfile[" regname "].size > 0) {\n"
-      "        free((void *)new_regfile[" regname "].value);\n"
+      "    if (new_regfile[nm_reg_" regname "__].size > 0) {\n"
+      "        free((void *)new_regfile[nm_reg_" regname "__].value);\n"
       "    }\n"
-      "    new_regfile[" regname "].value = (intptr_t)malloc(sizeof(*" (stub-result value) "));\n"
-      "    new_regfile[" regname "].size = sizeof(*" (stub-result value) ");\n"
-      "    assert(new_regfile[" regname "].value);\n" ; aren't assertions as good as proper error checks? O:-)
-      "    memcpy((void *)new_regfile[" regname "].value, " (stub-result value) ", sizeof(*" (stub-result value) "));\n")
-    (string-append "new_regfile[" regname "].value")
+      "    new_regfile[nm_reg_" regname "__].value = (intptr_t)malloc(sizeof(*" (stub-result value) "));\n"
+      "    new_regfile[nm_reg_" regname "__].size = sizeof(*" (stub-result value) ");\n"
+      "    assert(new_regfile[nm_reg_" regname "__].value);\n" ; aren't assertions as good as proper error checks? O:-)
+      "    memcpy((void *)new_regfile[nm_reg_" regname "__].value, " (stub-result value) ", sizeof(*" (stub-result value) "));\n")
+    (string-append "new_regfile[nm_reg_" regname "__].value")
     (cons regname (stub-regnames value))))
 
 ; FIXME: move all the thing->C-thing into a separate module,
@@ -270,14 +270,14 @@
             (stub-code value)
             "    /* " (stub-result value) " is supposed to point to a null terminated string */\n"
             "    size_t " tmp " = 1 + strlen(" (stub-result value) ");\n"
-            "    if (new_regfile[" regname "].value) {\n" ; FIXME: same as above
-            "        free((void *)new_regfile[" regname "].value);\n"
+            "    if (new_regfile[nm_reg_" regname "__].value) {\n" ; FIXME: same as above
+            "        free((void *)new_regfile[nm_reg_" regname "__].value);\n"
             "    }\n"
-            "    new_regfile[" regname "].value = (intptr_t)malloc(" tmp ");\n"
-            "    new_regfile[" regname "].size = " tmp ";\n"
-            "    assert(new_regfile[" regname "].value);\n" ; aren't assertions as good as proper error checks? O:-)
-            "    memcpy((void *)new_regfile[" regname "].value, " (stub-result value) ", " tmp ");\n")
-          (string-append "new_regfile[" regname "].value")
+            "    new_regfile[nm_reg_" regname "__].value = (intptr_t)malloc(" tmp ");\n"
+            "    new_regfile[nm_reg_" regname "__].size = " tmp ";\n"
+            "    assert(new_regfile[nm_reg_" regname "__].value);\n" ; aren't assertions as good as proper error checks? O:-)
+            "    memcpy((void *)new_regfile[nm_reg_" regname "__].value, " (stub-result value) ", " tmp ");\n")
+          (string-append "new_regfile[nm_reg_" regname "__].value")
           (cons regname (stub-regnames value)))))))
 
 (export str)
@@ -312,8 +312,8 @@
       (make-stub
         (string-append
           (stub-code value)
-          "    memcpy(&new_regfile[" regname "], &" (stub-result value) ", sizeof(new_regfile[0]));\n"
-        (string-append "new_regfile[" regname "]")
+          "    memcpy(&new_regfile[nm_reg_" regname "__], &" (stub-result value) ", sizeof(new_regfile[0]));\n"
+        (string-append "new_regfile[nm_reg_" regname "__]")
         (cons regname (stub-regnames value)))))))
 
 (export bytes)

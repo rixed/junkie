@@ -58,7 +58,7 @@
               ; note: these are indexes into an array of struct npc_register { uintptr_t value; size_t size; }
               (let ((res (string-append
                            code
-                           "#define " regname " " (number->string idx) "\n")))
+                           "#define nm_reg_" regname "__ " (number->string idx) "\n")))
                 (set! idx (1+ idx))
                 res))
             "/* Register definitions */\n\n"
