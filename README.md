@@ -74,30 +74,11 @@ Todo
 Protocol discovery
 ------------------
 
-Given some signatures, discover some protocols (likely targets: RT(C)P, peer
-to peer...).
+- Automatically convert from bro/l7-filter/snort filters to junkie protocol
+  discovery
 
-We could do this with ordinary parsers but it would not be very convenient for
-the coder (many boilerplate code involved) nor very convenient for the user
-(had to tcp-add-port/udp-add-port many protocols in the right order) nor very
-efficient (parent parser, for instance TCP, trying every protocol in turn until
-one match). So we instead goes the snort route : run a single process through a
-database of descriptions, and return the discovered protocol. If this protocol
-had a specific parser then pass it the payload (required for RT(C)P).
-
-We should run this discovery process when some payload remain unparsed at the
-end of `proto_parse` call chain, with it's result attached as another
-`proto_info` (if there are no better parser for the discovered protocol).
-
-This port independant protocol identification should be feed with rules from guile,
-which could be taken from snort, l7 filter or bro signatures, and thus should
-be able to understand most of what these signature format offers (such as
-regexes, simple header field checks...) + the optional follow-up parser.
-A particularity of bro rules is that one can combine several rules but this is
-seldom used.
-
-For these filters, one would want to have in `tcp_info` the relative sequence
-number.
+- For these filters one would want to have the relative sequence
+number in `tcp_info`.
 
 
 Netmatch language
@@ -105,11 +86,6 @@ Netmatch language
 
 - a type for signed integers (in a way or another - maybe the few operators
   that really care should exist in two variants?);
-
-- a type for byte strings (ideally a special form that build a `char[]` from a
-  byte string such as `f1:ab:01:14:00:a7`);
-
-- a special proto 'rest' for the unparsed payload (at this point);
 
 - another special form for converting a name to an `ip_addr` (or a regular
   function if we optimize constant away from runtime exec - see below about
@@ -123,8 +99,6 @@ Netmatch language
 - a random function;
 
 - a slice operator to extract a string from another string;
-
-- binary operators on integers (`&`, `|`, `^`, `!`, `<<` and `>>`)
 
 - it should be correct to match with: `(eth) ((ip) (...) or (arp) (...))`.
   in other words, the proto list should be a special form (binding current
