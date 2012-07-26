@@ -362,8 +362,6 @@
                          (and (symbol? op)
                               (char-set-contains? prefix-chars (string-ref (symbol->string op) 0))
                               (false-if-exception (type:symbol->ops op))))))
-         (regname?   (lambda (str)
-                       (eqv? (string-ref str 0) #\%)))
          (fieldname? (lambda (sym)
                        (and (symbol? sym)
                             (let* ((str (symbol->string sym))
@@ -412,8 +410,7 @@
                (type:stub-concat
                  (with-expected-type type:any (lambda () (expr->stub v1)))
                  (expr->stub (cons 'do v2))))
-              ; Generate code to pass C code from expression to generated file. All params that are not strings are evaluated and
-              ; their result is inlined, so you'd better not use anything beyond mere immediate values or refs.
+              ; Generate code to pass C code from expression to generated file.
               (('pass . params)
                (slog log-debug " compiling special form 'pass'")
                (let ((ps (map (lambda (p)
@@ -428,6 +425,42 @@
                      "\n")
                    "0"
                    (apply append (map type:stub-regnames ps)))))
+              ; Generate code that pass the given values to a given SCM function.
+              (('apply fname . params)
+               (slog log-debug " compiling special form 'apply' to ~a" fname)
+               (let* ((have-module (list? fname))
+                      (module      (if have-module fname '()))
+                      (fname       (if have-module (car params) fname))
+                      (params      (if have-module (cdr params) params))
+                      (stubs       (map (lambda (p)
+                                          (let ((s (with-expected-type type:any (lambda () (expr->stub p))))) ; set expected-type to actual type (magic!)
+                                            ((type:type-to-scm (fluid-ref expected-type)) s))) ; so whatever the returned type we use the proper to-scm method (TODO: type the stubs?)
+                                        params))
+                      (procname    (type:gensymC "proc_"))
+                      (resname     (type:gensymC "apply_res_")))
+                 (type:make-stub
+                   (string-append
+                     ; first all the definitions
+                     (apply string-append (map type:stub-code stubs))
+                     ; then locate the guile function
+                     "    static SCM " procname " = SCM_BOOL_F;\n"
+                     "    if (scm_is_false(" procname ")) {\n"
+                     (if have-module
+                         (string-append
+                           "        SCM module = scm_c_resolve_module(" (type:string->C-string (string-join (map symbol->string module) " ")) ");\n"
+                           "        SCM var = scm_c_module_lookup(module, " (type:symbol->C-string fname) ");\n")
+                         (string-append
+                           "        SCM var = scm_c_lookup(" (type:symbol->C-string fname) ");\n"))
+                     "        " procname " = scm_variable_ref(var);\n"
+                     "    }\n"
+                     ; then the actual guile function call
+                     "    SCM " resname " = scm_call_" (number->string (length stubs)) "(" procname
+                     (fold (lambda (s prev)
+                             (string-append prev ", " (type:stub-result s)))
+                           "" stubs)
+                     ");\n")
+                   resname
+                   (apply append (map type:stub-regnames stubs)))))
               (('if condition then . elses)
                (let ((cond-stub (expr->stub condition))
                      (then-stub (expr->stub then))
@@ -448,10 +481,10 @@
                      (type:stub-code cond-stub)
                      "    uintptr_t " tmp ";\n"
                      "    if (" (type:stub-result cond-stub) ") {\n"
-                     (type:stub-code then-stub)
+                     (type:indent-more (type:stub-code then-stub))
                      "        " tmp " = " (type:stub-result then-stub) ";\n"
                      "    } else {\n"
-                     (type:stub-code else-stub)
+                     (type:indent-more (type:stub-code else-stub))
                      "        " tmp " = " (type:stub-result else-stub) ";\n"
                      "    }\n")
                    tmp
@@ -543,7 +576,7 @@
       function-body
       (type:make-stub
         (string-append
-          "    return " (type:stub-result function-body) ";\n}\n\n")
+          "    return (uintptr_t)" (type:stub-result function-body) ";\n}\n\n")
         name '()))))
 
 (export function->stub)

@@ -19,16 +19,11 @@
 ;;;   address "info" for the proto named p (string);
 ;;; - ref n: returns the code stub to reach the value bound to register named n (string)
 ;;; - bind n s: returns the code stub to bind stub s (stub) to register named n (string)
+;;; - to-scm n: returns the code stub to get the scm value out of a register
 ;;;
-;;; Then we have the operators:
-;;; - binary-op op s1 s2: return the code stub to perform this operation and the name of the
-;;;   result;
-;;; - unary-op op s: return the code stub to perform this operation and the name of the
-;;;   result.
-;;;
-;;; All these operators are typed (by type-assertions that will fail when generating the code)
+;;; All the operators are typed (by type-assertions that will fail when generating the code)
 
-; we take the type rather than the type name because one day we may want to try implicit convertion?
+; we take the type rather than the type name because one day we might want to try implicit convertion?
 (define (check t1 t2)
   (assert (type? t1))
   (assert (type? t2))
@@ -39,8 +34,8 @@
 
 (export check)
 
-(define-record-type type (fields name imm fetch ref bind))
-(export type-name type? type-imm type-fetch type-ref type-bind)
+(define-record-type type (fields name imm fetch ref bind to-scm))
+(export type-name type? type-imm type-fetch type-ref type-bind type-to-scm)
 
 ;;; But what's a code stub? It's the code required to compute a value, this value's name,
 ;;; and the list of used register(s).
@@ -96,6 +91,16 @@
       (string-append "(("c-type" *)prev_regfile[nm_reg_" regname "__].value)")
       (list regname))))
 
+(define (simple-to-scm gtypename ctypename)
+  (lambda (stub)
+    (let ((res (gensymC "to_scm_res")))
+      (make-stub
+        (string-append
+          (stub-code stub)
+          "    SCM " res " = scm_from_" gtypename "((" ctypename ")" (stub-result stub) ");\n")
+        res
+        (stub-regnames stub)))))
+
 (define (boxed-bind regname value)
   (make-stub
     (string-append
@@ -138,7 +143,10 @@
 (export symbol->C-ident)
 
 (define (string->C-string s)
-  (string-append "\"" s "\"")) ; TODO: escape quotes
+  (let* ((s (regexp-substitute/global #f "\\\\" s 'pre "\\\\" 'post)) ; escape backslashes (notice how slash must be doubled in the regex (not in the replacement)
+         (s (regexp-substitute/global #f "\"" s 'pre "\\\"" 'post)) ; escape quotes
+         (s (regexp-substitute/global #f "\n" s 'pre "\\n" 'post))) ; escape newlines which would prevent compilation
+    (string-append "\"" s "\"")))
 
 (export string->C-string)
 
@@ -154,6 +162,8 @@
 
 (define (indent-more str)
   (regexp-substitute/global #f (make-regexp "^ {4}" regexp/newline) str 'pre "        " 'post))
+
+(export indent-more)
 
 ; Given a length and a number, returns a string like "{ 12, 43, 4 }" suitable to initialize a C byte array.
 ; The first argument is the number of expected digits (thus (number->C-byte-array 3 1) will yield "{0,0,1}")
@@ -203,7 +213,9 @@
     (lambda (regname) ; ref
       (throw 'type-error "Cannot reference without type"))
     (lambda (regname value) ; bind
-      (throw 'type-error "Cannot bind without type"))))
+      (throw 'type-error "Cannot bind without type"))
+    (lambda (stub) ; to-scm
+      (throw 'type-error "Cannot convert to scm without type"))))
 
 (export any)
 
@@ -222,7 +234,8 @@
           res
           '())))
     unboxed-ref
-    unboxed-bind))
+    unboxed-bind
+    (simple-to-scm "bool" "bool")))
 
 (export bool)
 
@@ -241,7 +254,8 @@
           res
           '())))
     unboxed-ref
-    unboxed-bind))
+    unboxed-bind
+    (simple-to-scm "uint64" "uint64_t")))
 
 (export uint)
 
@@ -253,7 +267,7 @@
     (lambda (v) ; imm
       (let ((res (gensymC "str")))
         (make-stub
-          (string-append "    char " res "[] = \"" v "\";\n")
+          (string-append "    char " res "[] = " (string->C-string v) ";\n")
           res
           '())))
     (lambda (proto field) ; fetch (TODO: factorize with other types)
@@ -279,7 +293,8 @@
             "    assert(new_regfile[nm_reg_" regname "__].value);\n" ; aren't assertions as good as proper error checks? O:-)
             "    memcpy((void *)new_regfile[nm_reg_" regname "__].value, " (stub-result value) ", " tmp ");\n")
           (string-append "new_regfile[nm_reg_" regname "__].value")
-          (cons regname (stub-regnames value)))))))
+          (cons regname (stub-regnames value)))))
+    (simple-to-scm "utf8_string" "char const *")))
 
 (export str)
 
@@ -315,7 +330,15 @@
           (stub-code value)
           "    memcpy(&new_regfile[nm_reg_" regname "__], &" (stub-result value) ", sizeof(new_regfile[0]));\n"
         (string-append "new_regfile[nm_reg_" regname "__]")
-        (cons regname (stub-regnames value)))))))
+        (cons regname (stub-regnames value)))))
+    (lambda (stub)
+      (let ((res (gensymC "to_scm_res")))
+        (make-stub
+          (string-append
+            (stub-code stub)
+            "    SCM " res " = scm_from_latin1_stringn((char const *)" (stub-result stub) ".value, " (stub-result stub) ".size);\n")
+          res
+          (list regname))))))
 
 (export bytes)
 
@@ -342,7 +365,17 @@
           res
           '())))
     (boxed-ref "struct timeval")
-    boxed-bind))
+    boxed-bind
+    (lambda (stub) ; to-scm
+      (let ((res (gensymC "to_scm_res")))
+        (make-stub
+          (string-append
+            "    SCM " res " = scm_cons(\n"
+            "        scm_from_uint64(((struct timeval const *)" (stub-result stub) ")->tv_sec),\n"
+            "        scm_from_uint64(((struct timeval const *)" (stub-result stub) ")->tv_usec)"
+            "    );\n")
+          res
+          (stub-regnames stub))))))
 
 (export timestamp)
 
@@ -367,7 +400,9 @@
           res
           '())))
     (boxed-ref "struct ip_addr")
-    boxed-bind))
+    boxed-bind
+    (lambda (regname) ; to-scm
+      (empty-stub)))) ; TODO
 
 (export ip)
 
@@ -399,7 +434,9 @@
           res
           '())))
     (boxed-ref "unsigned char")
-    boxed-bind))
+    boxed-bind
+    (lambda (regname) ; export to SCM (as a number)
+      (empty-stub)))) ; TODO
 
 (export mac)
 

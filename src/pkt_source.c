@@ -303,6 +303,19 @@ static int set_filter(pcap_t *pcap_handle, char const *filter)
     return 0;
 }
 
+struct start_guile_sniffer_param {
+    struct pkt_source *pkt_source;
+    void *(*sniffer)(void *);
+};
+
+/* We start all sniffer thread in guile mode so that plugins that require guile mode are not
+ * forced to enter guile mode packet by packet. */
+static void *start_guile_sniffer(void *param_)
+{
+    struct start_guile_sniffer_param *param = param_;
+    return scm_with_guile(param->sniffer, param->pkt_source);
+}
+
 static int pkt_source_ctor(struct pkt_source *pkt_source, char const *name, pcap_t *pcap_handle, void *(*sniffer)(void *), bool is_file, bool patch_ts, uint8_t dev_id, char const *filter, bool loop)
 {
     SLOG(LOG_DEBUG, "Construct pkt_source@%p of name %s and dev_id %"PRIu8, pkt_source, name, dev_id);
@@ -334,7 +347,8 @@ static int pkt_source_ctor(struct pkt_source *pkt_source, char const *name, pcap
     pkt_source->dev_id = dev_id;
     LIST_INSERT_HEAD(&pkt_sources, pkt_source, entry);
 
-    int err = pthread_create(&pkt_source->sniffer, NULL, sniffer, pkt_source);
+    struct start_guile_sniffer_param params = { .pkt_source = pkt_source, .sniffer = sniffer };
+    int err = pthread_create(&pkt_source->sniffer, NULL, start_guile_sniffer, &params);
     if (err) {
         SLOG(LOG_ERR, "Cannot start sniffer thread on pkt_source %s[?]@%p: %s", pkt_source->name, pkt_source, strerror(err));  // Notice that pkt_source->instance is not inited yet
         LIST_REMOVE(pkt_source, entry);
