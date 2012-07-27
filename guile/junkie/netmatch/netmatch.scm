@@ -532,7 +532,7 @@
   (slog log-debug "Compiling netmatch function ~s" expr)
   (let* ((name (type:gensymC "netmatch_fun"))
          (preamble (function-preamble name public))
-         (proto-deconstruction (deconstruct-protos protos))
+         (proto-deconstruction (deconstruct-protos (reverse protos)))
          (function-body (with-expected-type otype
                                             (lambda ()
                                               (expr->stub expr)))))

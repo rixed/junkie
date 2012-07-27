@@ -132,11 +132,10 @@
                                [('on 'full-parse)
                                 (set! per-packet #t)]
                                [('match protos expr)
-                                (let ((protos (reverse protos)))
-                                  (set! match-func (netmatch:function->stub type:bool protos expr #f))
-                                  ; Would fail if no protos are given, since we use this to register a callback
-                                  (if (not (null? protos))
-                                      (set! proto-code (car protos))))]
+                                (set! match-func (netmatch:function->stub type:bool protos expr #f))
+                                ; Would fail if no protos are given, since we use this to register a callback
+                                (if (not (null? protos))
+                                    (set! proto-code (car protos)))]
                                [('older n)
                                 (set! min-age n)]
                                [('src-index-on protos expr)
