@@ -44,6 +44,8 @@ static LIST_HEAD(pkt_sources, pkt_source) pkt_sources = LIST_HEAD_INITIALIZER(pk
 static struct mutex pkt_sources_lock;   // only valid when !terminating
 static volatile sig_atomic_t terminating = 0;
 
+unsigned pkt_count; // if not 0, max number of packets to parse before exiting
+
 static struct parser *cap_parser;
 
 // A sequence to uniquely identifies pcap files with a numeric id (also protected with pkt_sources_lock)
@@ -134,6 +136,16 @@ static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, 
     (void)proto_parse(cap_parser, NULL, 0, (uint8_t *)&frame, frame.cap_len, frame.wire_len, &frame.tv, frame.cap_len, frame.data);
 
     enter_safe_region();
+
+    if (pkt_count > 0) {
+        if (0 ==
+#           ifdef __GNUC__
+            __sync_sub_and_fetch(&pkt_count, 1)
+#           else
+            --pkt_count
+#           endif
+        ) exit(0);
+    }
 
 #   ifdef WITH_GIANT_LOCK
     mutex_unlock(&giant_lock);

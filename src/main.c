@@ -240,6 +240,8 @@ int main(int nb_args, char **args)
         { { "load", "p" },    "file.so", "load this plugin",              CLI_CALL,     { .call = opt_plugin } },
         { { "iface", "i" },   "iface",   "listen this interface",         CLI_CALL,     { .call = opt_iface } },
         { { "read", "r" },    "file",    "read this pcap file",           CLI_CALL,     { .call = opt_read } },
+        { { "count", NULL },  "nb-pkts", "Exit after displaying this amount of packets",
+                                                                          CLI_SET_UINT, { .uint = &pkt_count } },
     };
 
     cli_register(NULL, main_opts, NB_ELEMS(main_opts));

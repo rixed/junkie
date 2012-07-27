@@ -41,7 +41,6 @@ static void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info c
     dump_frame_rec(last);
     printf("\n");
     fflush(stdout);
-    return;
 }
 
 static struct proto_subscriber subscription;
