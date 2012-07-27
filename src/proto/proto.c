@@ -240,7 +240,7 @@ void proto_subscribers_call(struct proto *proto, bool with_pkt_sbc, struct proto
     mutex_unlock(&proto->lock);
 
     if (with_pkt_sbc) { // also call packet subscribers
-        // look for last proto_info with pkt_sbc_called, flagin all proto_infos along the way so that next lookups will be faster
+        // look for last proto_info with pkt_sbc_called, flaging all proto_infos along the way so that next lookups will be faster
         struct proto_info *info_ = info;
         while (info_->parent && !info_->pkt_sbc_called) {
             info_->pkt_sbc_called = true;

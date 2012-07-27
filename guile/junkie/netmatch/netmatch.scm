@@ -247,6 +247,7 @@
 (define (reset-register-types)
   (fluid-set! register-types '()))
 (export reset-register-types)
+(reset-register-types)
 (define (set-register-type regname type)
   (assert (type:type? type))
   ;(slog log-debug "set-register-type ~a to ~a in ~s" regname (type:type-name type) (fluid-ref register-types))
