@@ -457,6 +457,9 @@
                    (append (type:stub-regnames cond-stub)
                            (type:stub-regnames then-stub)
                            (type:stub-regnames else-stub)))))
+              ; If a type implements '== then we give it '!= for free
+              ((or (a '!= b) (a '<> b))
+               (expr->stub `(not (,a == ,b))))
               ; Now that we have ruled out the empty list and special forms we must face an operator, which can be infix or prefix
               ((and (v1 op-name . rest) (? (lambda (expr) (is-infix (cadr expr)))))
                (perform-op op-name (cons v1 rest)))
