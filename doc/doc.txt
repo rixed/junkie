@@ -1,0 +1,542 @@
+// vim:filetype=asciidoc expandtab
+= Junkie The Network Sniffer
+
+== Overview
+
+=== What's a network sniffer? And what's Junkie?
+
+If you are reading this you probably already know that a network sniffer is a
+program that 'sniffs' packets (ie. reads them although they are destined to
+another program and/or host). Most sniffers does this using the well known
+libpcap library for packet capture, which is portable and efficient, and
+Junkie is not different in this regard. Reasons to sniff network traffic range
+from troubleshooting network problems to stealing confidential informations,
+and most sniffers are build with a special purpose. For instance Wireshark is
+very helpful to diagnose network problems while DSniff is useful to quickly
+steal innocent users password (or check that no password can be stolen that
+easily, depending how you look at it).
+
+Junkie has no such predefined purpose; instead, it was designed to help
+you build the sniffer you need by offering you a simpler view of the
+network traffic than mere packets, while still being able to handle
+a realistic network flow in realtime. So it stands somewhere in between
+Tcpdump and Wireshark.
+
+Here are the features that stand out:
+
+- parse a handful of everyday protocols such as HTTP, DNS or SIP
+- performs IP reassembly and TCP reordering
+- comes with a tool to match any sequence of network events
+- can be easily extended in C and/or Guile
+
+You might find Junkie interesting if you:
+
+- have to deal with a good amount of IP packets in realtime
+- want to extract some informations
+- want to react on some complex network event
+
+
+=== How does Junkie compare to...
+
+==== Wireshark
+
+Wireshark can completely descramble hundreds of exotic protocols while Junkie 
+only gather the most useful informations of a few. But Junkie can do so in 
+realtime with no interruption on large amount of traffic while Wireshark 
+cannot.
+
+Also, Wireshark can select packets using a simple, stateless language, while 
+Junkie can select packets or a succession of packets using a less simple but 
+stateful language (for instance, with junkie you can select all DNS answers 
+that are received more than 150ms after the corresponding request ; you cannot
+do that with Wireshark).
+
+==== Tcpdump
+
+Tcpdump can only display/save packets. Junkie can do that as well, and much 
+more. But Tcpdump is faster and easier.
+
+==== Netsniff-ng
+
+Netsniff-ng is similar to Junkie in spirit, but lacks:
+
+- custom stateful language to match network events
+- extension language
+
+Disclamer: I never used netsniff-ng
+
+==== Bro
+
+Bro is an extensible sniffer targeted as an IDS. It seams less general
+purpose, yet if your goal is related to security you'd probably make sure you 
+tried Bro before Junkie. Also, Bro seams to have a broader community of users.
+
+Disclamer: I never used bro
+
+== Limitations
+
+As a realtime protocol analyzer, Junkie is limited in what protocols it
+supports and how deep it inspects packets. Here is a quick overview of the
+most blatant limitations:
+
+- Ethernet parser supports Linux cooked capture as a special case (used when
+  capturing on "any" interfaces) and 802.1q vlan tags. All other Ethernet
+  extensions are ignored.
+
+- ARP parser knows only Ethernet and IP addresses.
+
+- DNS parser supports MDNS, NBNS and LLMNR in the extend where these protocols
+  mimic legacy DNS (with the exception that it can unscramble NetBios encoded
+  names).
+
+- FTP connection tracking merely look for PASSV or PORT commands in the TCP
+  stream without much care for the actual protocol.
+
+- Postgresql parser supports only protocol version 3.0 and Mysql parser
+  supports only protocol version 10.  This should cover most of the installed
+  base, though.
+
+- TNS parser (for Oracle databases) was roughly reverse engineered from
+  various sources, especially the wireshark source code. It should thus not
+  be expected to understand all messages in all situations.
+
+- SIP parser implements no proprietary extensions, however prevalent.
+
+- VoIP dialogs are identified by their call-id only, which imply that if
+  the sniffer listens to various independent SIP proxys or servers then
+  call-id collisions can not be ruled out (this choice was made because
+  it proven useful in practice).
+
+
+== Installation
+
+Running configure might tell you that you need:
+
+- guile v2 (2.0.6 recommended)
+- libssl
+- libpcap
+- libltdl (aka libtool runtime lib)
+
+Compiling with GCC is recommended.
+
+Then it's a matter of './configure && make && sudo make install'.
+
+== Design
+
+=== Main flow of execution
+
+Junkie mainly parses packets one after another in order to provide any
+plugin(s) with unscrambled informations instead of raw bytes:
+
+[graphviz]
+-------------------------------------------------------------------------------
+digraph G {
+    libpcap -> junkie [label=" packets"]
+    junkie -> plugins [label=" infos + packets"]
+}
+-------------------------------------------------------------------------------
+
+More precisely, junkie will pass each packet into a sequence of specialized
+parsers, reassembling/reordering in the process and extracting the most
+useful informations along the way into simple C structures where the plugin
+can easily get them. Here is an example showing the parsing of an HTTP packet:
+
+[graphviz]
+-------------------------------------------------------------------------------
+digraph G {
+    libpcap -> junkie
+    node [ shape=square ]
+    {
+        color=blue
+        junkie -> Cap
+        Cap -> Eth [ label=" + timestamp, wirelen..." ]
+        Eth -> IP [ label=" + MACs, Vlan..." ]
+        IP -> TCP [ label=" + IP addresses..." style=dashed ]
+        TCP -> HTTP [ label=" + ports, options..." style=dashed ]
+    }
+    HTTP -> plugin [ label=" + URL, Host..." style=dashed]
+    {
+        color=blue
+        plugin
+    }
+    junkie [ shape=ellipse ]
+    plugin [ shape=ellipse ]
+}
+-------------------------------------------------------------------------------
+
+where the dashed arrows mean that this call can be deferred until more data is
+available (for IP reassembly, for TCP reordering or for HTTP headers to be complete...)
+
+=== Hooks
+
+There are several hooks here and there for plugins to subscribe to and be sent
+the informations gathered up to there (as well as the whole packet). In
+addition to special purpose hooks implemented by a given parser, all parsers
+have a completion hook (subscribing parsers will be called after the parser
+processed its share of the payload) and there is a global per packet hook that
+will be called once per packet after it's fully parsed.
+
+Plugins receive all the informations gathered along the way in a list of C
+structure chained together and usually stored on the stack, as well as the
+origin packet that was undergoing parsing when the callback was called. It's
+not allowed to modify these data but apart from that can do anything.
+
+Be aware that as junkie uses several threads to parse traffic your plugins are
+required to be reentrant, and that you can not count on the fact that similar
+packets (like the ones of the same TCP socket) will be handled by the same
+thread (junkie makes no such assumption nor attempt to guaranty this).
+
+
+=== Controlling junkie
+
+==== Command line
+
+By default, Junkie loads no plugins nor sniffs any device, thus doing nothing.
+You must use the command line to achieve anything. I will not document the
+command line with too much details here and will mention only the few options
+you're likely to start with; try '--help' later for a comprehensive list of
+options.
+
+The three simplest options are:
+
+- '-i' to sniff from the named interface. For instance, '-i eth0'.
+  You will probably need superuser privileges, though.
+
+- '-r' to read packets from a pcap savefile. For instance, '-r traffic.pcap'.
+
+- '-p' to load a plugin. Junkie comes with a few ones, such as 'dumper.so' so
+  display a short textual description of the packets.
+
+For instance:
+
+    # junkie -i wlan0 -p dumper.so
+    Capture: head_len=48, payload=84, dev_id=0, tv=1343079318s 591221us
+    Ethernet: head_len=14, payload=70, vlan_id=-1, source=00:26:5e:0a:d2:b9, dest=00:24:d4:51:59:2c, proto=2048
+    IPv4: head_len=20, payload=50, version=4, addr=192.168.0.18->192.168.0.254, proto=UDP, ttl=64, frag=DontFrag, id=0x4a1b, Class=0:NonECT
+    UDP: head_len=8, payload=42, ports=57312->53
+    DNS: head_len=42, payload=0, QUERY, tx_id=659, err_code=0, request_type=A, dns_class=IN, name=ssl.google-analytics.com
+    
+    Capture: head_len=48, payload=84, dev_id=0, tv=1343079318s 591614us
+    Ethernet: head_len=14, payload=70, vlan_id=-1, source=00:26:5e:0a:d2:b9, dest=00:24:d4:51:59:2c, proto=2048
+    IPv4: head_len=20, payload=50, version=4, addr=192.168.0.18->192.168.0.254, proto=UDP, ttl=64, frag=DontFrag, id=0x4a1c, Class=0:NonECT
+    UDP: head_len=8, payload=42, ports=57312->53
+    DNS: head_len=42, payload=0, QUERY, tx_id=30270, err_code=0, request_type=AAAA, dns_class=IN, name=ssl.google-analytics.com
+    
+    ...
+
+Notice that you can open as many interfaces and/or files as you wish and
+that Junkie will process them all at once.
+
+Although you can use a plugin to perform anything, this is not the way you
+will want to run Junkie, though. Instead, you will want to use its extension
+language (Guile) to control the sniffer from the inside.
+
+==== Taking full control with Guile
+
+Junkie is linked with the Guile Scheme implementation and roughly a hundred of
+parameters/functions are available from there. Also, additional
+functionalities are merely implemented in scheme as separate threads (SNMP
+subagent, Web server, control socket...) You can of course add your own.
+
+So you'd probably want to run Junkie with either the '-c' (load and execute a
+Guile file) or the '-e' options (execute the given command).
+
+Actually, all command line parameters are scheme commands in disguise
+(for instance, '-c file' is translated into '-e (load "file")').
+
+Let's try it:
+
+    $ junkie -e "(define (fact n) (if (equal? n 0) 1 (* n (fact (- n 1)))))" \
+             -e "(display (fact 100))" \
+             -e "(newline)"
+    93326215443944152681699238856266700490715968264381621468592963895217599993229915608941463976156518286253697920827223758251185210916864000000000000000000000000
+
+Ok not very useful but notice how command line arguments are
+processed from first to last. For something more entertaining try:
+
+    $ sudo junkie -e "(start-repl-server)" &
+    $ rlwrap telnet localhost 29000
+    Trying 127.0.0.1...
+    Connected to localhost.
+    Escape character is '^]'.
+    junkie>
+
+Yes this prompt is Junkie waiting for more orders. Go ahead:
+
+    junkie> (open-iface "eth0" #t "udp port 53")
+    "eth0"
+    junkie> (iface-stats "eth0")
+    ((id . 0)
+     (nb-packets . 56)
+     (nb-duplicates . 0)
+     (tot-received . 56)
+     (tot-dropped . 0)
+     (nb-cap-bytes . 5898)
+     (nb-wire-bytes . 5898)
+     (file? . #f)
+     (filter . "udp port 53"))
+
+Here we opened device "eth0" (like we did earlier with the command line
+parameter '-i') but with the additional argument specifying that we want
+to turn the device in promiscuous mode and filter received packets through
+the BPF filter "udp port 53" (same libpcap as Tcpdump, thus same BPF filters
+syntax). When in doubt, ask for help:
+
+    junkie> (help "open-iface")
+    (open-iface "iface-name"): open the given iface, and set it in promiscuous mode.
+    (open-iface "iface-name" #f): open the given iface without setting it in promiscuous mode.
+    (open-iface "iface-name" #t "filter"): open the given iface in promiscuous mode,
+        with the given packet filter.
+    (open-iface "iface-name" #t "filter" 90): same as above, but capture only the first
+        90 bytes of each packet. Use 0 for all bytes (the default).
+    (open-iface "iface-name" #t "[filter]" 90 (* 10 1024 1024)): same as above, using
+        a buffer size of 10Mb (instead of system default).
+    Will return #t or #f depending on the success of the operation.
+    See also (? 'list-ifaces) to have a list of all openable ifaces,
+        and (? 'close-iface) to close a given iface
+
+
+You got the idea (or you need
+http://www.gnu.org/software/guile/manual/html_node/index.html[a quick
+refresher about Scheme syntax]).
+
+Notice that you don't want to keep this 29000 server _running as root and
+executing any scheme command_ any longer.
+
+The following sections suppose you are somewhat familiar with Scheme and
+Guile.
+
+
+=== Netmatch language
+
+Junkie comes with a language that one can use to match individual packets,
+protocol events or sequence of events. Its syntax is similar to scheme
+for easier parsing (it should be easy to add a front-end later for another
+syntax more similar to wireshark one). It's compiled to native code through
+C thanks to 'gcc' (which is then mandatory to use the feature).
+
+The basic principle is to supply expressions that are applied to each packet
+(more precisely to each protocolar information stack extracted from the stream
+of packets).
+
+A match expression consists of two parts:
+
+- a filter on the protocol stack,
+- an expression, using the informations gathered by the selected protocols,
+returning a boolean value.
+
+==== Selecting a protocol stack
+
+The filter on the protocol stack consists of a mere list (in Scheme) of
+protocol names.  For instance:
+
+    '(cap ip http)
+
+matches any protocol stack with HTTP within IP within Cap ('Cap' is for
+Capture, the virtual protocol representing the sniffing of packet with
+libpcap, thus all protocol stack always start with Cap). It's allowed to have
+other protocols than that to match this filter, but you must have Cap followed
+by IP followed by HTTP. For instance, both 'Cap/Eth/IP/TCP/HTTP' and
+'Cap/Eth/IP/GRE/IP/TCP/HTTP' matches this filter, while 'Cap/Eth/IP/TCP' does
+not.
+
+In case where the same protocol appears several time (such as in our previous
+example with the sequence 'IP/GRE/IP') then the selected protocol will be the
+inner one.
+
+Notice that protocol names being scheme symbols the list must be quoted.
+
+==== Boolean expression
+
+The boolean expression is again a scheme-like expression that can use the
+informations gathered from the selected protocols (such as 'http.url' or
+'ip.src'), combine them with the usual arithmetic/logic operators (and a few
+additional functions), and yield a boolean value.
+
+==== Examples
+
+Rather than giving a comprehensive grammar, here are a few valid examples,
+using the writer plugin:
+
+    junkie -i eth0 -p writer.so --method csv --file /dev/stdout --netmatch "'(tcp) '(tcp.src-port == 80)"
+    Capture{head_len=48, payload=1518, dev_id=0, tv=1323766041s 448146us}/Ethernet{head_len=18, payload=1500, vlan_id=-1, source=b4:a4:e3:4d:5c:01, dest=88:43:e1:1d:6d:01, proto=2048}/IPv4{head_len=20, payload=1480, version=4, addr=193.51.224.41->134.206.18.234 (hashed the other way), proto=TCP, ttl=59, frag=DontFrag, id=0x50bc, Class=0:NonECT}/TCP{head_len=32, payload=1448, ports=80->58731, flags=Ack, win=232, ack=2700930991, seq=418183969, urg=0, opts=nop,nop,8}
+    Capture{head_len=48, payload=1518, dev_id=0, tv=1323766041s 448149us}/Ethernet{head_len=18, payload=1500, vlan_id=-1, source=b4:a4:e3:4d:5c:01, dest=88:43:e1:1d:6d:01, proto=2048}/IPv4{head_len=20, payload=1480, version=4, addr=193.51.224.41->134.206.18.234 (hashed the other way), proto=TCP, ttl=59, frag=DontFrag, id=0x50bd, Class=0:NonECT}/TCP{head_len=32, payload=1448, ports=80->58731, flags=Ack, win=232, ack=2700930991, seq=418185417, urg=0, opts=nop,nop,8}
+    ...
+
+    junkie -i eth0 -p writer.so --method csv --file /dev/stdout --netmatch "'(ip udp) '(not (routable? ip.dst))"
+    Capture{head_len=48, payload=96, dev_id=0, tv=1323766044s 486570us}/Ethernet{head_len=18, payload=78, vlan_id=-1, source=88:43:e1:1d:6d:01, dest=b4:a4:e3:4d:5c:01, proto=2048}/IPv4{head_len=20, payload=58, version=4, addr=134.206.57.39->169.254.31.38, proto=UDP, ttl=126, frag=NoFrag, id=0x55c2, Class=0:NonECT}/UDP{head_len=8, payload=50, ports=2008->161}
+    Capture{head_len=48, payload=629, dev_id=0, tv=1323766044s 706148us}/Ethernet{head_len=18, payload=611, vlan_id=-1, source=88:43:e1:1d:6d:01, dest=b4:a4:e3:4d:5c:01, proto=2048}/IPv4{head_len=20, payload=591, version=4, addr=134.206.80.237->192.168.84.2, proto=UDP, ttl=61, frag=NoFrag, id=0x77a9, Class=0:NonECT}/UDP{head_len=8, payload=583, ports=60748->3052}
+    ...
+
+
+=== Nettrack language
+
+Using netmatch language one can build a finite state machine with match
+expressions as edges. Together with the ability to save some values from state
+to state, and the ability to execute arbitrary code when entering a vertex,
+one can track any succession of network events.
+
+Here is an example, printing all DNS queries which answer is seen more than
+150ms after the query (detailed explanations follow):
+
+    (use-modules ((junkie netmatch nettrack) :renamer (symbol-prefix-proc 'nt:)))
+    (define slow-dns (nt:compile "slow-dns"
+      '(; registers
+        [(client-ip ip)
+         (server-ip ip)
+         (qry-start timestamp)
+         (qry-stop timestamp)
+         (qry-name str)]
+        ; vertices
+        [(dns-slow-answer
+           (on-entry (pass "printf(\"%s\\t%s\\t%s\\t%\"PRIuPTR\"\\t%s\\n\",
+                            ip_addr_2_str(" client-ip "), ip_addr_2_str(" server-ip "),
+                            timeval_2_str(" qry-start "),
+                            " (timestamp-sub qry-stop qry-start) ", " qry-name ");\n")))
+         (dns-query
+           (index-size 1024))]
+        ; edges
+        [(root dns-query
+            (match (cap ip dns) (if dns.query
+                                  (do
+                                    (client-ip := ip.src)
+                                    (server-ip := ip.dst)
+                                    (txid := dns.txid)
+                                    (qry-name := dns.name)
+                                    (qry-start := cap.ts)
+                                    #t)))
+            (dst-index-on () txid)
+            spawn)
+         (dns-query dns-fast-answer
+            (match (cap ip dns) (if
+                                  (and
+                                    (ip.src == server-ip)
+                                    (ip.dst == client-ip)
+                                    (dns.txid == txid))
+                                  (do
+                                    (qry-stop := cap.ts)
+                                    #t)))
+            (src-index-on (dns) dns.txid))
+         (dns-query dns-slow-answer
+            (match (cap ip dns) (if
+                                  (and
+                                    (ip.src == server-ip)
+                                    (ip.dst == client-ip)
+                                    (dns.txid == txid)
+                                    ((timestamp-sub cap.ts qry-start) > 150000))
+                                  (do
+                                    (qry-stop := cap.ts)
+                                    #t)))
+            (src-index-on (dns) dns.txid))])))
+
+You can see there are three sections:
+
+- the register file, where some variable and their type can be declared explicitely,
+- the vertex definitions, to set the non-default parameters for the vertices,
+- the edge list, with the source and destination vertices followed by the transition condition.
+
+==== Registers
+
+You can bind any value to any register using the ':=' operator. Each register
+has a type which is checked along the compilation, amongst unsigned
+integer ('uint'), boolean ('bool'), timestamp ('timestamp'), ip address
+('ip'), ethernet address ('mac'), string ('str'), array of bytes ('bytes')...
+Type inference being quite limited it is often required to declare the
+register types, thus this special declaration section.
+
+In the above example we declare all the register we'll use: client-ip and
+server-ip (as 'ip'), qry-start and qry-stop (as 'timestamp') and qry-name (as
+'str').
+
+==== Vertices
+
+As declaring register is not (always) mandatory, declaring vertices is also
+optional. You only need to do so when you want to set special attributes.
+Here we declare only two vertices (out of the four used), dns-slow-answer,
+which is the vertex we enter after a delayed answer is received, because we
+want to perform a special action when a state enter this vertex (here, printf
+some of our registers to report the slow DNS queries), and dns-query, to ask
+for an index (more on that later).
+
+==== Edges
+
+Then follow the description of the edges, consisting of: the source vertex,
+the destination vertex, the condition to met for transiting from the former
+to the later, and a set of flags. In the above example, apart from the flags
+controlling the use of the index ('src-index-on' and 'dst-index-on'), which
+explanation will came later, the only flag used is 'spawn', which means that
+instead of leaving the source vertex we should instead *spawn* a new state in
+the destination vertex (with a copy of the original registers).
+
+This is important to notice that the conditions will be checked from the last
+edge to the first; the idea is that it's more natural to describe the graph
+from the 'root' vertex while it's generally more useful to have the leaves
+tested before the root.
+
+So the above example could be schematically represented as:
+
+[graphviz]
+-------------------------------------------------------------------------------
+digraph G {
+    root -> "dns-query" [ style=dashed label="3) on any DNS,\l saving the query identifiers" ]
+    "dns-query" -> "dns-fast-answer" [ label="2) if match the\l saved identifiers" ]
+    "dns-query" -> "dns-slow-answer" [ label="1) if match the\l saved identifiers\l and DT > 150ms" ]
+}
+-------------------------------------------------------------------------------
+
+==== Step by step explanation of the example
+
+Initially, a single state will be created in the vertex named 'root'.
+
+Then, for each packet Junkie will check each edges in turn (starting for the
+last one aka the deepest). After some time, a DNS query will be met, which is
+the only criteria to satisfy the condition to spawn a new state from root to
+dns-query. Additionally, some parameters of this event will be saved in
+registers: IP addresses, DNS transaction id, queried name and timestamp of the
+packet (notice how timestamp is an information provided by the fake 'Capture'
+protocol).
+
+Eventually, before this request is answered, others DNS queries will be met,
+leading to other new states (with different registers) spawned in dns-query.
+
+After some more time another DNS message is received with same transaction-id
+than the one in register 'txid', same source IP address as server-ip and same
+destination address as client-ip of the first register file we spawned in
+dns-query state. Junkie will first check the third edge (from dns-query to
+dns-slow-answer).
+
+Let's say this packet timestamp is such that the fourth term
+of the 'and' holds as well (ie. slow answer) then the whole condition yields
+true, and the state (aka the register file, really) is removed from dns-query
+and moved into dns-slow-query. As set by the 'on-entry' directive, the printf
+is executed and a line with all this DNS transaction parameters is printed.
+Then, the state is dismissed (since the dns-slow-answer is a leaf state).
+
+If, on the contrary, the answer timestamp was close enough to the one saved in
+qry-start, then the condition would yield false, and Junkie would have tried
+the next edge, from dns-query to dns-fast-answer. This time the register file
+would have met all requirement and would have been moved into dns-fast-answer
+where it then would have been dismissed for the same reason, but this time
+quietly.
+
+==== Let's try
+
+Go ahead and run Junkie (with the repl-server), then copy-paste the above
+definition of slow-dns, followed by:
+
+    (nettrack-start slow-dns)
+
+which will effectively start match your graph against the sniffed traffic (you
+may see some warning emmited from 'gcc' but that's ok). Try to query various
+DNS servers located far away and you should see some dump of the slow queries
+on Junkie's stdout.
+
+Some ideas of what can be done with this:
+
+- log every transactions based on any criterion such as response time
+- control your firewall to ban clients on successive 404 HTTP errors
+- or to open some ports after some complex port-knocking scheme was detected
+- save all packets between such and such events
+- ...!
+
+

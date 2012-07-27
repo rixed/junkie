@@ -32,42 +32,6 @@ Junkie is still being maintained and extended by SecurActive dedicated team
 but we believe it can be further extended to fulfill many unforeseen purposes.
 
 
-Limitations
-===========
-
-As a realtime protocol analyzer, Junkie is limited in what protocols it
-supports and how deep it inspects packets. Here is a quick overview of the
-most blatant limitations:
-
-- Ethernet parser supports Linux cooked capture as a special case (used when
-  capturing on "any" interfaces) and 802.1q vlan tags. All other Ethernet
-  extensions are ignored.
-
-- ARP parser knows only Ethernet and IP addresses.
-
-- DNS parser supports MDNS, NBNS and LLMNR in the extend where these protocols
-  mimic legacy DNS (with the exception that it can unscramble NetBios encoded
-  names).
-
-- FTP connection tracking merely look for PASSV or PORT commands in the TCP
-  stream without much care for the actual protocol.
-
-- Postgresql parser supports only protocol version 3.0 and Mysql parser
-  supports only protocol version 10.  This should cover most of the installed
-  base, though.
-
-- TNS parser (for Oracle databases) was roughly reverse engineered from
-  various sources, especially the wireshark source code. It should thus not
-  be expected to understand all messages in all situations.
-
-- SIP parser implements no proprietary extensions, however prevalent.
-
-- VoIP dialogs are identified by their call-id only, which imply that if
-  the sniffer listens to various independent SIP proxys or servers then
-  call-id collisions can not be ruled out (this choice was made because
-  it proven useful in practice).
-
-
 Todo
 ====
 

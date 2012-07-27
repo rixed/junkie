@@ -90,5 +90,6 @@ AC_CONFIG_FILES([
 	guile/junkie/writer/Makefile
 	guile/junkie/netmatch/Makefile
 	tests/Makefile
+	doc/Makefile
 ])
 AC_OUTPUT

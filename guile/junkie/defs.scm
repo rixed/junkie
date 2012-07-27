@@ -27,12 +27,11 @@
 (export-syntax slog)
 
 ; This one might be usefull to display all help available
-(define-public (help)
+(define-public (help . args)
   (for-each (lambda (l)
-              (display "------------------\n")
-              (display l)
-              (newline))
-            (?)))
+              (display l)(newline)
+              (display "------------------\n"))
+            (apply ? args)))
 
 
 ; Start a server that executes anything (from localhost only)
