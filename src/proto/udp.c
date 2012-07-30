@@ -185,6 +185,10 @@ static enum proto_parse_status udp_parse(struct parser *parser, struct proto_inf
     if (! subparser) goto fallback;
 
     enum proto_parse_status status = proto_parse(subparser->parser, &info.info, way, packet + sizeof(*udphdr), cap_len - sizeof(*udphdr), wire_len - sizeof(*udphdr), now, tot_cap_len, tot_packet);
+    if (status == PROTO_PARSE_ERR) {
+        SLOG(LOG_DEBUG, "No suitable subparser for this payload");
+        mux_subparser_deindex(subparser);
+    }
     mux_subparser_unref(subparser);
     if (status == PROTO_OK) return PROTO_OK;
 

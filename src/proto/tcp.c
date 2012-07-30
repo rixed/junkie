@@ -479,8 +479,12 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
     bool const term = tcp_subparser_term(tcp_sub);
     mutex_unlock(&tcp_sub->mutex);
 
-    if (term) {
-        SLOG(LOG_DEBUG, "TCP cnx terminated (was %s)", parser_name(subparser->parser));
+    if (term || err == PROTO_PARSE_ERR) {
+        if (term) {
+            SLOG(LOG_DEBUG, "TCP cnx terminated (was %s)", parser_name(subparser->parser));
+        } else {
+            SLOG(LOG_DEBUG, "No suitable subparser for this payload");
+        }
         mux_subparser_deindex(subparser);
     }
     mux_subparser_unref(subparser);

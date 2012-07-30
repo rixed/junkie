@@ -103,42 +103,6 @@ static void parse_check(void)
     parser_unref(tcp_parser);
 }
 
-/*
- * Termination check.
- * Make sure that we have 1 subparser until the stream is over, then 0
- */
-
-static void term_check(void)
-{
-    struct timeval now;
-    timeval_set_now(&now);
-    struct tcp_stream stream;
-    assert(0 == tcp_stream_ctor(&stream, 5000, 2000, 3306 /* mysql */));
-
-    struct parser *tcp_parser = proto_tcp->ops->parser_new(proto_tcp);
-    assert(tcp_parser);
-    struct mux_parser *mux_parser = DOWNCAST(tcp_parser, parser, mux_parser);
-
-    bool first = true;
-    ssize_t sz;
-    unsigned way;
-    while (0 < (sz = tcp_stream_next(&stream, &way))) {
-        // check we have 1 subparser (or 0 at first)
-        assert(first || mux_parser->nb_children == 1);
-        first = false;
-
-        int ret = tcp_parser->proto->ops->parse(tcp_parser, NULL, way, stream.packet + 20 /* skip ip */, sz - 20, sz - 20, &now, sz, stream.packet);
-        assert(0 == ret);
-    }
-    assert(sz == 0);
-
-    assert(mux_parser->nb_children == 0);
-
-    parser_unref(tcp_parser);
-
-    tcp_stream_dtor(&stream);
-}
-
 int main(void)
 {
     log_init();
@@ -159,7 +123,6 @@ int main(void)
     log_set_file("tcp_check.log");
 
     seqnum_test();
-    term_check();
     parse_check();
     stress_check(proto_tcp);
 
