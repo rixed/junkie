@@ -1,0 +1,9 @@
+# vim:filetype=make
+
+SUFFIXES = .scm .go
+
+GUILE_WARNINGS = -Wunbound-variable -Warity-mismatch -Wformat
+
+.scm.go:
+	GUILE_LOAD_PATH=$(top_srcdir)/guile:$(GUILE_LOAD_PATH) guile-tools compile $(GUILE_WARNINGS) -o "$@" "$<"
+

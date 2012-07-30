@@ -228,7 +228,7 @@ static enum proto_parse_status sdp_parse(struct parser *parser, struct proto_inf
                 0 != ip_addr_cmp(&sdp_parser->sender, &sdp_parser->host),
                 ip && 0 != ip_addr_cmp(&ip->key.addr[0], &info.host),
             };
-            // If the sender IP was different from the advertized host, start conntracking on this socket also
+            // If the sender IP was different from the advertized host, start conntracking on this socket too
             if (may_use_stun[0]) {
                 spawn_subparsers(&sdp_parser->sender, sdp_parser->port, &info.host, info.port, now, parent->parser->proto);
             }

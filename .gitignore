@@ -10,6 +10,7 @@ Makefile
 Makefile.in
 *.lo
 *.la
+*.go
 .deps
 .libs
 config.guess
