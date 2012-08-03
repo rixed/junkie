@@ -89,11 +89,12 @@
     (string-append "new_regfile[nm_reg_" regname "__].value")
     (cons regname (stub-regnames value))))
 
-(define (boxed-ref regname)
-  (make-stub
-    ""
-    (string-append "prev_regfile[nm_reg_" regname "__].value")
-    (list regname)))
+(define (boxed-ref c-type)
+  (lambda (regname)
+    (make-stub
+      ""
+      (string-append "(("c-type" *)prev_regfile[nm_reg_" regname "__].value)")
+      (list regname))))
 
 (define (boxed-bind regname value)
   (make-stub
@@ -262,7 +263,7 @@
             "    char const *" res " = " proto "->" field ";\n")
           res
           '())))
-    boxed-ref
+    (boxed-ref "char")
     (lambda (regname value) ; bind needs special attention since sizeof(*res) won't work, we need strlen(*res)+1
       (let ((tmp (gensymC "strbind")))
         (make-stub
@@ -340,7 +341,7 @@
             "    struct timeval const *" res " = &" proto "->" field ";\n")
           res
           '())))
-    boxed-ref
+    (boxed-ref "struct timeval")
     boxed-bind))
 
 (export timestamp)
@@ -365,7 +366,7 @@
             "    struct ip_addr const *" res " = &" proto "->" field ";\n")
           res
           '())))
-    boxed-ref
+    (boxed-ref "struct ip_addr")
     boxed-bind))
 
 (export ip)
@@ -394,10 +395,10 @@
       (let* ((res (gensymC (string-append (string->C-ident field) "_field"))))
         (make-stub
           (string-append
-            "    char const (*" res ")[ETH_ADDR_LEN] = &" proto "->" field ";\n")
+            "    unsigned char const (*" res ")[ETH_ADDR_LEN] = &" proto "->" field ";\n")
           res
           '())))
-    boxed-ref
+    (boxed-ref "unsigned char")
     boxed-bind))
 
 (export mac)
@@ -704,7 +705,7 @@
                (make-stub
                  (string-append
                    (stub-code ip)
-                   "    uint32_t " res " = hashlittle(" (stub-result ip) ", sizeof(struct ip_addr), 0x432317F5U);\n")
+                   "    uint32_t " res " = hashlittle((void *)" (stub-result ip) ", sizeof(struct ip_addr), 0x432317F5U);\n")
                  res
                  (stub-regnames ip))))))
 
@@ -724,7 +725,7 @@
                  (string-append
                    (stub-code mac1)
                    (stub-code mac2)
-                   "    bool " res " = 0 == memcmp(" (stub-result mac1) ", " (stub-result mac2) ", ETH_ADDR_LEN);\n")
+                   "    bool " res " = 0 == memcmp((void *)" (stub-result mac1) ", (void *)" (stub-result mac2) ", ETH_ADDR_LEN);\n")
                  res
                  (append (stub-regnames mac1) (stub-regnames mac2)))))))
 
@@ -740,7 +741,7 @@
                (make-stub
                  (string-append
                    (stub-code mac)
-                   "    uint32_t " res " = hashlittle(" (stub-result mac) ", ETH_ADDR_LEN, 0x432317F5U);\n")
+                   "    uint32_t " res " = hashlittle((void *)" (stub-result mac) ", ETH_ADDR_LEN, 0x432317F5U);\n")
                  res
                  (stub-regnames mac))))))
 

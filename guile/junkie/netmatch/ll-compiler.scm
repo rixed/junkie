@@ -34,6 +34,7 @@
                  "#include <junkie/tools/ip_addr.h>\n"
                  "#include <junkie/tools/timeval.h>\n"
                  "#include <junkie/tools/ip_addr.h>\n"
+                 "#include <junkie/tools/jhash.h>\n"
                  "#include <junkie/proto/proto.h>\n"
                  ,@(map (lambda (proto) (string-append "#include <junkie/proto/" (symbol->string proto) ".h>\n")) (headers-for *all-protos*))
                  "\n\n")))
