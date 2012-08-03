@@ -10,7 +10,13 @@ SCM = \
 
 GOBJECTS = $(SCM:%.scm=%.go)
 
-dist_guilelib_DATA = $(SCM) $(GOBJECTS)
+dist_guilelib_DATA = $(SCM)
+
+guilecachedir = @GUILECACHEDIR@/junkie/netmatch
+dist_guilecache_DATA = $(GOBJECTS)
+
+install_go_files = install-dist_guilecacheDATA
+$(install_go_files): install-dist_guilelibDATA
 
 distclean-local:
 	@rm -f $(GOBJECTS)

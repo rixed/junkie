@@ -58,6 +58,9 @@ AC_DEFINE_UNQUOTED([CPU_MAX], [$CPU_MAX], [Approx of max number of available CPU
 DEFAULT_GUILELIBDIR="$(guile-config info sitedir)"
 AC_ARG_VAR([GUILELIBDIR], [Where to install guile modules [wherever guile-config says]])
 AS_IF([test "x$GUILELIBDIR" = x], [if test -n "$DEFAULT_GUILELIBDIR"; then GUILELIBDIR="$DEFAULT_GUILELIBDIR"; else exit 1; fi])
+DEFAULT_GUILECACHEDIR="$(guile -c '(display (car (last-pair %load-compiled-path)))')"
+AC_ARG_VAR([GUILECACHEDIR], [Where to install guile compiled files])
+AS_IF([test "x$GUILECACHEDIR" = x], [if test -n "$DEFAULT_GUILECACHEDIR"; then GUILECACHEDIR="$DEFAULT_GUILECACHEDIR"; else exit 1; fi])
 
 AC_ARG_VAR([CONFDIR], [Where to store configuration files [SYSCONFDIR/junkie]])
 AS_IF([test "x$CONFDIR" = x], [CONFDIR="$sysconfdir/junkie"])
