@@ -7,7 +7,8 @@
              ((junkie netmatch types) :renamer (symbol-prefix-proc 'type:))
              ((junkie netmatch ll-compiler) :renamer (symbol-prefix-proc 'll:))
              (junkie tools)
-             (junkie defs)) ; thus, junkie runtime as well
+             (junkie defs)
+             (junkie runtime)) ; thus, junkie runtime as well
 
 ;;; This takes terse expressions like:
 ;;;
