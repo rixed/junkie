@@ -135,7 +135,7 @@
                                 (set! match-func (netmatch:function->stub type:bool protos expr #f))
                                 ; Would fail if no protos are given, since we use this to register a callback
                                 (if (not (null? protos))
-                                    (set! proto-code (car protos)))]
+                                    (set! proto-code (car (last-pair protos))))]
                                [('older n)
                                 (set! min-age n)]
                                [('src-index-on protos expr)
