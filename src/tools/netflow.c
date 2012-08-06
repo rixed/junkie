@@ -156,7 +156,7 @@ int netflow_listen(char const *service, int (*cb)(struct ip_addr const *, struct
     int err = -1;
 
     struct sock sock;
-    if (0 != sock_ctor_server(&sock, service)) return -1;
+    if (0 != sock_ctor_server(&sock, false, service)) return -1;
 
     while (sock_is_opened(&sock)) {
         uint8_t buf[MAX_NETFLOW_PDU];

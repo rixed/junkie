@@ -295,9 +295,9 @@ static void *deserializer_thread(void *deser_)
 }
 
 
-static int deserializer_ctor(struct deserializer *deser, char const *service)
+static int deserializer_ctor(struct deserializer *deser, bool local, char const *service)
 {
-    if (0 != sock_ctor_server(&deser->sock, service)) return -1;
+    if (0 != sock_ctor_server(&deser->sock, local, service)) return -1;
 
     deser->running = false;
     LIST_INIT(&deser->sources);
@@ -314,12 +314,12 @@ static int deserializer_ctor(struct deserializer *deser, char const *service)
     return 0;
 }
 
-static struct deserializer *deserializer_new(char const *service)
+static struct deserializer *deserializer_new(char const *service, bool local)
 {
     struct deserializer *deser = objalloc(sizeof(*deser), "deserializers");
     if (! deser) return NULL;
 
-    if (0 != deserializer_ctor(deser, service)) {
+    if (0 != deserializer_ctor(deser, local, service)) {
         objfree(deser);
         return NULL;
     }
@@ -351,7 +351,7 @@ static void deserializer_del(struct deserializer *deser)
 }
 
 static struct ext_function sg_open_deserializer;
-static SCM g_open_deserializer(SCM port_)
+static SCM g_open_deserializer(SCM port_, SCM local_)
 {
     SCM ret = SCM_BOOL_F;
     scm_dynwind_begin(0);
@@ -365,7 +365,9 @@ static SCM g_open_deserializer(SCM port_)
         }
     }
 
-    struct deserializer *deser = deserializer_new(service);
+    bool local = SCM_BNDP(local_) ? scm_to_bool(local_) : false;
+
+    struct deserializer *deser = deserializer_new(service, local);
     if (deser) {
         ret = scm_from_latin1_string(deser->sock.name);
     }
@@ -470,7 +472,7 @@ void serialize_init(void)
     LIST_INIT(&deserializers);
 
     ext_function_ctor(&sg_open_deserializer,
-        "open-deserializer", 0, 1, 0, g_open_deserializer,
+        "open-deserializer", 0, 2, 0, g_open_deserializer,
         "(open-deserializer): listen on default port (" SERIALIZER_DEFAULT_SERVICE ") and supply received frames info to local plugins.\n"
         "(open-deserializer 28100): listen on alternate port.\n"
         "Will return the name of the deserializer or #f if the operation fails.\n"

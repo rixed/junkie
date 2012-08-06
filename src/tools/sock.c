@@ -22,17 +22,69 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
-#include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netdb.h>
-#include "junkie/tools/log.h"
 #include "junkie/tools/sock.h"
+#include "junkie/tools/log.h"
+#include "junkie/tools/files.h"
 
 #undef LOG_CAT
 #define LOG_CAT sock_log_category
 LOG_CATEGORY_DEF(sock);
 
-int sock_ctor_client(struct sock *s, char const *host, char const *service)
+static int snprint_un_path(char *dest, size_t max_size, char const *service, char const *tag)
+{
+    return snprintf(dest, max_size, "/tmp/local.%s.%s", service, tag);
+}
+
+static int sock_ctor_unix_client(struct sock *s, char const *service)
+{
+    SLOG(LOG_DEBUG, "Construct client sock to UNIX local %s", service);
+
+    s->fd = socket(AF_UNIX, SOCK_DGRAM, 0);
+    if (s->fd < 0) {
+        SLOG(LOG_ERR, "Cannot socket() to UNIX local domain: %s", strerror(errno));
+        return -1;
+    }
+
+    struct sockaddr_un local;
+/*    memset(&local, 0, sizeof(local));
+    local.sun_family = AF_UNIX;
+    (void)snprint_un_path(local.sun_path, sizeof(local.sun_path), service, "clt");
+    if (0 != bind(s->fd, (struct sockaddr *)&local, sizeof(local))) {
+        SLOG(LOG_ERR, "Cannot bind() client UNIX path: %s", strerror(errno));
+error:
+        (void)close(s->fd);
+        s->fd = -1;
+        return -1;
+    }
+
+    s->local = true;
+    snprintf(s->name, sizeof(s->name), "%s", local.sun_path);*/
+
+    memset(&local, 0, sizeof(local));
+    local.sun_family = AF_UNIX;
+    (void)snprint_un_path(local.sun_path, sizeof(local.sun_path), service, "srv");
+    s->srv_family = AF_UNIX;
+    s->srv_addrlen = sizeof(local);
+    memcpy(&s->srv_addr, &local, s->srv_addrlen);
+
+    if (0 != connect(s->fd, &s->srv_addr.gen, s->srv_addrlen)) {
+        SLOG(LOG_ERR, "Cannot connect(): %s", strerror(errno));
+        (void)close(s->fd);
+        s->fd = -1;
+        return -1;
+    }
+
+    s->local = true;
+    s->is_server = false;
+    snprintf(s->name, sizeof(s->name), "%s", local.sun_path);
+
+    SLOG(LOG_INFO, "Connected to %s via %s", service, local.sun_path);
+    return 0;
+}
+
+int sock_ctor_udp_client(struct sock *s, char const *host, char const *service)
 {
     int res = -1;
     SLOG(LOG_DEBUG, "Construct sock to %s.%s", host, service);
@@ -51,6 +103,9 @@ int sock_ctor_client(struct sock *s, char const *host, char const *service)
         return -1;
     }
 
+    s->local = false;
+    s->is_server = false;
+
     for (struct addrinfo *info_ = info; info_; info_ = info_->ai_next) {
         memset(&s->srv_addr, 0, sizeof(s->srv_addr));
         memcpy(&s->srv_addr, info_->ai_addr, info_->ai_addrlen);
@@ -58,7 +113,7 @@ int sock_ctor_client(struct sock *s, char const *host, char const *service)
         s->srv_family = info_->ai_family;
 
         char addr[256], srv[256];
-        err = getnameinfo(&s->srv_addr, s->srv_addrlen, addr, sizeof(addr), srv, sizeof(srv), NI_DGRAM|NI_NOFQDN|NI_NUMERICSERV|NI_NUMERICHOST);
+        err = getnameinfo(&s->srv_addr.gen, s->srv_addrlen, addr, sizeof(addr), srv, sizeof(srv), NI_DGRAM|NI_NOFQDN|NI_NUMERICSERV|NI_NUMERICHOST);
         if (! err) {
             snprintf(s->name, sizeof(s->name), "%s@%s.%s", info->ai_canonname, addr, srv);
         } else {
@@ -74,12 +129,10 @@ int sock_ctor_client(struct sock *s, char const *host, char const *service)
         }
 
         // try to connect
-        int cfd = connect(s->fd, &s->srv_addr, s->srv_addrlen);
-        if (cfd < 0) {
+        if (0 != connect(s->fd, &s->srv_addr.gen, s->srv_addrlen)) {
             SLOG(LOG_WARNING, "Cannot connect(): %s", strerror(errno));
             continue;
         }
-        (void)close(cfd);
 
         res = 0;
         break;  // go with this one
@@ -89,7 +142,47 @@ int sock_ctor_client(struct sock *s, char const *host, char const *service)
     return res;
 }
 
-int sock_ctor_server(struct sock *s, char const *service)
+int sock_ctor_client(struct sock *s, char const *host, char const *service)
+{
+    if (host && host[0] != '\0') return sock_ctor_udp_client(s, host, service);
+    else return sock_ctor_unix_client(s, service);
+}
+
+static int sock_ctor_unix_server(struct sock *s, char const *service)
+{
+    SLOG(LOG_DEBUG, "Construct server sock to UNIX local %s", service);
+
+    struct sockaddr_un local;
+    memset(&local, 0, sizeof(local));
+    local.sun_family = AF_UNIX;
+    (void)snprint_un_path(local.sun_path, sizeof(local.sun_path), service, "srv");
+    (void)file_unlink(local.sun_path);
+    s->srv_family = AF_UNIX;
+    s->srv_addrlen = sizeof(local);
+    memcpy(&s->srv_addr, &local, s->srv_addrlen);
+
+    s->fd = socket(s->srv_family, SOCK_DGRAM, 0);
+    if (s->fd < 0) {
+        SLOG(LOG_ERR, "Cannot socket() to UNIX local domain: %s", strerror(errno));
+        return -1;
+    }
+
+    if (0 != bind(s->fd, &s->srv_addr.gen, sizeof(local))) {
+        SLOG(LOG_ERR, "Cannot bind(): %s", strerror(errno));
+        (void)close(s->fd);
+        s->fd = -1;
+        return -1;
+    }
+
+    s->local = true;
+    s->is_server = true;
+    snprintf(s->name, sizeof(s->name), "%s", local.sun_path);
+
+    SLOG(LOG_INFO, "Connected to %s via %s", service, local.sun_path);
+    return 0;
+}
+
+static int sock_ctor_udp_server(struct sock *s, char const *service)
 {
     int res = -1;
     SLOG(LOG_DEBUG, "Construct sock for serving %s", service);
@@ -106,6 +199,9 @@ int sock_ctor_server(struct sock *s, char const *service)
         return -1;
     }
 
+    s->local = false;
+    s->is_server = true;
+
     for (struct addrinfo *info_ = info; info_; info_ = info_->ai_next) {
         memset(&s->srv_addr, 0, sizeof(s->srv_addr));
         memcpy(&s->srv_addr, info_->ai_addr, info_->ai_addrlen);
@@ -118,7 +214,7 @@ int sock_ctor_server(struct sock *s, char const *service)
             SLOG(LOG_WARNING, "Cannot socket(): %s", strerror(errno));
             continue;
         }
-        if (0 != bind(s->fd, &s->srv_addr, s->srv_addrlen)) {
+        if (0 != bind(s->fd, &s->srv_addr.gen, s->srv_addrlen)) {
             SLOG(LOG_WARNING, "Cannot bind(): %s", strerror(errno));
             (void)close(s->fd);
             s->fd = -1;
@@ -133,6 +229,12 @@ int sock_ctor_server(struct sock *s, char const *service)
     return res;
 }
 
+int sock_ctor_server(struct sock *s, bool local, char const *service)
+{
+    if (! local) return sock_ctor_udp_server(s, service);
+    else return sock_ctor_unix_server(s, service);
+}
+
 void sock_dtor(struct sock *s)
 {
     SLOG(LOG_DEBUG, "Destruct sock %s", s->name);
@@ -140,6 +242,10 @@ void sock_dtor(struct sock *s)
     if (s->fd < 0) return;
     int err = close(s->fd);
     s->fd = -1;
+
+    if (s->local && s->is_server) {
+        (void)file_unlink(s->name);
+    }
 
     if (err) {
         SLOG(LOG_WARNING, "Cannot close socket to %s: %s", s->name, strerror(errno));
@@ -150,7 +256,7 @@ int sock_send(struct sock *s, void const *buf, size_t len)
 {
     SLOG(LOG_DEBUG, "Sending %zu bytes to %s (fd %d)", len, s->name, s->fd);
 
-    if (-1 == sendto(s->fd, buf, len, MSG_DONTWAIT, &s->srv_addr, s->srv_addrlen)) {
+    if (-1 == sendto(s->fd, buf, len, s->local ? 0:MSG_DONTWAIT, &s->srv_addr.gen, s->srv_addrlen)) {
         // FIXME: limit the rate of this error!
         SLOG(LOG_ERR, "Cannot send %zu bytes to %s: %s", len, s->name, strerror(errno));
         return -1;
@@ -173,13 +279,13 @@ ssize_t sock_recv(struct sock *s, void *buf, size_t maxlen, struct ip_addr *send
             SLOG(LOG_ERR, "Cannot set sender address: size too big (%zu > %zu)", (size_t)addrlen, sizeof(src_addr));
             ip_addr_ctor_from_ip4(sender, 0);
         } else {
-            if (0 != ip_addr_ctor_from_sockaddr(sender, &src_addr, addrlen)) {
+            if (s->local || 0 != ip_addr_ctor_from_sockaddr(sender, &src_addr, addrlen)) {
                 ip_addr_ctor_from_ip4(sender, 0);
             }
         }
     }
 
-    SLOG(LOG_DEBUG, "read %zd bytes from %s out of %s", r, sender ? ip_addr_2_str(sender) : "unknown", s->name);
+    SLOG(LOG_DEBUG, "read %zd bytes from %s out of %s", r, sender && !s->local ? ip_addr_2_str(sender) : "unknown", s->name);
     return r;
 }
 
