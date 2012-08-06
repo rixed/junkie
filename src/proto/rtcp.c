@@ -136,7 +136,8 @@ static enum proto_parse_status rtcp_parse(struct parser *parser, struct proto_in
     SLOG(LOG_DEBUG, "version=%u, rec_count=%u", version, rec_count);
     if (rec_count == 0) {
         SLOG(LOG_DEBUG, "Giving up since no record");
-        return 0;  // Don't proceed further if there's no report
+giveup:
+        return proto_parse(NULL, parent, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
     }
 
     int32_t packet_lost = 0;
@@ -152,7 +153,7 @@ static enum proto_parse_status rtcp_parse(struct parser *parser, struct proto_in
             report = (struct rtcp_report_bloc *)rtcphd->info;
             break;
         default:
-            return 0;
+            goto giveup;
     }
 
     if ((ssize_t)len >= (uint8_t *)(report + 1) - packet) {
