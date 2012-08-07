@@ -2,7 +2,7 @@
 
 SUFFIXES = .scm .go
 
-GUILE_WARNINGS = -Wunbound-variable -Warity-mismatch -Wformat
+GUILE_WARNINGS = -Warity-mismatch -Wformat -Wunused-variable -Wduplicate-case-datum -Wbad-case-datum
 
 .scm.go:
 	GUILE_LOAD_PATH=$(top_srcdir)/guile:$(GUILE_LOAD_PATH) guile-tools compile $(GUILE_WARNINGS) -o "$@" "$<"
