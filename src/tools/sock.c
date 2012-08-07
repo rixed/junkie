@@ -285,7 +285,7 @@ ssize_t sock_recv(struct sock *s, void *buf, size_t maxlen, struct ip_addr *send
         }
     }
 
-    SLOG(LOG_DEBUG, "read %zd bytes from %s out of %s", r, sender && !s->local ? ip_addr_2_str(sender) : "unknown", s->name);
+    SLOG(LOG_DEBUG, "read %zd bytes from %s out of %s", r, s->local ? "local" : sender ? ip_addr_2_str(sender) : "unknown", s->name);
     return r;
 }
 
