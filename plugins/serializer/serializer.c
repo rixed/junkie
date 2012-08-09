@@ -98,7 +98,7 @@ static void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info c
 
     ser_init();
 
-    if (! sock_is_opened(sock) || !ser_buf) goto quit;
+    if (! ser_buf) goto quit;
 
     uint8_t *ptr = ser_buf + ser_cursor;
     serialize_1(&ptr, MSG_PROTO_INFO);

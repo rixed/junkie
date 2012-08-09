@@ -254,7 +254,7 @@ static void *deserializer_thread(void *deser_)
 
     deser->running = true;
 
-    while (sock_is_opened(deser->sock)) {
+    while (deser->sock) {
         uint32_t src_id;
         struct deserializer_source *source;
         ssize_t s = deser->sock->ops->recv(deser->sock, buf, sizeof(buf), NULL);

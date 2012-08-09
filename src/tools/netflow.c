@@ -158,7 +158,7 @@ int netflow_listen(char const *service, int (*cb)(struct ip_addr const *, struct
     struct sock *sock = sock_udp_server_new(service);
     if (! sock) return -1;
 
-    while (sock_is_opened(sock)) {
+    while (sock) {
         uint8_t buf[MAX_NETFLOW_PDU];
         struct ip_addr sender;
         ssize_t sz = sock->ops->recv(sock, buf, sizeof(buf), &sender);

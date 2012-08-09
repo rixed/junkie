@@ -3,9 +3,11 @@
 #ifndef SOCK_H_111028
 #define SOCK_H_111028
 #include <limits.h>
+#include <stdbool.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <sys/select.h> // for fd_set
 #include <netinet/in.h>
 #include <junkie/config.h>
 #include <junkie/tools/ip_addr.h>
@@ -22,7 +24,7 @@
  *   Additionally, it will synchronise sender and receiver, which is a feature or not
  * - Files are local only and unidirectional. Also, it's the slowest method, but
  *   messages survive the crash of the sender and receiver so that's more robust.
- *   Note: for files, the client is the writer and the server the reader.
+ *   Note: for files, the clients are the writers and the server the reader.
  *
  * For TCP and files, which are stream oriented, a header is prepended to each messages
  * to indicate their length.
@@ -40,9 +42,10 @@ struct sock {
     struct sock_ops {
         int (*send)(struct sock *, void const *, size_t);
         ssize_t (*recv)(struct sock *, void *, size_t, struct ip_addr *sender);    // sender will be set to 127.0.0.1 for UNIX domain/files sockets
+        int (*set_fd)(struct sock *, fd_set *);  ///< add all selectable fds in this set, return the max
+        bool (*is_set)(struct sock *, fd_set const *);  ///< tells if the fd on which we receive/send message is set
         void (*del)(struct sock *);
     } const *ops;
-    int fd;
     char name[64];
 };
 
@@ -59,10 +62,6 @@ struct sock *sock_unix_server_new(char const *file);
 
 struct sock *sock_file_client_new(char const *file);
 struct sock *sock_file_server_new(char const *file);
-
-// Misc
-
-bool sock_is_opened(struct sock *s);
 
 // Init
 
