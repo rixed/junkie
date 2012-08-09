@@ -20,7 +20,8 @@ struct pkt_source {
     char name[PATH_MAX];            ///< The name to identify this source
     unsigned instance;              ///< If several pkt_source uses the same name (as is frequent), distinguish them with this
     pcap_t *pcap_handle;            ///< The handle for libpcap
-    pthread_t sniffer;              ///< The thread sniffing this device or file
+    pthread_t sniffer_pth;          ///< The thread sniffing this device or file
+    void *(*sniffer_fun)(void *);   ///< The function that's sniffing packet (stored here for convenience)
     uint64_t nb_packets;            ///< Number of packets received from PCAP
     uint64_t nb_duplicates;         ///< Number of which that were duplicates
     uint64_t nb_cap_bytes;          ///< Number of captured bytes from this source

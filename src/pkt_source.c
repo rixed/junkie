@@ -303,17 +303,12 @@ static int set_filter(pcap_t *pcap_handle, char const *filter)
     return 0;
 }
 
-struct start_guile_sniffer_param {
-    struct pkt_source *pkt_source;
-    void *(*sniffer)(void *);
-};
-
 /* We start all sniffer thread in guile mode so that plugins that require guile mode are not
  * forced to enter guile mode packet by packet. */
-static void *start_guile_sniffer(void *param_)
+static void *start_guile_sniffer(void *pkt_source_)
 {
-    struct start_guile_sniffer_param *param = param_;
-    return scm_with_guile(param->sniffer, param->pkt_source);
+    struct pkt_source *pkt_source = pkt_source_;
+    return scm_with_guile(pkt_source->sniffer_fun, pkt_source);
 }
 
 static int pkt_source_ctor(struct pkt_source *pkt_source, char const *name, pcap_t *pcap_handle, void *(*sniffer)(void *), bool is_file, bool patch_ts, uint8_t dev_id, char const *filter, bool loop)
@@ -332,6 +327,7 @@ static int pkt_source_ctor(struct pkt_source *pkt_source, char const *name, pcap
     pkt_source->patch_ts = patch_ts;
     pkt_source->loop = loop;
     pkt_source->filter = filter ? objalloc_strdup(filter) : NULL;
+    pkt_source->sniffer_fun = sniffer;
 
     mutex_lock(&pkt_sources_lock);
     if (terminating) {
@@ -347,15 +343,14 @@ static int pkt_source_ctor(struct pkt_source *pkt_source, char const *name, pcap
     pkt_source->dev_id = dev_id;
     LIST_INSERT_HEAD(&pkt_sources, pkt_source, entry);
 
-    struct start_guile_sniffer_param params = { .pkt_source = pkt_source, .sniffer = sniffer };
-    int err = pthread_create(&pkt_source->sniffer, NULL, start_guile_sniffer, &params);
+    int err = pthread_create(&pkt_source->sniffer_pth, NULL, start_guile_sniffer, pkt_source);
     if (err) {
         SLOG(LOG_ERR, "Cannot start sniffer thread on pkt_source %s[?]@%p: %s", pkt_source->name, pkt_source, strerror(err));  // Notice that pkt_source->instance is not inited yet
         LIST_REMOVE(pkt_source, entry);
         ret = -1;
         goto unlock_quit;
     }
-    pthread_detach(pkt_source->sniffer);
+    pthread_detach(pkt_source->sniffer_pth);
 
 unlock_quit:
     mutex_unlock(&pkt_sources_lock);
