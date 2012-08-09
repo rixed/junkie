@@ -28,6 +28,7 @@
 #include "junkie/tools/log.h"
 #include "junkie/tools/files.h"
 #include "junkie/tools/objalloc.h"
+#include "junkie/tools/ext.h"
 
 #undef LOG_CAT
 #define LOG_CAT sock_log_category
@@ -468,6 +469,141 @@ struct sock * sock_file_server_new(char const unused_ *file)
 }
 
 /*
+ * The Sock Smob
+ */
+
+static scm_t_bits sock_smob_tag;
+static SCM udp_sym;
+static SCM unix_sym;
+static SCM client_sym;
+static SCM server_sym;
+
+static size_t sock_smob_free(SCM smob)
+{
+    struct sock *s = (struct sock *)SCM_SMOB_DATA(smob);
+    s->ops->del(s);
+    return 0;
+}
+
+static int sock_smob_print(SCM smob, SCM port, scm_print_state unused_ *pstate)
+{
+    struct sock *s = (struct sock *)SCM_SMOB_DATA(smob);
+    scm_puts("#<sock ", port);
+    scm_puts(s->name, port);
+    scm_puts(">", port);
+    return 1;
+}
+
+static void sock_smob_init(void)
+{
+    sock_smob_tag = scm_make_smob_type("sock", sizeof(struct sock)); // hopefully, guile won't do anything with this size, which poorly reflect the actual size _we_ will alloc depending on the type
+
+    scm_set_smob_free(sock_smob_tag, sock_smob_free);
+    scm_set_smob_print(sock_smob_tag, sock_smob_print);
+}
+
+// Caller must have started a scm-dynwind region
+static struct sock *make_sock_udp(SCM p1_, SCM p2_)
+{
+    if (SCM_UNBNDP(p1_)) {
+        scm_throw(scm_from_latin1_symbol("missing-argument"),
+                  scm_list_1(scm_from_latin1_symbol("host")));
+    }
+
+    struct sock *s = NULL;
+
+    char *p1 = scm_to_locale_string(p1_);
+    scm_dynwind_free(p1);
+
+    if (SCM_BNDP(p2_)) {
+        // when host+service are given, we are a client
+        char *service = scm_to_locale_string(p2_);
+        scm_dynwind_free(service);
+        s = sock_udp_client_new(p1, service);
+    } else {
+        // when only service is given, we are a server
+        s = sock_udp_server_new(p1);
+    }
+
+    if (! s) {
+        scm_throw(scm_from_latin1_symbol("cannot-create-udp-sock"),
+                  SCM_EOL);
+    }
+
+    return s;
+}
+
+// Caller must have started a scm-dynwind region
+static struct sock *make_sock_unix(SCM p1_, SCM p2_)
+{
+    if (SCM_UNBNDP(p1_)) {
+miss_file:
+        scm_throw(scm_from_latin1_symbol("missing-argument"),
+                  scm_list_1(scm_from_latin1_symbol("file")));
+    }
+
+    SCM file_ = p1_;
+    SCM type_ = p2_;
+    if (! scm_is_string(file_)) {
+        file_ = p2_;
+        type_ = p1_;
+        if (SCM_UNBNDP(file_) || !scm_is_string(file_)) {
+            goto miss_file;
+        }
+    }
+
+    if (SCM_BNDP(type_) && !scm_is_symbol(type_)) {
+inval_type:
+        scm_throw(scm_from_latin1_symbol("invalid-argument"),
+                  scm_list_1(type_));
+    }
+
+    struct sock *s = NULL;
+    char *file = scm_to_locale_string(file_);
+    scm_dynwind_free(file);
+
+    if (SCM_BNDP(type_) && scm_is_eq(type_, server_sym)) {
+        s = sock_unix_server_new(file);
+    } else {
+        // client by default
+        if (SCM_BNDP(type_) && !scm_is_eq(type_, client_sym)) {
+            goto inval_type;
+        }
+        s = sock_unix_client_new(file);
+    }
+
+    if (! s) {
+        scm_throw(scm_from_latin1_symbol("cannot-create-unix-sock"),
+                  SCM_EOL);
+    }
+
+    return s;
+}
+
+static struct ext_function sg_make_sock;
+static SCM g_make_sock(SCM type, SCM p1, SCM p2)
+{
+    scm_dynwind_begin(0);
+    struct sock *s = NULL;
+    if (scm_is_eq(type, udp_sym)) {
+        s = make_sock_udp(p1, p2);
+    } else if (scm_is_eq(type, unix_sym)) {
+        s = make_sock_unix(p1, p2);
+    } else {
+        scm_throw(scm_from_latin1_symbol("invalid-argument"),
+                  scm_list_1(p1));
+    }
+
+    assert(s);
+
+    SCM smob;
+    SCM_NEWSMOB(smob, sock_smob_tag, s);    // guaranteed to return
+
+    scm_dynwind_end();
+    return smob;
+}
+
+/*
  * Init
  */
 
@@ -476,8 +612,21 @@ void sock_init(void)
 {
     if (inited++) return;
     log_category_sock_init();
+    ext_init();
 
+    udp_sym    = scm_permanent_object(scm_from_latin1_symbol("udp"));
+    unix_sym   = scm_permanent_object(scm_from_latin1_symbol("unix"));
+    client_sym = scm_permanent_object(scm_from_latin1_symbol("client"));
+    server_sym = scm_permanent_object(scm_from_latin1_symbol("server"));
+
+    sock_smob_init();
     ip_addr_ctor_from_str_any(&local_ip, "127.0.0.1");
+
+    ext_function_ctor(&sg_make_sock,
+        "make-sock", 2, 1, 0, g_make_sock,
+        "(make-sock 'udp \"some.host.com\" 5431): Connect to this host\n"
+        "(make-sock 'udp 5431): receive messages on this port\n"
+        "(make-sock 'unix 'client \"/tmp/socket.file\"): to use UNIX domain sockets\n");
 }
 
 void sock_fini(void)
@@ -485,4 +634,5 @@ void sock_fini(void)
     if (--inited) return;
 
     log_category_sock_fini();
+    ext_fini();
 }
