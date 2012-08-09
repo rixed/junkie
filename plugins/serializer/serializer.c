@@ -34,7 +34,7 @@
 static char *opt_dest_name = "localhost";
 static char *opt_dest_port = "28999";
 static unsigned opt_msg_size = 1500;
-static struct sock sock;
+static struct sock *sock;
 static bool inited = false;
 /* Since there is a largest protocol stack, there is no need to check for any size in the serialization process, IFF
  * this buffer is larger than the corresponding info stack. */
@@ -46,7 +46,7 @@ static struct mutex ser_buf_lock;   // protect ser_buf and ser_cursor
 
 static void ser_send(void)
 {
-    (void)sock_send(&sock, ser_buf, ser_cursor);
+    sock->ops->send(sock, ser_buf, ser_cursor);
     ser_cursor = 0;
 }
 
@@ -56,7 +56,8 @@ static void ser_init(void)
 {
     if (inited) return;
     ser_source = getpid();
-    if (0 != sock_ctor_client(&sock, opt_dest_name, opt_dest_port)) {
+    sock = sock_udp_client_new(opt_dest_name, opt_dest_port);
+    if (! sock) {
         SLOG(LOG_ERR, "Cannot connect to %s:%s", opt_dest_name, opt_dest_port);
         return;
     }
@@ -83,7 +84,7 @@ static void ser_fini(void)
             SLOG(LOG_DEBUG, "Flushing last message");
             ser_send();
         }
-        sock_dtor(&sock);
+        sock->ops->del(sock);
         if (ser_buf) {
             free(ser_buf);
             ser_buf = NULL;
@@ -97,7 +98,7 @@ static void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info c
 
     ser_init();
 
-    if (! sock_is_opened(&sock) || !ser_buf) goto quit;
+    if (! sock_is_opened(sock) || !ser_buf) goto quit;
 
     uint8_t *ptr = ser_buf + ser_cursor;
     serialize_1(&ptr, MSG_PROTO_INFO);

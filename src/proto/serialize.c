@@ -183,7 +183,7 @@ struct deserializer_source {
 
 struct deserializer {
     LIST_ENTRY(deserializer) entry;
-    struct sock sock;
+    struct sock *sock;
     pthread_t server_pth;
     bool running;   // set to false when the thread exits
     unsigned nb_sources;    // how many sources did we ever saw
@@ -254,10 +254,10 @@ static void *deserializer_thread(void *deser_)
 
     deser->running = true;
 
-    while (sock_is_opened(&deser->sock)) {
+    while (sock_is_opened(deser->sock)) {
         uint32_t src_id;
         struct deserializer_source *source;
-        ssize_t s = sock_recv(&deser->sock, buf, sizeof(buf), NULL);
+        ssize_t s = deser->sock->ops->recv(deser->sock, buf, sizeof(buf), NULL);
         uint8_t const *ptr = buf;
         if (s > 0) {
             while (ptr < buf+s) {
@@ -295,17 +295,15 @@ static void *deserializer_thread(void *deser_)
 }
 
 
-static int deserializer_ctor(struct deserializer *deser, bool local, char const *service)
+static int deserializer_ctor(struct deserializer *deser, struct sock *sock)
 {
-    if (0 != sock_ctor_server(&deser->sock, local, service)) return -1;
-
+    deser->sock = sock;
     deser->running = false;
     LIST_INIT(&deser->sources);
 
     int err = pthread_create(&deser->server_pth, NULL, deserializer_thread, deser);
     if (err) {
         SLOG(LOG_ERR, "Cannot start server thread: %s", strerror(err));
-        sock_dtor(&deser->sock);
         return -1;
     }
 
@@ -314,13 +312,17 @@ static int deserializer_ctor(struct deserializer *deser, bool local, char const 
     return 0;
 }
 
-static struct deserializer *deserializer_new(char const *service, bool local)
+// We are given full responsibility over sock
+static struct deserializer *deserializer_new(struct sock *sock)
 {
+    if (! sock) return NULL;
+
     struct deserializer *deser = objalloc(sizeof(*deser), "deserializers");
     if (! deser) return NULL;
 
-    if (0 != deserializer_ctor(deser, local, service)) {
+    if (0 != deserializer_ctor(deser, sock)) {
         objfree(deser);
+        sock->ops->del(sock);
         return NULL;
     }
 
@@ -341,7 +343,7 @@ static void deserializer_dtor(struct deserializer *deser)
             // so be it
         }
     }
-    sock_dtor(&deser->sock);
+    deser->sock->ops->del(deser->sock);
 }
 
 static void deserializer_del(struct deserializer *deser)
@@ -350,8 +352,9 @@ static void deserializer_del(struct deserializer *deser)
     objfree(deser);
 }
 
+// FIXME: instead of a port, should take a sock blob
 static struct ext_function sg_open_deserializer;
-static SCM g_open_deserializer(SCM port_, SCM local_)
+static SCM g_open_deserializer(SCM port_)
 {
     SCM ret = SCM_BOOL_F;
     scm_dynwind_begin(0);
@@ -365,11 +368,10 @@ static SCM g_open_deserializer(SCM port_, SCM local_)
         }
     }
 
-    bool local = SCM_BNDP(local_) ? scm_to_bool(local_) : false;
-
-    struct deserializer *deser = deserializer_new(service, local);
+    struct sock *sock = sock_udp_server_new(service);
+    struct deserializer *deser = deserializer_new(sock);
     if (deser) {
-        ret = scm_from_latin1_string(deser->sock.name);
+        ret = scm_from_latin1_string(deser->sock->name);
     }
 
     scm_dynwind_end();
@@ -382,7 +384,7 @@ static struct deserializer *deserializer_of_scm(SCM name_)
 
     struct deserializer *deser;
     LIST_FOREACH(deser, &deserializers, entry) {
-        if (0 == strcmp(deser->sock.name, name)) break;
+        if (0 == strcmp(deser->sock->name, name)) break;
     }
 
     return deser;
@@ -409,7 +411,7 @@ static SCM g_deserializer_names(void)
 
     struct deserializer *deser;
     LIST_FOREACH(deser, &deserializers, entry) {
-        SCM name = scm_from_latin1_string(deser->sock.name);
+        SCM name = scm_from_latin1_string(deser->sock->name);
         ret = scm_cons(name, ret);
     }
 
@@ -445,7 +447,7 @@ static SCM g_deserializer_stats(SCM name_)
     }
 
     return scm_list_3(
-        scm_cons(name_sym,          scm_from_latin1_string(deser->sock.name)),
+        scm_cons(name_sym,          scm_from_latin1_string(deser->sock->name)),
         scm_cons(running_sym,       scm_from_bool(deser->running)),
         scm_cons(sources_sym,       srcs));
 }
@@ -472,7 +474,7 @@ void serialize_init(void)
     LIST_INIT(&deserializers);
 
     ext_function_ctor(&sg_open_deserializer,
-        "open-deserializer", 0, 2, 0, g_open_deserializer,
+        "open-deserializer", 0, 1, 0, g_open_deserializer,
         "(open-deserializer): listen on default port (" SERIALIZER_DEFAULT_SERVICE ") and supply received frames info to local plugins.\n"
         "(open-deserializer 28100): listen on alternate port.\n"
         "Will return the name of the deserializer or #f if the operation fails.\n"
