@@ -166,10 +166,10 @@ static int sock_udp_client_ctor(struct sock_udp *s, char const *host, char const
         char addr[256], srv[256];
         err = getnameinfo(&srv_addr, srv_addrlen, addr, sizeof(addr), srv, sizeof(srv), NI_DGRAM|NI_NOFQDN|NI_NUMERICSERV|NI_NUMERICHOST);
         if (! err) {
-            snprintf(s->sock.name, sizeof(s->sock.name), "udp://%s@%s.%s", info->ai_canonname, addr, srv);
+            snprintf(s->sock.name, sizeof(s->sock.name), "udp://%s@%s:%s", info->ai_canonname, addr, srv);
         } else {
             SLOG(LOG_WARNING, "Cannot getnameinfo(): %s", gai_strerror(err));
-            snprintf(s->sock.name, sizeof(s->sock.name), "udp://%s@?.%s", info->ai_canonname, service);
+            snprintf(s->sock.name, sizeof(s->sock.name), "udp://%s@?:%s", info->ai_canonname, service);
         }
         SLOG(LOG_DEBUG, "Trying to use socket %s", s->sock.name);
 
@@ -503,6 +503,19 @@ static void sock_smob_init(void)
 }
 
 // Caller must have started a scm-dynwind region
+static char *scm_to_service(SCM p)
+{
+    char *service;
+    if (scm_is_string(p)) {
+        service = scm_to_locale_string(p);
+        scm_dynwind_free(service);
+    } else {
+        service = tempstr_printf("%u", scm_to_int(p));
+    }
+    return service;
+}
+
+// Caller must have started a scm-dynwind region
 static struct sock *make_sock_udp(SCM p1_, SCM p2_)
 {
     if (SCM_UNBNDP(p1_)) {
@@ -512,30 +525,21 @@ static struct sock *make_sock_udp(SCM p1_, SCM p2_)
 
     struct sock *s = NULL;
 
-    char *p1 = scm_to_locale_string(p1_);
-    scm_dynwind_free(p1);
-
     if (SCM_BNDP(p2_)) {
-        // when host+service are given, we are a client
-        char *service;
-        if (scm_is_string(p2_)) {
-            service = scm_to_locale_string(p2_);
-            scm_dynwind_free(service);
-        } else if (scm_is_number(p2_)) {
-            service = tempstr_printf("%u", scm_to_int(p2_));
-        } else {
-            scm_throw(scm_from_latin1_symbol("invalid-argument"),
-                      p2_);
-            return NULL;    // never reached but avoids a warning
-        }
+        // when host+service are given, we are a client. first parameter is a hostname
+        char *p1 = scm_to_locale_string(p1_);
+        scm_dynwind_free(p1);
+
+        char *service = scm_to_service(p2_);
         s = sock_udp_client_new(p1, service);
     } else {
-        // when only service is given, we are a server
-        s = sock_udp_server_new(p1);
+        // when only service is given, we are a server, first parameter is a service
+        char *service = scm_to_service(p1_);
+        s = sock_udp_server_new(service);
     }
 
     if (! s) {
-        scm_throw(scm_from_latin1_symbol("cannot-create-udp-sock"),
+        scm_throw(scm_from_latin1_symbol("cannot-create-sock"),
                   SCM_EOL);
     }
 
@@ -582,7 +586,7 @@ inval_type:
     }
 
     if (! s) {
-        scm_throw(scm_from_latin1_symbol("cannot-create-unix-sock"),
+        scm_throw(scm_from_latin1_symbol("cannot-create-sock"),
                   SCM_EOL);
     }
 
@@ -612,6 +616,33 @@ static SCM g_make_sock(SCM type, SCM p1, SCM p2)
     return smob;
 }
 
+static struct ext_function sg_sock_send;
+static SCM g_sock_send(SCM sock_, SCM str_)
+{
+    scm_assert_smob_type(sock_smob_tag, sock_);
+    struct sock *sock = (struct sock *)SCM_SMOB_DATA(sock_);
+
+    size_t len;
+    char *str = scm_to_latin1_stringn(str_, &len);
+    int res = sock->ops->send(sock, str, len);
+    free(str);
+
+    return res >= 0 ? SCM_BOOL_T : SCM_BOOL_F;
+}
+
+static struct ext_function sg_sock_recv;
+static SCM g_sock_recv(SCM sock_)
+{
+    scm_assert_smob_type(sock_smob_tag, sock_);
+    struct sock *sock = (struct sock *)SCM_SMOB_DATA(sock_);
+
+    char buf[1024];
+    ssize_t len = sock->ops->recv(sock, buf, sizeof(buf), NULL);
+    if (len < 0) return SCM_BOOL_F;
+
+    return scm_from_latin1_stringn(buf, len);
+}
+
 /*
  * Init
  */
@@ -635,7 +666,20 @@ void sock_init(void)
         "make-sock", 2, 1, 0, g_make_sock,
         "(make-sock 'udp \"some.host.com\" 5431): Connect to this host\n"
         "(make-sock 'udp 5431): receive messages on this port\n"
-        "(make-sock 'unix 'client \"/tmp/socket.file\"): to use UNIX domain sockets\n");
+        "(make-sock 'unix 'client \"/tmp/socket.file\"): to use UNIX domain sockets\n"
+        "See also: sock-send, sock-recv");
+
+    // these are intended for testing
+    ext_function_ctor(&sg_sock_send,
+        "sock-send", 2, 0, 0, g_sock_send,
+        "(sock-send sock \"hello\"): Send this string through the sock object\n"
+        "Return #t if the operation is successful\n"
+        "See also: sock-recv, make-sock\n");
+    ext_function_ctor(&sg_sock_recv,
+        "sock-recv", 1, 0, 0, g_sock_recv,
+        "(sock-recv sock): wait until a message is received and return it as a string\n"
+        "Will return #f on errors\n"
+        "See also: sock-send, make-sock\n");
 }
 
 void sock_fini(void)
