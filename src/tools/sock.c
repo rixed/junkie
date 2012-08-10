@@ -517,8 +517,17 @@ static struct sock *make_sock_udp(SCM p1_, SCM p2_)
 
     if (SCM_BNDP(p2_)) {
         // when host+service are given, we are a client
-        char *service = scm_to_locale_string(p2_);
-        scm_dynwind_free(service);
+        char *service;
+        if (scm_is_string(p2_)) {
+            service = scm_to_locale_string(p2_);
+            scm_dynwind_free(service);
+        } else if (scm_is_number(p2_)) {
+            service = tempstr_printf("%u", scm_to_int(p2_));
+        } else {
+            scm_throw(scm_from_latin1_symbol("invalid-argument"),
+                      p2_);
+            return NULL;    // never reached but avoids a warning
+        }
         s = sock_udp_client_new(p1, service);
     } else {
         // when only service is given, we are a server
