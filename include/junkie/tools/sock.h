@@ -5,6 +5,7 @@
 #include <limits.h>
 #include <stdbool.h>
 #include <sys/types.h>
+#include <unistd.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/select.h> // for fd_set
@@ -23,7 +24,9 @@
  * - UNIX local domain is faster and reliable, but is local only.
  *   Additionally, it will synchronise sender and receiver, which is a feature or not
  * - Files are local only and unidirectional. Also, it's the slowest method, but
- *   messages survive the crash of the sender and receiver so that's more robust.
+ *   messages survive the crash of the sender and receiver so that's more robust (but
+ *   a restarting server will re-read some messages it already read in previous run).
+ *   Also, we have an unlimited buffer (limited to disk size).
  *   Note: for files, the clients are the writers and the server the reader.
  *
  * For TCP and files, which are stream oriented, a header is prepended to each messages
@@ -60,8 +63,8 @@ struct sock *sock_udp_server_new(char const *service);
 struct sock *sock_unix_client_new(char const *file);
 struct sock *sock_unix_server_new(char const *file);
 
-struct sock *sock_file_client_new(char const *file);
-struct sock *sock_file_server_new(char const *file);
+struct sock *sock_file_client_new(char const *file, off_t max_file_size);
+struct sock *sock_file_server_new(char const *file, off_t max_file_size);
 
 // Init
 

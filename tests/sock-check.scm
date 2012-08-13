@@ -69,5 +69,27 @@
   (slog log-debug "Trying to connect again to server...")
   (assert (not (sock-send clt-sock "pas glop"))))
 
+(slog log-debug "test FILE sock")
+(define (test-file max-file-size)
+  (let ((file     "./sock-check")
+        (srv-sock #f)
+        (clt-sock #f)
+        (test-msg "glop glop"))
+    (system (string-append "rm -rf " file))
+    (set! srv-sock (make-sock 'file 'server file max-file-size))
+    (slog log-debug "File-msg server: ~s" srv-sock)
+    ; now try to connect to it (max file size of 60 bytes
+    (set! clt-sock (make-sock 'file 'client file max-file-size))
+    (slog log-debug "File-msg client: ~s" clt-sock)
+    ; test the connection with enough messages to trigger several file changes
+    (let loop ((n 20))
+      (assert (sock-send clt-sock test-msg))
+      (assert (string=? (sock-recv srv-sock) test-msg))
+      (if (> n 0) (loop (- n 1))))))
+(test-file 0)  ; all msgs in one big file
+(test-file 60) ; a few msgs per file
+(test-file 1)  ; one file per message
+
+(gc)
 (exit)
 

@@ -23,7 +23,12 @@
 #include <errno.h>
 #include <string.h>
 #include <netinet/ip.h>
+#include <dirent.h>
 #include <netdb.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include "junkie/tools/miscmacs.h"
 #include "junkie/tools/sock.h"
 #include "junkie/tools/log.h"
 #include "junkie/tools/files.h"
@@ -451,21 +456,187 @@ struct sock *sock_unix_server_new(char const *file)
  * File "sockets"
  */
 
+typedef uint32_t file_msg_len;
+
 struct sock_file {
     struct sock sock;
     char dir[PATH_MAX];
-    size_t max_file_size;
-    // TODO: last fd
+    off_t max_file_size;
+    int fd; // of the last fd opened
+    unsigned id;    // the id of the file in fd
+    bool server;
 };
 
-struct sock * sock_file_client_new(char const unused_ *file)
+// FIXME: race condition if several clients writes into new files: while we look on direntries the max file can be filled by another client
+static int sock_file_open(struct sock_file *s, unsigned max_n)
 {
-    assert(!"TODO");
+    DIR *dir = opendir(s->dir);
+    if (! dir) {
+        SLOG(LOG_ERR, "Cannot open directory %s: %s", s->dir, strerror(errno));
+        return -1;
+    }
+
+    unsigned long n;
+    char *end;
+    struct dirent de, *ptr;
+    int err = -1;
+    while (1) {
+        if (0 != readdir_r(dir, &de, &ptr)) {
+            SLOG(LOG_ERR, "Cannot readdir(%s): %s", s->dir, strerror(errno));
+            goto quit;
+        }
+        if (!ptr) break;
+
+        SLOG(LOG_DEBUG, "Scanning %s", de.d_name);
+        n = strtoul(de.d_name, &end, 0);
+        if (*end == '\0') max_n = MAX(max_n, n);
+    }
+
+    // open/create the max file
+    char *path = tempstr_printf("%s/%u", s->dir, max_n);
+    s->fd = file_open(path, (s->server ? O_RDONLY:O_WRONLY)|O_CREAT);
+    if (s->fd < 0) goto quit;
+    s->id = max_n;
+    err = 0;
+quit:
+    (void)closedir(dir);
+    return err;
 }
 
-struct sock * sock_file_server_new(char const unused_ *file)
+static int sock_file_send(struct sock *s_, void const *buf, size_t len)
 {
-    assert(!"TODO");
+    struct sock_file *s = DOWNCAST(s_, sock, sock_file);
+
+    if (s->fd < 0 || (s->max_file_size > 0 && file_offset(s->fd) >= s->max_file_size)) {
+        if (0 != sock_file_open(s, s->fd >= 0 ? s->id+1 : 0)) return -1;
+    }
+
+    SLOG(LOG_DEBUG, "Writing %zu bytes to %s (fd %d)", len, s->sock.name, s->fd);
+
+    file_msg_len msg_len = len;
+    struct iovec iov[2] = {
+        { .iov_base = &msg_len, .iov_len = sizeof(msg_len), },
+        { .iov_base = (void *)buf, .iov_len = len, },
+    };
+    return file_writev(s->fd, iov, NB_ELEMS(iov));
+}
+
+static ssize_t sock_file_recv(struct sock *s_, void *buf, size_t maxlen, struct ip_addr *sender)
+{
+    struct sock_file *s = DOWNCAST(s_, sock, sock_file);
+
+    SLOG(LOG_DEBUG, "Reading on socket %s (fd %d)", s->sock.name, s->fd);
+
+    if (s->fd < 0 || (s->max_file_size > 0 && file_offset(s->fd) >= s->max_file_size)) {
+        if (0 != sock_file_open(s, s->fd >= 0 ? s->id+1 : 0)) return -1;
+    }
+
+    file_msg_len len;
+    ssize_t r = file_read(s->fd, &len, sizeof(len));
+    if (r < 0) {
+        SLOG(LOG_ERR, "Cannot read a message size from %s: skip file!", s->sock.name);
+skip:
+        file_close(s->fd);
+        s->fd = -1;
+        s->id ++;
+        return -1;
+    }
+
+    if (len > maxlen) {
+        SLOG(LOG_ERR, "Message size from %s (%zu) bigger than max expected message size (%zu), skip file!", s->sock.name, (size_t)len, maxlen);
+        goto skip;
+    }
+
+    r = file_read(s->fd, buf, len);
+    if (r < 0) {
+        SLOG(LOG_ERR, "Cannot read a message of %zd bytes from %s: skip file!", (size_t)len, s->sock.name);
+        goto skip;
+    }
+
+    if (sender) *sender = local_ip;
+
+    SLOG(LOG_DEBUG, "read %zd bytes out of %s", r, s->sock.name);
+    return r;
+}
+
+static int sock_file_set_fd(struct sock *s_, fd_set *set)
+{
+    struct sock_file *s = DOWNCAST(s_, sock, sock_file);
+    if (s->fd < 0 || (s->max_file_size > 0 && file_offset(s->fd) >= s->max_file_size)) {
+        if (0 != sock_file_open(s, s->fd >= 0 ? s->id+1 : 0)) return -1;
+    }
+    FD_SET(s->fd, set);
+    return s->fd;
+}
+
+static bool sock_file_is_set(struct sock *s_, fd_set const *set)
+{
+    struct sock_file *s = DOWNCAST(s_, sock, sock_file);
+    return s->fd >= 0 && FD_ISSET(s->fd, set);
+}
+
+static void sock_file_dtor(struct sock_file *s)
+{
+    sock_dtor(&s->sock);
+    if (s->fd >= 0) {
+        file_close(s->fd);
+        s->fd = -1;
+    }
+}
+
+static void sock_file_del(struct sock *s_)
+{
+    struct sock_file *s = DOWNCAST(s_, sock, sock_file);
+    sock_file_dtor(s);
+    objfree(s);
+}
+
+static struct sock_ops sock_file_ops = {
+    .send = sock_file_send,
+    .recv = sock_file_recv,
+    .set_fd = sock_file_set_fd,
+    .is_set = sock_file_is_set,
+    .del = sock_file_del,
+};
+
+static int sock_file_ctor(struct sock_file *s, char const *dir, off_t max_file_size, bool server)
+{
+    sock_ctor(&s->sock, &sock_file_ops);
+    snprintf(s->sock.name, sizeof(s->sock.name), "file://127.0.0.1/%s", dir);
+    snprintf(s->dir, sizeof(s->dir), "%s", dir);
+    if (0 != mkdir_all(s->dir, false)) return -1;
+    s->max_file_size = max_file_size;
+    s->fd = -1;
+    s->id = 0;
+    s->server = server;
+    return 0;
+}
+
+struct sock *sock_file_client_new(char const *dir, off_t max_file_size)
+{
+    struct sock_file *s = objalloc(sizeof(*s), "file sockets");
+    if (! s) return NULL;
+    if (0 != sock_file_ctor(s, dir, max_file_size, false)) {
+        objfree(s);
+        return NULL;
+    }
+    return &s->sock;
+}
+
+static int sock_file_server_ctor(struct sock_file *s, char const *dir, off_t max_file_size)
+{
+    return sock_file_ctor(s, dir, max_file_size, true);
+}
+
+struct sock *sock_file_server_new(char const *dir, off_t max_file_size)
+{
+    struct sock_file *s = objalloc(sizeof(*s), "file sockets");
+    if (! s) return NULL;
+    if (0 != sock_file_server_ctor(s, dir, max_file_size)) {
+        objfree(s);
+        return NULL;
+    }
+    return &s->sock;
 }
 
 /*
@@ -475,6 +646,7 @@ struct sock * sock_file_server_new(char const unused_ *file)
 static scm_t_bits sock_smob_tag;
 static SCM udp_sym;
 static SCM unix_sym;
+static SCM file_sym;
 static SCM client_sym;
 static SCM server_sym;
 
@@ -518,11 +690,6 @@ static char *scm_to_service(SCM p)
 // Caller must have started a scm-dynwind region
 static struct sock *make_sock_udp(SCM p1_, SCM p2_)
 {
-    if (SCM_UNBNDP(p1_)) {
-        scm_throw(scm_from_latin1_symbol("missing-argument"),
-                  scm_list_1(scm_from_latin1_symbol("host")));
-    }
-
     struct sock *s = NULL;
 
     if (SCM_BNDP(p2_)) {
@@ -549,19 +716,14 @@ static struct sock *make_sock_udp(SCM p1_, SCM p2_)
 // Caller must have started a scm-dynwind region
 static struct sock *make_sock_unix(SCM p1_, SCM p2_)
 {
-    if (SCM_UNBNDP(p1_)) {
-miss_file:
-        scm_throw(scm_from_latin1_symbol("missing-argument"),
-                  scm_list_1(scm_from_latin1_symbol("file")));
-    }
-
     SCM file_ = p1_;
     SCM type_ = p2_;
     if (! scm_is_string(file_)) {
         file_ = p2_;
         type_ = p1_;
         if (SCM_UNBNDP(file_) || !scm_is_string(file_)) {
-            goto miss_file;
+            scm_throw(scm_from_latin1_symbol("missing-argument"),
+                      scm_list_1(scm_from_latin1_symbol("file")));
         }
     }
 
@@ -593,8 +755,42 @@ inval_type:
     return s;
 }
 
+// Caller must have started a scm-dynwind region
+static struct sock *make_sock_file(SCM type_, SCM file_, SCM max_size_)
+{
+    if (SCM_UNBNDP(file_)) {
+        scm_throw(scm_from_latin1_symbol("missing-argument"), SCM_EOL);
+    }
+
+    if (!scm_is_symbol(type_)) {
+inv_type:
+        scm_throw(scm_from_latin1_symbol("invalid-argument"),
+                  scm_list_1(type_));
+    }
+
+    struct sock *s = NULL;
+    char *file = scm_to_locale_string(file_);
+    scm_dynwind_free(file);
+
+    off_t max_size = SCM_BNDP(max_size_) ? scm_to_uint64(max_size_) : 0;
+    if (scm_is_eq(type_, server_sym)) {
+        s = sock_file_server_new(file, max_size);
+    } else if (scm_is_eq(type_, client_sym)) {
+        s = sock_file_client_new(file, max_size);
+    } else {
+        goto inv_type;
+    }
+
+    if (! s) {
+        scm_throw(scm_from_latin1_symbol("cannot-create-sock"),
+                  SCM_EOL);
+    }
+
+    return s;
+}
+
 static struct ext_function sg_make_sock;
-static SCM g_make_sock(SCM type, SCM p1, SCM p2)
+static SCM g_make_sock(SCM type, SCM p1, SCM p2, SCM p3)
 {
     scm_dynwind_begin(0);
     struct sock *s = NULL;
@@ -602,6 +798,8 @@ static SCM g_make_sock(SCM type, SCM p1, SCM p2)
         s = make_sock_udp(p1, p2);
     } else if (scm_is_eq(type, unix_sym)) {
         s = make_sock_unix(p1, p2);
+    } else if (scm_is_eq(type, file_sym)) {
+        s = make_sock_file(p1, p2, p3);
     } else {
         scm_throw(scm_from_latin1_symbol("invalid-argument"),
                   scm_list_1(p1));
@@ -656,6 +854,7 @@ void sock_init(void)
 
     udp_sym    = scm_permanent_object(scm_from_latin1_symbol("udp"));
     unix_sym   = scm_permanent_object(scm_from_latin1_symbol("unix"));
+    file_sym   = scm_permanent_object(scm_from_latin1_symbol("file"));
     client_sym = scm_permanent_object(scm_from_latin1_symbol("client"));
     server_sym = scm_permanent_object(scm_from_latin1_symbol("server"));
 
@@ -663,10 +862,11 @@ void sock_init(void)
     ip_addr_ctor_from_str_any(&local_ip, "127.0.0.1");
 
     ext_function_ctor(&sg_make_sock,
-        "make-sock", 2, 1, 0, g_make_sock,
+        "make-sock", 2, 2, 0, g_make_sock,
         "(make-sock 'udp \"some.host.com\" 5431): Connect to this host\n"
         "(make-sock 'udp 5431): receive messages on this port\n"
-        "(make-sock 'unix 'client \"/tmp/socket.file\"): to use UNIX domain sockets\n"
+        "(make-sock 'unix 'client \"/tmp/socket.file\" [max-file-size]): to use UNIX domain sockets\n"
+        "(make-sock 'file 'client \"/tmp/msg_dir\" [max-file-size]): to convey messages through files\n"
         "See also: sock-send, sock-recv");
 
     // these are intended for testing
