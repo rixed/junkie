@@ -8,6 +8,14 @@ NEW in 2.2.0 (since 2.1.0)
 
 * Can replay pcap in a loop
 
+* Can now pass nettrack values to a guile action
+
+* More doc (in doc/)
+
+* Support for multiline HTTP headers
+
+* Guile files are pre-compiled before installation (see ./configure --help)
+
 
 New in 2.1.0 (since 2.0.0)
 --------------------------
