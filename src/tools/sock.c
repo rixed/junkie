@@ -674,6 +674,12 @@ static void sock_smob_init(void)
     scm_set_smob_print(sock_smob_tag, sock_smob_print);
 }
 
+struct sock *scm_to_sock(SCM sock_)
+{
+    scm_assert_smob_type(sock_smob_tag, sock_);
+    return (struct sock *)SCM_SMOB_DATA(sock_);
+}
+
 // Caller must have started a scm-dynwind region
 static char *scm_to_service(SCM p)
 {

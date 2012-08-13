@@ -12,6 +12,7 @@
 #include <netinet/in.h>
 #include <junkie/config.h>
 #include <junkie/tools/ip_addr.h>
+#include <junkie/tools/ext.h>
 
 /** @file
  * @brief Tools to send/receive message via all kind of sockets
@@ -65,6 +66,8 @@ struct sock *sock_unix_server_new(char const *file);
 
 struct sock *sock_file_client_new(char const *file, off_t max_file_size);
 struct sock *sock_file_server_new(char const *file, off_t max_file_size);
+
+struct sock *scm_to_sock(SCM);
 
 // Init
 
