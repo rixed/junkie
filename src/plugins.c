@@ -42,6 +42,10 @@ static int plugin_ctor(struct plugin *plugin, char const *libname)
         // Try to load the plugin from PKGLIBDIR
         char *fullpath = tempstr_printf("%s/%s", STRIZE(PKGLIBDIR), libname);
         plugin->handle = lt_dlopen(fullpath);
+        if (! plugin->handle) {
+            fullpath = tempstr_printf("%s/%s.so", STRIZE(PKGLIBDIR), libname);
+            plugin->handle = lt_dlopen(fullpath);
+        }
     }
     if (! plugin->handle) {
         mutex_unlock(&plugins_mutex);
