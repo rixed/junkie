@@ -82,6 +82,7 @@ AC_CONFIG_FILES([
 	plugins/serializer/Makefile
 	plugins/os-detect/Makefile
 	plugins/packetogram/Makefile
+	plugins/duplicogram/Makefile
 	config/Makefile
 	guile/Makefile
 	guile/srfi/Makefile

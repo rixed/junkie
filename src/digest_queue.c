@@ -68,7 +68,7 @@ static struct queue {
     unsigned nb_dups;
 } queues[NB_QUEUES];    // The queue is chosen according to digest hash, so that several distinct threads can perform lookups simultaneously.
 
-static unsigned max_dup_delay = 100000; // microseconds
+unsigned max_dup_delay = 100000; // microseconds
 EXT_PARAM_RW(max_dup_delay, "max-dup-delay", uint, "Number of microseconds between two packets that can not be duplicates (set to 0 to disable deduplication altogether)")
 
 static unsigned fast_dedup_duration = 10000000;    // microseconds
@@ -351,7 +351,7 @@ bool digest_queue_find(size_t cap_len, uint8_t *packet, uint8_t dev_id, struct t
             (collapse_ifaces || dev_id == qc->dev_id) &&
             0 == memcmp(qc->digest, qc_new->digest, DIGEST_SIZE)
         ) { // found a dup
-            struct dup_proto_info info;
+            struct dedup_proto_info info;
             proto_info_ctor(&info.info, NULL /* hum */, NULL, 0, cap_len);
             SLOG(LOG_DEBUG, "queue[%u]: Found a dup after %u/%u digests (max_dt=%uus)", h, count, q->length, q->dt_max);
             // Note that we do not promote the dup in order to avoid dup + dup + dup + retrans being interpreted as 4 dups.

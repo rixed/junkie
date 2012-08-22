@@ -11,10 +11,14 @@ bool digest_queue_find(size_t cap_len, uint8_t *packet, uint8_t dev_id, struct t
 
 // FIXME: deduplication phase should be a proto on its own
 
-struct dup_proto_info {
+struct dedup_proto_info {
     struct proto_info info;
     uint64_t dt;
 };
+
+/** Delay, in microseconds, after which a dup cannot be a dup any more but
+ * must be considered a retransmission, and the other way around. */
+unsigned max_dup_delay;
 
 /// To be called each time a duplicate frame is found
 int dup_subscriber_ctor(struct proto_subscriber *, proto_cb_t *);

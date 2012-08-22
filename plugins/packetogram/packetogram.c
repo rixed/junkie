@@ -48,7 +48,7 @@ static int cli_set_refresh(char const *v)
 
 static struct cli_opt packetogram_opts[] = {
     { { "interval",     "d" },  "seconds", "update interval", CLI_CALL,     { .call = &cli_set_refresh } },
-    { { "bucket-width", NULL }, NEEDS_ARG, "distribution step width for packet size",
+    { { "bucket-width", NULL }, "bytes",   "distribution step width for packet size",
                                                               CLI_SET_UINT, { .uint = &bucket_width } },
 };
 
@@ -177,6 +177,8 @@ static void display(void)
 
 static void *display_thread(void unused_ *dummy)
 {
+    set_thread_name("Packetogram display");
+
     while (! quit) {
         usleep(refresh_rate);
 

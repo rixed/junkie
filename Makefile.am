@@ -3,7 +3,21 @@ ACLOCAL_AMFLAGS = -I m4
 
 dist_doc_DATA = README.md NEWS COPYING LICENSE.AGPL LICENSE.BSD LICENSE.LGPL LICENSE.OpenSSL KNOWN_ISSUES USAGE
 
-SUBDIRS = include src config plugins/dumper plugins/writer plugins/rater plugins/arpgraph plugins/serializer plugins/os-detect plugins/packetogram guile tests doc
+SUBDIRS = \
+	include \
+	src \
+	config \
+	plugins/dumper \
+	plugins/writer \
+	plugins/rater \
+	plugins/arpgraph \
+	plugins/serializer \
+	plugins/os-detect \
+	plugins/packetogram \
+	plugins/duplicogram \
+	guile \
+	tests \
+	doc
 
 .PHONY: cscope doc clear
 
