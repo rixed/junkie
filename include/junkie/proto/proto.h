@@ -137,10 +137,10 @@ void proto_subscribers_call(struct proto *, bool with_pkt_sbc, struct proto_info
  * subscribers have already been called (which is not perfect since the cap proto_info
  * is deep in the stack.
  * Again, notice the callback must be thread safe. */
-int proto_pkt_subscriber_ctor(struct proto_subscriber *, proto_cb_t *);
+int pkt_subscriber_ctor(struct proto_subscriber *, proto_cb_t *);
 
 /// Unregister a packet callback
-void proto_pkt_subscriber_dtor(struct proto_subscriber *);
+void pkt_subscriber_dtor(struct proto_subscriber *);
 
 /// A protocol implementation.
 /** Only one instance for each protocol ever exist (located in the protocol compilation unit).
@@ -297,6 +297,19 @@ struct proto_info const *proto_info_get(
         SLOG(LOG_DEBUG, "Can't find neither " #proto " nor " #proto_alt); \
         return err; \
     }
+
+/*
+ * Other available hooks
+ */
+
+/// To be called each time a duplicate frame is found
+int dup_subscriber_ctor(struct proto_subscriber *, proto_cb_t *);
+void dup_subscriber_dtor(struct proto_subscriber *);
+
+/// ... or each time a frame survives the deduplication process
+int nodup_subscriber_ctor(struct proto_subscriber *, proto_cb_t *);
+void nodup_subscriber_dtor(struct proto_subscriber *);
+
 
 /*
  * Parsers

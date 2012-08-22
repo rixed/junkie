@@ -304,7 +304,7 @@ static void parse_check(void)
         printf("Ok\n");
     }
 
-    proto_pkt_subscriber_dtor(&sub);
+    pkt_subscriber_dtor(&sub);
     parser_unref(parser);
 }
 
@@ -354,7 +354,7 @@ static void caplen_check(void)
     struct parser *http_parser = proto_http->ops->parser_new(proto_http);
     assert(http_parser);
     struct proto_subscriber sub;
-    proto_pkt_subscriber_ctor(&sub, caplen_info_check);
+    pkt_subscriber_ctor(&sub, caplen_info_check);
 
     for (size_t cap_len = strlen(HEADERS); cap_len < strlen(msg); cap_len++) {
         caplen_reported = false;
@@ -364,7 +364,7 @@ static void caplen_check(void)
         assert(caplen_reported);
     }
 
-    proto_pkt_subscriber_dtor(&sub);
+    pkt_subscriber_dtor(&sub);
 }
 
 int main(void)

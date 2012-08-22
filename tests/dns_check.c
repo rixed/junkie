@@ -129,7 +129,7 @@ static void parse_check(void)
     struct parser *dns_parser = proto_dns->ops->parser_new(proto_dns);
     assert(dns_parser);
     struct proto_subscriber sub;
-    proto_pkt_subscriber_ctor(&sub, dns_info_check);
+    pkt_subscriber_ctor(&sub, dns_info_check);
 
     for (current_test = 0; current_test < NB_ELEMS(parse_tests); current_test++) {
         struct parse_test const *test = parse_tests + current_test;
@@ -139,7 +139,7 @@ static void parse_check(void)
 		printf("Ok\n");
     }
 
-    proto_pkt_subscriber_dtor(&sub);
+    pkt_subscriber_dtor(&sub);
     parser_unref(dns_parser);
 }
 

@@ -134,7 +134,7 @@ static void parse_check(void)
     struct parser *icmpv6_parser = proto_icmpv6->ops->parser_new(proto_icmpv6);
     assert(icmpv6_parser);
     struct proto_subscriber sub;
-    proto_pkt_subscriber_ctor(&sub, icmp_info_check);
+    pkt_subscriber_ctor(&sub, icmp_info_check);
 
     for (current_test = 0; current_test < NB_ELEMS(parse_tests); current_test++) {
         struct parse_test const *const test = parse_tests + current_test;
@@ -146,7 +146,7 @@ static void parse_check(void)
         printf("Ok\n");
     }
 
-    proto_pkt_subscriber_dtor(&sub);
+    pkt_subscriber_dtor(&sub);
     parser_unref(icmpv6_parser);
     parser_unref(icmp_parser);
 }

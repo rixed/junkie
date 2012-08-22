@@ -322,7 +322,7 @@ static int nt_edge_ctor(struct nt_edge *edge, struct nt_graph *graph, struct nt_
     if (! graph->parser_hooks[hook].registered) {
         if (0 == (
             per_packet ?
-                proto_pkt_subscriber_ctor(&graph->parser_hooks[hook].subscriber, parser_hook) :
+                pkt_subscriber_ctor(&graph->parser_hooks[hook].subscriber, parser_hook) :
                 proto_subscriber_ctor(&graph->parser_hooks[hook].subscriber, inner_proto, parser_hook))
         ) {
             graph->parser_hooks[hook].registered = true;

@@ -102,13 +102,13 @@ void on_load(void)
     capfile = NULL;
     opt_file = NULL;
     inited = false;
-    proto_pkt_subscriber_ctor(&subscription, pkt_callback);
+    pkt_subscriber_ctor(&subscription, pkt_callback);
 }
 
 void on_unload(void)
 {
     SLOG(LOG_INFO, "Unloading rater");
-    proto_pkt_subscriber_dtor(&subscription);
+    pkt_subscriber_dtor(&subscription);
     cli_unregister(rater_opts);
     if (capfile) {
         capfile->ops->del(capfile);

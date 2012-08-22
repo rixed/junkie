@@ -31,6 +31,7 @@
 #include "junkie/proto/serialize.h"
 #include "junkie/proto/proto.h"
 #include "proto/fuzzing.h"
+#include "hook.h"
 
 static unsigned nb_fuzzed_bits = 0;
 EXT_PARAM_RW(nb_fuzzed_bits, "nb-fuzzed-bits", uint, "Max number of bits to fuzz by protocolar layer (0 to disable fuzzing).")
@@ -186,8 +187,7 @@ enum proto_parse_status proto_parse(struct parser *parser, struct proto_info *pa
  * Proto subscribers
  */
 
-static struct proto_subscribers pkt_subscribers;
-static struct mutex pkt_subscribers_lock;
+HOOK(pkt);
 
 int proto_subscriber_ctor(struct proto_subscriber *sub, struct proto *proto, proto_cb_t *cb)
 {
@@ -208,27 +208,6 @@ void proto_subscriber_dtor(struct proto_subscriber *sub, struct proto *proto)
     mutex_lock(&proto->lock);
     LIST_REMOVE(sub, entry);
     mutex_unlock(&proto->lock);
-}
-
-int proto_pkt_subscriber_ctor(struct proto_subscriber *sub, proto_cb_t *cb)
-{
-    SLOG(LOG_DEBUG, "Construct a new packet subscriber@%p", sub);
-
-    sub->cb = cb;
-    mutex_lock(&pkt_subscribers_lock);
-    LIST_INSERT_HEAD(&pkt_subscribers, sub, entry);
-    mutex_unlock(&pkt_subscribers_lock);
-
-    return 0;
-}
-
-void proto_pkt_subscriber_dtor(struct proto_subscriber *sub)
-{
-    SLOG(LOG_DEBUG, "Destruct a packet subscriber@%p", sub);
-
-    mutex_lock(&pkt_subscribers_lock);
-    LIST_REMOVE(sub, entry);
-    mutex_unlock(&pkt_subscribers_lock);
 }
 
 void proto_subscribers_call(struct proto *proto, bool with_pkt_sbc, struct proto_info *info, size_t tot_cap_len, uint8_t const *tot_packet, struct timeval const *now)
@@ -1080,8 +1059,7 @@ void proto_init(void)
     ext_param_nb_fuzzed_bits_init();
     ext_param_mux_timeout_init();
 
-    LIST_INIT(&pkt_subscribers);
-    mutex_ctor(&pkt_subscribers_lock, "packet subscribers");
+    pkt_hook_init();
 
     // A thread to timeout all mux_subparsers
     int err = pthread_create(&timeouter_pth, NULL, timeouter_thread, NULL);
@@ -1144,10 +1122,7 @@ void proto_fini(void)
     (void)pthread_cancel(timeouter_pth);
     (void)pthread_join(timeouter_pth, NULL);
 
-    if (! LIST_EMPTY(&pkt_subscribers)) {
-        SLOG(LOG_NOTICE, "Some packet subscribers are still registered");
-    }
-    mutex_dtor(&pkt_subscribers_lock);
+    pkt_hook_fini();
 
     dummy_fini();
     ext_param_mux_timeout_fini();
