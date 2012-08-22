@@ -32,7 +32,7 @@ TESTS_ENVIRONMENT = EF_ALLOW_MALLOC_0=1 GUILE_LOAD_PATH=$(top_srcdir)/guile GUIL
 #LDFLAGS += -lefence
 
 digest_queue_check_SOURCES = digest_queue_check.c
-digest_queue_check_LDADD = ../src/tools/libjunkietools.la
+digest_queue_check_LDADD = ../src/tools/libjunkietools.la ../src/proto/libproto.la
 timeval_check_SOURCES = timeval_check.c
 timeval_check_LDADD = ../src/tools/libjunkietools.la
 files_check_SOURCES = files_check.c

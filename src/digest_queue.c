@@ -34,9 +34,9 @@
 #include "junkie/tools/ext.h"
 #include "junkie/proto/cap.h"   // for collapse_ifaces
 #include "junkie/proto/eth.h"   // for collapse_vlans
+#include "junkie/proto/deduplication.h"
 #include "junkie/cpp.h"
 #include "hook.h"
-#include "digest_queue.h"
 
 #define DIGEST_SIZE MD4_DIGEST_LENGTH
 
@@ -46,7 +46,6 @@ LOG_CATEGORY_DEF(digest);
 
 // Hooks for each (non-)dup.
 HOOK(dup);
-HOOK(nodup);
 
 struct qcell {
     TAILQ_ENTRY(qcell) entry;
@@ -352,19 +351,22 @@ bool digest_queue_find(size_t cap_len, uint8_t *packet, uint8_t dev_id, struct t
             (collapse_ifaces || dev_id == qc->dev_id) &&
             0 == memcmp(qc->digest, qc_new->digest, DIGEST_SIZE)
         ) { // found a dup
+            struct dup_proto_info info;
+            proto_info_ctor(&info.info, NULL /* hum */, NULL, 0, cap_len);
             SLOG(LOG_DEBUG, "queue[%u]: Found a dup after %u/%u digests (max_dt=%uus)", h, count, q->length, q->dt_max);
             // Note that we do not promote the dup in order to avoid dup + dup + dup + retrans being interpreted as 4 dups.
             if (q->comprehensive) {
-                int64_t const dt = timeval_sub(frame_tv, &qc->tv);
+                info.dt = timeval_sub(frame_tv, &qc->tv);
                 // update the infos
-                q->dt_sum += llabs(dt);
-                q->dt_sum2 += dt*dt;
+                q->dt_sum += llabs(info.dt);
+                q->dt_sum2 += info.dt*info.dt;
                 q->nb_dups ++;
             }
 
             update_dedup_stats(1, 0);
             mutex_unlock(&q->mutex);
             objfree(qc_new);
+            dup_subscribers_call(&info.info, cap_len, packet, frame_tv);
             return true;
         }
         count ++;
@@ -476,7 +478,6 @@ void digest_init(void)
     }
 
     dup_hook_init();
-    nodup_hook_init();
 
     ext_function_ctor(&sg_dedup_stats,
         "deduplication-stats", 0, 0, 0, g_dedup_stats,
@@ -498,7 +499,6 @@ void digest_fini(void)
     if (--inited) return;
 
     dup_hook_fini();
-    nodup_hook_fini();
 
     reset_digests();
     for (unsigned i = 0; i < NB_ELEMS(queues); i++) {

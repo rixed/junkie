@@ -298,18 +298,6 @@ struct proto_info const *proto_info_get(
         return err; \
     }
 
-/*
- * Other available hooks
- */
-
-/// To be called each time a duplicate frame is found
-int dup_subscriber_ctor(struct proto_subscriber *, proto_cb_t *);
-void dup_subscriber_dtor(struct proto_subscriber *);
-
-/// ... or each time a frame survives the deduplication process
-int nodup_subscriber_ctor(struct proto_subscriber *, proto_cb_t *);
-void nodup_subscriber_dtor(struct proto_subscriber *);
-
 
 /*
  * Parsers

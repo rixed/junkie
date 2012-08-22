@@ -29,5 +29,6 @@ thisinclude_HEADERS = \
 	serialize.h \
 	capfile.h \
 	os-detect.h \
-	discovery.h
+	discovery.h \
+	deduplication.h
 

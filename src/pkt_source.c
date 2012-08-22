@@ -35,10 +35,10 @@
 #include "junkie/tools/ref.h"
 #include "junkie/proto/cap.h"
 #include "junkie/proto/proto.h"
+#include "junkie/proto/deduplication.h"
 #include "junkie/tools/ext.h"
 #include "plugins.h"
 #include "nettrack.h"
-#include "digest_queue.h"
 
 static LIST_HEAD(pkt_sources, pkt_source) pkt_sources = LIST_HEAD_INITIALIZER(pkt_sources);
 static struct mutex pkt_sources_lock;   // only valid when !terminating
