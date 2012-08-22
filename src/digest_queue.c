@@ -35,6 +35,7 @@
 #include "junkie/proto/cap.h"   // for collapse_ifaces
 #include "junkie/proto/eth.h"   // for collapse_vlans
 #include "junkie/cpp.h"
+#include "hook.h"
 #include "digest_queue.h"
 
 #define DIGEST_SIZE MD4_DIGEST_LENGTH
@@ -42,6 +43,10 @@
 LOG_CATEGORY_DEF(digest);
 #undef LOG_CAT
 #define LOG_CAT digest_log_category
+
+// Hooks for each (non-)dup.
+HOOK(dup);
+HOOK(nodup);
 
 struct qcell {
     TAILQ_ENTRY(qcell) entry;
@@ -470,6 +475,9 @@ void digest_init(void)
         queue_ctor(queues + i);
     }
 
+    dup_hook_init();
+    nodup_hook_init();
+
     ext_function_ctor(&sg_dedup_stats,
         "deduplication-stats", 0, 0, 0, g_dedup_stats,
         "(deduplication-stats): return some statistics about the deduplication mechanism.\n"
@@ -488,6 +496,9 @@ void digest_init(void)
 void digest_fini(void)
 {
     if (--inited) return;
+
+    dup_hook_fini();
+    nodup_hook_fini();
 
     reset_digests();
     for (unsigned i = 0; i < NB_ELEMS(queues); i++) {
