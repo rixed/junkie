@@ -1,7 +1,7 @@
 ; vim:syntax=scheme filetype=scheme expandtab
 ;;; This module defines some web pages to handle captures online
 
-(define-module (junkie writer capturer))
+(define-module (junkie writer))
 
 (use-modules (junkie defs)
              (junkie runtime)
@@ -25,18 +25,22 @@
 
 (define (capture-new filename rotation regexp netmatch max-pkts max-size max-secs caplen)
   (slog log-debug "New capture for ~s" filename)
-  (let* ((param->int (lambda (str)
-                       (if (string=? str "")
-                           0
-                           (string->number str))))
+  (let* ((param->opt-int (lambda (str)
+                           (if (string=? str "")
+                               #f
+                               (string->number str))))
+         (param->opt-string (lambda (str)
+                              (if (string=? str "")
+                                  #f
+                                  str)))
          (cap (make-capture-conf filename 'pcap
-                                 regexp
-                                 netmatch
-                                 (param->int max-pkts)
-                                 (param->int max-size)
-                                 (param->int max-secs)
-                                 (param->int caplen)
-                                 (param->int rotation))))
+                                 (param->opt-string regexp)
+                                 (param->opt-string netmatch)
+                                 (param->opt-int max-pkts)
+                                 (param->opt-int max-size)
+                                 (param->opt-int max-secs)
+                                 (param->opt-int caplen)
+                                 (param->opt-int rotation))))
     (capture-start cap) ; we'd rather start it at this point
     (add-capture filename cap)))
 
@@ -71,6 +75,7 @@
 
 ; TODO: additional actions for download, pause/resume, ... del should not be a special action, but an alist of label->action should be allowed.
 (define (register)
+  (load-plugin "writer")
   (register-crudable (make-crudable "capture" capture-names capture-fields #f capture-new
                                     `(("Del" . ,capture-del)
                                       ("Pause|Resume" . ,pause-resume)

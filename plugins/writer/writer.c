@@ -280,7 +280,8 @@ static SCM g_make_capture_conf(SCM file_, SCM method_, SCM match_re_, SCM netmat
         assert(!"Not reached");
     }
 
-    int method = SCM_UNBNDP(method_) ? 0 : cli_2_enum(false, scm_to_latin1_string(scm_symbol_to_string(method_)), "pcap", "csv", NULL);
+    int method = SCM_UNBNDP(method_) || scm_is_false(method_) ?
+                    0 : cli_2_enum(false, scm_to_latin1_string(scm_symbol_to_string(method_)), "pcap", "csv", NULL);
     if (method < 0) {
         scm_throw(scm_from_latin1_symbol("no-such-method"), scm_list_1(method_));
         assert(!"Not reached");
@@ -292,18 +293,18 @@ static SCM g_make_capture_conf(SCM file_, SCM method_, SCM match_re_, SCM netmat
     conf->paused = false;
     conf->file = file;
     conf->method = method;
-    conf->max_pkts = SCM_UNBNDP(max_pkts_) ? 0 : scm_to_uint(max_pkts_);
-    conf->max_size = SCM_UNBNDP(max_size_) ? 0 : scm_to_uint(max_size_);
-    conf->max_secs = SCM_UNBNDP(max_secs_) ? 0 : scm_to_uint(max_secs_);
-    conf->cap_len  = SCM_UNBNDP(caplen_)   ? 0 : scm_to_uint(caplen_);
-    conf->rotation = SCM_UNBNDP(rotation_) ? 0 : scm_to_uint(rotation_);
+    conf->max_pkts = SCM_UNBNDP(max_pkts_) || scm_is_false(max_pkts_) ? 0 : scm_to_uint(max_pkts_);
+    conf->max_size = SCM_UNBNDP(max_size_) || scm_is_false(max_size_) ? 0 : scm_to_uint(max_size_);
+    conf->max_secs = SCM_UNBNDP(max_secs_) || scm_is_false(max_secs_) ? 0 : scm_to_uint(max_secs_);
+    conf->cap_len  = SCM_UNBNDP(caplen_)   || scm_is_false(caplen_)   ? 0 : scm_to_uint(caplen_);
+    conf->rotation = SCM_UNBNDP(rotation_) || scm_is_false(rotation_) ? 0 : scm_to_uint(rotation_);
     conf->re_set = conf->netmatch_set = false;
     conf->capfile = NULL;
 
     SCM smob;
     SCM_NEWSMOB(smob, conf_tag, conf);
 
-    if (SCM_BNDP(match_re_)) {
+    if (SCM_BNDP(match_re_) && !scm_is_false(match_re_)) {
         char *match = scm_to_locale_string(match_re_);
         if (0 != set_match_re(conf, match)) {
             scm_throw(scm_from_latin1_symbol("cannot-use-regex"), scm_list_1(match_re_));
@@ -311,7 +312,7 @@ static SCM g_make_capture_conf(SCM file_, SCM method_, SCM match_re_, SCM netmat
         }
     }
 
-    if (SCM_BNDP(netmatch_)) {
+    if (SCM_BNDP(netmatch_) && !scm_is_false(netmatch_)) {
         char *netmatch = scm_to_locale_string(netmatch_);
         if (0 != set_netmatch(conf, netmatch)) {
             scm_throw(scm_from_latin1_symbol("cannot-use-netmatch"), scm_list_1(netmatch_));

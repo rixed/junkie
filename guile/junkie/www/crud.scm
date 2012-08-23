@@ -12,6 +12,7 @@
              (web uri)
              (rnrs lists)
              (junkie defs) ; for slog
+             (junkie runtime) ; idem
              (junkie tools) ; for assert
              (junkie www server))
 
@@ -34,7 +35,10 @@
 (define (register-crudable crudable)
   (slog log-debug "new CRUDable ~s" crudable)
   (assert (crudable? crudable))
-  (set! crudables (cons crudable crudables)))
+  (set! crudables (cons crudable crudables))
+  (let ((name (crudable-name crudable)))
+    (add-menus name
+               (string-append "/crud/read/" name))))
 (export crudables)
 
 (export register-crudable)
@@ -154,73 +158,73 @@
 (define (string-starts-with? str prefix)
   (string= str prefix 0 (string-length prefix)))
 
-(define (crud-dispatch path params)
-  (slog log-debug "CRUD dispatch for path ~s" path)
-  (match path
-         (("crud" "read" name)
-          (let ((crudable (crudable-find name)))
-            (if crudable
-                (begin
-                  (slog log-debug "Found a crudable named ~a" name)
-                  (respond (show-crudable crudable)))
-                (begin
-                  (slog log-debug "No crudable named ~a" name)
-                  (respond (error-page (simple-format #f "No such object ~a" name)))))))
-          (("crud" "write" name)
-           (let ((crudable (crudable-find name)))
-             (if crudable
-                 (let ((field (assq-ref params 'field))
-                       (value (assq-ref params 'value))
-                       (key   (assq-ref params 'id)))
-                   (slog log-debug "Found a crudable named ~a" name)
-                   (catch #t
-                          (lambda ()
-                            ((crudable-writer crudable) key field value)
-                            (respond-raw (string->utf8 value)))
-                          (lambda (key . args)
-                            (slog log-err "Writting crudable ~s resulted in error ~s ~s" name key args)
-                            (respond (error-page (simple-format #f "Error ~s ~s" key args))))))
-                 (begin ; TODO: with-crudable-named name (lambda...)
-                   (slog log-debug "No crudable named ~a" name)
-                   (respond (error-page (simple-format #f "No such object ~a" name)))))))
-          (("crud" "new" name)
-           (let ((crudable (crudable-find name)))
-             (if crudable
-                 (let ((creator (crudable-creator crudable)))
-                   (slog log-debug "Create new ~a" name)
-                   (catch #t
-                          (lambda ()
-                            ; This works because the form entries are sent in order of apearance in the doc
-                            (apply creator (map cdr (filter (lambda (p)
-                                                              (string-starts-with? (val->string (car p)) creator-prefix))
-                                                            params)))
-                            (respond (show-crudable crudable)))
-                          (lambda (key . args)
-                            (slog log-err "Creating crudable resulted in error ~s ~s" key args)
-                            (respond (error-page (simple-format #f "Error ~s ~s" key args))))))
-                 (begin
-                   (slog log-debug "No crudable named ~a" name)
-                   (respond (error-page (simple-format #f "No such object ~a" name)))))))
-          (("crud" "action" name action-label)
-           (let ((crudable (crudable-find name)))
-             (if crudable
-                 (let* ((key        (assq-ref params 'key))
-                        (actions    (crudable-actions crudable))
-                        (action-fun (assoc-ref actions action-label)))
-                   (slog log-debug "Perform ~a on ~a which key is ~s" action-label name key)
-                   (catch #t
-                          (lambda ()
-                            ; action-fun is allowed to answer itself
-                            (let ((res (action-fun key)))
-                              (if (list? res)
-                                  res
-                                  (respond (show-crudable crudable)))))
-                          (lambda (key . args)
-                            (slog log-err "Performing ~a on crudable ~a resulted in error ~s ~s" action-label name key args)
-                            (respond (error-page (simple-format #f "Error ~s ~s" key args))))))
-                 (begin
-                   (slog log-debug "No crudable named ~a" name)
-                   (respond (error-page (simple-format #f "No such object ~a" name)))))))
-          (_ #f)))
+(add-dispatcher
+  (lambda (path params)
+    (slog log-debug "CRUD dispatch for path ~s" path)
+    (match path
+           (("crud" "read" name)
+            (let ((crudable (crudable-find name)))
+              (if crudable
+                  (begin
+                    (slog log-debug "Found a crudable named ~a" name)
+                    (respond (show-crudable crudable)))
+                  (begin
+                    (slog log-debug "No crudable named ~a" name)
+                    (respond (error-page (simple-format #f "No such object ~a" name)))))))
+           (("crud" "write" name)
+            (let ((crudable (crudable-find name)))
+              (if crudable
+                  (let ((field (assq-ref params 'field))
+                        (value (assq-ref params 'value))
+                        (key   (assq-ref params 'id)))
+                    (slog log-debug "Found a crudable named ~a" name)
+                    (catch #t
+                           (lambda ()
+                             ((crudable-writer crudable) key field value)
+                             (respond-raw (string->utf8 value)))
+                           (lambda (key . args)
+                             (slog log-err "Writting crudable ~s resulted in error ~s ~s" name key args)
+                             (respond (error-page (simple-format #f "Error ~s ~s" key args))))))
+                  (begin ; TODO: with-crudable-named name (lambda...)
+                    (slog log-debug "No crudable named ~a" name)
+                    (respond (error-page (simple-format #f "No such object ~a" name)))))))
+           (("crud" "new" name)
+            (let ((crudable (crudable-find name)))
+              (if crudable
+                  (let ((creator (crudable-creator crudable)))
+                    (slog log-debug "Create new ~a" name)
+                    (catch #t
+                           (lambda ()
+                             ; This works because the form entries are sent in order of apearance in the doc
+                             (apply creator (map cdr (filter (lambda (p)
+                                                               (string-starts-with? (val->string (car p)) creator-prefix))
+                                                             params)))
+                             (respond (show-crudable crudable)))
+                           (lambda (key . args)
+                             (slog log-err "Creating crudable resulted in error ~s ~s" key args)
+                             (respond (error-page (simple-format #f "Error ~s ~s" key args))))))
+                  (begin
+                    (slog log-debug "No crudable named ~a" name)
+                    (respond (error-page (simple-format #f "No such object ~a" name)))))))
+           (("crud" "action" name action-label)
+            (let ((crudable (crudable-find name)))
+              (if crudable
+                  (let* ((key        (assq-ref params 'key))
+                         (actions    (crudable-actions crudable))
+                         (action-fun (assoc-ref actions action-label)))
+                    (slog log-debug "Perform ~a on ~a which key is ~s" action-label name key)
+                    (catch #t
+                           (lambda ()
+                             ; action-fun is allowed to answer itself
+                             (let ((res (action-fun key)))
+                               (if (list? res)
+                                   res
+                                   (respond (show-crudable crudable)))))
+                           (lambda (key . args)
+                             (slog log-err "Performing ~a on crudable ~a resulted in error ~s ~s" action-label name key args)
+                             (respond (error-page (simple-format #f "Error ~s ~s" key args))))))
+                  (begin
+                    (slog log-debug "No crudable named ~a" name)
+                    (respond (error-page (simple-format #f "No such object ~a" name)))))))
+           (_ #f))))
 
-(export crud-dispatch)

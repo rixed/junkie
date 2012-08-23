@@ -1,4 +1,4 @@
-SUBDIRS = . www writer netmatch
+SUBDIRS = . www netmatch
 
 include $(top_srcdir)/scm2go.am
 
@@ -8,7 +8,9 @@ SCM = \
 	defs.scm \
 	snmp-subagt.scm \
 	tools.scm \
-	signatures.scm
+	signatures.scm \
+	writer.scm \
+	duplicogram.scm
 
 GOBJECTS = $(SCM:%.scm=%.go)
 
