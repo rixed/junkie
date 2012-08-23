@@ -10,6 +10,7 @@
 
 
 (define (register)
+  (load-plugin "duplicogram")
   (add-dispatcher
     (lambda (path params)
       (slog log-debug "Duplicodispatch for path ~s" path)
