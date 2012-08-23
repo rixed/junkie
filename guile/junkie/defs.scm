@@ -66,6 +66,12 @@
                      (set-thread-name "J-repl-server")
                      (start-server (inet-aton "127.0.0.1") port repl))))))
 
+(define*-public (start-web-server #:key (port 8080))
+  ((@ (junkie www monitor) register))
+  ((@ (junkie duplicogram) register))
+  ((@ (junkie writer) register))
+  ((@ (junkie www server) start) port))
+
 ; An equivalent of the old fashionned display command line option
 (define-public (display-parameters)
   (let ((display-one (lambda (p)
