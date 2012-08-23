@@ -281,9 +281,10 @@
                 (add-menu name url (prev sxml)))))
           (lambda (sxml)
             (add-header-footer
-              (add-css "/junkie.css"
-                       (add-title "Junkie"
-                                  (make-simple-page sxml)))))
+              (add-css "/svg-graph.css"
+                       (add-css "/junkie.css"
+                                (add-title "Junkie"
+                                           (make-simple-page sxml))))))
           (reverse menus)))
   (let ((dispatch (chain-dispatchers dispatchers)))
     (make-thread (lambda ()
