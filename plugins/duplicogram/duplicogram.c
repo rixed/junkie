@@ -34,8 +34,16 @@
 #include <junkie/proto/deduplication.h>
 #include <junkie/proto/cap.h>
 
+LOG_CATEGORY_DEF(duplicogram);
+#undef LOG_CAT
+#define LOG_CAT duplicogram_log_category
+
+
 static int64_t refresh_rate = 1000000;  // 1 sec
+static unsigned last_bucket_width = 0;
 static unsigned bucket_width = 0;  //  in usec. If unset (0), set to 100ms/columns
+EXT_PARAM_RW(bucket_width, "duplicogram-bucket-width", uint, "Width of time interval (in usec) used to compute dups distribution");
+
 static unsigned columns, lines;
 static pthread_t display_pth; // only set if display_started
 static bool display_started;
@@ -70,33 +78,40 @@ static unsigned nb_buckets;
 static unsigned *dups;
 static struct mutex dup_lock;
 
-static void dup_reset(void)
+static void dup_reset_locked(void)
 {
-    mutex_lock(&dup_lock);
     nb_nodups = nb_dups = 0;
     sz_nodups = sz_dups = 0;
     memset(dups, 0, nb_buckets * sizeof(*dups));
+}
+
+static void dup_reset(void)
+{
+    mutex_lock(&dup_lock);
+    dup_reset_locked();
     mutex_unlock(&dup_lock);
 }
 
+// caller should own dup_lock
 static void init(void)
 {
     static bool inited;
-    if (inited) return;
+    if (inited && bucket_width <= last_bucket_width) return;
     inited = true;
+    last_bucket_width = bucket_width;
 
     if (bucket_width == 0) bucket_width = CEIL_DIV(max_dup_delay, columns);
     nb_buckets = CEIL_DIV(max_dup_delay, bucket_width);
+    if (dups) free(dups);
     dups = malloc(nb_buckets * sizeof(*dups));
     assert(dups);
-    dup_reset();
+    dup_reset_locked();
 }
 
 static void cap_callback(struct proto_subscriber unused_ *s, struct proto_info const unused_ *last, size_t cap_len, uint8_t const unused_ *packet, struct timeval const unused_ *now)
 {
-    init();
-
     mutex_lock(&dup_lock);
+    init();
     nb_nodups ++;
     sz_nodups += cap_len;
     mutex_unlock(&dup_lock);
@@ -104,12 +119,10 @@ static void cap_callback(struct proto_subscriber unused_ *s, struct proto_info c
 
 static void dup_callback(struct proto_subscriber unused_ *s, struct proto_info const *last, size_t cap_len, uint8_t const unused_ *packet, struct timeval const unused_ *now)
 {
-    init();
-
     struct dedup_proto_info *dedup = DOWNCAST(last, info, dedup_proto_info);
-    unsigned const b = dedup->dt / bucket_width;
-    assert(b < nb_buckets);
     mutex_lock(&dup_lock);
+    init();
+    unsigned const b = MIN(nb_buckets-1, dedup->dt / bucket_width);
     nb_dups ++;
     sz_dups += cap_len;
     dups[b] ++;
@@ -199,6 +212,26 @@ static void *display_thread(void unused_ *dummy)
 }
 
 /*
+ * Extensions
+ */
+
+// Returns dups as a list of (dt . dups) points
+static struct ext_function sg_get_duplicogram;
+static SCM g_get_duplicogram(void)
+{
+    SCM lst = SCM_EOL;
+    unsigned dt = 0;
+    for (unsigned x = 0; x < nb_buckets; x++, dt += bucket_width) {
+        lst = scm_cons(
+                scm_cons(scm_from_uint(dt), scm_from_uint(dups[x])),
+                lst);
+    }
+
+    dup_reset();
+    return lst;
+}
+
+/*
  * Init
  */
 
@@ -220,12 +253,19 @@ static struct proto_subscriber cap_subscription;
 
 void on_load(void)
 {
+    log_category_duplicogram_init();
+    ext_param_bucket_width_init();
+
     SLOG(LOG_INFO, "Duplicogram loaded");
     cli_register("Duplicogram plugin", duplicogram_opts, NB_ELEMS(duplicogram_opts));
 
     columns = getenvul("COLUMNS", 80);
     lines = getenvul("LINES", 25);
     mutex_ctor(&dup_lock, "Duplicogram mutex");
+
+    ext_function_ctor(&sg_get_duplicogram,
+        "get-duplicogram", 0, 0, 0, g_get_duplicogram,
+        "(get-duplicogram): fetch duplicogram data and reset internal state. Not for the casual user");
 
     dup_subscriber_ctor(&dup_subscription, dup_callback);
     proto_subscriber_ctor(&cap_subscription, proto_cap, cap_callback);
@@ -243,4 +283,7 @@ void on_unload(void)
         quit = 1;
         pthread_join(display_pth, NULL);
     }
+
+    ext_param_bucket_width_fini();
+    log_category_duplicogram_fini();
 }
