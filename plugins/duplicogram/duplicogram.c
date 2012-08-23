@@ -96,7 +96,7 @@ static void dup_reset(void)
 static void init(void)
 {
     static bool inited;
-    if (inited && bucket_width <= last_bucket_width) return;
+    if (inited && bucket_width == last_bucket_width) return;
     inited = true;
     last_bucket_width = bucket_width;
 
@@ -215,15 +215,17 @@ static void *display_thread(void unused_ *dummy)
  * Extensions
  */
 
-// Returns dups as a list of (dt . dups) points
+// Returns dups as a list of (dt . dups) points (dt in usecs, dups as ratio)
 static struct ext_function sg_get_duplicogram;
 static SCM g_get_duplicogram(void)
 {
     SCM lst = SCM_EOL;
-    unsigned dt = 0;
+    uint64_t const nb_pkts = nb_nodups + nb_dups;
+    unsigned dt = bucket_width/2;
     for (unsigned x = 0; x < nb_buckets; x++, dt += bucket_width) {
         lst = scm_cons(
-                scm_cons(scm_from_uint(dt), scm_from_uint(dups[x])),
+                scm_cons(scm_from_uint(dt),
+                         scm_from_double(nb_pkts > 0 ? (double)dups[x] / nb_pkts : 0.)),
                 lst);
     }
 
