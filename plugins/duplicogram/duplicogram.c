@@ -30,13 +30,17 @@
 #include <junkie/tools/log.h>
 #include <junkie/tools/cli.h>
 #include <junkie/tools/miscmacs.h>
+#include <junkie/tools/ext.h>
 #include <junkie/proto/deduplication.h>
 #include <junkie/proto/cap.h>
 
 static int64_t refresh_rate = 1000000;  // 1 sec
 static unsigned bucket_width = 0;  //  in usec. If unset (0), set to 100ms/columns
 static unsigned columns, lines;
+static pthread_t display_pth; // only set if display_started
+static bool display_started;
 
+static void *display_thread(void *);
 static int cli_set_refresh(char const *v)
 {
     char *end;
@@ -46,13 +50,18 @@ static int cli_set_refresh(char const *v)
         return -1;
     }
     refresh_rate = d * 1000000.;
+
+    // spawn display thread
+    if (0 != pthread_create(&display_pth, NULL, display_thread, NULL)) {
+        SLOG(LOG_CRIT, "Cannot spawn display thread");
+    }
+
     return 0;
 }
 
 static struct cli_opt duplicogram_opts[] = {
-    { { "interval",     "d" },  "seconds",  "update interval", CLI_CALL,     { .call = &cli_set_refresh } },
-    { { "bucket-width", NULL }, "useconds", "distribution step for time interval",
-                                                               CLI_SET_UINT, { .uint = &bucket_width } },
+    { { "interval",     "d" },  "seconds",  "update interval (default: no display)", CLI_CALL,     { .call = &cli_set_refresh } },
+    { { "bucket-width", NULL }, "useconds", "distribution step for time interval",   CLI_SET_UINT, { .uint = &bucket_width } },
 };
 
 static uint64_t nb_nodups, nb_dups;
@@ -208,7 +217,6 @@ static unsigned long getenvul(char const *envvar, unsigned long def)
 
 static struct proto_subscriber dup_subscription;
 static struct proto_subscriber cap_subscription;
-static pthread_t display_pth;
 
 void on_load(void)
 {
@@ -221,10 +229,6 @@ void on_load(void)
 
     dup_subscriber_ctor(&dup_subscription, dup_callback);
     proto_subscriber_ctor(&cap_subscription, proto_cap, cap_callback);
-
-    if (0 != pthread_create(&display_pth, NULL, display_thread, NULL)) {
-        SLOG(LOG_CRIT, "Cannot spawn display thread");
-    }
 }
 
 void on_unload(void)
@@ -235,6 +239,8 @@ void on_unload(void)
     cli_unregister(duplicogram_opts);
     //mutex_dtor(&dup_lock); no since we can have some callbacks called even after we unsubscribed (in another thread)
 
-    quit = 1;
-    pthread_join(display_pth, NULL);
+    if (display_started) {
+        quit = 1;
+        pthread_join(display_pth, NULL);
+    }
 }
