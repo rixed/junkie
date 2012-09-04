@@ -76,7 +76,7 @@ static uint64_t nb_nodups, nb_dups;
 static uint64_t sz_nodups, sz_dups;
 static unsigned nb_buckets;
 static unsigned *dups;
-static struct mutex dup_lock;
+static struct mutex dup_lock;   // protects dups (since it can be reallocated anytime)
 
 static void dup_reset_locked(void)
 {
@@ -144,6 +144,8 @@ static void display(void)
 
     if (lines <= 4) return;
 
+    mutex_lock(&dup_lock);
+
     // look for max dups
     static unsigned dups_max = 0;
     unsigned cur_dups_max = 0;
@@ -176,6 +178,10 @@ static void display(void)
         }
         puts("");
     }
+
+    // we are done with dups
+    mutex_unlock(&dup_lock);
+
 #   define X_TICK 16    // one tick every X_TICK chars (must be power of 2)
     printf("     ");
     unsigned x;
@@ -188,6 +194,7 @@ static void display(void)
     }
     for (; x < columns-8; x++) printf(" ");
     printf("           us");  // X_TICK-5 spaces long
+
     fflush(stdout);
 }
 
@@ -221,6 +228,11 @@ static SCM g_get_duplicogram(void)
 {
     SCM lst = SCM_EOL;
     uint64_t const nb_pkts = nb_nodups + nb_dups;
+
+    scm_dynwind_begin(0);
+    mutex_lock(&dup_lock);
+    scm_dynwind_unwind_handler(pthread_mutex_unlock_, &dup_lock.mutex, SCM_F_WIND_EXPLICITLY);
+
     unsigned dt = bucket_width/2;
     for (unsigned x = 0; x < nb_buckets; x++, dt += bucket_width) {
         lst = scm_cons(
@@ -229,7 +241,9 @@ static SCM g_get_duplicogram(void)
                 lst);
     }
 
-    dup_reset();
+    dup_reset_locked();
+    scm_dynwind_end();
+
     return lst;
 }
 
