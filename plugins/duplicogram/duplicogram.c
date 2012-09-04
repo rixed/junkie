@@ -145,6 +145,11 @@ static void display(void)
     if (lines <= 4) return;
 
     mutex_lock(&dup_lock);
+    if (! dups) {
+        printf("no data yet\n");
+        mutex_unlock(&dup_lock);
+        return;
+    }
 
     // look for max dups
     static unsigned dups_max = 0;
