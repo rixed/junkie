@@ -132,13 +132,13 @@ static void display(void)
         if (nb_pc > 0) {
             nb_pc--;
             proto = proto_of_code(pc[nb_pc]);
-            printf("%11s: %5u/%-7u (%5.1f%%) ",
+            printf("%11s: %6u/%-7u (%5.1f%%) ",
                 proto->name,
                 proto_count[proto->code],
                 proto_tot[proto->code],
                 (100. * proto_tot[proto->code])/tot_count);
         } else {
-            printf("                                    ");
+            printf("                                     ");
         }
 
         if (s <= max_bucket) {
@@ -147,7 +147,7 @@ static void display(void)
                 n += histo[s+b];
                 t += histo_tot[s+b];
             }
-#           define LABEL_WIDTH (37+27)
+#           define LABEL_WIDTH (38+27)
             unsigned const bar_size = columns > LABEL_WIDTH && tot_max_count > 0 ?
                 (n * (columns - LABEL_WIDTH)) / (tot_max_count * nb_buckets_per_line) : 0;
             assert(bar_size <= columns - LABEL_WIDTH);
