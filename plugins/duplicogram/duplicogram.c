@@ -44,7 +44,6 @@ static unsigned last_bucket_width = 0;
 static unsigned bucket_width = 0;  //  in usec. If unset (0), set to 100ms/columns
 EXT_PARAM_RW(bucket_width, "duplicogram-bucket-width", uint, "Width of time interval (in usec) used to compute dups distribution");
 
-static unsigned columns, lines;
 static pthread_t display_pth; // only set if display_started
 static bool display_started;
 
@@ -100,7 +99,11 @@ static void init(void)
     inited = true;
     last_bucket_width = bucket_width;
 
-    if (bucket_width == 0) bucket_width = CEIL_DIV(max_dup_delay, columns);
+    if (bucket_width == 0) {
+        unsigned columns;
+        get_window_size(&columns, NULL);
+        bucket_width = CEIL_DIV(max_dup_delay, columns);
+    }
     nb_buckets = CEIL_DIV(max_dup_delay, bucket_width);
     if (dups) free(dups);
     dups = malloc(nb_buckets * sizeof(*dups));
@@ -142,6 +145,9 @@ static void display(void)
     printf("dusp:  %12"PRIu64"/%-12"PRIu64" (%6.2f%%)\n", nb_dups, nb_dups+nb_nodups, 100.*(double)nb_dups/(nb_dups+nb_nodups));
     printf("bytes: %12"PRIu64"/%-12"PRIu64" (%6.2f%%)\n", sz_dups, sz_dups+sz_nodups, 100.*(double)sz_dups/(sz_dups+sz_nodups));
 
+    unsigned lines, columns;
+    get_window_size(&columns, &lines);
+    
     if (lines <= 4) return;
 
     mutex_lock(&dup_lock);
@@ -256,19 +262,6 @@ static SCM g_get_duplicogram(void)
  * Init
  */
 
-static unsigned long getenvul(char const *envvar, unsigned long def)
-{
-    char const *e = getenv(envvar);
-    if (! e) return def;
-    char *end;
-    unsigned long res = strtoul(e, &end, 0);
-    if (*end != '\0') {
-        SLOG(LOG_ERR, "Cannot parse envvar %s: %s", envvar, e);
-        return def;
-    }
-    return res;
-}
-
 static struct proto_subscriber dup_subscription;
 static struct proto_subscriber cap_subscription;
 
@@ -280,8 +273,6 @@ void on_load(void)
     SLOG(LOG_INFO, "Duplicogram loaded");
     cli_register("Duplicogram plugin", duplicogram_opts, NB_ELEMS(duplicogram_opts));
 
-    columns = getenvul("COLUMNS", 80);
-    lines = getenvul("LINES", 25);
     mutex_ctor(&dup_lock, "Duplicogram mutex");
 
     ext_function_ctor(&sg_get_duplicogram,

@@ -32,7 +32,6 @@
 
 static int64_t refresh_rate = 1000000;  // 1 sec
 static unsigned bucket_width = 50;  // 50 bytes = 1 bar
-static unsigned columns, lines;
 
 static int cli_set_refresh(char const *v)
 {
@@ -119,6 +118,8 @@ static void display(void)
     /* Display distribution of sizes */
 
     unsigned lineno = 0;
+    unsigned lines, columns;
+    get_window_size(&columns, &lines);
 
     // Y scale : max_bucket buckets in lines-lineno-1 lines
     unsigned nb_buckets_per_line = 1;
@@ -219,19 +220,6 @@ static void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info c
     mutex_unlock(&disp_lock);
 }
 
-static unsigned long getenvul(char const *envvar, unsigned long def)
-{
-    char const *e = getenv(envvar);
-    if (! e) return def;
-    char *end;
-    unsigned long res = strtoul(e, &end, 0);
-    if (*end != '\0') {
-        SLOG(LOG_ERR, "Cannot parse envvar %s: %s", envvar, e);
-        return def;
-    }
-    return res;
-}
-
 static struct proto_subscriber subscription;
 static pthread_t display_pth;
 
@@ -239,9 +227,6 @@ void on_load(void)
 {
     SLOG(LOG_INFO, "Packetogram loaded");
     cli_register("Packetogram plugin", packetogram_opts, NB_ELEMS(packetogram_opts));
-
-    columns = getenvul("COLUMNS", 80);
-    lines = getenvul("LINES", 25);
 
     mutex_ctor(&disp_lock, "display lock");
     if (0 != pthread_create(&display_pth, NULL, display_thread, NULL)) {
