@@ -42,12 +42,6 @@
                      (min-dups      #f)
                      (min-dups-nz   #f) ; min for non-zero, positive values
                      (logarithmic   #f)
-                     (make-log      (lambda (v)
-                                      (if logarithmic
-                                          (if (not (zero? v))
-                                              (log10 v)
-                                              0)
-                                          v)))
                      (pts           (get-duplicogram))
                      (add-space-x   0) ; will set later
                      (add-space-y   0) ; will set later
