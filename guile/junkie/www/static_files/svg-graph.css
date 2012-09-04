@@ -27,3 +27,7 @@ svg.graph g.tick text {
     stroke: #111;
 }
 
+svg.graph g.tick line.grid {
+	stroke: #888;
+	stroke-width: 1px;
+}
