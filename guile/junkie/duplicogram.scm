@@ -51,7 +51,6 @@
                                       (let ((min-dups (if (and (> min-dups 0)
                                                                (< min-dups (/ max-dups 2)))
                                                           0 min-dups)))
-                                        (slog log-debug "dups->lin-y dups=~s min-dups=~s max-dups=~s" dups min-dups max-dups)
                                         (- height add-space-y (/ (* (- dups min-dups) (- height add-space-y)) (- max-dups min-dups))))))
                      (dups->y       (lambda (dups)
                                       (if (= max-dups min-dups)
@@ -59,7 +58,6 @@
                                           (if logarithmic
                                               ; logarithmic scale
                                               (begin
-                                                (slog log-debug "dups->y for dups=~s min-dups=~s min-dups-nz=~s max-dups=~s" dups min-dups min-dups-nz max-dups)
                                                 (let ((dups     (if (not (zero? dups))
                                                                     (log10 dups)
                                                                     (log10 min-dups-nz)))
@@ -174,9 +172,7 @@
                                                               (font-size . ,font-width)
                                                               (text-anchor . "end"))
                                                            ,(format #f "~,2g%" (* 100 d)))))) ; keep only a few digits in mantissa to avoid displaying rounding artefact
-                                             (lambda (d)
-                                               (slog log-debug "dups ratio was ~s, y=~s" d (dups->y d))
-                                               (+ d tick-every-y))
+                                             (lambda (d) (+ d tick-every-y))
                                              0)
                                      '())
                                ; ticks on X
