@@ -76,9 +76,6 @@ Netmatch language
 Nettrack language
 -----------------
 
-- More entry functions than `pass` (start with a `scm-eval` that calls a given
-  Guile function);
-
 - A www plugin to display each netgraph state;
 
 Reports
