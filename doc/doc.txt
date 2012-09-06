@@ -540,3 +540,80 @@ Some ideas of what can be done with this:
 - ...!
 
 
+== Plugins
+
+Junkie is designed to be extensible but can also be usefull by itself due
+to the few plugins that comes with it.
+
+Remember that to load a plugin you must run:
+
+    junkie -p pluginname
+
+Also, each plugin adds it's own command line options that you can read help
+for with:
+
+    junkie -p pluginname --help
+
+
+=== Dumper
+
+Dumps to stdout every packets, not unlike tcpdump.
+
+Example:
+
+    junkie -p dumper -i eth0
+
+=== Writer
+
+Save packets in a pcap (or optionally, CSV) file. Has many options to control
+what packets to save.
+
+Example:
+
+    junkie -p writer -i eth0 --file /dev/stdout --netmatch "'(dns) '(dns.name = "'"google.com")'
+
+(quoting from command line is getting tricky)
+
+=== Packetogram
+
+Display the distribution of packet sizes. Useful to find out the various MTU
+used in a LAN.
+
+Example:
+
+    junkie -p packetogram -i eth0
+
+=== Duplicogram
+
+Display the distribution of packet duplicates (according to the time interval
+between them). Useful to find out how many sources of duplication there are.
+
+Example:
+
+    junkie -p duplicogram -i eth0
+
+=== Os Detect
+
+Display the detected Operating system per IP addresses.
+
+Example:
+
+    junkie -p os-detect -i eth0
+
+=== ARP graph
+
+Output periodically a dot schema of communicating peers.
+
+Example:
+
+    junkie -p arpgraph -r file.pcap
+
+=== Rater
+
+Similar to writer but triggers the save based on the rate of packets. Useful
+to find out what's causes some burst in bandwidth for instance.
+
+=== Serializer
+
+Used to send parsed informations to another junkie through a socket.
+
