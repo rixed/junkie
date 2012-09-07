@@ -47,6 +47,14 @@ void mutex_fini(void);
     mutex_unlock(mutex); \
 } while (0)
 
+#define WITH_LOCK(lock) \
+    mutex_lock(lock); \
+    for (bool first__ = true ; first__ || (mutex_unlock(lock), false) ; first__ = false)
+
+#define WITH_PTH_MUTEX(lock) \
+    pthread_mutex_lock(lock); \
+    for (bool first__ = true ; first__ || (pthread_mutex_unlock(lock), false) ; first__ = false)
+
 /*
  * Supermutexes
  */
