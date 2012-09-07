@@ -6,6 +6,8 @@ NEW in 2.3.0 (since 2.2.0)
 
 * Packetogram plugin to display packet size distribution
 
+* You can now limit the amount of RAM used by the parsers
+
 
 NEW in 2.2.0 (since 2.1.0)
 --------------------------
