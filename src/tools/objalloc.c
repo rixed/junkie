@@ -27,6 +27,7 @@
 #include "junkie/tools/log.h"
 #include "junkie/tools/mutex.h"
 #include "junkie/tools/objalloc.h"
+#include "junkie/tools/mallocer.h"  // for overweight
 
 #undef LOG_CAT
 #define LOG_CAT objalloc_log_category
@@ -191,6 +192,12 @@ void *objalloc(size_t entry_size, char const *requestor)
 #       endif
     }
     return p_obj->obj.userdata;
+}
+
+void *objalloc_nice(size_t entry_size, char const *requestor)
+{
+    if (overweight) return NULL;
+    return objalloc(entry_size, requestor);
 }
 
 void objfree(void *ptr)

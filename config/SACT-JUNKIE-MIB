@@ -12,6 +12,8 @@ sactJunkieModule MODULE-IDENTITY
 	ORGANIZATION "SecurActive SA"
 	CONTACT-INFO "info@securactive.net"
 	DESCRIPTION  "Junkie MIB"
+	REVISION     "201209070000Z"
+	DESCRIPTION  "Addition of denied parsers count"
 	REVISION     "201205040000Z"
 	DESCRIPTION  "Dup detection delay is now in milliseconds"
 	REVISION     "201107080000Z"
@@ -433,5 +435,28 @@ entrySize OBJECT-TYPE
 	STATUS current
 	DESCRIPTION "Size of a single entry."
 	::= { arrayEntry 7 }
+
+MallocLimit OBJECT-TYPE
+	SYNTAX Gauge32
+	UNITS "bytes"
+	MAX-ACCESS read-only
+	STATUS current
+	DESCRIPTION
+		"Maximum amount of memory requested from the OS, after which we
+		 avoid spawning new parsers.
+		 No such limitation exist if set to 0."
+	::= { junkieMemory 3 }
+
+DeniedParsers OBJECT-TYPE
+	SYNTAX Counter32
+	MAX-ACCESS read-only
+	STATUS current
+	DESCRIPTION
+		"How many new parser creation were denied because of memory
+		 limitation (Note: this can happen even if MallocLimit is 0
+		 if the OS is unable to fulfill our memory requirements,
+		 although Junkie - and the whole OS - is likely to misbehave
+		 whenever this is the case)."
+	::= { junkieMemory 4 }
 
 END

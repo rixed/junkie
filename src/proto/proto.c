@@ -38,6 +38,9 @@ EXT_PARAM_RW(nb_fuzzed_bits, "nb-fuzzed-bits", uint, "Max number of bits to fuzz
 static unsigned mux_timeout = 120;
 EXT_PARAM_RW(mux_timeout, "mux-timeout", uint, "After how many seconds an unused multiplexer subparser may be deleted (0 to disable timeouting).")
 
+static unsigned denied_parsers;
+EXT_PARAM_RW(denied_parsers, "denied-parsers", uint, "How many parsers couldn't be created because we were overweight.");
+
 #undef LOG_CAT
 #define LOG_CAT proto_log_category
 
@@ -330,8 +333,11 @@ int parser_ctor(struct parser *parser, struct proto *proto)
 
 static struct parser *parser_new(struct proto *proto)
 {
-    struct parser *parser = objalloc(sizeof(*parser), "parsers");
-    if (unlikely_(! parser)) return NULL;
+    struct parser *parser = objalloc_nice(sizeof(*parser), "parsers");
+    if (unlikely_(! parser)) {
+        __sync_fetch_and_add(&denied_parsers, 1);
+        return NULL;
+    }
 
     if (unlikely_(0 != parser_ctor(parser, proto))) {
         objfree(parser);
@@ -635,7 +641,8 @@ int mux_subparser_ctor(struct mux_subparser *subparser, struct mux_parser *mux_p
 void *mux_subparser_alloc(struct mux_parser *mux_parser, size_t size_without_key)
 {
     struct mux_proto *mux_proto = DOWNCAST(mux_parser->parser.proto, proto, mux_proto);
-    void *subparser = objalloc(size_without_key + mux_proto->key_size, "subparsers");
+    void *subparser = objalloc_nice(size_without_key + mux_proto->key_size, "subparsers");
+    if (unlikely_(! subparser)) __sync_fetch_and_add(&denied_parsers, 1);
     return subparser;
 }
 
@@ -808,8 +815,11 @@ struct parser *mux_parser_new(struct proto *proto)
     unsigned const hash_size = mux_proto->hash_size;  // so that we don't care if the size change between the malloc and the ctor
     unsigned const nb_max_children = mux_proto->nb_max_children;
     size_t const sz = mux_parser_size(hash_size);
-    struct mux_parser *mux_parser = objalloc(sz, "mux_parsers");
-    if (unlikely_(! mux_parser)) return NULL;
+    struct mux_parser *mux_parser = objalloc_nice(sz, "mux_parsers");
+    if (unlikely_(! mux_parser)) {
+        __sync_fetch_and_add(&denied_parsers, 1);
+        return NULL;
+    }
 
     if (unlikely_(0 != mux_parser_ctor(mux_parser, mux_proto, hash_size, nb_max_children))) {
         objfree(mux_parser);
@@ -1079,6 +1089,7 @@ void proto_init(void)
     log_category_proto_init();
     ext_param_nb_fuzzed_bits_init();
     ext_param_mux_timeout_init();
+    ext_param_denied_parsers_init();
 
     LIST_INIT(&pkt_subscribers);
     mutex_ctor(&pkt_subscribers_lock, "packet subscribers");
@@ -1150,6 +1161,7 @@ void proto_fini(void)
     mutex_dtor(&pkt_subscribers_lock);
 
     dummy_fini();
+    ext_param_denied_parsers_fini();
     ext_param_mux_timeout_fini();
     ext_param_nb_fuzzed_bits_fini();
     log_category_proto_fini();

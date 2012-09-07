@@ -32,18 +32,37 @@
 struct mallocers mallocers = SLIST_HEAD_INITIALIZER(mallocers);
 struct mutex mallocers_lock;
 
+static size_t malloced_tot_size;
+EXT_PARAM_RO(malloced_tot_size, "malloced-tot-size", size_t, "bytes requested from OS");
+
+static size_t malloced_tot_size_max;
+EXT_PARAM_RW(malloced_tot_size_max, "malloced-max", size_t, "above this amount of bytes requested from OS we consider outself overweight (if >0)");
+
+bool overweight;
+EXT_PARAM_RO(overweight, "overweight", bool, "if we requested too many bytes from the OS");
+
 /*
  * Tools
  */
 
+// Caller must own mallocer->mutex
 static void add_block(struct mallocer *mallocer, struct mallocer_block *block)
 {
     PTHREAD_ASSERT_LOCK(&mallocer->mutex.mutex);
     LIST_INSERT_HEAD(&mallocer->blocks, block, entry);
     mallocer->tot_size += block->size;
     mallocer->nb_blocks ++;
+#   ifdef __GNUC__
+    overweight = __sync_add_and_fetch(&malloced_tot_size, block->size) > malloced_tot_size_max && malloced_tot_size_max > 0;
+#   else
+    WITH_PTH_MUTEX(&ext_param_malloced_tot_size.mutex) {
+        malloced_tot_size += block->size;
+        overweight = malloced_tot_size_max && malloced_tot_size > malloced_tot_size_max;
+    }
+#   endif
 }
 
+// Caller must own mallocer->mutex
 static void rem_block(struct mallocer_block *block)
 {
     PTHREAD_ASSERT_LOCK(&block->mallocer->mutex.mutex);
@@ -52,6 +71,14 @@ static void rem_block(struct mallocer_block *block)
     LIST_REMOVE(block, entry);
     block->mallocer->tot_size -= block->size;
     block->mallocer->nb_blocks --;
+#   ifdef __GNUC__
+    overweight = __sync_sub_and_fetch(&malloced_tot_size, block->size) > malloced_tot_size_max && malloced_tot_size_max > 0;
+#   else
+    WITH_PTH_MUTEX(&ext_param_malloced_tot_size.mutex) {
+        malloced_tot_size -= block->size;
+        overweight = malloced_tot_size_max && malloced_tot_size > malloced_tot_size_max;
+    }
+#   endif
 }
 
 /*
@@ -253,10 +280,10 @@ static struct ext_function sg_mallocer_names;
 static SCM g_mallocer_names(void)
 {
     SCM ret = SCM_EOL;
-    mutex_lock(&mallocers_lock);
-    struct mallocer *mallocer;
-    SLIST_FOREACH(mallocer, &mallocers, entry) ret = scm_cons(scm_from_locale_string(mallocer->name), ret);
-    mutex_unlock(&mallocers_lock);
+    WITH_LOCK(&mallocers_lock) {
+        struct mallocer *mallocer;
+        SLIST_FOREACH(mallocer, &mallocers, entry) ret = scm_cons(scm_from_locale_string(mallocer->name), ret);
+    }
     return ret;
 }
 
@@ -315,6 +342,9 @@ void mallocer_init(void)
     mutex_init();
     ext_init();
 
+    ext_param_malloced_tot_size_init();
+    ext_param_malloced_tot_size_max_init();
+    ext_param_overweight_init();
     mutex_ctor(&mallocers_lock, "mallocers");
 
     sbrked_bytes_sym        = scm_permanent_object(scm_from_latin1_symbol("sbrked-bytes"));
@@ -360,6 +390,9 @@ void mallocer_fini(void)
     if (--inited) return;
 
     mutex_dtor(&mallocers_lock);
+    ext_param_overweight_fini();
+    ext_param_malloced_tot_size_max_fini();
+    ext_param_malloced_tot_size_fini();
 
     ext_fini();
     mutex_fini();

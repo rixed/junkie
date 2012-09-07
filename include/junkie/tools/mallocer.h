@@ -70,6 +70,11 @@ char *mallocer_strdup(struct mallocer *, char const *);
 #define FREE(ptr) mallocer_free(ptr)
 #define STRDUP(name, str) mallocer_strdup(&mallocer_##name, str)
 
+/** If set, we malloced too much bytes already.
+ * User should consider mallocing less (we won't deny RAM because of this)
+ */
+extern bool overweight;
+
 void mallocer_init(void);
 void mallocer_fini(void);
 
