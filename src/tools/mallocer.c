@@ -32,8 +32,14 @@
 struct mallocers mallocers = SLIST_HEAD_INITIALIZER(mallocers);
 struct mutex mallocers_lock;
 
-size_t malloced_tot_size;
+static size_t malloced_tot_size;
 EXT_PARAM_RO(malloced_tot_size, "malloced-tot-size", size_t, "bytes requested from OS");
+
+static size_t malloced_tot_size_max;
+EXT_PARAM_RW(malloced_tot_size_max, "malloced-max", size_t, "above this amount of bytes requested from OS we consider outself overweight (if >0)");
+
+bool overweight;
+EXT_PARAM_RO(overweight, "overweight", bool, "if we requested too many bytes from the OS");
 
 /*
  * Tools
@@ -47,9 +53,12 @@ static void add_block(struct mallocer *mallocer, struct mallocer_block *block)
     mallocer->tot_size += block->size;
     mallocer->nb_blocks ++;
 #   ifdef __GNUC__
-    __sync_fetch_and_add(&malloced_tot_size, block->size);
+    overweight = __sync_add_and_fetch(&malloced_tot_size, block->size) > malloced_tot_size_max && malloced_tot_size_max > 0;
 #   else
-    WITH_PTH_MUTEX(&ext_param_malloced_tot_size.mutex) malloced_tot_size += block->size;
+    WITH_PTH_MUTEX(&ext_param_malloced_tot_size.mutex) {
+        malloced_tot_size += block->size;
+        overweight = malloced_tot_size_max && malloced_tot_size > malloced_tot_size_max;
+    }
 #   endif
 }
 
@@ -63,9 +72,12 @@ static void rem_block(struct mallocer_block *block)
     block->mallocer->tot_size -= block->size;
     block->mallocer->nb_blocks --;
 #   ifdef __GNUC__
-    __sync_fetch_and_sub(&malloced_tot_size, block->size);
+    overweight = __sync_sub_and_fetch(&malloced_tot_size, block->size) > malloced_tot_size_max && malloced_tot_size_max > 0;
 #   else
-    WITH_PTH_MUTEX(&ext_param_malloced_tot_size.mutex) malloced_tot_size -= block->size;
+    WITH_PTH_MUTEX(&ext_param_malloced_tot_size.mutex) {
+        malloced_tot_size -= block->size;
+        overweight = malloced_tot_size_max && malloced_tot_size > malloced_tot_size_max;
+    }
 #   endif
 }
 
@@ -331,6 +343,8 @@ void mallocer_init(void)
     ext_init();
 
     ext_param_malloced_tot_size_init();
+    ext_param_malloced_tot_size_max_init();
+    ext_param_overweight_init();
     mutex_ctor(&mallocers_lock, "mallocers");
 
     sbrked_bytes_sym        = scm_permanent_object(scm_from_latin1_symbol("sbrked-bytes"));
@@ -376,6 +390,8 @@ void mallocer_fini(void)
     if (--inited) return;
 
     mutex_dtor(&mallocers_lock);
+    ext_param_overweight_fini();
+    ext_param_malloced_tot_size_max_fini();
     ext_param_malloced_tot_size_fini();
 
     ext_fini();
