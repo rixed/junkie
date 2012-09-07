@@ -22,6 +22,12 @@
 (define (getoid-guile-mem-stats)
   (cons 'gauge32 (guile-mem-stats)))
 
+(define (getoid-malloced-max)
+  (cons 'gauge32 (get-malloced-max)))
+
+(define (getoid-denied-parsers)
+  (cons 'counter32 (get-denied-parsers)))
+
 (define-public (oid-less oid1 oid2) ; returns true if oid1 < oid2
   (< ((@ (agentx tools) oid-compare) (car oid1) (car oid2)) 0))
 
@@ -103,7 +109,9 @@
                      (cdr names)))))))
     (let* ((scalars      (list (cons (append mib '(1 1 0)) getoid-version)
                                (cons (append mib '(2 2 0)) getoid-dup-detection-delay)
-                               (cons (append mib '(4 2 0)) getoid-guile-mem-stats)))
+                               (cons (append mib '(4 2 0)) getoid-guile-mem-stats)
+                               (cons (append mib '(4 3 0)) getoid-malloced-max)
+                               (cons (append mib '(4 4 0)) getoid-denied-parsers)))
            (getters-list (parser-getters scalars      1 (proto-names)))
            (muxers-list  (muxer-getters  getters-list 1 (mux-names)))
            (sources-list (source-getters muxers-list  1 (iface-names)))
