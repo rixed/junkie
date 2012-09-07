@@ -9,7 +9,8 @@
 /** @file
  * @brief An allocator for fixed-size objects to fight fragmentation.
  *
- * Use redim_arrays to implement a non-fragmenting allocator.
+ * Uses redim_arrays in the background to implement a non-fragmenting
+ * allocator.
  */
 
 /** We have some preset object allocator for many sizes of objects,
@@ -19,8 +20,14 @@
  * @param entry_size is the object size we want an allocator for.
  * @param requestor is used to name the allocator if one is created. */
 void *objalloc(size_t entry_size, char const *requestor);
+
+/** Same as objalloc, but deny the allocation if we are overweight. */
+void *objalloc_nice(size_t entry_size, char const *requestor);
+
+/** Free an object previously alloced with objalloc (or friends) */
 void objfree(void *);
 
+/** objalloc version of strdup */
 char *objalloc_strdup(char const *);
 
 void objalloc_init(void);
