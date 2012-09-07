@@ -6,6 +6,8 @@ NEW in 2.3.0 (since 2.2.0)
 
 * Packetogram plugin to display packet size distribution
 
+* Duplicogram plugin to display dups time distribution
+
 
 NEW in 2.2.0 (since 2.1.0)
 --------------------------
