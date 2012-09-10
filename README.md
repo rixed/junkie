@@ -41,9 +41,6 @@ Protocol discovery
 - Automatically convert from bro/l7-filter/snort filters to junkie protocol
   discovery
 
-- For these filters one would want to have the relative sequence
-number in `tcp_info`.
-
 
 Netmatch language
 -----------------

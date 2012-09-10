@@ -25,6 +25,7 @@ struct tcp_proto_info {
     uint16_t urg_ptr;    // copied whatever the value of the urg flag
     uint32_t ack_num;
     uint32_t seq_num;
+    uint32_t rel_seq_num;   // relative to ISN
     // Options
 #   define TCP_MSS_SET 0x01 // Maximum Segment Size
 #   define TCP_WSF_SET 0x02 // Window Size Scaling

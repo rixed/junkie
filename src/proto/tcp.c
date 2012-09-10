@@ -74,7 +74,7 @@ static char const *tcp_info_2_str(struct proto_info const *info_)
 {
     struct tcp_proto_info const *info = DOWNCAST(info_, info, tcp_proto_info);
     char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, ports=%"PRIu16"->%"PRIu16", flags=%s%s%s%s%s%s, win=%"PRIu16", ack=%"PRIu32", seq=%"PRIu32", urg=%"PRIx16", opts=%s",
+    snprintf(str, TEMPSTR_SIZE, "%s, ports=%"PRIu16"->%"PRIu16", flags=%s%s%s%s%s%s, win=%"PRIu16", ack=%"PRIu32", seq=%"PRIu32" (%"PRIu32"), urg=%"PRIx16", opts=%s",
         proto_info_2_str(info_),
         info->key.port[0], info->key.port[1],
         info->syn ? "Syn":"",
@@ -86,6 +86,7 @@ static char const *tcp_info_2_str(struct proto_info const *info_)
         info->window,
         info->ack_num,
         info->seq_num,
+        info->rel_seq_num,
         info->urg_ptr,
         tcp_options_2_str(info));
     return str;
@@ -102,6 +103,7 @@ static void tcp_serialize(struct proto_info const *info_, uint8_t **buf)
     serialize_2(buf, info->urg_ptr);
     serialize_4(buf, info->ack_num);
     serialize_4(buf, info->seq_num);
+    serialize_4(buf, info->rel_seq_num);
     serialize_1(buf, info->set_values);
     serialize_2(buf, info->mss);
     serialize_1(buf, info->wsf);
@@ -128,6 +130,7 @@ static void tcp_deserialize(struct proto_info *info_, uint8_t const **buf)
     info->urg_ptr = deserialize_2(buf);
     info->ack_num = deserialize_4(buf);
     info->seq_num = deserialize_4(buf);
+    info->rel_seq_num = deserialize_4(buf);
     info->set_values = deserialize_1(buf);
     info->mss = deserialize_2(buf);
     info->wsf = deserialize_1(buf);
@@ -153,6 +156,7 @@ static void tcp_proto_info_ctor(struct tcp_proto_info *info, struct parser *pars
     info->urg_ptr = READ_U16N(&tcphdr->urg_ptr);
     info->ack_num = READ_U32N(&tcphdr->ack_seq);
     info->seq_num = READ_U32N(&tcphdr->seq_num);
+    info->rel_seq_num = 0U;
     info->set_values = 0;   // options will be set later
     info->nb_options = 0;
 }
@@ -435,7 +439,7 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
 
     if (! subparser) goto fallback;
 
-    // Keep track of TCP flags
+    // Keep track of TCP flags & ISN
     struct tcp_subparser *tcp_sub = DOWNCAST(subparser, mux_subparser, tcp_subparser);
     mutex_lock(&tcp_sub->mutex);
     if (
@@ -453,6 +457,9 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
         tcp_sub->syn[way] = true;
         tcp_sub->isn[way] = info.seq_num;
     }
+
+    // Set relative sequence number if we know it
+    if (tcp_sub->syn[way]) info.rel_seq_num = info.seq_num - tcp_sub->isn[way];
 
     SLOG(LOG_DEBUG, "This subparser state: >ISN:%"PRIu32" Fin:%"PRIu32" Ack:%"PRIu32" <ISN:%"PRIu32" Fin:%"PRIu32" Ack:%"PRIu32,
         tcp_sub->syn[0] ? tcp_sub->isn[0] : 0,
