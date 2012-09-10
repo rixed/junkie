@@ -88,7 +88,7 @@
   (lambda (regname)
     (make-stub
       ""
-      (string-append "(("c-type" *)prev_regfile[nm_reg_" regname "__].value)")
+      (string-append "((("c-type") *)prev_regfile[nm_reg_" regname "__].value)")
       (list regname))))
 
 (define (simple-to-scm gtypename ctypename)
@@ -406,6 +406,31 @@
 
 (export ip)
 
+(define subnet ; stored as two consecutive IP addresses
+  (make-type
+    'subnet
+    (lambda (v) ; imm
+      (receive (addr mask) (apply values (string-split v "/"))
+               (let ((addr-stub (type-imm ip addr))
+                     (mask-stub (type-imm ip mask))
+                     (res (gensymC "subnet")))
+                 (make-stub
+                   (string-append
+                     "    struct ip_addr (*" res ")[2] = malloc(sizeof(*" res "));\n"
+                     "    assert(" res ");\n" ; aren't assertions as good as proper error checks? O:-)
+                     "    memcpy(" res "[0], " (stub-result addr-stub) ", sizeof(*" res "[0]));\n"
+                     "    memcpy(" res "[1], " (stub-result mask-stub) ", sizeof(*" res "[1]));\n")
+                   res
+                   (list-append (stub-regnames addr-stub) (stub-regnames mask-stub))))))
+    (lambda (proto field) ; fetch
+      (throw 'cannot-fetch-a-subnet))
+    (boxed-ref "struct ip_addr[2]")
+    boxed-bind
+    (lambda (regname) ; export to SCM (as a cons of numbers)
+      (empty-stub)))) ; TODO
+
+(export subnet)
+
 ; Is this symbol an IP address?
 (define (looks-like-ip? s)
   (let ((s (symbol->string s)))
@@ -715,8 +740,21 @@
                  res
                  (stub-regnames ip))))))
 
+(define in-subnet?
+  (make-op 'in-subnet? bool (list ip subnet)
+           (lambda (ip subnet)
+             (let ((res (gensymC "in_subnet")))
+               (make-stub
+                 (string-append
+                   (stub-code ip)
+                   (stub-code subnet)
+                   "    bool " res " = ip_addr_match_mask(" (stub-result ip) ", " (stub-result subnet) "+0, " (stub-result subnet) "+1);\n")
+                 res
+                 (list-append (stub-regnames ip) (stub-regnames subnet)))))))
+
 (add-operator 'broadcast? broadcast?)
 (add-operator 'is-broadcast broadcast?)
+(add-operator 'in-subnet? in-subnet?)
 
 (define ip-eq?
   (make-op 'ip-eq? bool (list ip ip)
