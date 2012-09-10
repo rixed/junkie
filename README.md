@@ -41,6 +41,7 @@ Protocol discovery
 - Automatically convert from bro/l7-filter/snort filters to junkie protocol
   discovery
 
+- Protocol discovery for HTTP, FTP, DNS, MGCP, SIP
 
 Netmatch language
 -----------------
