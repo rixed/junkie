@@ -1,0 +1,105 @@
+#!../src/junkie -c
+; vim:syntax=scheme expandtab
+!#
+
+(define-module (check))
+(use-modules ((junkie netmatch nettrack) :renamer (symbol-prefix-proc 'nt:))
+             (junkie runtime)
+             (junkie tools)
+             (junkie defs))
+
+(display "Testing netmatch expressions\n")
+
+(define logfile "netmatch_check.log");
+(false-if-exception (delete-file logfile))
+(set-log-file logfile)
+(set-log-level 7)
+(set-log-level 3 "mutex")
+
+(set-quit-when-done #f)
+
+(start-repl-server)
+
+;; Run some traffic
+(define (play)
+  (let ((file "pcap/http/http_multiline.pcap"))
+    ; reset dedup
+    (reset-digests)
+    ; play
+    (open-pcap file)
+    ; wait completion
+    (while (not (null? (iface-names)))
+           (usleep 100))))
+
+(define called 0)
+
+(define (test test-name expr)
+  (simple-format #t "Running test ~a~%" test-name)
+  (slog log-notice "Running test ~a~%" test-name)
+  (let ((compiled (nt:compile test-name expr)))
+    (set! called 0)
+    (nettrack-start compiled)
+    (play)))
+
+(define (fibo-check n fibo)
+  (simple-format #t "Fibo(~a) = ~a~%" n fibo)
+  (set! called (1+ called))
+  (assert (= n 38))
+  (assert (= fibo 39088169)))
+(export fibo-check)
+
+(test "fibonacci"
+      '([(count uint) ; packet counter
+         (tmp uint) ; temp used in computation
+         (prev-fibo uint)    ; Fibo of n-1
+         (fibo uint)]     ; Fibo of n
+        [(last-pkt
+           (on-entry (apply (check) fibo-check count fibo)))]
+        [(root next-pkt
+            (match (cap) (do
+                           (count := 1)
+                           (prev-fibo := 0)
+                           (fibo := 1)
+                           #t))
+            grab)
+         (next-pkt next-pkt
+            (match (cap) (do
+                           ; BEWARE: we read from previous bindings and write into new ones!
+                           (fibo := (fibo + prev-fibo)) ; new fibo is old fibo + old prev-fibo
+                           (prev-fibo := fibo)          ; new prev-fibo is old fibo
+                           (count := (count + 1))       ; new count is old count + 1
+                           #t))
+            grab)
+         (next-pkt last-pkt
+            (match (cap) (count == 38)))]))
+
+(assert (= called 1))
+
+; Same as above, but types are infered
+(test "fibonacci (type infered)"
+      '([(count uint) ; count and fibo must be given since not inferrable in entry expression
+         (fibo uint)] ; no other declarations
+        [(last-pkt
+           (on-entry (apply (check) fibo-check count fibo)))]
+        [(root next-pkt
+            (match (cap) (do
+                           (count := 1)
+                           (prev-fibo := 0)
+                           (fibo := 1)
+                           #t))
+            grab)
+         (next-pkt next-pkt
+            (match (cap) (do
+                           ; BEWARE: we read from previous bindings and write into new ones!
+                           (fibo := (fibo + prev-fibo)) ; new fibo is old fibo + old prev-fibo
+                           (prev-fibo := fibo)          ; new prev-fibo is old fibo
+                           (count := (count + 1))       ; new count is old count + 1
+                           #t))
+            grab)
+         (next-pkt last-pkt
+            (match (cap) (count == 38)))]))
+
+(assert (= called 1))
+
+;; good enough!
+(exit 0)

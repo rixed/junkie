@@ -126,7 +126,7 @@
 
 (export gensymC)
 
-; FIXME: we should avoid C keywords and the identifiers already used by junkie (such as 'name' for instance. Try to have a register named 'name'!)
+; FIXME: should not substiture digits with _ except if first char
 (define string->C-ident
   (let ((ident-charset (char-set-intersection char-set:ascii char-set:letter)))
     (lambda (str)
