@@ -72,6 +72,7 @@ struct nt_graph {
     // We need to register a callback for every parsers, then try all nodes whose last proto matches the called one.
     struct nt_parser_hook {
         struct proto_subscriber subscriber;
+        struct proto *on_proto; // we keep this for unregistering to subscription
         // list of edges which test ends with this proto
         struct nt_edges edges;
         bool registered;    // we only subscribe to this hook when used (and avoid registering twice)
