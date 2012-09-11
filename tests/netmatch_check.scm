@@ -44,11 +44,19 @@
   (let ((compiled (nt:compile test-name expr)))
     (set! called 0)
     (nettrack-start compiled)
-    (play)))
+    (play)
+    (nettrack-stop compiled)
+    (simple-format #t "Callback was called ~a times~%" called)))
+
+(define (incr-called)
+  (set! called (1+ called)))
+(export incr-called)
+
+; Test uint and basic arithmetic
 
 (define (fibo-check n fibo)
   (simple-format #t "Fibo(~a) = ~a~%" n fibo)
-  (set! called (1+ called))
+  (incr-called)
   (assert (= n 38))
   (assert (= fibo 39088169)))
 (export fibo-check)
@@ -104,19 +112,27 @@
 
 ; Test subneting
 
-(define (subnet-check)
-  (set! called (1+ called)))
-(export subnet-check)
-
 (test "subnets"
       '([]
         [(node
-           (on-entry (apply (check) subnet-check)))]
+           (on-entry (apply (check) incr-called)))]
         [(root node
-            (match (ip) (in-subnet? ip.src 192.168.10.0/255.255.255.0))
-            spawn)]))
+           (match (ip) (in-subnet? ip.src 192.168.10.0/255.255.255.0))
+           spawn)]))
 
 (assert (= called 32))
+
+; Test TCP relative sequence numbers
+
+(test "TCP relative sequence numbers"
+      '([]
+        [(node
+           (on-entry (apply (check) incr-called)))]
+        [(root node
+           (match (tcp) (tcp.rel-seq-num == 1))
+           spawn)]))
+
+(assert (= called 23))
 
 ;; good enough!
 (exit 0)
