@@ -60,16 +60,14 @@
                            (count := 1)
                            (prev-fibo := 0)
                            (fibo := 1)
-                           #t))
-            grab)
+                           #t)))
          (next-pkt next-pkt
             (match (cap) (do
                            ; BEWARE: we read from previous bindings and write into new ones!
                            (fibo := (fibo + prev-fibo)) ; new fibo is old fibo + old prev-fibo
                            (prev-fibo := fibo)          ; new prev-fibo is old fibo
                            (count := (count + 1))       ; new count is old count + 1
-                           #t))
-            grab)
+                           #t)))
          (next-pkt last-pkt
             (match (cap) (count == 38)))]))
 
@@ -86,16 +84,14 @@
                            (count := 1)
                            (prev-fibo := 0)
                            (fibo := 1)
-                           #t))
-            grab)
+                           #t)))
          (next-pkt next-pkt
             (match (cap) (do
                            ; BEWARE: we read from previous bindings and write into new ones!
                            (fibo := (fibo + prev-fibo)) ; new fibo is old fibo + old prev-fibo
                            (prev-fibo := fibo)          ; new prev-fibo is old fibo
                            (count := (count + 1))       ; new count is old count + 1
-                           #t))
-            grab)
+                           #t)))
          (next-pkt last-pkt
             (match (cap) (count == 38)))]))
 
