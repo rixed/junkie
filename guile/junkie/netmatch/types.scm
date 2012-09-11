@@ -4,6 +4,7 @@
 
 (use-modules (ice-9 regex)
              (srfi srfi-1)
+             (srfi srfi-8) ; for receive
              (rnrs records syntactic)
              (ice-9 format)
              (junkie tools))
@@ -88,7 +89,7 @@
   (lambda (regname)
     (make-stub
       ""
-      (string-append "(("c-type" *)prev_regfile[nm_reg_" regname "__].value)")
+      (string-append "((("c-type") *)prev_regfile[nm_reg_" regname "__].value)")
       (list regname))))
 
 (define (simple-to-scm gtypename ctypename)
@@ -126,7 +127,7 @@
 
 (export gensymC)
 
-; FIXME: we should avoid C keywords and the identifiers already used by junkie (such as 'name' for instance. Try to have a register named 'name'!)
+; FIXME: should not substiture digits with _ except if first char
 (define string->C-ident
   (let ((ident-charset (char-set-intersection char-set:ascii char-set:letter)))
     (lambda (str)
@@ -150,8 +151,11 @@
 
 (export string->C-string)
 
+(define (to-string s)
+  (if (symbol? s) (symbol->string s) s))
+
 (define (symbol->C-string s)
-  (string->C-string (symbol->string s)))
+  (string->C-string (to-string s)))
 
 (export symbol->C-string)
 
@@ -389,7 +393,7 @@
         (make-stub
           (string-append
             "    struct ip_addr " res ";\n"
-            "    ip_addr_ctor_from_str_any(&" res ", " (symbol->C-string v) ");\n")
+            "    ip_addr_ctor_from_str_any(&" res ", " (string->C-string (to-string v)) ");\n")
           (string-append "&" res)
           '())))
     (lambda (proto field) ; fetch (TODO: factorize with other types)
@@ -408,11 +412,50 @@
 
 ; Is this symbol an IP address?
 (define (looks-like-ip? s)
-  (let ((s (symbol->string s)))
+  (let ((s (to-string s)))
     (or (false-if-exception (inet-pton AF_INET s))
         (false-if-exception (inet-pton AF_INET6 s)))))
 
 (export looks-like-ip?)
+
+(define subnet ; stored as two consecutive IP addresses
+  (make-type
+    'subnet
+    (lambda (v) ; imm
+      (receive (addr mask) (apply values (string-split (to-string v) #\/))
+               (let ((addr-stub ((type-imm ip) addr))
+                     (mask-stub ((type-imm ip) mask))
+                     (res (gensymC "subnet")))
+                 (make-stub
+                   (string-append
+                     (stub-code addr-stub)
+                     (stub-code mask-stub)
+                     "    struct ip_addr *" res " = malloc(2 * sizeof(*" res "));\n"
+                     "    assert(" res ");\n" ; aren't assertions as good as proper error checks? O:-)
+                     "    memcpy(" res "+0, " (stub-result addr-stub) ", sizeof(" res "[0]));\n"
+                     "    memcpy(" res "+1, " (stub-result mask-stub) ", sizeof(" res "[1]));\n")
+                   res
+                   (append (stub-regnames addr-stub) (stub-regnames mask-stub))))))
+    (lambda (proto field) ; fetch
+      (throw 'cannot-fetch-a-subnet))
+    (boxed-ref "struct ip_addr[2]")
+    boxed-bind
+    (lambda (regname) ; export to SCM (as a cons of numbers)
+      (empty-stub)))) ; TODO
+
+(export subnet)
+
+(define (looks-like-subnet? s)
+  (let ((s (to-string s)))
+    (catch #t
+           (lambda ()
+             (receive (addr mask) (apply values (string-split s #\/))
+                      (and (looks-like-ip? addr)
+                           (looks-like-ip? mask))))
+           (lambda (key . args)
+             #f))))
+
+(export looks-like-subnet?)
 
 ;;; Ethernet addresses
 
@@ -715,8 +758,21 @@
                  res
                  (stub-regnames ip))))))
 
+(define in-subnet?
+  (make-op 'in-subnet? bool (list ip subnet)
+           (lambda (ip subnet)
+             (let ((res (gensymC "in_subnet")))
+               (make-stub
+                 (string-append
+                   (stub-code ip)
+                   (stub-code subnet)
+                   "    bool " res " = ip_addr_match_mask(" (stub-result ip) ", " (stub-result subnet) "+0, " (stub-result subnet) "+1);\n")
+                 res
+                 (append (stub-regnames ip) (stub-regnames subnet)))))))
+
 (add-operator 'broadcast? broadcast?)
 (add-operator 'is-broadcast broadcast?)
+(add-operator 'in-subnet? in-subnet?)
 
 (define ip-eq?
   (make-op 'ip-eq? bool (list ip ip)

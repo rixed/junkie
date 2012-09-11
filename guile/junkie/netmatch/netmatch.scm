@@ -527,6 +527,10 @@
           (type-check-or-set type:bytes)
           ; So we return this 'rest' function parameter
           (type:make-stub "" "rest" '()))
+         ((type:looks-like-subnet? expr)
+          (slog log-debug " ...which is a subnet")
+          (type-check-or-set type:subnet)
+          ((type:type-imm type:subnet) expr))
          ((type:looks-like-ip? expr)
           (slog log-debug " ...which is an IP")
           (type-check-or-set type:ip)

@@ -320,13 +320,15 @@ static int nt_edge_ctor(struct nt_edge *edge, struct nt_graph *graph, struct nt_
     unsigned const hook = per_packet ? FULL_PARSE_EVENT : inner_proto->code;
     LIST_INSERT_HEAD(&graph->parser_hooks[hook].edges, edge, same_hook);
     if (! graph->parser_hooks[hook].registered) {
-        if (0 == (
-            per_packet ?
-                proto_pkt_subscriber_ctor(&graph->parser_hooks[hook].subscriber, parser_hook) :
-                proto_subscriber_ctor(&graph->parser_hooks[hook].subscriber, inner_proto, parser_hook))
-        ) {
-            graph->parser_hooks[hook].registered = true;
+        int res;
+        if (per_packet) {
+            res = proto_pkt_subscriber_ctor(&graph->parser_hooks[hook].subscriber, parser_hook);
+            graph->parser_hooks[hook].on_proto = NULL;
+        } else {
+            res = proto_subscriber_ctor(&graph->parser_hooks[hook].subscriber, inner_proto, parser_hook);
+            graph->parser_hooks[hook].on_proto = inner_proto;
         }
+        if (0 == res) graph->parser_hooks[hook].registered = true;
     }
 
     return 0;
@@ -444,6 +446,18 @@ static void nt_graph_dtor(struct nt_graph *graph)
     SLOG(LOG_DEBUG, "Destruct graph %s", graph->name);
 
     nt_graph_stop(graph);
+
+    // Unregister parser hooks
+    for (unsigned h = 0; h < NB_ELEMS(graph->parser_hooks); h++) {
+        if (graph->parser_hooks[h].registered) {
+            graph->parser_hooks[h].registered = false;
+            if (graph->parser_hooks[h].on_proto) {
+                proto_subscriber_dtor(&graph->parser_hooks[h].subscriber, graph->parser_hooks[h].on_proto);
+            } else {
+                proto_pkt_subscriber_dtor(&graph->parser_hooks[h].subscriber);
+            }
+        }
+    }
 
     // Delete all our vertices
     struct nt_vertex *vertex;

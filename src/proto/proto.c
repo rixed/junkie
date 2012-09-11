@@ -142,8 +142,8 @@ char const *proto_parse_status_2_str(enum proto_parse_status status)
 
 static void proto_subscribers_call_ll(struct proto_subscribers *list, struct proto_info const *info, size_t tot_cap_len, uint8_t const *tot_packet, struct timeval const *now)
 {
-    struct proto_subscriber *sub;
-    LIST_FOREACH(sub, list, entry) {
+    struct proto_subscriber *sub, *tmp;
+    LIST_FOREACH_SAFE(sub, list, entry, tmp) {
         sub->cb(sub, info, tot_cap_len, tot_packet, now);
     }
 }
