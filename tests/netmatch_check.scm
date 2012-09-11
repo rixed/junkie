@@ -97,5 +97,21 @@
 
 (assert (= called 1))
 
+; Test subneting
+
+(define (subnet-check)
+  (set! called (1+ called)))
+(export subnet-check)
+
+(test "subnets"
+      '([]
+        [(node
+           (on-entry (apply (check) subnet-check)))]
+        [(root node
+            (match (ip) (in-subnet? ip.src 192.168.10.0/255.255.255.0))
+            spawn)]))
+
+(assert (= called 32))
+
 ;; good enough!
 (exit 0)
