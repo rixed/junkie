@@ -230,9 +230,9 @@
 (define (add-menu label href tree)
   (let* (; try to find the 'effective-path' of the current path (ie what page we are going to draw, ie what menu is active)
          (effective-path (match (fluid-ref *current-path*)
-                                (("home")            "/home")
-                                (("crud" _ name . _) (string-append "/crud/read/" name))
-                                (l                   (string-append "/" (string-join l "/")))))
+                                [("home")            "/home"]
+                                [("crud" _ name . _) (string-append "/crud/read/" name)]
+                                [l                   (string-append "/" (string-join l "/"))]))
          (selected       (string=? effective-path href)))
     (slog log-debug "Adding menu for href=~s, when effective-path=~s" href effective-path)
     (sxml-match tree
@@ -255,26 +255,38 @@
              (a (@ (href . "http://github.com/securactive/junkie")) here))))
       #f))
 
-(use-modules (junkie www crud)) ; for crudables
-(define (start port)
-  (set! templatize (fold (lambda (crudable prev)
-                           (let ((name (crudable-name crudable)))
-                             (lambda (sxml)
-                               (add-menu name
-                                         (string-append "/crud/read/" name)
-                                         (prev sxml)))))
-                         (lambda (sxml)
-                           (add-menu "Home" "/"
-                                     (add-header-footer
-                                       (add-css "/junkie.css"
-                                                (add-title "Junkie"
-                                                           (make-simple-page sxml))))))
-                         (reverse crudables)))
-  (let ((dispatch (chain-dispatchers
-                    (list
+
+(define menus '(("Home" . "/")))
+
+(define (add-menus label url)
+  (set! menus (cons (cons label url) menus)))
+
+(export add-menus)
+
+(define dispatchers (list
                       homepage
-                      static-dispatch
-                      (@ (junkie www crud) crud-dispatch)))))
+                      static-dispatch))
+
+(define (add-dispatcher f)
+  (set! dispatchers (cons f dispatchers)))
+
+(export add-dispatcher)
+
+(define (start port)
+  (set! templatize
+    (fold (lambda (menu prev)
+            (let ((name (car menu))
+                  (url  (cdr menu)))
+              (lambda (sxml)
+                (add-menu name url (prev sxml)))))
+          (lambda (sxml)
+            (add-header-footer
+              (add-css "/svg-graph.css"
+                       (add-css "/junkie.css"
+                                (add-title "Junkie"
+                                           (make-simple-page sxml))))))
+          (reverse menus)))
+  (let ((dispatch (chain-dispatchers dispatchers)))
     (make-thread (lambda ()
                    (set-thread-name "J-www-server")
                    (run (lambda (path params)

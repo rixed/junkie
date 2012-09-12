@@ -181,13 +181,13 @@ void on_load(void)
     SLOG(LOG_INFO, "Loading arpgraph");
     cli_register("Arpgraph plugin", arpgraph_opts, NB_ELEMS(arpgraph_opts));
     HASH_INIT(&edges, 103, "arpgraph edges");
-    proto_pkt_subscriber_ctor(&subscription, pkt_callback);
+    pkt_subscriber_ctor(&subscription, pkt_callback);
 }
 
 void on_unload(void)
 {
     SLOG(LOG_INFO, "Unloading arpgraph");
-    proto_pkt_subscriber_dtor(&subscription);
+    pkt_subscriber_dtor(&subscription);
     cli_unregister(arpgraph_opts);
     HASH_DEINIT(&edges);
     hash_fini();

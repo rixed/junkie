@@ -90,7 +90,7 @@ static void parse_check(void)
     struct parser *arp_parser = proto_arp->ops->parser_new(proto_arp);
     assert(arp_parser);
     struct proto_subscriber sub;
-    proto_pkt_subscriber_ctor(&sub, arp_info_check);
+    pkt_subscriber_ctor(&sub, arp_info_check);
 
     for (cur_test = 0; cur_test < NB_ELEMS(parse_tests); cur_test++) {
         struct parse_test const *const test = parse_tests + cur_test;
@@ -98,7 +98,7 @@ static void parse_check(void)
         assert(status == test->status);
     }
 
-    proto_pkt_subscriber_dtor(&sub);
+    pkt_subscriber_dtor(&sub);
     parser_unref(arp_parser);
 }
 

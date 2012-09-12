@@ -133,13 +133,13 @@ void on_load(void)
     SLOG(LOG_INFO, "Loading serializer");
     cli_register("Serializer plugin", serializer_opts, NB_ELEMS(serializer_opts));
     mutex_ctor(&ser_buf_lock, "Serializer buffer lock");
-    proto_pkt_subscriber_ctor(&subscription, pkt_callback);
+    pkt_subscriber_ctor(&subscription, pkt_callback);
 }
 
 void on_unload(void)
 {
     SLOG(LOG_INFO, "Unloading serializer");
-    proto_pkt_subscriber_dtor(&subscription);
+    pkt_subscriber_dtor(&subscription);
     cli_unregister(serializer_opts);
     ser_fini();
     mutex_dtor(&ser_buf_lock);

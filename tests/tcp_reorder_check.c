@@ -264,12 +264,12 @@ static void setup(void)
     eth_parser = proto_eth->ops->parser_new(proto_eth);
     assert(eth_parser);
     nb_okfn_calls = nb_gets = nb_resps = 0;
-    proto_pkt_subscriber_ctor(&sub, okfn);
+    pkt_subscriber_ctor(&sub, okfn);
 }
 
 static void teardown(void)
 {
-    proto_pkt_subscriber_dtor(&sub);
+    pkt_subscriber_dtor(&sub);
     parser_unref(eth_parser);
 }
 

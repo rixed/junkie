@@ -1,0 +1,33 @@
+svg.graph {
+    display: block;
+    margin-top: 1em;
+}
+
+svg.graph polyline.plot {
+    stroke: #1222d0;
+    fill: none;
+    stroke-width: 2px;
+}
+
+svg.graph g.axe line {
+    stroke: #000;
+    stroke-width: 3px;
+}
+
+svg.graph g.axe text {
+    stroke: #111;
+}
+
+svg.graph g.tick line {
+    stroke: #000;
+    stroke-width: 2px;
+}
+
+svg.graph g.tick text {
+    stroke: #111;
+}
+
+svg.graph g.tick line.grid {
+	stroke: #888;
+	stroke-width: 1px;
+}

@@ -82,13 +82,13 @@ AC_CONFIG_FILES([
 	plugins/serializer/Makefile
 	plugins/os-detect/Makefile
 	plugins/packetogram/Makefile
+	plugins/duplicogram/Makefile
 	config/Makefile
 	guile/Makefile
 	guile/srfi/Makefile
 	guile/junkie/Makefile
 	guile/junkie/www/Makefile
 	guile/junkie/www/static_files/Makefile
-	guile/junkie/writer/Makefile
 	guile/junkie/netmatch/Makefile
 	tests/Makefile
 	doc/Makefile

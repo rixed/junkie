@@ -91,7 +91,7 @@ static void parse_check(void)
     struct parser *tcp_parser = proto_tcp->ops->parser_new(proto_tcp);
     assert(tcp_parser);
     struct proto_subscriber sub;
-    proto_pkt_subscriber_ctor(&sub, tcp_info_check);
+    pkt_subscriber_ctor(&sub, tcp_info_check);
 
     for (current_test = 0; current_test < NB_ELEMS(parse_tests); current_test++) {
         size_t const len = parse_tests[current_test].size;
@@ -99,7 +99,7 @@ static void parse_check(void)
         assert(0 == ret);
     }
 
-    proto_pkt_subscriber_dtor(&sub);
+    pkt_subscriber_dtor(&sub);
     parser_unref(tcp_parser);
 }
 

@@ -84,4 +84,9 @@
 #   define READ_U64N(p) ((uint64_t)(BYTE_D(p, 0, 56ULL) | BYTE_D(p, 1, 48ULL) | BYTE_D(p, 2, 40ULL) | BYTE_D(p, 3, 32ULL) | BYTE_D(p, 4, 24ULL) | BYTE_D(p, 5, 16ULL) | BYTE_D(p, 6, 8ULL) | BYTE(p, 7)))
 #endif
 
+/// Returns a/b, rounded up. Returns a number >= 1
+#define CEIL_DIV(a, b) (((a) + (b) - 1)/(b))
+/// Returns a/b, rounded to closest.
+#define ROUND_DIV(a, b) (((a) + (b/2) - 1)/(b))
+
 #endif

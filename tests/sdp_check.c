@@ -88,7 +88,7 @@ static void parse_check(void)
     struct parser *sdp_parser = proto_sdp->ops->parser_new(proto_sdp);
     assert(sdp_parser);
     struct proto_subscriber sub;
-    proto_pkt_subscriber_ctor(&sub, sdp_info_check);
+    pkt_subscriber_ctor(&sub, sdp_info_check);
 
     for (cur_test = 0; cur_test < NB_ELEMS(parse_tests); cur_test++) {
         size_t const len = strlen((char *)parse_tests[cur_test].packet);
@@ -96,7 +96,7 @@ static void parse_check(void)
         assert(parse_tests[cur_test].ret == ret);
     }
 
-    proto_pkt_subscriber_dtor(&sub);
+    pkt_subscriber_dtor(&sub);
     parser_unref(sdp_parser);
 }
 

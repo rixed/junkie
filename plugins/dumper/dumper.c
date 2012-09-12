@@ -49,12 +49,12 @@ void on_load(void)
 {
     SLOG(LOG_INFO, "Dumper loaded");
     (void)cli_register("dumper", dumper_opts, NB_ELEMS(dumper_opts));
-    proto_pkt_subscriber_ctor(&subscription, pkt_callback);
+    pkt_subscriber_ctor(&subscription, pkt_callback);
 }
 
 void on_unload(void)
 {
     SLOG(LOG_INFO, "Dumper unloading");
-    proto_pkt_subscriber_dtor(&subscription);
+    pkt_subscriber_dtor(&subscription);
     (void)cli_unregister(dumper_opts);
 }

@@ -9,7 +9,7 @@ bin_PROGRAMS = junkie
 dist_bin_SCRIPTS = juncli
 
 junkie_SOURCES = \
-	digest_queue.c digest_queue.h \
+	digest_queue.c \
 	main.c \
 	pkt_source.c pkt_source.h \
 	plugins.c plugins.h \

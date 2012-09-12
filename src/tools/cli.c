@@ -325,6 +325,22 @@ static struct cli_opt help_opts[] = {
     { { "help", "h" }, false, "display help", CLI_CALL, { .call = help_cb } },
 };
 
+// A tool to get terminal window size
+#include <sys/ioctl.h>
+#include <unistd.h> // for STDOUT_FILENO
+#include <errno.h>
+void get_window_size(unsigned *cols, unsigned *rows)
+{
+    struct winsize ws;
+    if (-1 == ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws)) {
+        SLOG(LOG_WARNING, "Cannot get terminal size: %s", strerror(errno));
+        ws.ws_row = 25;
+        ws.ws_col = 80;
+    }
+    if (cols) *cols = ws.ws_col;
+    if (rows) *rows = ws.ws_row;
+}
+
 static unsigned inited;
 void cli_init(void)
 {

@@ -8,6 +8,8 @@ NEW in 2.3.0 (since 2.2.0)
 
 * You can now limit the amount of RAM used by the parsers
 
+* Duplicogram plugin to display dups time distribution
+
 
 NEW in 2.2.0 (since 2.1.0)
 --------------------------

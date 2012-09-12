@@ -52,6 +52,9 @@ int cli_unregister(struct cli_opt *);
 int cli_parse(unsigned nb_args, char **args);
 int cli_2_enum(bool case_sensitive, char const *value, ...) sentinel_;
 
+/// Loosely related to the cli handling, this function returns the size of the current terminal
+void get_window_size(unsigned *cols, unsigned *rows);
+
 void cli_init(void);
 void cli_fini(void);
 
