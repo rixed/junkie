@@ -58,8 +58,6 @@ tests/tcp_check
 tests/timeval_check
 tests/udp_check
 tests/arp_check
-doxydoc
-config/instvars.scm
 tests/tags
 tests/pkt_wait_list_check
 tests/ip_reassembly_check
@@ -73,6 +71,9 @@ tests/cursor_check
 tests/mutex_check
 tests/objalloc_check
 tests/serialize_check.*ser
+tests/sock-check/
+doxydoc
+config/instvars.scm
 config/.index
 .tarball-version
 instvars.scm

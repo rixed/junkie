@@ -341,6 +341,15 @@ quit:
     return ret;
 }
 
+off_t file_offset(int fd)
+{
+    off_t ret = lseek(fd, 0, SEEK_CUR);
+    if ((off_t)-1 == ret) {
+        SLOG(LOG_ERR, "Cannot lseek fd %d: %s", fd, strerror(errno));
+    }
+    return ret;
+}
+
 int chdir_for_file(char const *dir, bool is_filename)
 {
     char *redir;

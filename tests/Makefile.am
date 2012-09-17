@@ -24,7 +24,7 @@ dist_check_SCRIPTS = \
 	dedup_conf1.test dedup_conf2.test \
 	http-chunked.test tcp.test os-detect.test \
 	http-multiline.test icmp.test tools-check \
-	netmatch_check.scm
+	netmatch_check.scm sock-check.scm
 
 TESTS = $(check_PROGRAMS) $(dist_check_SCRIPTS)
 

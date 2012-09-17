@@ -41,6 +41,9 @@ int file_unlink(char const *file_name);
 /// Returns the file size, logging on error.
 ssize_t file_size(char const *file_name);
 
+/// Returns the current file pointer location (or (off_t)-1)
+off_t file_offset(int fd);
+
 /// Tells wether a file exists and is readable
 bool file_exists(char const *file_name);
 

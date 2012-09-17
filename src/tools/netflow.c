@@ -155,13 +155,13 @@ int netflow_listen(char const *service, int (*cb)(struct ip_addr const *, struct
 {
     int err = -1;
 
-    struct sock sock;
-    if (0 != sock_ctor_server(&sock, service)) return -1;
+    struct sock *sock = sock_udp_server_new(service);
+    if (! sock) return -1;
 
-    while (sock_is_opened(&sock)) {
+    while (sock) {
         uint8_t buf[MAX_NETFLOW_PDU];
         struct ip_addr sender;
-        ssize_t sz = sock_recv(&sock, buf, sizeof(buf), &sender);
+        ssize_t sz = sock->ops->recv(sock, buf, sizeof(buf), &sender);
         if (sz < 0) goto quit;
         if (sz == sizeof(buf)) {
             SLOG(LOG_ERR, "Received a PDU that's bigger than expected. Bailing out!");
@@ -183,7 +183,7 @@ int netflow_listen(char const *service, int (*cb)(struct ip_addr const *, struct
     err = 0;
 quit:
     SLOG(LOG_NOTICE, "Quitting netflow listener (err=%d)", err);
-    sock_dtor(&sock);
+    sock->ops->del(sock);
     return err;
 }
 
