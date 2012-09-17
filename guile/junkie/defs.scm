@@ -66,7 +66,8 @@
                      (set-thread-name "J-repl-server")
                      (start-server (inet-aton "127.0.0.1") port repl))))))
 
-(define*-public (start-web-server #:key (port 8080))
+; Cannot define this because of poor(?) handling of circular dependancy in guile compiler (http://debbugs.gnu.org/cgi/bugreport.cgi?bug=12459)
+#;(define*-public (start-web-server #:key (port 8080))
   ((@ (junkie www monitor) register))
   ((@ (junkie duplicogram) register))
   ((@ (junkie writer) register))

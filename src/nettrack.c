@@ -322,7 +322,7 @@ static int nt_edge_ctor(struct nt_edge *edge, struct nt_graph *graph, struct nt_
     if (! graph->parser_hooks[hook].registered) {
         int res;
         if (per_packet) {
-            res = proto_pkt_subscriber_ctor(&graph->parser_hooks[hook].subscriber, parser_hook);
+            res = pkt_subscriber_ctor(&graph->parser_hooks[hook].subscriber, parser_hook);
             graph->parser_hooks[hook].on_proto = NULL;
         } else {
             res = proto_subscriber_ctor(&graph->parser_hooks[hook].subscriber, inner_proto, parser_hook);
@@ -454,7 +454,7 @@ static void nt_graph_dtor(struct nt_graph *graph)
             if (graph->parser_hooks[h].on_proto) {
                 proto_subscriber_dtor(&graph->parser_hooks[h].subscriber, graph->parser_hooks[h].on_proto);
             } else {
-                proto_pkt_subscriber_dtor(&graph->parser_hooks[h].subscriber);
+                pkt_subscriber_dtor(&graph->parser_hooks[h].subscriber);
             }
         }
     }
