@@ -335,14 +335,14 @@
           "    memcpy(&new_regfile[nm_reg_" regname "__], &" (stub-result value) ", sizeof(new_regfile[0]));\n"
         (string-append "new_regfile[nm_reg_" regname "__]")
         (cons regname (stub-regnames value)))))
-    (lambda (stub)
+    (lambda (stub) ; to SCM
       (let ((res (gensymC "to_scm_res")))
         (make-stub
           (string-append
             (stub-code stub)
             "    SCM " res " = scm_from_latin1_stringn((char const *)" (stub-result stub) ".value, " (stub-result stub) ".size);\n")
           res
-          (list regname))))))
+          (stub-regnames stub))))))
 
 (export bytes)
 
