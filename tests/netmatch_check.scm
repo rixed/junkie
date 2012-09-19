@@ -86,8 +86,8 @@
 
 (assert (= called 1))
 
-; Same as above, but types are infered
-(test "fibonacci (type infered)"
+; Same as above, but types are inferred
+(test "fibonacci (type inferred)"
       '([(count uint) ; count and fibo must be given since not inferrable in entry expression
          (fibo uint)] ; no other declarations
         [(last-pkt
