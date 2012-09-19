@@ -92,3 +92,16 @@
                                               ((nb-bytes rest) >= 11)
                                               ((rest @ 0) == #x80)))) ; the rest does not worth the trouble
 
+; Autodiscovery of HTTP payload
+(add-proto-signature "HTTP" 7 'medium
+                     (nm:compile
+                       type:bool '(tcp) '(or (starts-with rest "HTTP/1")
+                                             (starts-with rest "GET ")
+                                             (starts-with rest "HEAD ")
+                                             (starts-with rest "POST ")
+                                             (starts-with rest "CONNECT ")
+                                             (starts-with rest "PUT ")
+                                             (starts-with rest "OPTIONS ")
+                                             (starts-with rest "TRACE ")
+                                             (starts-with rest "DELETE "))))
+
