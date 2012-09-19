@@ -952,3 +952,35 @@
 
 (add-operator 'str-in-bytes str-in-bytes)
 
+(define bytes-starts-with-str
+  (make-op 'bytes-starts-with-str bool (list bytes str)
+           (lambda (b s)
+             (let ((len (gensymC "strlength"))
+                   (res (gensymC "starts_with_res")))
+               (make-stub
+                 (string-append
+                   (stub-code b)
+                   (stub-code s)
+                   "    size_t " len " = strlen(" (stub-result s) "); // hopefully will be optimized away for const strings\n"
+                   "    bool " res " =\n"
+                   "        ((size_t)" (stub-result b) ".size >= " len ") &&\n"
+                   "        0 == strncmp((char const *)" (stub-result b) ".value, (char const *)" (stub-result s) ", " len ");\n")
+                 res
+                 (append (stub-regnames b) (stub-regnames s)))))))
+
+(define bytes-starts-with-bytes
+  (make-op 'bytes-starts-with-bytes bool (list bytes bytes)
+           (lambda (b1 b2)
+             (let ((res (gensymC "starts_with_res")))
+               (make-stub
+                 (string-append
+                   (stub-code b1)
+                   (stub-code b2)
+                   "    bool " res " =\n"
+                   "        (" (stub-result b1) ".size >= " (stub-result b2) ".size) &&\n"
+                   "        0 == memcmp(" (stub-result b1) ".value, " (stub-result b2) ", " (stub-result b1) ".size);\n")
+                 res
+                 (append (stub-regnames b1) (stub-regnames b2)))))))
+
+(add-operator 'starts-with bytes-starts-with-str)
+(add-operator 'starts-with bytes-starts-with-bytes)
