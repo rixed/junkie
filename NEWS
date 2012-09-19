@@ -10,6 +10,8 @@ NEW in 2.3.0 (since 2.2.0)
 
 * Duplicogram plugin to display dups time distribution
 
+* Autodiscovery of HTTP payloads
+
 
 NEW in 2.2.0 (since 2.1.0)
 --------------------------
