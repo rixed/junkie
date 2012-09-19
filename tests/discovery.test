@@ -4,9 +4,9 @@
 # - single-rtp.pcap: a single RTP packet (without signalisation) is passed to RTP parser
 
 NAME="Discovery"
-PCAPS="pcap/https/tlsv1.pcap pcap/voip/single-rtp.pcap"
+PCAPS="pcap/https/tlsv1.pcap pcap/voip/single-rtp.pcap pcap/http/on-alt-port.pcap"
 filter() {
-	grep -E '^(PIPI|RTP)'
+	grep -E '^(PIPI|RTP|HTTP)'
 }
 CMDLINE='(load "../guile/junkie/signatures.scm")'
 OUTPUT="discovery.out"
