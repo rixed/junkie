@@ -92,7 +92,7 @@
                                               ((nb-bytes rest) >= 11)
                                               ((rest @ 0) == #x80)))) ; the rest does not worth the trouble
 
-; Autodiscovery of HTTP payload
+; Discovery of HTTP payload
 (add-proto-signature "HTTP" 7 'medium
                      (nm:compile
                        type:bool '(tcp) '(or (starts-with rest "HTTP/1")
@@ -104,4 +104,13 @@
                                              (starts-with rest "OPTIONS ")
                                              (starts-with rest "TRACE ")
                                              (starts-with rest "DELETE "))))
+
+; Discovery of FTP payload
+(add-proto-signature "FTP" 8 'medium
+                     (nm:compile
+                       type:bool '(tcp) '(or (starts-with rest "220-")
+                                             (starts-with rest "220 ")
+                                             (starts-with rest "USER ")
+                                             (starts-with rest "FEAT ")
+                                             (starts-with rest "OPTS "))))
 
