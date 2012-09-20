@@ -23,7 +23,7 @@ static void *deadlocker(void *dummy)
 
 static void supermutex_check(void)
 {
-    printf("You should not wait more than one seconds in this deadlock detection check...\n");
+    printf("You should not wait more than one second in this deadlock detection check...\n");
 
     supermutex_ctor(&super1, "test1");
     supermutex_ctor(&super2, "test2");
