@@ -19,6 +19,8 @@
  * - we can tell from the configuration (easy)
  * - we can tell by trying all parsers and choose one that seams to apply (cpu
  *   hungry, we don't try that in junkie)
+ * - we can tell by trying to match the payload with a signature file (less cpu
+ *   hungry, see the discovery 'protocol'
  * - we can know because another message told us in the past (easy but can become
  *   memory hungry)
  *
@@ -26,8 +28,8 @@
  * For this to work, we need a memory of what's supposed to happen in the near
  * future.
  *
- * We only define this for TCP/IP here but the same principle might apply for
- * other protocols as well.
+ * We only define this for TCP|UDP over IP here but the same principle might
+ * apply for other protocols as well.
  */
 
 struct ip_addr cnxtrack_ip_addr_unknown;
