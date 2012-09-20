@@ -223,12 +223,39 @@ static enum proto_parse_status discovery_parse(struct parser *parser, struct pro
     LIST_LOOKUP(sig, &proto_signatures, entry, 0 != sig->filter.match_fun(parent, rest, NULL, NULL));
 
     if (! sig) return PROTO_PARSE_ERR;
+    SLOG(LOG_DEBUG, "Discovered protocol %s (which actual parser is %s)", sig->protocol.name, sig->actual_proto ? sig->actual_proto->name : "unknown");
 
     if (sig->actual_proto) {
-        struct parser *parser = sig->actual_proto->ops->parser_new(sig->actual_proto);
-        if (parser) {
-            enum proto_parse_status status = proto_parse(parser, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
-            parser_unref(parser);
+        struct parser *actual_parser = NULL;
+        struct mux_subparser *subparser = NULL;
+        switch (parent->parser->proto->code) {
+            case PROTO_CODE_TCP:;
+                struct tcp_proto_info *tcp = DOWNCAST(parent, info, tcp_proto_info);
+                subparser = tcp_subparser_and_parser_new(parent->parser, sig->actual_proto, parser->proto, tcp->key.port[0], tcp->key.port[1], way, now);
+                break;
+            case PROTO_CODE_UDP:;
+                struct udp_proto_info *udp = DOWNCAST(parent, info, udp_proto_info);
+                subparser = udp_subparser_and_parser_new(parent->parser, sig->actual_proto, parser->proto, udp->key.port[0], udp->key.port[1], way, now);
+                break;
+
+            default:
+                actual_parser = sig->actual_proto->ops->parser_new(sig->actual_proto);
+                break;
+        }
+        if (subparser) {
+            actual_parser = parser_ref(subparser->parser);
+        }
+        if (actual_parser) {
+            enum proto_parse_status status = proto_parse(actual_parser, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
+            if (status != PROTO_OK) {
+                // delete the subparser if we created one
+                if (subparser) {
+                    SLOG(LOG_DEBUG, "Destroy the dedicated subparser since it does not fit the payload");
+                    mux_subparser_deindex(subparser);
+                    mux_subparser_unref(subparser);
+                }
+            }
+            parser_unref(actual_parser);
             return status;
         }
     }
