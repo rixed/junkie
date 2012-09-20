@@ -114,3 +114,13 @@
                                              (starts-with rest "FEAT ")
                                              (starts-with rest "OPTS "))))
 
+; Discovery of SIP payload
+(add-proto-signature "SIP" 9 'medium
+                     (nm:compile
+                       type:bool '(udp) '(or (starts-with rest "INVITE ")
+                                             (starts-with rest "SIP/2.0")
+                                             (starts-with rest "REGISTER ")
+                                             (starts-with rest "ACK ")
+                                             (starts-with rest "OPTIONS ")
+                                             (starts-with rest "CANCEL "))))
+
