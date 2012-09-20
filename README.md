@@ -41,8 +41,6 @@ Protocol discovery
 - Automatically convert from bro/l7-filter/snort filters to junkie protocol
   discovery
 
-- Protocol discovery for DNS, MGCP
-
 - When we found out a proto for TCP (that we know how to parse), register it
   both ways (using connection tracking hash?)
 

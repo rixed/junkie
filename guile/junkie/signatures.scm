@@ -124,3 +124,14 @@
                                              (starts-with rest "OPTIONS ")
                                              (starts-with rest "CANCEL "))))
 
+; Discovery of MGCP payload
+(add-proto-signature "MGCP" 10 'medium
+                     (nm:compile
+                       type:bool '(udp) '(or (starts-with rest "NTFY ")
+                                             (starts-with rest "RQNT ")
+                                             (starts-with rest "MDCX ")
+                                             (starts-with rest "DLCX ")
+                                             (starts-with rest "EPCF ")
+                                             (starts-with rest "CRCX ")
+                                             (starts-with rest "RSIP "))))
+
