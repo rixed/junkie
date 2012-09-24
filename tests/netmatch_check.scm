@@ -146,5 +146,13 @@
 
 (assert (>= called 54)) ; although there are only 54 packets we may be called more than that due to the reconstruction of HTTP messages
 
+; Just test compilation of random
+
+(test "random"
+      '([]
+        []
+        [(root node
+            (match (ip) ((random 10) >= (random 50))))]))
+
 ;; good enough!
 (exit 0)

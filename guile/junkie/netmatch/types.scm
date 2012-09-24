@@ -651,6 +651,17 @@
 (define min
   (make-op 'max uint (list uint uint) (simple-binary-fun "MIN")))
 
+(define random
+  (make-op 'random uint (list uint)
+           (lambda (m)
+             (let ((res (gensymC "random")))
+               (make-stub
+                 (string-append
+                   (stub-code m)
+                   "    uintptr_t " res " = (uintptr_t)random() % " (stub-result m) ";\n")
+                 res
+                 (stub-regnames m))))))
+
 (add-operator '+ add)
 (add-operator '- sub)
 (add-operator '* mult)
@@ -665,6 +676,7 @@
 (add-operator '== eq)
 (add-operator 'max max)
 (add-operator 'min min)
+(add-operator 'random random)
 (add-operator '<< shift-left)
 (add-operator '>> shift-right)
 (add-operator '& int-and)

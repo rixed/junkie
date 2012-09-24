@@ -55,12 +55,8 @@ Netmatch language
   function if we optimize constant away from runtime exec - see below about
   purity);
 
-- a function for matching an ip with a subnet;
-
 - pure functions taking only constants (and thus returning a constant) should
   be precomputed;
-
-- a random function;
 
 - a slice operator to extract a string from another string;
 
