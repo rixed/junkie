@@ -643,7 +643,7 @@ static SCM g_iface_stats(SCM ifname_)
     if (! pkt_source) goto err;
 
     struct pcap_stat stats;
-    bool have_stats = 0 == pcap_stats(pkt_source->pcap_handle, &stats);
+    bool const have_stats = 0 == pcap_stats(pkt_source->pcap_handle, &stats);
     if (! have_stats) {
         SLOG(LOG_WARNING, "Cannot read stats for packet source %s: %s\n", pkt_source_name(pkt_source), pcap_geterr(pkt_source->pcap_handle));
     }
@@ -652,8 +652,8 @@ static SCM g_iface_stats(SCM ifname_)
         scm_cons(id_sym,            scm_from_uint8(pkt_source->dev_id)),
         scm_cons(nb_packets_sym,    scm_from_uint64(pkt_source->nb_packets)),
         scm_cons(nb_duplicates_sym, scm_from_uint64(pkt_source->nb_duplicates)),
-        scm_cons(tot_received_sym,  have_stats ? scm_from_uint(stats.ps_recv) : SCM_UNSPECIFIED),
-        scm_cons(tot_dropped_sym,   have_stats ? scm_from_uint(stats.ps_drop) : SCM_UNSPECIFIED),
+        scm_cons(tot_received_sym,  have_stats ? scm_from_uint(stats.ps_recv) : scm_from_uint64(pkt_source->nb_packets)),
+        scm_cons(tot_dropped_sym,   have_stats ? scm_from_uint(stats.ps_drop) : scm_from_int(0)),
         scm_cons(nb_cap_bytes_sym,  scm_from_uint64(pkt_source->nb_cap_bytes)),
         scm_cons(nb_wire_bytes_sym, scm_from_uint64(pkt_source->nb_wire_bytes)),
         scm_cons(filep_sym,         scm_from_bool(pkt_source->is_file)),
