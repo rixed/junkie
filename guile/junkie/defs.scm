@@ -146,7 +146,7 @@
          (tot-dups (cdr sums)))
     (if (> tot-pkts 0)
         (exact->inexact (/ (* 100 tot-dups) tot-pkts))
-        -1)))
+        0)))
 
 ; get the percentage of dropped packets
 (define-public (dropped-percentage)
@@ -164,7 +164,7 @@
          (dropped  (cdr tot-drop)))
     (if (> total 0)
         (exact->inexact (/ (* 100 dropped) total))
-        -1)))
+        0)))
 
 ; backward compatible function set-ifaces
 (define-public (ifaces-matching pattern)
@@ -249,7 +249,7 @@
            (h-size   (assq-ref stats 'hash-size))
            (colls    (assq-ref stats 'nb-collisions))
            (lookups  (assq-ref stats 'nb-lookups))
-           (coll-avg (if (> lookups 0) (/ colls lookups) -1))
+           (coll-avg (if (> lookups 0) (/ colls lookups) 0))
            (resize   (lambda (coll-avg new-h-size)
                        (let ((new-max-children (* new-h-size coll-avg-max 10)))
                          (slog log-info "Collision avg of ~a is ~a. Setting hash size to ~a (and max children to ~a)"
