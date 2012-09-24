@@ -92,3 +92,46 @@
                                               ((nb-bytes rest) >= 11)
                                               ((rest @ 0) == #x80)))) ; the rest does not worth the trouble
 
+; Discovery of HTTP payload
+(add-proto-signature "HTTP" 7 'medium
+                     (nm:compile
+                       type:bool '(tcp) '(or (starts-with rest "HTTP/1")
+                                             (starts-with rest "GET ")
+                                             (starts-with rest "HEAD ")
+                                             (starts-with rest "POST ")
+                                             (starts-with rest "CONNECT ")
+                                             (starts-with rest "PUT ")
+                                             (starts-with rest "OPTIONS ")
+                                             (starts-with rest "TRACE ")
+                                             (starts-with rest "DELETE "))))
+
+; Discovery of FTP payload
+(add-proto-signature "FTP" 8 'medium
+                     (nm:compile
+                       type:bool '(tcp) '(or (starts-with rest "220-")
+                                             (starts-with rest "220 ")
+                                             (starts-with rest "USER ")
+                                             (starts-with rest "FEAT ")
+                                             (starts-with rest "OPTS "))))
+
+; Discovery of SIP payload
+(add-proto-signature "SIP" 9 'medium
+                     (nm:compile
+                       type:bool '(udp) '(or (starts-with rest "INVITE ")
+                                             (starts-with rest "SIP/2.0")
+                                             (starts-with rest "REGISTER ")
+                                             (starts-with rest "ACK ")
+                                             (starts-with rest "OPTIONS ")
+                                             (starts-with rest "CANCEL "))))
+
+; Discovery of MGCP payload
+(add-proto-signature "MGCP" 10 'medium
+                     (nm:compile
+                       type:bool '(udp) '(or (starts-with rest "NTFY ")
+                                             (starts-with rest "RQNT ")
+                                             (starts-with rest "MDCX ")
+                                             (starts-with rest "DLCX ")
+                                             (starts-with rest "EPCF ")
+                                             (starts-with rest "CRCX ")
+                                             (starts-with rest "RSIP "))))
+

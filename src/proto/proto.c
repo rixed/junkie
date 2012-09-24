@@ -498,7 +498,7 @@ static void mux_subparser_index(struct mux_subparser *subparser)
     subparser->mux_parser->nb_children ++;
     mutex_unlock(&subparser->mux_proto->proto.lock);
 #   endif
-    (void)ref(&subparser->ref);
+    mux_subparser_ref(subparser);
 }
 
 void mux_subparser_dtor(struct mux_subparser *subparser)
@@ -641,11 +641,13 @@ struct mux_subparser *mux_subparser_new(struct mux_parser *mux_parser, struct pa
 
 struct mux_subparser *mux_subparser_ref(struct mux_subparser *subparser)
 {
+    if (subparser) SLOG(LOG_DEBUG, "ref mux_subparser@%p count=%u", subparser, subparser->ref.count+1);
     return ref(&subparser->ref);
 }
 
 struct mux_subparser *mux_subparser_unref(struct mux_subparser *subparser)
 {
+    if (subparser) SLOG(LOG_DEBUG, "unref mux_subparser@%p count=%u", subparser, subparser->ref.count-1);
     return unref(&subparser->ref);
 }
 
