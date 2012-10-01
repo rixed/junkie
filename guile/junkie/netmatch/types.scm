@@ -89,7 +89,7 @@
   (lambda (regname)
     (make-stub
       ""
-      (string-append "((("c-type") *)prev_regfile[nm_reg_" regname "__].value)")
+      (string-append "(("c-type" *)prev_regfile[nm_reg_" regname "__].value)")
       (list regname))))
 
 (define (simple-to-scm gtypename ctypename)
@@ -438,7 +438,7 @@
                    (append (stub-regnames addr-stub) (stub-regnames mask-stub))))))
     (lambda (proto field) ; fetch
       (throw 'cannot-fetch-a-subnet))
-    (boxed-ref "struct ip_addr[2]")
+    (boxed-ref "(struct ip_addr[2])")
     boxed-bind
     (lambda (regname) ; export to SCM (as a cons of numbers)
       (empty-stub)))) ; TODO
