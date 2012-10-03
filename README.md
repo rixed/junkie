@@ -74,6 +74,9 @@ Nettrack language
 
 - A www plugin to display each netgraph state;
 
+* rehashable states (once the global hash will be refactored into an
+  incrementaly resized hash)
+
 Reports
 -------
 
@@ -100,4 +103,6 @@ Parsers for:
 - SMB
 
 - MSSQL
+
+* Accounting protocols (such as RADIUS & DIAMETER)
 
