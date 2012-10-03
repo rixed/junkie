@@ -473,7 +473,7 @@ void mux_subparser_deindex(struct mux_subparser *subparser)
         mutex_lock(mutex);
         // by the time the lock is acquired maybe another thread changed subparser->h_idx?
         if (h_idx == (unsigned volatile)subparser->h_idx) break;
-        SLOG(LOG_WARNING, "Subparser list changed while waiting for list mutex");
+        SLOG(LOG_INFO, "Subparser list changed while waiting for list mutex");
         mutex_unlock(mutex);
     } while (1);
 
@@ -752,7 +752,7 @@ void mux_subparser_change_key(struct mux_subparser *subparser, struct mux_parser
         mutex_lock2(cur_mutex, new_mutex);
         // by the time the locks are acquired maybe another thread changed subparser->h_idx?
         if (h_idx == (unsigned volatile)subparser->h_idx) break;
-        SLOG(LOG_WARNING, "Subparser list changed while waiting for list mutex");
+        SLOG(LOG_INFO, "Subparser list changed while waiting for list mutex");
         mutex_unlock2(cur_mutex, new_mutex);
     } while (1);
 
