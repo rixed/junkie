@@ -445,7 +445,7 @@ MallocLimit OBJECT-TYPE
 		"Maximum amount of memory requested from the OS, after which we
 		 avoid spawning new parsers.
 		 No such limitation exist if set to 0."
-	::= { junkieMemory 3 }
+	::= { junkieMemory 4 }
 
 DeniedParsers OBJECT-TYPE
 	SYNTAX Counter32
@@ -457,6 +457,6 @@ DeniedParsers OBJECT-TYPE
 		 if the OS is unable to fulfill our memory requirements,
 		 although Junkie - and the whole OS - is likely to misbehave
 		 whenever this is the case)."
-	::= { junkieMemory 4 }
+	::= { junkieMemory 5 }
 
 END
