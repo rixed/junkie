@@ -113,15 +113,15 @@ static struct npc_register *npc_regfile_merge(struct npc_register *prev_regfile,
  * States
  */
 
-static int nt_state_ctor(struct nt_state *state, struct nt_state *parent, struct nt_vertex *vertex, struct npc_register *regfile, struct timeval const *now, unsigned index_h)
+static int nt_state_ctor(struct nt_state *state, struct nt_state *parent, struct nt_vertex *vertex, struct npc_register *regfile, struct timeval const *now, unsigned h_value)
 {
     SLOG(LOG_DEBUG, "Construct state@%p from state@%p, in vertex %s", state, parent, vertex->name);
-    unsigned const index = index_h % vertex->index_size;
+    unsigned const index = h_value % vertex->index_size;
 
     state->regfile = regfile;
     state->parent = parent;
     state->vertex = vertex;
-    state->index_h = index_h;
+    state->h_value = h_value;
     if (parent) LIST_INSERT_HEAD(&parent->children, state, same_parent);
     TAILQ_INSERT_HEAD(&vertex->states[index], state, same_vertex);
     LIST_INIT(&state->children);
@@ -135,11 +135,11 @@ static int nt_state_ctor(struct nt_state *state, struct nt_state *parent, struct
     return 0;
 }
 
-static struct nt_state *nt_state_new(struct nt_state *parent, struct nt_vertex *vertex, struct npc_register *regfile, struct timeval const *now, unsigned index_h)
+static struct nt_state *nt_state_new(struct nt_state *parent, struct nt_vertex *vertex, struct npc_register *regfile, struct timeval const *now, unsigned h_value)
 {
     struct nt_state *state = objalloc(sizeof(*state), "nettrack states");
     if (! state) return NULL;
-    if (0 != nt_state_ctor(state, parent, vertex, regfile, now, index_h)) {
+    if (0 != nt_state_ctor(state, parent, vertex, regfile, now, h_value)) {
         objfree(state);
         return NULL;
     }
@@ -161,7 +161,7 @@ static void nt_state_dtor(struct nt_state *state, struct nt_graph *graph)
         LIST_REMOVE(state, same_parent);
         state->parent = NULL;
     }
-    TAILQ_REMOVE(&state->vertex->states[state->index_h], state, same_vertex);
+    TAILQ_REMOVE(&state->vertex->states[state->h_value % state->vertex->index_size], state, same_vertex);
 #   ifdef __GNUC__
     __sync_fetch_and_sub(&state->vertex->nb_states, 1);
 #   else
@@ -180,7 +180,7 @@ static void nt_state_del(struct nt_state *state, struct nt_graph *graph)
     objfree(state);
 }
 
-static void nt_state_move(struct nt_state *state, struct nt_vertex *to, unsigned index_h, struct timeval const *now)
+static void nt_state_move(struct nt_state *state, struct nt_vertex *to, unsigned h_value, struct timeval const *now)
 {
     state->last_used = *now;
 
@@ -198,12 +198,12 @@ static void nt_state_move(struct nt_state *state, struct nt_vertex *to, unsigned
     to->nb_states ++;
 #   endif
 
-    unsigned const index = index_h % to->index_size;
+    unsigned const index = h_value % to->index_size;
 
-    TAILQ_REMOVE(&state->vertex->states[state->index_h], state, same_vertex);
+    TAILQ_REMOVE(&state->vertex->states[state->h_value % state->vertex->index_size], state, same_vertex);
     TAILQ_INSERT_HEAD(&to->states[index], state, same_vertex);
     state->vertex = to;
-    state->index_h = index;
+    state->h_value = h_value;
 }
 
 /*
@@ -523,6 +523,8 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                     break;
                 }
 
+                // FIXME: we should compare the stored states hash value with this one!
+
                 if (edge->match_fn && ++nb_collisions > 16) TIMED_SLOG(LOG_NOTICE, "%u collisions searching in %s, size=%u, index=%u/%u", nb_collisions, edge->from->name, edge->from->nb_states, index_stop-index_start, edge->from->index_size);
                 SLOG(LOG_DEBUG, "Testing state@%p from vertex %s for %s into %s",
                         state,
@@ -568,7 +570,7 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                     }
                     // Now move/spawn/dispose of the state
                     // first we need to know the location in the index
-                    unsigned index_h = 0;
+                    unsigned h_value = 0;
                     if (edge->to->index_size > 1) { // we'd better have a hashing function then!
                         if (!edge->to_index_fn) {
                             SLOG(LOG_WARNING, "Don't know how to store spawned state in vertex %s, missing hashing function when coming from %s", edge->to->name, edge->from->name);
@@ -576,12 +578,12 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                             goto hell;
                         }
                         // Notice this hashing function can use the regfile but can still perform no bindings
-                        index_h = edge->to_index_fn(last, rest, merged_regfile, NULL) % edge->to->index_size;
-                        SLOG(LOG_DEBUG, "Will store at index location %u", index_h);
+                        h_value = edge->to_index_fn(last, rest, merged_regfile, NULL) % edge->to->index_size;
+                        SLOG(LOG_DEBUG, "Will store at index location %u", h_value);
                     }
                     if (edge->spawn) {
                         if (!LIST_EMPTY(&edge->to->outgoing_edges) && merged_regfile) { // or we do not need to spawn anything
-                            if (NULL == (state = nt_state_new(state, edge->to, merged_regfile, now, index_h))) {
+                            if (NULL == (state = nt_state_new(state, edge->to, merged_regfile, now, h_value))) {
                                 npc_regfile_del(merged_regfile, edge->graph->nb_registers);
                             }
                         }
@@ -591,7 +593,7 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                         } else if (merged_regfile) {    // replace former regfile with new one
                             npc_regfile_del(state->regfile, edge->graph->nb_registers);
                             state->regfile = merged_regfile;
-                            nt_state_move(state, edge->to, index_h, now);
+                            nt_state_move(state, edge->to, h_value, now);
                         }
                     }
 hell:
