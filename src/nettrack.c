@@ -113,15 +113,15 @@ static struct npc_register *npc_regfile_merge(struct npc_register *prev_regfile,
  * States
  */
 
-static int nt_state_ctor(struct nt_state *state, struct nt_state *parent, struct nt_vertex *vertex, struct npc_register *regfile, struct timeval const *now, unsigned index_h)
+static int nt_state_ctor(struct nt_state *state, struct nt_state *parent, struct nt_vertex *vertex, struct npc_register *regfile, struct timeval const *now, unsigned h_value)
 {
     SLOG(LOG_DEBUG, "Construct state@%p from state@%p, in vertex %s", state, parent, vertex->name);
-    unsigned const index = index_h % vertex->index_size;
+    unsigned const index = h_value % vertex->index_size;
 
     state->regfile = regfile;
     state->parent = parent;
     state->vertex = vertex;
-    state->index_h = index_h;
+    state->h_value = h_value;
     if (parent) LIST_INSERT_HEAD(&parent->children, state, same_parent);
     TAILQ_INSERT_HEAD(&vertex->states[index], state, same_vertex);
     LIST_INIT(&state->children);
@@ -135,11 +135,11 @@ static int nt_state_ctor(struct nt_state *state, struct nt_state *parent, struct
     return 0;
 }
 
-static struct nt_state *nt_state_new(struct nt_state *parent, struct nt_vertex *vertex, struct npc_register *regfile, struct timeval const *now, unsigned index_h)
+static struct nt_state *nt_state_new(struct nt_state *parent, struct nt_vertex *vertex, struct npc_register *regfile, struct timeval const *now, unsigned h_value)
 {
     struct nt_state *state = objalloc(sizeof(*state), "nettrack states");
     if (! state) return NULL;
-    if (0 != nt_state_ctor(state, parent, vertex, regfile, now, index_h)) {
+    if (0 != nt_state_ctor(state, parent, vertex, regfile, now, h_value)) {
         objfree(state);
         return NULL;
     }
@@ -161,7 +161,7 @@ static void nt_state_dtor(struct nt_state *state, struct nt_graph *graph)
         LIST_REMOVE(state, same_parent);
         state->parent = NULL;
     }
-    TAILQ_REMOVE(&state->vertex->states[state->index_h], state, same_vertex);
+    TAILQ_REMOVE(&state->vertex->states[state->h_value % state->vertex->index_size], state, same_vertex);
 #   ifdef __GNUC__
     __sync_fetch_and_sub(&state->vertex->nb_states, 1);
 #   else
@@ -180,7 +180,7 @@ static void nt_state_del(struct nt_state *state, struct nt_graph *graph)
     objfree(state);
 }
 
-static void nt_state_move(struct nt_state *state, struct nt_vertex *to, unsigned index_h, struct timeval const *now)
+static void nt_state_move(struct nt_state *state, struct nt_vertex *to, unsigned h_value, struct timeval const *now)
 {
     state->last_used = *now;
 
@@ -198,12 +198,12 @@ static void nt_state_move(struct nt_state *state, struct nt_vertex *to, unsigned
     to->nb_states ++;
 #   endif
 
-    unsigned const index = index_h % to->index_size;
+    unsigned const index = h_value % to->index_size;
 
-    TAILQ_REMOVE(&state->vertex->states[state->index_h], state, same_vertex);
+    TAILQ_REMOVE(&state->vertex->states[state->h_value % state->vertex->index_size], state, same_vertex);
     TAILQ_INSERT_HEAD(&to->states[index], state, same_vertex);
     state->vertex = to;
-    state->index_h = index;
+    state->h_value = h_value;
 }
 
 /*
@@ -503,10 +503,14 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
         // Test this edge for transition
         struct nt_state *state, *tmp;
 
+        bool h_value_set = false;
+        unsigned h_value;
         unsigned index_start = 0, index_stop = edge->from->index_size;  // by default, prepare to look into all hash buckets
         if (index_stop > 1 && edge->from_index_fn) {
             // Notice that the hash function for incomming packet is *not* allowed to use the regfile nor to bind anything
-            index_start = edge->from_index_fn(last, rest, NULL, NULL) % edge->from->index_size;
+            h_value_set = true;
+            h_value = edge->from_index_fn(last, rest, NULL, NULL);
+            index_start = h_value % edge->from->index_size;
             index_stop = index_start + 1;
             SLOG(LOG_DEBUG, "Using index at location %u", index_start);
         }
@@ -530,6 +534,7 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                         edge->spawn ? "spawn":"move",
                         edge->to->name);
                 edge->nb_tries ++;
+
                 /* Delayed bindings:
                  *   Matching functions do not change the bindings of the regfile while performing the tests because
                  *   we want the binding to take effect only if the tests succeed. Also, since the test order is not
@@ -543,18 +548,39 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                  *   - a flag per node telling if the match function write into the regfile or not would comes handy;
                  *   - prevent the test expressions to read and write the same register;
                  */
+
+                /* Freres humains, qui apres nous codez, N'ayez les coeurs contre nous endurcis,
+                 * Car, si pitie de nous pauvres avez, Dieu en aura plus tôt de vous mercis. */
                 struct npc_register tmp_regfile[edge->graph->nb_registers];
-                npc_regfile_ctor(tmp_regfile, edge->graph->nb_registers);
+                // Ok we will need this only when we have a match function and the hash values are equal.
+                bool const h_value_ok = !h_value_set || state->h_value == h_value;
+                bool tmp_regfile_used = h_value_ok && edge->match_fn;
+                if (tmp_regfile_used) npc_regfile_ctor(tmp_regfile, edge->graph->nb_registers);
 
                 if (
-                    (edge->min_age == 0 || timeval_sub(now, &state->last_enter) >= edge->min_age) &&
-                    (edge->match_fn == NULL || edge->match_fn(last, rest, state->regfile, tmp_regfile))
+                    // to follow this edge we have two conditions to meet:
+                    // the min_age criteria and the match criteria
+                    (
+                        // min_age criteria: either no min_age, or age expired
+                        edge->min_age == 0 ||
+                        timeval_sub(now, &state->last_enter) >= edge->min_age
+                    ) && (
+                        // match criteria: either no match function, or the match function is true
+                        // (which can only happen if the hash values match)
+                        edge->match_fn == NULL ||
+                        (h_value_ok && edge->match_fn(last, rest, state->regfile, tmp_regfile))
+                    )
                 ) {
                     SLOG(LOG_DEBUG, "Match!");
                     edge->nb_matches ++;
                     // We need the merged state in all cases but when we have no action and don't keep the result
                     struct npc_register *merged_regfile = NULL;
                     if (edge->to->entry_fn || !LIST_EMPTY(&edge->to->outgoing_edges)) {
+                        if (! tmp_regfile_used) {
+                            // well, better late than never!
+                            tmp_regfile_used = true;
+                            npc_regfile_ctor(tmp_regfile, edge->graph->nb_registers);
+                        }
                         merged_regfile = npc_regfile_merge(state->regfile, tmp_regfile, edge->graph->nb_registers, !edge->spawn);
                         if (! merged_regfile) {
                             SLOG(LOG_WARNING, "Cannot create the new register file");
@@ -568,7 +594,7 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                     }
                     // Now move/spawn/dispose of the state
                     // first we need to know the location in the index
-                    unsigned index_h = 0;
+                    unsigned h_value = 0;
                     if (edge->to->index_size > 1) { // we'd better have a hashing function then!
                         if (!edge->to_index_fn) {
                             SLOG(LOG_WARNING, "Don't know how to store spawned state in vertex %s, missing hashing function when coming from %s", edge->to->name, edge->from->name);
@@ -576,12 +602,12 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                             goto hell;
                         }
                         // Notice this hashing function can use the regfile but can still perform no bindings
-                        index_h = edge->to_index_fn(last, rest, merged_regfile, NULL) % edge->to->index_size;
-                        SLOG(LOG_DEBUG, "Will store at index location %u", index_h);
+                        h_value = edge->to_index_fn(last, rest, merged_regfile, NULL) % edge->to->index_size;
+                        SLOG(LOG_DEBUG, "Will store at index location %u", h_value);
                     }
                     if (edge->spawn) {
                         if (!LIST_EMPTY(&edge->to->outgoing_edges) && merged_regfile) { // or we do not need to spawn anything
-                            if (NULL == (state = nt_state_new(state, edge->to, merged_regfile, now, index_h))) {
+                            if (NULL == (state = nt_state_new(state, edge->to, merged_regfile, now, h_value))) {
                                 npc_regfile_del(merged_regfile, edge->graph->nb_registers);
                             }
                         }
@@ -591,15 +617,15 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                         } else if (merged_regfile) {    // replace former regfile with new one
                             npc_regfile_del(state->regfile, edge->graph->nb_registers);
                             state->regfile = merged_regfile;
-                            nt_state_move(state, edge->to, index_h, now);
+                            nt_state_move(state, edge->to, h_value, now);
                         }
                     }
 hell:
-                    npc_regfile_dtor(tmp_regfile, edge->graph->nb_registers);
+                    if (tmp_regfile_used) npc_regfile_dtor(tmp_regfile, edge->graph->nb_registers);
                     if (edge->grab) return;
                 } else {
                     SLOG(LOG_DEBUG, "No match");
-                    npc_regfile_dtor(tmp_regfile, edge->graph->nb_registers);
+                    if (tmp_regfile_used) npc_regfile_dtor(tmp_regfile, edge->graph->nb_registers);
                 }
             }
         }

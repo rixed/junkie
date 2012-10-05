@@ -20,7 +20,7 @@ struct nt_state {
      * so that it's possible to terminate a whole family. */
     struct nt_state *parent;
     struct nt_vertex *vertex;
-    unsigned index_h; // where I'm located on vertex->states[]
+    unsigned h_value; // where I'm located on vertex->states[] (no modulo applied)
     LIST_HEAD(nt_states, nt_state) children;
     struct npc_register *regfile;
     struct timeval last_used;
