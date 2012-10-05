@@ -10,14 +10,16 @@ fi
 
 # Try git first
 version=$(
-	git describe --tags 2>/dev/null ||
 	(
-		if git symbolic-ref HEAD >/dev/null 2>&1; then
-			git symbolic-ref HEAD | cut -d/ -f 3-
-		else
-			git name-rev HEAD | cut -d' ' -f 2
-		fi
-	)
+		git describe --tags 2>/dev/null ||
+		(
+			if git symbolic-ref HEAD >/dev/null 2>&1; then
+				git symbolic-ref HEAD | cut -d/ -f 3-
+			else
+				git name-rev HEAD | cut -d' ' -f 2
+			fi
+		)
+	) | sed -e 's|/|_|g'	# automake dist target does not like package names with /
 )
 
 if test -n "$version" ; then

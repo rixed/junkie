@@ -107,10 +107,23 @@ clean-local:
 
 EXTRA_DIST = \
 	foreach.txt \
+	dump_test \
+	dedup_conf1.out \
+	dedup_conf2.out \
+	discovery.out \
+	dns.out \
+	eth.out \
+	eth_padding.out \
+	ftp.out \
+	gre.out \
+	http-chunked.out \
+	http-multiline.out \
 	http-truncation.out \
+	icmp.out \
+	ip.out \
 	mysql.out \
 	oracle.out \
+	os-detect.out \
 	postgres.out \
-	http-multiline.out \
-	icmp.out
-
+	sip.out \
+	tcp.out

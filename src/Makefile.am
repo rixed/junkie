@@ -13,7 +13,8 @@ junkie_SOURCES = \
 	main.c \
 	pkt_source.c pkt_source.h \
 	plugins.c plugins.h \
-	netmatch.c nettrack.c nettrack.h
+	netmatch.c nettrack.c nettrack.h \
+	hook.h
 
 junkie_LDADD = proto/libproto.la tools/libjunkietools.la -lm
 junkie_LDFLAGS = -export-dynamic
