@@ -503,10 +503,14 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
         // Test this edge for transition
         struct nt_state *state, *tmp;
 
+        bool h_value_set = false;
+        unsigned h_value;
         unsigned index_start = 0, index_stop = edge->from->index_size;  // by default, prepare to look into all hash buckets
         if (index_stop > 1 && edge->from_index_fn) {
             // Notice that the hash function for incomming packet is *not* allowed to use the regfile nor to bind anything
-            index_start = edge->from_index_fn(last, rest, NULL, NULL) % edge->from->index_size;
+            h_value_set = true;
+            h_value = edge->from_index_fn(last, rest, NULL, NULL);
+            index_start = h_value % edge->from->index_size;
             index_stop = index_start + 1;
             SLOG(LOG_DEBUG, "Using index at location %u", index_start);
         }
@@ -523,8 +527,6 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                     break;
                 }
 
-                // FIXME: we should compare the stored states hash value with this one!
-
                 if (edge->match_fn && ++nb_collisions > 16) TIMED_SLOG(LOG_NOTICE, "%u collisions searching in %s, size=%u, index=%u/%u", nb_collisions, edge->from->name, edge->from->nb_states, index_stop-index_start, edge->from->index_size);
                 SLOG(LOG_DEBUG, "Testing state@%p from vertex %s for %s into %s",
                         state,
@@ -532,6 +534,7 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                         edge->spawn ? "spawn":"move",
                         edge->to->name);
                 edge->nb_tries ++;
+
                 /* Delayed bindings:
                  *   Matching functions do not change the bindings of the regfile while performing the tests because
                  *   we want the binding to take effect only if the tests succeed. Also, since the test order is not
@@ -545,18 +548,39 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                  *   - a flag per node telling if the match function write into the regfile or not would comes handy;
                  *   - prevent the test expressions to read and write the same register;
                  */
+
+                /* Freres humains, qui apres nous codez, N'ayez les coeurs contre nous endurcis,
+                 * Car, si pitie de nous pauvres avez, Dieu en aura plus tôt de vous mercis. */
                 struct npc_register tmp_regfile[edge->graph->nb_registers];
-                npc_regfile_ctor(tmp_regfile, edge->graph->nb_registers);
+                // Ok we will need this only when we have a match function and the hash values are equal.
+                bool const h_value_ok = !h_value_set || state->h_value == h_value;
+                bool tmp_regfile_used = h_value_ok && edge->match_fn;
+                if (tmp_regfile_used) npc_regfile_ctor(tmp_regfile, edge->graph->nb_registers);
 
                 if (
-                    (edge->min_age == 0 || timeval_sub(now, &state->last_enter) >= edge->min_age) &&
-                    (edge->match_fn == NULL || edge->match_fn(last, rest, state->regfile, tmp_regfile))
+                    // to follow this edge we have two conditions to meet:
+                    // the min_age criteria and the match criteria
+                    (
+                        // min_age criteria: either no min_age, or age expired
+                        edge->min_age == 0 ||
+                        timeval_sub(now, &state->last_enter) >= edge->min_age
+                    ) && (
+                        // match criteria: either no match function, or the match function is true
+                        // (which can only happen if the hash values match)
+                        edge->match_fn == NULL ||
+                        (h_value_ok && edge->match_fn(last, rest, state->regfile, tmp_regfile))
+                    )
                 ) {
                     SLOG(LOG_DEBUG, "Match!");
                     edge->nb_matches ++;
                     // We need the merged state in all cases but when we have no action and don't keep the result
                     struct npc_register *merged_regfile = NULL;
                     if (edge->to->entry_fn || !LIST_EMPTY(&edge->to->outgoing_edges)) {
+                        if (! tmp_regfile_used) {
+                            // well, better late than never!
+                            tmp_regfile_used = true;
+                            npc_regfile_ctor(tmp_regfile, edge->graph->nb_registers);
+                        }
                         merged_regfile = npc_regfile_merge(state->regfile, tmp_regfile, edge->graph->nb_registers, !edge->spawn);
                         if (! merged_regfile) {
                             SLOG(LOG_WARNING, "Cannot create the new register file");
@@ -597,11 +621,11 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                         }
                     }
 hell:
-                    npc_regfile_dtor(tmp_regfile, edge->graph->nb_registers);
+                    if (tmp_regfile_used) npc_regfile_dtor(tmp_regfile, edge->graph->nb_registers);
                     if (edge->grab) return;
                 } else {
                     SLOG(LOG_DEBUG, "No match");
-                    npc_regfile_dtor(tmp_regfile, edge->graph->nb_registers);
+                    if (tmp_regfile_used) npc_regfile_dtor(tmp_regfile, edge->graph->nb_registers);
                 }
             }
         }
