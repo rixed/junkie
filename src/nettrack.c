@@ -29,6 +29,7 @@
 #include "junkie/cpp.h"
 #include "junkie/tools/ext.h"
 #include "junkie/tools/objalloc.h"
+#include "junkie/tools/mallocer.h"
 #include "junkie/tools/tempstr.h"
 #include "nettrack.h"
 
@@ -250,11 +251,12 @@ static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_
 
 static struct nt_vertex *nt_vertex_new(char const *name, struct nt_graph *graph, npc_match_fn *entry_fn, unsigned index_size, int64_t timeout)
 {
+    MALLOCER(nt_vertices);
     if (! index_size) index_size = graph->default_index_size;
-    struct nt_vertex *vertex = objalloc(sizeof(*vertex) + index_size*sizeof(vertex->states[0]), "nettrack vertices");
+    struct nt_vertex *vertex = MALLOC(nt_vertices, sizeof(*vertex) + index_size*sizeof(vertex->states[0]));
     if (! vertex) return NULL;
     if (0 != nt_vertex_ctor(vertex, name, graph, entry_fn, index_size, timeout)) {
-        objfree(vertex);
+        FREE(vertex);
         return NULL;
     }
     return vertex;
@@ -291,7 +293,7 @@ static void nt_vertex_dtor(struct nt_vertex *vertex, struct nt_graph *graph)
 static void nt_vertex_del(struct nt_vertex *vertex, struct nt_graph *graph)
 {
     nt_vertex_dtor(vertex, graph);
-    objfree(vertex);
+    FREE(vertex);
 }
 
 
@@ -336,10 +338,11 @@ static int nt_edge_ctor(struct nt_edge *edge, struct nt_graph *graph, struct nt_
 
 static struct nt_edge *nt_edge_new(struct nt_graph *graph, struct nt_vertex *from, struct nt_vertex *to, npc_match_fn *match_fn, npc_match_fn *from_index_fn, npc_match_fn *to_index_fn, int64_t min_age, bool spawn, bool grab, struct proto *inner_proto, bool per_packet)
 {
-    struct nt_edge *edge = objalloc(sizeof(*edge), "nettrack edges");
+    MALLOCER(nt_edges);
+    struct nt_edge *edge = MALLOC(nt_edges, sizeof(*edge));
     if (! edge) return NULL;
     if (0 != nt_edge_ctor(edge, graph, from, to, match_fn, from_index_fn, to_index_fn, min_age, spawn, grab, inner_proto, per_packet)) {
-        objfree(edge);
+        FREE(edge);
         return NULL;
     }
     return edge;
@@ -361,7 +364,7 @@ static void nt_edge_dtor(struct nt_edge *edge)
 static void nt_edge_del(struct nt_edge *edge)
 {
     nt_edge_dtor(edge);
-    objfree(edge);
+    FREE(edge);
 }
 
 /*
@@ -416,10 +419,11 @@ static int nt_graph_ctor(struct nt_graph *graph, char const *name, char const *l
 
 static struct nt_graph *nt_graph_new(char const *name, char const *libname)
 {
-    struct nt_graph *graph = objalloc(sizeof(*graph), "nettrack graphs");
+    MALLOCER(nt_graphs);
+    struct nt_graph *graph = MALLOC(nt_graphs, sizeof(*graph));
     if (! graph) return NULL;
     if (0 != nt_graph_ctor(graph, name, libname)) {
-        objfree(graph);
+        FREE(graph);
         return NULL;
     }
     return graph;
@@ -477,7 +481,7 @@ static void nt_graph_dtor(struct nt_graph *graph)
 static void nt_graph_del(struct nt_graph *graph)
 {
     nt_graph_dtor(graph);
-    objfree(graph);
+    FREE(graph);
 }
 
 /*
@@ -773,6 +777,7 @@ void nettrack_init(void)
     if (inited++) return;
     log_category_nettrack_init();
     ext_init();
+    mallocer_init();
     objalloc_init();
 
     LIST_INIT(&started_graphs);
@@ -802,6 +807,7 @@ void nettrack_fini(void)
     if (--inited) return;
 
     objalloc_fini();
+    mallocer_fini();
     ext_fini();
     log_category_nettrack_fini();
 }
