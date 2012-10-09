@@ -29,7 +29,12 @@ dist_check_SCRIPTS = \
 
 TESTS = $(check_PROGRAMS) $(dist_check_SCRIPTS)
 
-TESTS_ENVIRONMENT = EF_ALLOW_MALLOC_0=1 GUILE_LOAD_PATH=$(top_srcdir)/guile GUILE_WARN_DEPRECATED=no
+TESTS_ENVIRONMENT = \
+	EF_ALLOW_MALLOC_0=1 \
+	GUILE_LOAD_PATH=$(top_srcdir)/guile \
+	GUILE_LOAD_COMPILED_PATH=$(top_srcdir)/guile \
+	GUILE_WARN_DEPRECATED=no \
+	NETMATCH_CPPFLAGS="$(CPPFLAGS) -I$(top_srcdir)/include"
 
 #LDFLAGS += -lefence
 
