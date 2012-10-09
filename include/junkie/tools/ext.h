@@ -213,8 +213,14 @@ static void ext_param_##value##_fini(void) \
     EXT_PARAM_CTORDTOR(value)
 
 /// Macros to grab/release the lock associated with a variable parameter.
-#define EXT_LOCK(value) pthread_mutex_lock(&ext_param_##value.mutex)
-#define EXT_UNLOCK(value) pthread_mutex_unlock(&ext_param_##value.mutex)
+#define EXT_LOCK(value) do { \
+    SLOG(LOG_DEBUG, "Taking lock for "#value); \
+    pthread_mutex_lock(&ext_param_##value.mutex); \
+} while (0)
+#define EXT_UNLOCK(value) do { \
+    SLOG(LOG_DEBUG, "Releasing lock for "#value); \
+    pthread_mutex_unlock(&ext_param_##value.mutex); \
+} while (0)
 #define WITH_EXT_LOCK(value, code) do { \
     EXT_LOCK(value); \
     do { code; } while (0); \
