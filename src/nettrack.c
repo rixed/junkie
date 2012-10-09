@@ -199,10 +199,8 @@ static void nt_state_move(struct nt_state *state, struct nt_vertex *to, unsigned
     to->nb_states ++;
 #   endif
 
-    unsigned const index = h_value % to->index_size;
-
     TAILQ_REMOVE(&state->vertex->states[state->h_value % state->vertex->index_size], state, same_vertex);
-    TAILQ_INSERT_HEAD(&to->states[index], state, same_vertex);
+    TAILQ_INSERT_HEAD(&to->states[h_value % to->index_size], state, same_vertex);
     state->vertex = to;
     state->h_value = h_value;
 }
@@ -606,8 +604,8 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
                             goto hell;
                         }
                         // Notice this hashing function can use the regfile but can still perform no bindings
-                        h_value = edge->to_index_fn(last, rest, merged_regfile, NULL) % edge->to->index_size;
-                        SLOG(LOG_DEBUG, "Will store at index location %u", h_value);
+                        h_value = edge->to_index_fn(last, rest, merged_regfile, NULL);
+                        SLOG(LOG_DEBUG, "Will store at index location %u", h_value % edge->to->index_size);
                     }
                     if (edge->spawn) {
                         if (!LIST_EMPTY(&edge->to->outgoing_edges) && merged_regfile) { // or we do not need to spawn anything
