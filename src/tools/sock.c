@@ -34,6 +34,8 @@
 #include "junkie/tools/files.h"
 #include "junkie/tools/objalloc.h"
 #include "junkie/tools/ext.h"
+#include "junkie/tools/mallocer.h"
+#include "junkie/tools/serialization.h"
 
 #undef LOG_CAT
 #define LOG_CAT sock_log_category
@@ -640,6 +642,152 @@ struct sock *sock_file_server_new(char const *dir, off_t max_file_size)
 }
 
 /*
+ * Buffered sockets
+ */
+
+#define LEN_BYTES 4  // size of the len field, in bytes
+#define SERIALIZE serialize_4
+#define DESERIALIZE deserialize_4
+
+static int sock_buf_flush(struct sock_buf *s)
+{
+    if (s->out_sz == 0) return 0;
+    int ret = s->ll_sock->ops->send(s->ll_sock, s->out, s->out_sz);
+    s->out_sz = 0;
+    return ret;
+}
+
+static int sock_buf_send(struct sock *s_, void const *buf, size_t len)
+{
+    struct sock_buf *s = DOWNCAST(s_, sock, sock_buf);
+
+    if (len >= s->mtu) {
+        SLOG(LOG_ERR, "Can't buffer %zu bytes into MTU of %zu", len, s->mtu);
+        return -1;
+    }
+
+    if (s->mtu + len + LEN_BYTES > s->mtu) (void)sock_buf_flush(s);
+
+    uint8_t *ser_buf = s->out + s->out_sz;
+    SERIALIZE(&ser_buf, len);
+    memcpy(ser_buf, buf, len);
+
+    s->out_sz += LEN_BYTES + len;
+
+    if (s->out_sz <= s->mtu) return 0;
+
+    return sock_buf_flush(s);
+}
+
+static ssize_t sock_buf_recv(struct sock *s_, void *buf, size_t maxlen, struct ip_addr *sender)
+{
+    struct sock_buf *s = DOWNCAST(s_, sock, sock_buf);
+
+    SLOG(LOG_DEBUG, "Reading on socket %s", s->sock.name);
+
+    ssize_t rem_len = s->in_sz - s->in_rcvd;
+    if (rem_len > 0) {
+        // We have a msg left in receive buffer
+        if (rem_len < LEN_BYTES) {
+            SLOG(LOG_ERR, "Received a trunced PDU?");
+badmsg:     s->in_rcvd = s->in_sz = 0;
+            return -1;
+        }
+        uint8_t const *ser_buf = s->in + s->in_rcvd;
+        size_t len = DESERIALIZE(&ser_buf);
+        if (len > (size_t)rem_len) {
+            SLOG(LOG_ERR, "Received badly packed msg of %zu bytes in PDU of %zu bytes", len, s->in_sz);
+            goto badmsg;
+        }
+        if (len > maxlen) {
+            SLOG(LOG_ERR, "Received a msg of %zu bytes larger that incoming buffer (%zu)", len, maxlen);
+            goto badmsg;
+        }
+        memcpy(buf, ser_buf, len);
+        s->in_rcvd += LEN_BYTES + len;
+        SLOG(LOG_DEBUG, "read %zd bytes out of %s", len, s->sock.name);
+        return len;
+    } else {
+        // Receive buffer is empty
+        s->in_rcvd = s->in_sz = 0;
+        ssize_t ret = s->ll_sock->ops->recv(s->ll_sock, s->in, s->mtu, sender);
+        if (ret <= 0) return ret;
+        s->in_sz = ret;
+        return sock_buf_recv(s_, buf, maxlen, sender);
+    }
+}
+
+static int sock_buf_set_fd(struct sock *s_, fd_set *set)
+{
+    struct sock_buf *s = DOWNCAST(s_, sock, sock_buf);
+    return s->ll_sock->ops->set_fd(s->ll_sock, set);
+}
+
+static bool sock_buf_is_set(struct sock *s_, fd_set const *set)
+{
+    struct sock_buf *s = DOWNCAST(s_, sock, sock_buf);
+    // It's important to check ll_sock before received size because of its is_set side effects
+    return s->ll_sock->ops->is_set(s->ll_sock, set) ||
+           (s->in_sz > s->in_rcvd);
+}
+
+void sock_buf_dtor(struct sock_buf *s)
+{
+    sock_buf_flush(s);
+    sock_dtor(&s->sock);
+    FREE(s->in);
+    FREE(s->out);
+}
+
+static void sock_buf_del(struct sock *s_)
+{
+    struct sock_buf *s = DOWNCAST(s_, sock, sock_buf);
+    sock_buf_dtor(s);
+    objfree(s);
+}
+
+static struct sock_ops sock_buf_ops = {
+    .send = sock_buf_send,
+    .recv = sock_buf_recv,
+    .set_fd = sock_buf_set_fd,
+    .is_set = sock_buf_is_set,
+    .del = sock_buf_del,
+};
+
+int sock_buf_ctor(struct sock_buf *s, size_t mtu, struct sock *ll_sock)
+{
+    MALLOCER(sock_buffers);
+    s->in = MALLOC(sock_buffers, mtu);
+    if (! s->in) return -1;
+    s->out = MALLOC(sock_buffers, mtu);
+    if (! s->out) {
+        FREE(s->in);
+        return -1;
+    }
+
+    sock_ctor(&s->sock, &sock_buf_ops);
+    snprintf(s->sock.name, sizeof(s->sock.name), "%s (buf up to %zu)", ll_sock->name, mtu);
+
+    s->mtu = mtu;
+    s->ll_sock = ll_sock;
+    s->out_sz = s->in_sz = s->in_rcvd = 0;
+
+    return 0;
+}
+
+struct sock *sock_buf_new(size_t mtu, struct sock *ll_sock)
+{
+    struct sock_buf *s = objalloc(sizeof(*s), "sockets");
+    if (! s) return NULL;
+    if (0 != sock_buf_ctor(s, mtu, ll_sock)) {
+        objfree(s);
+        return NULL;
+    }
+    return &s->sock;
+}
+
+
+/*
  * The Sock Smob
  */
 
@@ -647,6 +795,7 @@ static scm_t_bits sock_smob_tag;
 static SCM udp_sym;
 static SCM unix_sym;
 static SCM file_sym;
+static SCM buf_sym;
 static SCM client_sym;
 static SCM server_sym;
 
@@ -795,6 +944,23 @@ inv_type:
     return s;
 }
 
+// Caller must have started a scm-dynwind region
+static struct sock *make_sock_buf(SCM mtu_, SCM ll_sock_)
+{
+    unsigned mtu = scm_to_uint(mtu_);
+    scm_assert_smob_type(sock_smob_tag, ll_sock_);
+    struct sock *ll_sock = (struct sock *)SCM_SMOB_DATA(ll_sock_);
+
+    struct sock *s = sock_buf_new(mtu, ll_sock);
+
+    if (! s) {
+        scm_throw(scm_from_latin1_symbol("cannot-create-sock"),
+                  SCM_EOL);
+    }
+
+    return s;
+}
+
 static struct ext_function sg_make_sock;
 static SCM g_make_sock(SCM type, SCM p1, SCM p2, SCM p3)
 {
@@ -806,6 +972,8 @@ static SCM g_make_sock(SCM type, SCM p1, SCM p2, SCM p3)
         s = make_sock_unix(p1, p2);
     } else if (scm_is_eq(type, file_sym)) {
         s = make_sock_file(p1, p2, p3);
+    } else if (scm_is_eq(type, buf_sym)) {
+        s = make_sock_buf(p1, p2);
     } else {
         scm_throw(scm_from_latin1_symbol("invalid-argument"),
                   scm_list_1(p1));
@@ -840,7 +1008,7 @@ static SCM g_sock_recv(SCM sock_)
     scm_assert_smob_type(sock_smob_tag, sock_);
     struct sock *sock = (struct sock *)SCM_SMOB_DATA(sock_);
 
-    char buf[1024];
+    char buf[1024]; // Receiving from guile is for testing purpose only!
     ssize_t len = sock->ops->recv(sock, buf, sizeof(buf), NULL);
     if (len < 0) return SCM_BOOL_F;
 
@@ -856,11 +1024,13 @@ void sock_init(void)
 {
     if (inited++) return;
     log_category_sock_init();
+    mallocer_init();
     ext_init();
 
     udp_sym    = scm_permanent_object(scm_from_latin1_symbol("udp"));
     unix_sym   = scm_permanent_object(scm_from_latin1_symbol("unix"));
     file_sym   = scm_permanent_object(scm_from_latin1_symbol("file"));
+    buf_sym    = scm_permanent_object(scm_from_latin1_symbol("buffered"));
     client_sym = scm_permanent_object(scm_from_latin1_symbol("client"));
     server_sym = scm_permanent_object(scm_from_latin1_symbol("server"));
 
@@ -873,6 +1043,7 @@ void sock_init(void)
         "(make-sock 'udp 5431): receive messages on this port\n"
         "(make-sock 'unix 'client \"/tmp/socket.file\" [max-file-size]): to use UNIX domain sockets\n"
         "(make-sock 'file 'client \"/tmp/msg_dir\" [max-file-size]): to convey messages through files\n"
+        "(make-sock 'buffered 1024 other-sock)\n"
         "See also: sock-send, sock-recv");
 
     // these are intended for testing
@@ -893,5 +1064,6 @@ void sock_fini(void)
     if (--inited) return;
 
     log_category_sock_fini();
+    mallocer_fini();
     ext_fini();
 }

@@ -147,7 +147,7 @@ static void display(void)
 
     unsigned lines, columns;
     get_window_size(&columns, &lines);
-    
+
     if (lines <= 4) return;
 
     mutex_lock(&dup_lock);

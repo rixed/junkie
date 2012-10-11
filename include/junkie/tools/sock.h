@@ -69,6 +69,27 @@ struct sock *sock_file_server_new(char const *file, off_t max_file_size);
 
 struct sock *scm_to_sock(SCM);
 
+/** Sometime we want to buffer app msgs into a single net msg to minimize
+ * syscalls or context switches.  (only when lag is not as issue).
+ * Note that, due to the various sock ctors buff_sock_ctor does not
+ * init the underlying sock. You have to build it yourself.
+ * Notice that the packet will be sent when it's at least half full. */
+struct sock_buf {
+    struct sock sock;   // a sock_buf is a sock
+    struct sock *ll_sock;   // using this one
+    size_t mtu; // max size of each msg
+    size_t out_sz, in_sz; // what's already there
+    size_t in_rcvd; // what was already returned to reader
+    uint8_t *out, *in; // buffers
+};
+
+/// Create a sock_buf with the attached sock.
+int sock_buf_ctor(struct sock_buf *, size_t mtu, struct sock *);
+
+/** Deletes the sock_buf (but *not* the attached sock).
+ * Also, the buffer will be flushed before its lost. */
+void sock_buf_dtor(struct sock_buf *);
+
 // Init
 
 void sock_init(void);
