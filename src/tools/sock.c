@@ -302,6 +302,7 @@ struct sock_unix {
     struct sock sock;
     int fd;
     char file[PATH_MAX];
+    bool is_server; // the server is responsible for unlinking the file
 };
 
 // SAME AS SOCK_UDP_SEND
@@ -353,7 +354,9 @@ static void sock_unix_dtor(struct sock_unix *s)
 {
     sock_dtor(&s->sock);
     file_close(s->fd);
-    (void)file_unlink(s->file);
+    if (s->is_server) {
+        (void)file_unlink(s->file);
+    }
 }
 
 static void sock_unix_del(struct sock *s_)
@@ -396,6 +399,7 @@ static int sock_unix_client_ctor(struct sock_unix *s, char const *file)
     }
 
     snprintf(s->sock.name, sizeof(s->sock.name), "unix://127.0.0.1/%s", file);
+    s->is_server = false;
 
     sock_ctor(&s->sock, &sock_unix_ops);
     SLOG(LOG_INFO, "Connected to %s", s->sock.name);
@@ -437,6 +441,7 @@ static int sock_unix_server_ctor(struct sock_unix *s, char const *file)
     }
 
     snprintf(s->sock.name, sizeof(s->sock.name), "unix://127.0.0.1/%s", local.sun_path);
+    s->is_server = true;
     sock_ctor(&s->sock, &sock_unix_ops);
 
     SLOG(LOG_INFO, "Serving %s", s->sock.name);
