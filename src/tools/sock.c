@@ -86,9 +86,14 @@ static ssize_t sock_udp_recv(struct sock *s_, void *buf, size_t maxlen, struct i
 
     SLOG(LOG_DEBUG, "Reading on socket %s (fd %d)", s->sock.name, s->fd);
 
-    struct sockaddr src_addr;
+    union {
+        struct sockaddr a;
+        struct sockaddr_in ip4;
+        struct sockaddr_in6 ip6;
+        struct sockaddr_un unix;
+    } src_addr;
     socklen_t addrlen = sizeof(src_addr);
-    ssize_t r = recvfrom(s->fd, buf, maxlen, 0, &src_addr, &addrlen);
+    ssize_t r = recvfrom(s->fd, buf, maxlen, 0, &src_addr.a, &addrlen);
     if (r < 0) {
         TIMED_SLOG(LOG_ERR, "Cannot receive datagram from %s: %s", s->sock.name, strerror(errno));
     }
@@ -97,7 +102,7 @@ static ssize_t sock_udp_recv(struct sock *s_, void *buf, size_t maxlen, struct i
             SLOG(LOG_ERR, "Cannot set sender address: size too big (%zu > %zu)", (size_t)addrlen, sizeof(src_addr));
             *sender = local_ip;
         } else {
-            if (0 != ip_addr_ctor_from_sockaddr(sender, &src_addr, addrlen)) {
+            if (0 != ip_addr_ctor_from_sockaddr(sender, &src_addr.a, addrlen)) {
                 *sender = local_ip;
             }
         }
