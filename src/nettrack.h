@@ -15,6 +15,7 @@ LOG_CATEGORY_DEC(nettrack);
 
 struct nt_state {
     LIST_ENTRY(nt_state) same_parent;
+    TAILQ_ENTRY(nt_state) same_index;
     TAILQ_ENTRY(nt_state) same_vertex;
     /* When a new state is spawned we keep a relationship with parent/children,
      * so that it's possible to terminate a whole family. */
@@ -23,7 +24,7 @@ struct nt_state {
     unsigned h_value; // where I'm located on vertex->states[] (no modulo applied)
     LIST_HEAD(nt_states, nt_state) children;
     struct npc_register *regfile;
-    struct timeval last_used;
+    struct timeval last_used;   // states on same_index are ordered according to this filed (more recently used at head)
     struct timeval last_enter;  // used to find out the age of a state. states are ordered on same_vertex list according to this field (more recently entered at head)
 };
 
@@ -37,7 +38,8 @@ struct nt_vertex {
     int64_t timeout;   // if >0, number of seconds to keep an inactive state in here
     unsigned index_size;   // the index size (>=1)
     unsigned nb_states;
-    TAILQ_HEAD(nt_states_tq, nt_state) states[]; // the states currently waiting in this node (BEWARE: variable size!)
+    TAILQ_HEAD(nt_states_tq, nt_state) age_list;    // states are ordered here according to their date of entry
+    struct nt_states_tq index[];  // the states currently waiting in this node (BEWARE: variable size!)
 };
 
 struct nt_edge {

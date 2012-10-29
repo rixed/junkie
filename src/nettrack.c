@@ -86,6 +86,18 @@ static void register_copy(struct npc_register *dst, struct npc_register const *s
     }
 }
 
+static struct npc_register *npc_regfile_copy(struct npc_register *prev_regfile, unsigned nb_registers)
+{
+    struct npc_register *copy = npc_regfile_new(nb_registers);
+    if (! copy) return NULL;
+
+    for (unsigned r = 0; r < nb_registers; r++) {
+        register_copy(copy+r, prev_regfile+r);
+    }
+
+    return copy;
+}
+
 /* Given the regular regfile prev_regfile and the new bindings of new_regfile, returns a fresh register with new bindings applied.
  * If steal_from_prev then the previous values may be moved from prev_regfile to the new one. In any cases the new values are. */
 static struct npc_register *npc_regfile_merge(struct npc_register *prev_regfile, struct npc_register *new_regfile, unsigned nb_registers, bool steal_from_prev)
@@ -124,7 +136,8 @@ static int nt_state_ctor(struct nt_state *state, struct nt_state *parent, struct
     state->vertex = vertex;
     state->h_value = h_value;
     if (parent) LIST_INSERT_HEAD(&parent->children, state, same_parent);
-    TAILQ_INSERT_HEAD(&vertex->states[index], state, same_vertex);
+    TAILQ_INSERT_HEAD(&vertex->index[index], state, same_index);
+    TAILQ_INSERT_HEAD(&vertex->age_list, state, same_vertex);
     LIST_INIT(&state->children);
     state->last_used = state->last_enter = *now;
 #   ifdef __GNUC__
@@ -162,7 +175,8 @@ static void nt_state_dtor(struct nt_state *state, struct nt_graph *graph)
         LIST_REMOVE(state, same_parent);
         state->parent = NULL;
     }
-    TAILQ_REMOVE(&state->vertex->states[state->h_value % state->vertex->index_size], state, same_vertex);
+    TAILQ_REMOVE(&state->vertex->age_list, state, same_vertex);
+    TAILQ_REMOVE(&state->vertex->index[state->h_value % state->vertex->index_size], state, same_index);
 #   ifdef __GNUC__
     __sync_fetch_and_sub(&state->vertex->nb_states, 1);
 #   else
@@ -181,13 +195,26 @@ static void nt_state_del(struct nt_state *state, struct nt_graph *graph)
     objfree(state);
 }
 
+static void nt_state_promote_age_list(struct nt_state *state, struct nt_vertex *to, struct timeval const *now)
+{
+    state->last_enter = *now;
+    state->vertex = to;
+    TAILQ_REMOVE(&state->vertex->age_list, state, same_vertex);
+    TAILQ_INSERT_HEAD(&to->age_list, state, same_vertex);
+}
+
 static void nt_state_move(struct nt_state *state, struct nt_vertex *to, unsigned h_value, struct timeval const *now)
 {
     state->last_used = *now;
+    struct nt_vertex *const from = state->vertex;
+    // Promote the state in index so that we find it faster next time we need it
+    TAILQ_REMOVE(&from->index[state->h_value % from->index_size], state, same_index);
+    TAILQ_INSERT_HEAD(&to->index[h_value % to->index_size], state, same_index);
 
-    if (state->vertex == to) return;
-
-    state->last_enter = *now;
+    if (state->vertex == to) {
+        assert(state->h_value == h_value);
+        return;
+    }
 
     SLOG(LOG_DEBUG, "Moving state@%p to vertex %s", state, to->name);
 
@@ -199,9 +226,8 @@ static void nt_state_move(struct nt_state *state, struct nt_vertex *to, unsigned
     to->nb_states ++;
 #   endif
 
-    TAILQ_REMOVE(&state->vertex->states[state->h_value % state->vertex->index_size], state, same_vertex);
-    TAILQ_INSERT_HEAD(&to->states[h_value % to->index_size], state, same_vertex);
-    state->vertex = to;
+    nt_state_promote_age_list(state, to, now);
+
     state->h_value = h_value;
 }
 
@@ -218,9 +244,10 @@ static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_
     assert(vertex->index_size >= 1);
     LIST_INIT(&vertex->outgoing_edges);
     LIST_INIT(&vertex->incoming_edges);
+    TAILQ_INIT(&vertex->age_list);
     LIST_INSERT_HEAD(&graph->vertices, vertex, same_graph);
     for (unsigned i = 0; i < vertex->index_size; i++) {
-        TAILQ_INIT(&vertex->states[i]);
+        TAILQ_INIT(&vertex->index[i]);
     }
     vertex->nb_states = 0;
 
@@ -251,7 +278,7 @@ static struct nt_vertex *nt_vertex_new(char const *name, struct nt_graph *graph,
 {
     MALLOCER(nt_vertices);
     if (! index_size) index_size = graph->default_index_size;
-    struct nt_vertex *vertex = MALLOC(nt_vertices, sizeof(*vertex) + index_size*sizeof(vertex->states[0]));
+    struct nt_vertex *vertex = MALLOC(nt_vertices, sizeof(*vertex) + index_size*sizeof(vertex->index[0]));
     if (! vertex) return NULL;
     if (0 != nt_vertex_ctor(vertex, name, graph, entry_fn, index_size, timeout)) {
         FREE(vertex);
@@ -268,10 +295,11 @@ static void nt_vertex_dtor(struct nt_vertex *vertex, struct nt_graph *graph)
     // Delete all our states
     for (unsigned i = 0; i < vertex->index_size; i++) {
         struct nt_state *state;
-        while (NULL != (state = TAILQ_FIRST(&vertex->states[i]))) {
+        while (NULL != (state = TAILQ_FIRST(&vertex->index[i]))) {
             nt_state_del(state, graph);
         }
     }
+    assert(TAILQ_EMPTY(&vertex->age_list));
 
     // Then all the edges using us
     struct nt_edge *edge;
@@ -435,7 +463,7 @@ static void nt_graph_start(struct nt_graph *graph)
     LIST_INSERT_HEAD(&started_graphs, graph, entry);
 }
 
-static bool edge_process(struct nt_edge *, struct proto_info const *, struct npc_register, struct timeval const *);
+static void edge_ageing(struct nt_edge *, struct timeval const *);
 
 static void nt_graph_stop(struct nt_graph *graph)
 {
@@ -444,18 +472,14 @@ static void nt_graph_stop(struct nt_graph *graph)
     LIST_REMOVE(graph, entry);
     graph->started = false;
 
-    // timeout all states capable of timeouting
-    struct npc_register empty_rest = { .size = 0, .value = (uintptr_t)NULL };
+    // age out all states capable of ageing
     struct nt_edge *edge;
     LIST_FOREACH(edge, &graph->edges, same_graph) {
-        // is this edge a timeout?
-        if (! edge->min_age) continue;
-
         SLOG(LOG_DEBUG, "Pass all states from %s to %s", edge->from->name, edge->to->name);
         struct timeval now;
         timeval_set_now(&now);
         timeval_add_sec(&now, edge->min_age+1); // pretend to be later so that aging will happen
-        (void)edge_process(edge, NULL, empty_rest, &now);
+        edge_ageing(edge, &now);
     }
 }
 
@@ -503,16 +527,17 @@ static void nt_graph_del(struct nt_graph *graph)
  */
 
 // Test an edge for all possible transitions
-// last, rest are allowed to be NULL, then only timeout/ageing will be considered.
 // returns false to stop the search.
-static bool edge_process(struct nt_edge *edge, struct proto_info const *last, struct npc_register rest, struct timeval const *now)
+static bool edge_matching(struct nt_edge *edge, struct proto_info const *last, struct npc_register rest, struct timeval const *now)
 {
+    if (! edge->match_fn) return true;
+
     struct nt_state *state, *tmp;
 
     bool h_value_set = false;
     unsigned h_value;
     unsigned index_start = 0, index_stop = edge->from->index_size;  // by default, prepare to look into all hash buckets
-    if (index_stop > 1 && edge->from_index_fn && last) {
+    if (index_stop > 1 && edge->from_index_fn) {
         // Notice that the hash function for incomming packet is *not* allowed to use the regfile nor to bind anything
         h_value_set = true;
         // too bad we recompute here the hash value of the incoming packet for every edge with many times the same from_index_fn
@@ -522,19 +547,24 @@ static bool edge_process(struct nt_edge *edge, struct proto_info const *last, st
         SLOG(LOG_DEBUG, "Using index at location %u", index_start);
     }
     for (unsigned index = index_start; index < index_stop; index++) {
+        static unsigned max_nb_collisions = 16;
         unsigned nb_collisions = 0;
-        TAILQ_FOREACH_REVERSE_SAFE(state, &edge->from->states[index], nt_states_tq, same_vertex, tmp) {   // Beware that this state may move
+        TAILQ_FOREACH_SAFE(state, &edge->from->index[index], same_index, tmp) {  // Beware that this state may move
+
+            // While we are there try to timeout this state?
             if (edge->from->timeout > 0LL && edge->from->timeout < timeval_sub(now, &state->last_used)) {
                 SLOG(LOG_DEBUG, "Timeouting state in vertex %s", edge->from->name);
                 nt_state_del(state, edge->graph);
                 continue;
             }
-            if (!edge->match_fn && edge->min_age != 0 && timeval_sub(now, &state->last_enter) < edge->min_age) {
-                // if we are looking only for old states then exit early as soon as we met one that's young
-                break;
+
+            if (h_value_set && state->h_value != h_value) continue; // hopeless
+
+            if (++nb_collisions > max_nb_collisions) {
+                max_nb_collisions = nb_collisions;
+                TIMED_SLOG(LOG_NOTICE, "%u collisions for %s->%s, size=%u, index=%u->%u/%u", nb_collisions, edge->from->name, edge->to->name, edge->from->nb_states, index_start, index_stop, edge->from->index_size);
             }
 
-            if (edge->match_fn && ++nb_collisions > 16) TIMED_SLOG(LOG_NOTICE, "%u collisions searching in %s, size=%u, index=%u/%u", nb_collisions, edge->from->name, edge->from->nb_states, index_stop-index_start, edge->from->index_size);
             SLOG(LOG_DEBUG, "Testing state@%p from vertex %s for %s into %s",
                     state,
                     edge->from->name,
@@ -560,36 +590,14 @@ static bool edge_process(struct nt_edge *edge, struct proto_info const *last, st
              * Car, si pitie de nous pauvres avez, Dieu en aura plus tôt de vous mercis. */
             struct npc_register tmp_regfile[edge->graph->nb_registers];
             // Ok we will need this only when we have a match function and the hash values are equal.
-            bool const h_value_ok = !h_value_set || state->h_value == h_value;
-            bool tmp_regfile_used = h_value_ok && edge->match_fn;
-            if (tmp_regfile_used) npc_regfile_ctor(tmp_regfile, edge->graph->nb_registers);
+            npc_regfile_ctor(tmp_regfile, edge->graph->nb_registers);
 
-            if (
-                // to follow this edge we have two possible conditions:
-                // either the min_age criteria or the match criteria
-                (
-                    // min_age criteria: the state is older than the min_age of this edge
-                    edge->min_age != 0 &&
-                    timeval_sub(now, &state->last_enter) >= edge->min_age
-                ) || (
-                    // match criteria: the match function returns true
-                    // (which can only happen if the hash values match)
-                    edge->match_fn &&
-                    h_value_ok &&
-                    last &&
-                    edge->match_fn(last, rest, state->regfile, tmp_regfile)
-                )
-            ) {
+            if (edge->match_fn(last, rest, state->regfile, tmp_regfile)) {
                 SLOG(LOG_DEBUG, "Match!");
                 edge->nb_matches ++;
                 // We need the merged state in all cases but when we have no action and don't keep the result
                 struct npc_register *merged_regfile = NULL;
                 if (edge->to->entry_fn || !LIST_EMPTY(&edge->to->outgoing_edges)) {
-                    if (! tmp_regfile_used) {
-                        // well, better late than never!
-                        tmp_regfile_used = true;
-                        npc_regfile_ctor(tmp_regfile, edge->graph->nb_registers);
-                    }
                     merged_regfile = npc_regfile_merge(state->regfile, tmp_regfile, edge->graph->nb_registers, !edge->spawn);
                     if (! merged_regfile) {
                         SLOG(LOG_WARNING, "Cannot create the new register file");
@@ -606,7 +614,7 @@ static bool edge_process(struct nt_edge *edge, struct proto_info const *last, st
                 }
                 // Now move/spawn/dispose of the state
                 // first we need to know the location in the index
-                unsigned h_value = 0;
+                unsigned new_h_value = 0;
                 if (edge->to->index_size > 1) { // we'd better have a hashing function then!
                     if (!edge->to_index_fn) {
                         SLOG(LOG_WARNING, "Don't know how to store spawned state in vertex %s, missing hashing function when coming from %s", edge->to->name, edge->from->name);
@@ -615,12 +623,12 @@ static bool edge_process(struct nt_edge *edge, struct proto_info const *last, st
                     }
                     // Notice this hashing function can use the regfile but can still perform no bindings
                     // Also, it better not use the incoming packet (NULL) when aging out states!
-                    h_value = edge->to_index_fn(last, rest, merged_regfile, NULL);
-                    SLOG(LOG_DEBUG, "Will store at index location %u", h_value % edge->to->index_size);
+                    new_h_value = edge->to_index_fn(last, rest, merged_regfile, NULL);
+                    SLOG(LOG_DEBUG, "Will store at index location %u", new_h_value % edge->to->index_size);
                 }
                 if (edge->spawn) {
                     if (!LIST_EMPTY(&edge->to->outgoing_edges) && merged_regfile) { // or we do not need to spawn anything
-                        if (NULL == (state = nt_state_new(state, edge->to, merged_regfile, now, h_value))) {
+                        if (NULL == (state = nt_state_new(state, edge->to, merged_regfile, now, new_h_value))) {
                             npc_regfile_del(merged_regfile, edge->graph->nb_registers);
                         }
                     }
@@ -630,19 +638,75 @@ static bool edge_process(struct nt_edge *edge, struct proto_info const *last, st
                     } else if (merged_regfile) {    // replace former regfile with new one
                         npc_regfile_del(state->regfile, edge->graph->nb_registers);
                         state->regfile = merged_regfile;
-                        nt_state_move(state, edge->to, h_value, now);
+                        nt_state_move(state, edge->to, new_h_value, now);
                     }
                 }
 hell:
-                if (tmp_regfile_used) npc_regfile_dtor(tmp_regfile, edge->graph->nb_registers);
+                npc_regfile_dtor(tmp_regfile, edge->graph->nb_registers);
                 if (edge->grab) return false;
             } else {
                 SLOG(LOG_DEBUG, "No match");
-                if (tmp_regfile_used) npc_regfile_dtor(tmp_regfile, edge->graph->nb_registers);
+                npc_regfile_dtor(tmp_regfile, edge->graph->nb_registers);
+            }
+        } // loop on states
+    } // loop on index
+
+    return true;
+}
+
+// Move all states along this edge if they match the ageing rule
+static void edge_ageing(struct nt_edge *edge, struct timeval const *now)
+{
+    if (! edge->min_age) return;
+
+    struct npc_register empty_rest = { .size = 0, .value = (uintptr_t)NULL };
+
+    struct nt_state *state, *tmp;
+    TAILQ_FOREACH_REVERSE_SAFE(state, &edge->from->age_list, nt_states_tq, same_vertex, tmp) {   // Beware that this state may move
+        if (timeval_sub(now, &state->last_enter) < edge->min_age) break;
+
+        SLOG(LOG_DEBUG, "Ageing!");
+        edge->nb_matches ++;
+
+        if (edge->to->entry_fn) {
+            SLOG(LOG_DEBUG, "Calling entry function for vertex '%s'", edge->to->name);
+            // Entry function is not supposed to bind anything... for now (FIXME).
+            // Additionally, since we are ageing, then it's not allowed to use
+            // packet data as well (logical,although not enforced).
+            edge->to->entry_fn(NULL, empty_rest, state->regfile, NULL);
+        }
+        // Now move/spawn/dispose of the state
+        // first we need to know the location in the index
+        unsigned new_h_value = 0;
+        if (edge->to->index_size > 1) { // we'd better have a hashing function then!
+            if (!edge->to_index_fn) {
+                SLOG(LOG_WARNING, "Don't know how to store spawned state in vertex %s, missing hashing function when coming from %s", edge->to->name, edge->from->name);
+                goto hell;
+            }
+            // Notice this hashing function can use the regfile but can still perform no bindings
+            // Also, it better not use the incoming packet (NULL) when aging out states!
+            new_h_value = edge->to_index_fn(NULL, empty_rest, state->regfile, NULL);
+            SLOG(LOG_DEBUG, "Will store at index location %u", new_h_value % edge->to->index_size);
+        }
+        if (edge->spawn) {
+            if (!LIST_EMPTY(&edge->to->outgoing_edges)) { // or we do not need to spawn anything
+                struct npc_register *copy = npc_regfile_copy(state->regfile, edge->graph->nb_registers);
+                if (! copy) goto hell;
+                if (NULL == (state = nt_state_new(state, edge->to, copy, now, new_h_value))) {
+                    npc_regfile_del(copy, edge->graph->nb_registers);
+                }
+                // reset the age of this state
+                nt_state_promote_age_list(state, edge->to, now);
+            }
+        } else {    // move the whole state
+            if (LIST_EMPTY(&edge->to->outgoing_edges)) {  // rather dispose of former state
+                nt_state_del(state, edge->graph);
+            } else {
+                nt_state_move(state, edge->to, new_h_value, now);
             }
         }
+hell:;
     }
-    return true;
 }
 
 static void parser_hook(struct proto_subscriber *subscriber, struct proto_info const *last, size_t cap_len, uint8_t const *packet, struct timeval const *now)
@@ -661,7 +725,11 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
 
     struct nt_edge *edge;
     LIST_FOREACH(edge, &hook->edges, same_hook) {
-        if (! edge_process(edge, last, rest, now)) break;
+        if (! edge_matching(edge, last, rest, now)) break;
+    }
+
+    LIST_FOREACH(edge, &hook->edges, same_hook) {
+        edge_ageing(edge, now);
     }
 }
 
