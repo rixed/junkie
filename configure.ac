@@ -17,7 +17,7 @@ AC_SUBST(TAGNAME, m4_esyscmd([git describe --tags || (if git symbolic-ref HEAD >
 AC_SUBST(BRANCHNAME, m4_esyscmd([if git symbolic-ref HEAD >/dev/null 2>&1; then git symbolic-ref HEAD | cut -d/ -f 3- ; else git name-rev HEAD | cut -d' ' -f 2; fi]))
 AC_SUBST(COMP_HOST, m4_esyscmd([hostname]))
 
-AC_ARG_VAR(GUILE_LOAD_PATH, "Where to find the required guile modules (apart from standard paths)")
+AC_ARG_VAR(GUILE_LOAD_PATH, Where to find the required guile modules (apart from standard paths))
 
 # Checks for programs.
 AC_PROG_CC
