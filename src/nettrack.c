@@ -588,8 +588,8 @@ static bool edge_matching(struct nt_edge *edge, struct proto_info const *last, s
 
             /* Freres humains, qui apres nous codez, N'ayez les coeurs contre nous endurcis,
              * Car, si pitie de nous pauvres avez, Dieu en aura plus tôt de vous mercis. */
+
             struct npc_register tmp_regfile[edge->graph->nb_registers];
-            // Ok we will need this only when we have a match function and the hash values are equal.
             npc_regfile_ctor(tmp_regfile, edge->graph->nb_registers);
 
             if (edge->match_fn(last, rest, state->regfile, tmp_regfile)) {
@@ -608,8 +608,6 @@ static bool edge_matching(struct nt_edge *edge, struct proto_info const *last, s
                 if (edge->to->entry_fn && merged_regfile) {
                     SLOG(LOG_DEBUG, "Calling entry function for vertex '%s'", edge->to->name);
                     // Entry function is not supposed to bind anything... for now (FIXME).
-                    // Also, if last is NULL (ie. we are here because of the age of this state)
-                    // then it's not allowed to use packet data as well (logical,although not enforced).
                     edge->to->entry_fn(last, rest, merged_regfile, NULL);
                 }
                 // Now move/spawn/dispose of the state
@@ -622,7 +620,6 @@ static bool edge_matching(struct nt_edge *edge, struct proto_info const *last, s
                         goto hell;
                     }
                     // Notice this hashing function can use the regfile but can still perform no bindings
-                    // Also, it better not use the incoming packet (NULL) when aging out states!
                     new_h_value = edge->to_index_fn(last, rest, merged_regfile, NULL);
                     SLOG(LOG_DEBUG, "Will store at index location %u", new_h_value % edge->to->index_size);
                 }

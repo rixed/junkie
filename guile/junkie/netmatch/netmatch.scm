@@ -36,7 +36,7 @@
 
 ; If "Any sufficiently complicated C program contains an ad-hoc, informally-specified,
 ; bug-ridden, slow implementation of half of lisp", then any sufficiently complicated
-; list program contains an ad-hoc, etc, slow implementation of a type checker. This is
+; lisp program contains an ad-hoc, etc, slow implementation of a type checker. This is
 ; it. :-)
 ; return the code stub corresponding to the expression, given its expected type.
 ; proto is the layer we are at (fields will be fetched from this structure).
