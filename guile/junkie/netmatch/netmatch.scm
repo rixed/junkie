@@ -391,6 +391,10 @@
                                (field->C proto field)
                                flag)))
                       (_ (throw 'you-must-be-joking (simple-format #f "how could ~a be set or not?" fname)))))
+              ; as a convenience for nettrack, (hash x y ...) is rewritten as ((hash x) + (hash y) + ...)
+              (('hash x y . rest)
+               (slog log-debug " simplifying special form 'hash'")
+               (expr->stub `((hash ,x) + (hash ,y ,@rest))))
               ; binding
               ((name ':= x)
                (slog log-debug " compiling special form 'bind' for expr ~a to register ~a" x name)

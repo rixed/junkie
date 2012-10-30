@@ -430,7 +430,7 @@
                    (string-append
                      (stub-code addr-stub)
                      (stub-code mask-stub)
-                     "    struct ip_addr *" res " = malloc(2 * sizeof(*" res "));\n"
+                     "    struct ip_addr *" res " = calloc(2, sizeof(*" res "));\n" ; we use calloc to set padding bytes at 0 (to please subnet-hash operator)
                      "    assert(" res ");\n" ; aren't assertions as good as proper error checks? O:-)
                      "    memcpy(" res "+0, " (stub-result addr-stub) ", sizeof(" res "[0]));\n"
                      "    memcpy(" res "+1, " (stub-result mask-stub) ", sizeof(" res "[1]));\n")
@@ -803,19 +803,6 @@
 (add-operator '= ip-eq?)
 (add-operator '== ip-eq?)
 
-(define ip-hash
-  (make-op 'ip-hash uint (list ip)
-           (lambda (ip)
-             (let ((res (gensymC "ip_hash")))
-               (make-stub
-                 (string-append
-                   (stub-code ip)
-                   "    uint32_t " res " = hashlittle((void *)" (stub-result ip) ", sizeof(struct ip_addr), 0x432317F5U);\n")
-                 res
-                 (stub-regnames ip))))))
-
-(add-operator 'hash ip-hash)
-
 (export routable? broadcast?)
 
 ;; Eth addresses manipulation
@@ -838,19 +825,6 @@
 (add-operator '=e mac-eq?)
 (add-operator '= mac-eq?)
 (add-operator '== mac-eq?)
-
-(define mac-hash
-  (make-op 'mac-hash uint (list mac)
-           (lambda (mac)
-             (let ((res (gensymC "mac_hash")))
-               (make-stub
-                 (string-append
-                   (stub-code mac)
-                   "    uint32_t " res " = hashlittle((void *)" (stub-result mac) ", ETH_ADDR_LEN, 0x432317F5U);\n")
-                 res
-                 (stub-regnames mac))))))
-
-(add-operator 'hash mac-hash)
 
 ;; String manipulation
 
@@ -996,3 +970,104 @@
 
 (add-operator 'starts-with bytes-starts-with-str)
 (add-operator 'starts-with bytes-starts-with-bytes)
+
+;; Hash of base types
+
+(define bool-hash
+  (make-op 'bool-hash uint (list bool)
+           (lambda (v)
+             (let ((res (gensync "bool_hash")))
+               (make-stub
+                 (string-append
+                   (stub-code v)
+                   "    uint32_t " res " = (uint32_t) " (stub-result v) ";\n")
+                 res
+                 (stub-regnames v))))))
+
+(add-operator 'hash bool-hash)
+
+(define uint-hash
+  (make-op 'uint-hash uint (list uint)
+           (lambda (v) v)))
+
+(add-operator 'hash uint-hash)
+
+(define str-hash
+  (make-op 'str-hash uint (list str)
+           (lambda (str)
+             (let ((res (gensymC "str_hash")))
+               (make-stub
+                 (string-append
+                   (stub-code str)
+                   "    uint32_t " res " = hashlittle((void *)" (stub-result str) ", strlen(" (stub-result str) "), 0x432317F5U);\n")
+                 res
+                 (stub-regnames str))))))
+
+(add-operator 'hash str-hash)
+
+(define bytes-hash
+  (make-op 'bytes-hash uint (list bytes)
+           (lambda (bytes)
+             (let ((res (gensymC "bytes_hash")))
+               (make-stub
+                 (bytesing-append
+                   (stub-code bytes)
+                   "    uint32_t " res " = hashlittle((void *)" (stub-result bytes) ".value, " (stub-result bytes) ".size, 0x432317F5U);\n")
+                 res
+                 (stub-regnames bytes))))))
+
+(add-operator 'hash bytes-hash)
+
+(define timestamp-hash
+  (make-op 'timestamp-hash uint (list timestamp)
+           (lambda (timestamp)
+             (let ((res (gensymC "timestamp_hash")))
+               (make-stub
+                 (string-append
+                   (stub-code timestamp)
+                   "    uint32_t " res " = hashlittle((void *)" (stub-result timestamp) ", sizeof(struct timeval), 0x432317F5U);\n")
+                 res
+                 (stub-regnames timestamp))))))
+
+(add-operator 'hash timestamp-hash)
+
+(define ip-hash
+  (make-op 'ip-hash uint (list ip)
+           (lambda (ip)
+             (let ((res (gensymC "ip_hash")))
+               (make-stub
+                 (string-append
+                   (stub-code ip)
+                   "    uint32_t " res " = hashlittle((void *)" (stub-result ip) ", sizeof(struct ip_addr), 0x432317F5U);\n")
+                 res
+                 (stub-regnames ip))))))
+
+(add-operator 'hash ip-hash)
+
+(define subnet-hash
+  (make-op 'subnet-hash uint (list subnet)
+           (lambda (subnet)
+             (let ((res (gensymC "subnet_hash")))
+               (make-stub
+                 (string-append
+                   (stub-code subnet)
+                   "    uint32_t " res " = hashlittle((void *)" (stub-result subnet) ", sizeof(struct ip_addr) * 2, 0x432317F5U);\n")
+                 res
+                 (stub-regnames subnet))))))
+
+(add-operator 'hash subnet-hash)
+
+(define mac-hash
+  (make-op 'mac-hash uint (list mac)
+           (lambda (mac)
+             (let ((res (gensymC "mac_hash")))
+               (make-stub
+                 (string-append
+                   (stub-code mac)
+                   "    uint32_t " res " = hashlittle((void *)" (stub-result mac) ", ETH_ADDR_LEN, 0x432317F5U);\n")
+                 res
+                 (stub-regnames mac))))))
+
+(add-operator 'hash mac-hash)
+
+

@@ -17,6 +17,12 @@ struct npc_register {
     ssize_t size;   // <0 if value is unbound, 0 if unboxed, malloced size otherwise (may be > to required size, may be < sizeof(intptr_t) (for strings for instance))
 };
 
+/** callback used pervasively into netmatch.
+ * @param info The last proto info
+ * @param rest The bytes of the payload (unparsed)
+ * @param prev_regfile The register file where registers are read from
+ * @param new_regfile The register file where new register values are written to.
+ */
 typedef uintptr_t npc_match_fn(struct proto_info const *info, struct npc_register const rest, struct npc_register const *prev_regfile, struct npc_register *new_regfile);
 
 // handy structure to stores a netmatch in C
