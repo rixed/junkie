@@ -12,6 +12,8 @@ sactJunkieModule MODULE-IDENTITY
 	ORGANIZATION "SecurActive SA"
 	CONTACT-INFO "info@securactive.net"
 	DESCRIPTION  "Junkie MIB"
+	REVISION     "201210300000Z"
+	DESCRIPTION  "Fix typo"
 	REVISION     "201209070000Z"
 	DESCRIPTION  "Addition of denied parsers count"
 	REVISION     "201205040000Z"
@@ -213,7 +215,7 @@ muxerEntry OBJECT-TYPE
 	MAX-ACCESS not-accessible
 	STATUS current
 	DESCRIPTION "A row giving statistics on a given multiplexer."
-	INDEX { muxName }
+	INDEX { muxerName }
 	::= { muxerTable 1 }
 
 MuxerEntry ::= SEQUENCE {
