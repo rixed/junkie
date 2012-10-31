@@ -1,0 +1,59 @@
+<interface>
+	<name>Junkie packet source</name>
+	<index_order>sourceName</index_order>
+	<index_order_type>alphabetic</index_order_type>
+	<index_title_format>|chosen_order_field|</index_title_format>
+	<description>Queries a host for a list of paquet source</description>
+	<oid_index>.1.3.6.1.4.1.36773.1.2.1.1.1</oid_index>
+	<fields>
+		<sourceName>
+			<name>Name</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>input</direction>
+			<oid>.1.3.6.1.4.1.36773.1.2.1.1.1</oid>
+		</sourceName>
+		<receivedCount>
+			<name>Received Count</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.4.1.36773.1.2.1.1.2</oid>
+		</receivedCount>
+		<droppedCount>
+			<name>Dropped Packets</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.4.1.36773.1.2.1.1.3</oid>
+		</droppedCount>
+		<processedCount>
+			<name>Processed Packets</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.4.1.36773.1.2.1.1.4</oid>
+		</processedCount>
+		<duplicateCount>
+			<name>Duplicate Packets</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.4.1.36773.1.2.1.1.5</oid>
+		</duplicateCount>
+		<capBytes>
+			<name>Captured Bytes</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.4.1.36773.1.2.1.1.6</oid>
+		</capBytes>
+		<wireBytes>
+			<name>Bytes On Wire</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.4.1.36773.1.2.1.1.7</oid>
+		</wireBytes>
+	</fields>
+</interface>

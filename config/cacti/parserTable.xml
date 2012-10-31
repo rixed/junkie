@@ -1,0 +1,39 @@
+<interface>
+	<name>Get Junkie's parsers</name>
+	<index_order>protoName</index_order>
+	<index_order_type>alphabetic</index_order_type>
+	<index_title_format>|chosen_order_field|</index_title_format>
+	<description>Queries a host for a list of monitorable parsers</description>
+	<oid_index>.1.3.6.1.4.1.36773.1.3.1.1.1</oid_index>
+
+	<fields>
+		<protoName>
+			<name>Protocol</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>input</direction>
+			<oid>.1.3.6.1.4.1.36773.1.3.1.1.1</oid>
+		</protoName>
+		<frameCount>
+			<name>Parsed Frames</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.4.1.36773.1.3.1.1.2</oid>
+		</frameCount>
+		<byteCount>
+			<name>Parsed Bytes</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.4.1.36773.1.3.1.1.3</oid>
+		</byteCount>
+		<nbInstances>
+			<name>Instances</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.4.1.36773.1.3.1.1.4</oid>
+		</nbInstances>
+	</fields>
+</interface>

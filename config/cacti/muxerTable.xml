@@ -1,0 +1,53 @@
+<interface>
+	<name>Get Junkie's multiplexers</name>
+	<index_order>muxerName</index_order>
+	<index_order_type>alphabetic</index_order_type>
+	<index_title_format>|chosen_order_field|</index_title_format>
+	<description>Queries a host for a list of monitorable multiplexers</description>
+	<oid_index>.1.3.6.1.4.1.36773.1.3.2.1.1</oid_index>
+
+	<fields>
+		<muxerName>
+			<name>Name</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>input</direction>
+			<oid>.1.3.6.1.4.1.36773.1.3.2.1.1</oid>
+		</muxerName>
+		<muxerHashSize>
+			<name>Hash Size</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.4.1.36773.1.3.2.1.2</oid>
+		</muxerHashSize>
+		<muxerMaxChildren>
+			<name>Max Children</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.4.1.36773.1.3.2.1.3</oid>
+		</muxerMaxChildren>
+		<muxerInfanticide>
+			<name>Infanticides</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.4.1.36773.1.3.2.1.4</oid>
+		</muxerInfanticide>
+		<muxerCollisions>
+			<name>Hash Collisions</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.4.1.36773.1.3.2.1.5</oid>
+		</muxerCollisions>
+		<muxerLookups>
+			<name>Hash Lookups</name>
+			<method>walk</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.4.1.36773.1.3.2.1.6</oid>
+		</muxerLookups>
+	</fields>
+</interface>

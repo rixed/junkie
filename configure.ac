@@ -84,6 +84,7 @@ AC_CONFIG_FILES([
 	plugins/packetogram/Makefile
 	plugins/duplicogram/Makefile
 	config/Makefile
+	config/cacti/Makefile
 	guile/Makefile
 	guile/srfi/Makefile
 	guile/junkie/Makefile

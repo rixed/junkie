@@ -1,3 +1,5 @@
+SUBDIRS = cacti
+
 pkgsysconfdir=@CONFDIR@
 dist_pkgsysconf_DATA = \
 	SACT-ROOT-MIB \
