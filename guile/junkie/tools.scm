@@ -11,6 +11,27 @@
 (define pp (@ (ice-9 pretty-print) pretty-print))
 (export pp)
 
+; Equivalent of mkdir -p
+(define (ensure-directories-exist path)
+  (letrec ((rec (lambda (path)
+                 (let ((parent (dirname path)))
+                   (if (and (string<> path "/") (string<> path "."))
+                       (rec parent)))
+                 (catch 'system-error
+                        (lambda ()
+                          (mkdir path))
+                        (lambda stuff
+                          (let ((errno (system-error-errno stuff)))
+                            ;; Ignore error if the directory already exists.
+                            (if (not (= errno EEXIST))
+                             (throw stuff))))))))
+    (rec path))
+  ;; Now check the we have actually a directory.
+  (if (not (eq? (stat:type (stat path)) 'directory))
+      (throw 'file-exists path)))
+
+(export ensure-directories-exist)
+
 ; Run a server on given port
 (define (start-server ip-addr port serve-client)
   (let* ((sock-fd (socket PF_INET SOCK_STREAM 0))
