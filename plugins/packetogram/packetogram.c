@@ -25,6 +25,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <inttypes.h>
+#include <signal.h>
 #include <junkie/proto/cap.h>
 #include <junkie/cpp.h>
 #include <junkie/tools/cli.h>
