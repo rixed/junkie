@@ -317,7 +317,8 @@ bool digest_queue_find(size_t cap_len, uint8_t *packet, uint8_t dev_id, struct t
             } else {
                 uint64_t const avg = (q->dt_sum + (q->nb_dups>>1)) / q->nb_dups;
                 uint64_t const sigma = q->nb_dups > 1 ? sqrt((q->dt_sum2 + (q->nb_dups>>1)) / q->nb_dups - avg*avg) : avg/2;
-                q->dt_max = new_avg_dt_max(1U + avg + fast_dedup_distance * sigma);
+                uint64_t const dt_max = MIN(1U + avg + fast_dedup_distance * sigma, max_dup_delay);
+                q->dt_max = new_avg_dt_max(dt_max);
                 SLOG(LOG_DEBUG, "queue[%u]: New dt_max=%uus, since nb_dups=%u, dt_sum=%"PRId64"us, dt_sum2=%"PRId64"us2 -> avg=%"PRId64"us, sigma=%"PRId64"us", h, q->dt_max, q->nb_dups, q->dt_sum, q->dt_sum2, avg, sigma);
             }
             q->comprehensive = false;
