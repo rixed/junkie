@@ -74,7 +74,7 @@ EXT_PARAM_RW(max_dup_delay, "max-dup-delay", uint, "Number of microseconds betwe
 static unsigned fast_dedup_duration = 10000000;    // microseconds
 EXT_PARAM_RW(fast_dedup_duration, "fast-dedup-duration", uint, "Number of microseconds between two phases of comprehensive deduplication");
 
-static double fast_dedup_distance = 1.;
+static double fast_dedup_distance = 2.;
 EXT_PARAM_RW(fast_dedup_distance, "fast-dedup-distance", double, "How many sigmas beyond average dup DT should we search for dups in fast dedup phases");
 
 static void queue_ctor(struct queue *q)
