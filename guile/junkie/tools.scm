@@ -15,7 +15,7 @@
 (define (ensure-directories-exist path)
   (letrec ((rec (lambda (path)
                  (let ((parent (dirname path)))
-                   (if (and (string<> path "/") (string<> path "."))
+                   (if (and (string<> parent "/") (string<> parent "."))
                        (rec parent)))
                  (catch 'system-error
                         (lambda ()
