@@ -235,7 +235,7 @@ static void nt_state_move(struct nt_state *state, struct nt_vertex *to, unsigned
  * Vertices
  */
 
-static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_graph *graph, npc_match_fn *entry_fn, unsigned index_size, int64_t timeout)
+static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_graph *graph, npc_match_fn *entry_fn, npc_match_fn *timeout_fn, unsigned index_size, int64_t timeout)
 {
     SLOG(LOG_DEBUG, "Construct new vertex %s with %u buckets (timeout=%"PRId64"us)", name, index_size, timeout);
 
@@ -268,19 +268,21 @@ static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_
         vertex->timeout = timeout;
     }
 
-    // Additionally, there may be an entry function to be called whenever this vertex is entered.
+    // Additionally, there may be some functions to be called whenever this vertex is entered/timeouted.
     vertex->entry_fn = entry_fn;
+    vertex->timeout_fn = timeout_fn;
+    assert(! timeout_fn || timeout > 0);
 
     return 0;
 }
 
-static struct nt_vertex *nt_vertex_new(char const *name, struct nt_graph *graph, npc_match_fn *entry_fn, unsigned index_size, int64_t timeout)
+static struct nt_vertex *nt_vertex_new(char const *name, struct nt_graph *graph, npc_match_fn *entry_fn, npc_match_fn *timeout_fn, unsigned index_size, int64_t timeout)
 {
     MALLOCER(nt_vertices);
     if (! index_size) index_size = graph->default_index_size;
     struct nt_vertex *vertex = MALLOC(nt_vertices, sizeof(*vertex) + index_size*sizeof(vertex->index[0]));
     if (! vertex) return NULL;
-    if (0 != nt_vertex_ctor(vertex, name, graph, entry_fn, index_size, timeout)) {
+    if (0 != nt_vertex_ctor(vertex, name, graph, entry_fn, timeout_fn, index_size, timeout)) {
         FREE(vertex);
         return NULL;
     }
@@ -743,7 +745,7 @@ static struct nt_vertex *nt_vertex_lookup(struct nt_graph *graph, char const *na
     }
 
     // Create a new one
-    return nt_vertex_new(name, graph, NULL, 1, 1000000LL);
+    return nt_vertex_new(name, graph, NULL, NULL, 1, 1000000LL);
 }
 
 static scm_t_bits graph_tag;
@@ -806,7 +808,7 @@ static SCM g_make_nettrack(SCM name_, SCM libname_)
         assert(!"Never reached");
     }
     for (unsigned vi = 0; vi < *nb_vertice_defs; vi++) {
-        struct nt_vertex *vertex = nt_vertex_new(v_def[vi].name, graph, v_def[vi].entry_fn, v_def[vi].index_size, v_def[vi].timeout);
+        struct nt_vertex *vertex = nt_vertex_new(v_def[vi].name, graph, v_def[vi].entry_fn, v_def[vi].timeout_fn, v_def[vi].index_size, v_def[vi].timeout);
         if (! vertex) {
             scm_throw(scm_from_latin1_symbol("cannot-create-nt-vertex"), scm_list_1(scm_from_locale_string(v_def[vi].name)));
             assert(!"Never reached");

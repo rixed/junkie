@@ -33,8 +33,8 @@ struct nt_vertex {
     LIST_ENTRY(nt_vertex) same_graph;
     LIST_HEAD(nt_edges, nt_edge) outgoing_edges;
     struct nt_edges incoming_edges;
-    // User defined actions on entry
-    npc_match_fn *entry_fn;
+    // User defined actions on entry and on timeout
+    npc_match_fn *entry_fn, *timeout_fn;
     int64_t timeout;   // if >0, number of seconds to keep an inactive state in here
     unsigned index_size;   // the index size (>=1)
     unsigned nb_states;
