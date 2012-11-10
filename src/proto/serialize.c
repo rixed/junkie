@@ -81,7 +81,8 @@ void serialize_proto_stack(uint8_t **buf, struct proto_info const *last, struct 
 static void deserialize_proto_info_rec(unsigned depth, uint8_t const **buf, struct proto_info *last, struct timeval const *now)
 {
     if (last) {
-        proto_subscribers_call(last->parser->proto, depth == 0, last, 0, NULL, now);
+        proto_subscribers_call(last->parser->proto, last, 0, NULL, now);
+        if (depth == 0) full_pkt_subscribers_call(last, 0, NULL, now);
     }
 
     if (depth == 0) return;

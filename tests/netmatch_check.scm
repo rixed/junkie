@@ -34,7 +34,7 @@
     (open-pcap file)
     ; wait completion
     (while (not (null? (iface-names)))
-           (usleep 100))))
+           (usleep 100000))))
 
 (define called 0)
 

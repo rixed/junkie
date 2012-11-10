@@ -126,7 +126,10 @@ int proto_subscriber_ctor(struct proto_subscriber *, struct proto *, proto_cb_t 
 void proto_subscriber_dtor(struct proto_subscriber *, struct proto *);
 
 /// Call all subscribers of a given proto
-void proto_subscribers_call(struct proto *, bool with_pkt_sbc, struct proto_info *, size_t tot_cap_len, uint8_t const *tot_packet, struct timeval const *now);
+void proto_subscribers_call(struct proto *, struct proto_info *, size_t tot_cap_len, uint8_t const *tot_packet, struct timeval const *now);
+
+/// Call all subscribers of per-packet hook
+void full_pkt_subscribers_call(struct proto_info *, size_t tot_cap_len, uint8_t const *tot_packet, struct timeval const *now);
 
 /// Subscriber to packet (not protocolar events)
 /** Many plugins want to be called once per packet, with a good but not necessarily
@@ -236,6 +239,7 @@ struct proto_info {
     /// Common information that all protocol must fill one way or another
     size_t head_len;            ///< Size of the header
     size_t payload;             ///< Size of the embedded payload (including what we did not capture from the wire)
+    bool proto_sbc_called;      ///< The subscribers for this proto were already called (avoids calling several times the sbcs in various circumstances)
     bool pkt_sbc_called;        ///< The packet subscribers where already called for this packet and should not be called again (only used when at the bottom of the proto_info stack)
 };
 

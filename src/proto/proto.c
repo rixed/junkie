@@ -152,36 +152,43 @@ static void proto_subscribers_call_ll(struct proto_subscribers *list, struct pro
 enum proto_parse_status proto_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     assert(cap_len <= wire_len);
-    enum proto_parse_status ret = PROTO_OK;
 
-    bool const go_deeper = parser && wire_len > 0;  // FIXME: don't we want to call subparsers on empty payload?
+    bool const go_deeper = parser && wire_len > 0;  // Don't we want to call subparsers on empty payload?
 
-    if (parent) {
-        proto_subscribers_call(parent->parser->proto, !go_deeper, parent, tot_cap_len, tot_packet, now);
+    if (parent /*&& !parent->proto_sbc_called*/) {
+        proto_subscribers_call(parent->parser->proto, parent, tot_cap_len, tot_packet, now);
+        if (! go_deeper) {
+            full_pkt_subscribers_call(parent, tot_cap_len, tot_packet, now);
+        }
     }
 
-    if (go_deeper) {
-        assert(parser);
-#       ifdef __GNUC__
-        (void)__sync_add_and_fetch(&parser->proto->nb_frames, 1);
-        (void)__sync_add_and_fetch(&parser->proto->nb_bytes, wire_len);
-#       else
-        mutex_lock(&parser->proto->lock);
-        parser->proto->nb_frames ++;
-        parser->proto->nb_bytes += wire_len;
-        mutex_unlock(&parser->proto->lock);
-#       endif
+    if (! go_deeper) return PROTO_OK;
 
-        SLOG(LOG_DEBUG, "Parse packet @%p, size %zu (%zu captured), #%"PRIu64" for %s",
-            packet, wire_len, cap_len, parser->proto->nb_frames, parser_name(parser));
+#   ifdef __GNUC__
+    (void)__sync_add_and_fetch(&parser->proto->nb_frames, 1);
+    (void)__sync_add_and_fetch(&parser->proto->nb_bytes, wire_len);
+#   else
+    mutex_lock(&parser->proto->lock);
+    parser->proto->nb_frames ++;
+    parser->proto->nb_bytes += wire_len;
+    mutex_unlock(&parser->proto->lock);
+#   endif
 
-        if (unlikely_(nb_fuzzed_bits > 0)) fuzz(parser, packet, cap_len, nb_fuzzed_bits);
+    SLOG(LOG_DEBUG, "Parse packet @%p, size %zu (%zu captured), #%"PRIu64" for %s",
+        packet, wire_len, cap_len, parser->proto->nb_frames, parser_name(parser));
 
-        ret = parser->proto->ops->parse(parser, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
+    if (unlikely_(nb_fuzzed_bits > 0)) fuzz(parser, packet, cap_len, nb_fuzzed_bits);
 
-        if (ret == PROTO_TOO_SHORT) {
+    enum proto_parse_status const ret = parser->proto->ops->parse(parser, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
+    switch (ret) {
+        case PROTO_TOO_SHORT:
             SLOG(LOG_DEBUG, "Too short for parser %s", parser_name(parser));
-        }
+            break;
+        case PROTO_PARSE_ERR:
+            SLOG(LOG_DEBUG, "Error parsing as %s", parser_name(parser));
+            break;
+        case PROTO_OK:
+            break;
     }
     return ret;
 }
@@ -213,27 +220,33 @@ void proto_subscriber_dtor(struct proto_subscriber *sub, struct proto *proto)
     mutex_unlock(&proto->lock);
 }
 
-void proto_subscribers_call(struct proto *proto, bool with_pkt_sbc, struct proto_info *info, size_t tot_cap_len, uint8_t const *tot_packet, struct timeval const *now)
+void proto_subscribers_call(struct proto *proto, struct proto_info *info, size_t tot_cap_len, uint8_t const *tot_packet, struct timeval const *now)
 {
+    if (info->proto_sbc_called) return;
+    info->proto_sbc_called = true;
+
     // Call the callbacks for the completed proto_info
     // FIXME: smaller lock?
     mutex_lock(&proto->lock);
+    SLOG(LOG_DEBUG, "Calling subscribers for proto %s", proto->name);
     proto_subscribers_call_ll(&proto->subscribers, info, tot_cap_len, tot_packet, now);
     mutex_unlock(&proto->lock);
+}
 
-    if (with_pkt_sbc) { // also call packet subscribers
-        // look for last proto_info with pkt_sbc_called, flaging all proto_infos along the way so that next lookups will be faster
-        struct proto_info *info_ = info;
-        while (info_->parent && !info_->pkt_sbc_called) {
-            info_->pkt_sbc_called = true;
-            info_ = info_->parent;
-        }
-        if (! info_->pkt_sbc_called) {
-            mutex_lock(&pkt_subscribers_lock);
-            proto_subscribers_call_ll(&pkt_subscribers, info, tot_cap_len, tot_packet, now);
-            info_->pkt_sbc_called = true;
-            mutex_unlock(&pkt_subscribers_lock);
-        }
+void full_pkt_subscribers_call(struct proto_info *info, size_t tot_cap_len, uint8_t const *tot_packet, struct timeval const *now)
+{
+    // look for last proto_info with pkt_sbc_called, flaging all proto_infos along the way so that next lookups will be faster
+    struct proto_info *info_ = info;
+    while (info_->parent && !info_->pkt_sbc_called) {
+        info_->pkt_sbc_called = true;
+        info_ = info_->parent;
+    }
+    if (! info_->pkt_sbc_called) {
+        mutex_lock(&pkt_subscribers_lock);
+        SLOG(LOG_DEBUG, "Calling per-packet subscribers");
+        proto_subscribers_call_ll(&pkt_subscribers, info, tot_cap_len, tot_packet, now);
+        info_->pkt_sbc_called = true;
+        mutex_unlock(&pkt_subscribers_lock);
     }
 }
 
@@ -257,6 +270,7 @@ void proto_info_ctor(struct proto_info *info, struct parser *parser, struct prot
     info->parser = parser;
     info->head_len = head_len;
     info->payload = payload;
+    info->proto_sbc_called = false;
     info->pkt_sbc_called = false;
 }
 
@@ -285,6 +299,7 @@ void proto_info_deserialize(struct proto_info *info, uint8_t const **buf)
     info->parser = NULL;
     info->head_len = deserialize_2(buf);
     info->payload = deserialize_2(buf);
+    info->proto_sbc_called = false;
     info->pkt_sbc_called = false;
 }
 

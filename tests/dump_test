@@ -23,14 +23,14 @@ fi
 output=`mktemp tmp.XXXXXXXXXX`
 
 for pcap in $PCAPS ; do
-	echo "-- $pcap --" | tee -a $output
-	../src/junkie -p "$PLUGIN" -e "$CMDLINE" -r "$pcap" | filter >> $output
+	echo "-- $pcap --" | tee -a "$output"
+	../src/junkie -p "$PLUGIN" -l "$output.log" -e "$CMDLINE" -r "$pcap" | filter >> "$output"
 done
 
 if ! diff "$OUTPUT" "$output"; then
 	echo "Output differ from $OUTPUT ! (see actual output in $output)"
 	exit 1
 else
-	rm -f $output
+	rm -f "$output" "$output.log"
 fi
 
