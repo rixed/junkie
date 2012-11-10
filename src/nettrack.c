@@ -581,6 +581,9 @@ static bool edge_matching(struct nt_edge *edge, struct proto_info const *last, s
                 continue;
             }
 
+            // Prevent multiple update of the same state in a single update run
+            if (state->last_moved_run == edge->graph->run_id) continue;
+
             if (h_value_set && state->h_value != h_value) continue; // hopeless
 
             if (++nb_collisions > max_nb_collisions) {
@@ -689,6 +692,9 @@ static void edge_ageing(struct nt_edge *edge, struct timeval const *now)
     struct nt_state *state, *tmp;
     TAILQ_FOREACH_REVERSE_SAFE(state, &edge->from->age_list, nt_states_tq, same_vertex, tmp) {   // Beware that this state may move
         if (timeval_sub(now, &state->last_enter) < edge->min_age) break;
+
+        // Prevent multiple update of the same state in a single update run
+        if (state->last_moved_run == edge->graph->run_id) continue;
 
         SLOG(LOG_DEBUG, "Ageing!");
         edge->nb_matches ++;
