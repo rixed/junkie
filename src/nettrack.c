@@ -465,6 +465,7 @@ static void nt_graph_start(struct nt_graph *graph)
     LIST_INSERT_HEAD(&started_graphs, graph, entry);
 }
 
+static struct npc_register empty_rest = { .size = 0, .value = (uintptr_t)NULL };
 static void edge_ageing(struct nt_edge *, struct timeval const *);
 
 static void nt_graph_stop(struct nt_graph *graph)
@@ -474,14 +475,28 @@ static void nt_graph_stop(struct nt_graph *graph)
     LIST_REMOVE(graph, entry);
     graph->started = false;
 
+    struct timeval now;
+    timeval_set_now(&now);
+
     // age out all states capable of ageing
     struct nt_edge *edge;
     LIST_FOREACH(edge, &graph->edges, same_graph) {
         SLOG(LOG_DEBUG, "Pass all states from %s to %s", edge->from->name, edge->to->name);
-        struct timeval now;
-        timeval_set_now(&now);
-        timeval_add_sec(&now, edge->min_age+1); // pretend to be later so that aging will happen
-        edge_ageing(edge, &now);
+        struct timeval later;
+        later = now;
+        timeval_add_sec(&later, edge->min_age+1); // pretend to be later so that aging will happen
+        edge_ageing(edge, &later);
+    }
+    // timeout all states capable of timeouting
+    struct nt_vertex *vertex;
+    LIST_FOREACH(vertex, &graph->vertices, same_graph) {
+        if (! vertex->timeout_fn) continue;
+        SLOG(LOG_DEBUG, "Timeouting from vertex %s", vertex->name);
+        struct nt_state *state;
+        while (NULL != (state = TAILQ_FIRST(&vertex->age_list))) {
+            vertex->timeout_fn(NULL, empty_rest, state->regfile, NULL);
+            nt_state_del(state, graph);
+        }
     }
 }
 
@@ -556,6 +571,10 @@ static bool edge_matching(struct nt_edge *edge, struct proto_info const *last, s
             // While we are there try to timeout this state?
             if (edge->from->timeout > 0LL && edge->from->timeout < timeval_sub(now, &state->last_used)) {
                 SLOG(LOG_DEBUG, "Timeouting state in vertex %s", edge->from->name);
+                if (edge->from->timeout_fn) {
+                    SLOG(LOG_DEBUG, "Calling timeout function for vertex '%s'", edge->from->name);
+                    edge->to->timeout_fn(NULL, rest, state->regfile, NULL);
+                }
                 nt_state_del(state, edge->graph);
                 continue;
             }
@@ -657,8 +676,6 @@ hell:
 static void edge_ageing(struct nt_edge *edge, struct timeval const *now)
 {
     if (! edge->min_age) return;
-
-    struct npc_register empty_rest = { .size = 0, .value = (uintptr_t)NULL };
 
     struct nt_state *state, *tmp;
     TAILQ_FOREACH_REVERSE_SAFE(state, &edge->from->age_list, nt_states_tq, same_vertex, tmp) {   // Beware that this state may move
