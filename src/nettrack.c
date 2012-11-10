@@ -635,14 +635,19 @@ static bool edge_matching(struct nt_edge *edge, struct proto_info const *last, s
                 // first we need to know the location in the index
                 unsigned new_h_value = 0;
                 if (edge->to->index_size > 1) { // we'd better have a hashing function then!
-                    if (!edge->to_index_fn) {
+                    if (edge->to_index_fn) {
+                        // Notice this hashing function can use the regfile but can still perform no bindings
+                        new_h_value = edge->to_index_fn(last, rest, merged_regfile, NULL);
+                        SLOG(LOG_DEBUG, "Will store at index location %u", new_h_value % edge->to->index_size);
+                    } else if (edge->from == edge->to) {
+                        // when we stay in place we do not need rehashing
+                        new_h_value = state->h_value;
+                    } else {
+                        // if not, then that's another story
                         SLOG(LOG_WARNING, "Don't know how to store spawned state in vertex %s, missing hashing function when coming from %s", edge->to->name, edge->from->name);
                         if (merged_regfile) npc_regfile_del(merged_regfile, edge->graph->nb_registers);
                         goto hell;
                     }
-                    // Notice this hashing function can use the regfile but can still perform no bindings
-                    new_h_value = edge->to_index_fn(last, rest, merged_regfile, NULL);
-                    SLOG(LOG_DEBUG, "Will store at index location %u", new_h_value % edge->to->index_size);
                 }
                 if (edge->spawn) {
                     if (!LIST_EMPTY(&edge->to->outgoing_edges) && merged_regfile) { // or we do not need to spawn anything
@@ -695,14 +700,17 @@ static void edge_ageing(struct nt_edge *edge, struct timeval const *now)
         // first we need to know the location in the index
         unsigned new_h_value = 0;
         if (edge->to->index_size > 1) { // we'd better have a hashing function then!
-            if (!edge->to_index_fn) {
+            if (edge->to_index_fn) {
+                // Notice this hashing function can use the regfile but can still perform no bindings
+                // Also, it better not use the incoming packet (NULL) when aging out states!
+                new_h_value = edge->to_index_fn(NULL, empty_rest, state->regfile, NULL);
+                SLOG(LOG_DEBUG, "Will store at index location %u", new_h_value % edge->to->index_size);
+            } else if (edge->from == edge->to) {
+                new_h_value = state->h_value;
+            } else {
                 SLOG(LOG_WARNING, "Don't know how to store spawned state in vertex %s, missing hashing function when coming from %s", edge->to->name, edge->from->name);
                 goto hell;
             }
-            // Notice this hashing function can use the regfile but can still perform no bindings
-            // Also, it better not use the incoming packet (NULL) when aging out states!
-            new_h_value = edge->to_index_fn(NULL, empty_rest, state->regfile, NULL);
-            SLOG(LOG_DEBUG, "Will store at index location %u", new_h_value % edge->to->index_size);
         }
         if (edge->spawn) {
             if (!LIST_EMPTY(&edge->to->outgoing_edges)) { // or we do not need to spawn anything
