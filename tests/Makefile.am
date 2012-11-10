@@ -34,7 +34,7 @@ TESTS_ENVIRONMENT = \
 	GUILE_LOAD_PATH=$(top_srcdir)/guile \
 	GUILE_LOAD_COMPILED_PATH=$(top_srcdir)/guile \
 	GUILE_WARN_DEPRECATED=no \
-	NETMATCH_CPPFLAGS="$(CPPFLAGS) -I$(top_srcdir)/include"
+	NETMATCH_CPPFLAGS="$(AM_CPPFLAGS) -I$(top_srcdir)/include"
 
 #LDFLAGS += -lefence
 
