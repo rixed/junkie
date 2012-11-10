@@ -466,20 +466,25 @@
                    resname
                    (apply append (map type:stub-regnames stubs)))))
               (('if condition then . elses)
-               (let ((cond-stub (expr->stub condition))
-                     (then-stub (expr->stub then))
-                     (else-stub (if (null? elses)
-                                    ; By default we assume #f if the expected type is bool, nothing if the expected type is any,
-                                    ; and throw an error otherwise.
-                                    (if (eq? (fluid-ref expected-type) type:bool)
-                                        (expr->stub #f)
-                                        (if (eq? (fluid-ref expected-type) type:any)
-                                            (type:empty-stub)
-                                            (throw 'you-must-be-joking (simple-format #f "you must provide an alternative of type ~a" (type:type-name (fluid-ref expected-type))))))
-                                    (if (eqv? 1 (length elses))
-                                        (with-expected-type type:any (lambda () (expr->stub (car elses))))
-                                        (throw 'you-must-be-joking (simple-format #f "'if' forms can have only one consequent and one alternative")))))
-                     (tmp       (type:gensymC "if_res")))
+               (let* ((cond-stub (with-fluid*
+                                   ; Yes, not "with-expected-type". This time if the type is any
+                                   ; then we want it to stay undetermined until we evaluate the
+                                   ; consequent.
+                                   expected-type type:bool
+                                   (lambda () (expr->stub condition))))
+                      (then-stub (expr->stub then))
+                      (else-stub (if (null? elses)
+                                     ; By default we assume #f if the expected type is bool, nothing if the expected type is any,
+                                     ; and throw an error otherwise.
+                                     (if (eq? (fluid-ref expected-type) type:bool)
+                                         (expr->stub #f)
+                                         (if (eq? (fluid-ref expected-type) type:any)
+                                             (type:empty-stub)
+                                             (throw 'you-must-be-joking (simple-format #f "you must provide an alternative of type ~a" (type:type-name (fluid-ref expected-type))))))
+                                     (if (eqv? 1 (length elses))
+                                         (expr->stub (car elses))
+                                         (throw 'you-must-be-joking (simple-format #f "'if' forms can have only one consequent and one alternative")))))
+                      (tmp       (type:gensymC "if_res")))
                  (type:make-stub
                    (string-append
                      (type:stub-code cond-stub)
