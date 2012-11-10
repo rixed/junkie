@@ -740,6 +740,7 @@
 (add-operator 'timestamp-sub timestamp-sub)
 (add-operator 'sub-timestamp timestamp-sub)
 (add-operator '-TS timestamp-sub)
+(add-operator '- timestamp-sub)
 
 (export make-timestamp now age timestamp-sub)
 
