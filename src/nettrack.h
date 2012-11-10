@@ -26,6 +26,13 @@ struct nt_state {
     struct npc_register *regfile;
     struct timeval last_used;   // states on same_index are ordered according to this filed (more recently used at head)
     struct timeval last_enter;  // used to find out the age of a state. states are ordered on same_vertex list according to this field (more recently entered at head)
+    /* As a similar mecanism, we'd like to know if a state already moved in a run
+     * (so that we can avoid moving several times the same state in a single updating run).
+     * TODO: Ultimately we'd like to allow this on a node by node basis.
+     * Notice that reusing last_enter for this would not work when clock does not
+     * increase between two updating run, which happen often since a single packet
+     * (thus a single timestamp) can trigger several runs. */
+    uint64_t last_moved_run;    // See also graph->run_id
 };
 
 struct nt_vertex {
@@ -68,6 +75,7 @@ struct nt_graph {
     unsigned nb_registers;
     lt_dlhandle lib;
     unsigned default_index_size;    // index size if not specified in the vertex
+    uint64_t run_id;                // to uniquely (hum) identifies the successive updating runs
     // for statistics
     uint64_t nb_frames;
     // The hooks

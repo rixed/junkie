@@ -126,7 +126,7 @@ static struct npc_register *npc_regfile_merge(struct npc_register *prev_regfile,
  * States
  */
 
-static int nt_state_ctor(struct nt_state *state, struct nt_state *parent, struct nt_vertex *vertex, struct npc_register *regfile, struct timeval const *now, unsigned h_value)
+static int nt_state_ctor(struct nt_state *state, struct nt_state *parent, struct nt_vertex *vertex, struct npc_register *regfile, struct timeval const *now, unsigned h_value, uint64_t run_id)
 {
     SLOG(LOG_DEBUG, "Construct state@%p from state@%p, in vertex %s", state, parent, vertex->name);
     unsigned const index = h_value % vertex->index_size;
@@ -140,6 +140,7 @@ static int nt_state_ctor(struct nt_state *state, struct nt_state *parent, struct
     TAILQ_INSERT_HEAD(&vertex->age_list, state, same_vertex);
     LIST_INIT(&state->children);
     state->last_used = state->last_enter = *now;
+    state->last_moved_run = run_id;
 #   ifdef __GNUC__
     __sync_fetch_and_add(&vertex->nb_states, 1);
 #   else
@@ -149,11 +150,11 @@ static int nt_state_ctor(struct nt_state *state, struct nt_state *parent, struct
     return 0;
 }
 
-static struct nt_state *nt_state_new(struct nt_state *parent, struct nt_vertex *vertex, struct npc_register *regfile, struct timeval const *now, unsigned h_value)
+static struct nt_state *nt_state_new(struct nt_state *parent, struct nt_vertex *vertex, struct npc_register *regfile, struct timeval const *now, unsigned h_value, uint64_t run_id)
 {
     struct nt_state *state = objalloc(sizeof(*state), "nettrack states");
     if (! state) return NULL;
-    if (0 != nt_state_ctor(state, parent, vertex, regfile, now, h_value)) {
+    if (0 != nt_state_ctor(state, parent, vertex, regfile, now, h_value, run_id)) {
         objfree(state);
         return NULL;
     }
@@ -258,7 +259,7 @@ static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_
         for (unsigned i = 0; i < vertex->index_size; i++) { // actually, one state per index
             struct npc_register *regfile = npc_regfile_new(graph->nb_registers);
             if (! regfile) return -1;
-            if (! nt_state_new(NULL, vertex, regfile, &now, 0)) {
+            if (! nt_state_new(NULL, vertex, regfile, &now, 0, graph->run_id)) {
                 npc_regfile_del(regfile, graph->nb_registers);
                 return -1;
             }
@@ -438,6 +439,7 @@ static int nt_graph_ctor(struct nt_graph *graph, char const *name, char const *l
     graph->name = objalloc_strdup(name);
     graph->started = false;
     graph->nb_frames = 0;
+    graph->run_id = 0;
 
     LIST_INIT(&graph->vertices);
     LIST_INIT(&graph->edges);
@@ -579,6 +581,9 @@ static bool edge_matching(struct nt_edge *edge, struct proto_info const *last, s
                 continue;
             }
 
+            // Prevent multiple update of the same state in a single update run
+            if (state->last_moved_run == edge->graph->run_id) continue;
+
             if (h_value_set && state->h_value != h_value) continue; // hopeless
 
             if (++nb_collisions > max_nb_collisions) {
@@ -649,9 +654,11 @@ static bool edge_matching(struct nt_edge *edge, struct proto_info const *last, s
                         goto hell;
                     }
                 }
+                // whatever we clone or move it, we must tag it
+                state->last_moved_run = edge->graph->run_id;
                 if (edge->spawn) {
                     if (!LIST_EMPTY(&edge->to->outgoing_edges) && merged_regfile) { // or we do not need to spawn anything
-                        if (NULL == (state = nt_state_new(state, edge->to, merged_regfile, now, new_h_value))) {
+                        if (NULL == (state = nt_state_new(state, edge->to, merged_regfile, now, new_h_value, edge->graph->run_id))) {
                             npc_regfile_del(merged_regfile, edge->graph->nb_registers);
                         }
                     }
@@ -686,6 +693,9 @@ static void edge_ageing(struct nt_edge *edge, struct timeval const *now)
     TAILQ_FOREACH_REVERSE_SAFE(state, &edge->from->age_list, nt_states_tq, same_vertex, tmp) {   // Beware that this state may move
         if (timeval_sub(now, &state->last_enter) < edge->min_age) break;
 
+        // Prevent multiple update of the same state in a single update run
+        if (state->last_moved_run == edge->graph->run_id) continue;
+
         SLOG(LOG_DEBUG, "Ageing!");
         edge->nb_matches ++;
 
@@ -712,11 +722,13 @@ static void edge_ageing(struct nt_edge *edge, struct timeval const *now)
                 goto hell;
             }
         }
+        // whatever we clone or move it, we must tag it
+        state->last_moved_run = edge->graph->run_id;
         if (edge->spawn) {
             if (!LIST_EMPTY(&edge->to->outgoing_edges)) { // or we do not need to spawn anything
                 struct npc_register *copy = npc_regfile_copy(state->regfile, edge->graph->nb_registers);
                 if (! copy) goto hell;
-                if (NULL == (state = nt_state_new(state, edge->to, copy, now, new_h_value))) {
+                if (NULL == (state = nt_state_new(state, edge->to, copy, now, new_h_value, edge->graph->run_id))) {
                     npc_regfile_del(copy, edge->graph->nb_registers);
                 }
                 // reset the age of this state
@@ -747,6 +759,8 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
 
     SLOG(LOG_DEBUG, "Updating graph %s with inner info from %s", hook->graph->name, last->parser->proto->name);
 
+    hook->graph->run_id ++;
+
     struct nt_edge *edge;
     LIST_FOREACH(edge, &hook->edges, same_hook) {
         if (! edge_matching(edge, last, rest, now)) break;
@@ -770,7 +784,8 @@ static struct nt_vertex *nt_vertex_lookup(struct nt_graph *graph, char const *na
     }
 
     // Create a new one
-    return nt_vertex_new(name, graph, NULL, NULL, 1, 1000000LL);
+#   define DEFAULT_TIMEOUT 1000000LL /* us, so 1s */
+    return nt_vertex_new(name, graph, NULL, NULL, 1, DEFAULT_TIMEOUT);
 }
 
 static scm_t_bits graph_tag;
