@@ -479,6 +479,7 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
         // FIXME: Here the parser is chosen before we actually parse anything. If later the parser fails we cannot try another one.
         //        Choice of parser should be delayed until we start actual parse.
         err = pkt_wait_list_add(tcp_sub->wl+way, offset, next_offset, true, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, packet_len, now, tot_cap_len, tot_packet);
+        SLOG(LOG_DEBUG, "Waiting list returned %s", proto_parse_status_2_str(err));
     } else {    // Without the ISN, the pkt_wait_list is unusable. FIXME: the pkt_wait_list should work nonetheless.
         err = proto_parse(subparser->parser, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, wire_len - tcphdr_len, now, tot_cap_len, tot_packet);
     }

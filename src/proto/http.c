@@ -306,6 +306,7 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
     if (status == PROTO_TOO_SHORT) {
         // Are we going to receive the end eventually?
         if (wire_len == cap_len) {
+            SLOG(LOG_DEBUG, "Incomplete HTTP headers, will restart later");
             // So header end must be in next packet(s)
             status = proto_parse(NULL, parent, way, NULL, 0, 0, now, tot_cap_len, tot_packet);    // ack what we had so far
             streambuf_set_restart(&http_parser->sbuf, way, packet, true);   // retry later with (hopefully) complete header this time

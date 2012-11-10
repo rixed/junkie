@@ -109,6 +109,7 @@ static enum proto_parse_status pkt_wait_parse(struct pkt_wait *pkt, struct pkt_w
 // caller must own list->mutex
 static enum proto_parse_status pkt_wait_finalize(struct pkt_wait *pkt, struct pkt_wait_list *pkt_wl, struct timeval const *now)
 {
+    SLOG(LOG_DEBUG, "Finalizing parse of next packet @(%u:%u)", pkt->offset, pkt->next_offset);
     enum proto_parse_status status = pkt_wait_parse(pkt, pkt_wl, now);
     pkt_wait_del_nolock(pkt, pkt_wl);
     return status;
@@ -421,6 +422,7 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
          * who also want to lock the one we already own!
          * For instance, when several FTP parsers create simultaneously new TCP parsers because of contracking.
          * Yes, this does happen :-( */
+        SLOG(LOG_DEBUG, "Parsing packet at once since we were waiting for it");
         ret = proto_parse(pkt_wl->parser, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
 
         // Now parse as much as we can while advancing next_offset, returning the first error we obtain
