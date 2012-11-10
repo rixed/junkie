@@ -235,7 +235,7 @@ static void nt_state_move(struct nt_state *state, struct nt_vertex *to, unsigned
  * Vertices
  */
 
-static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_graph *graph, npc_match_fn *entry_fn, unsigned index_size, int64_t timeout)
+static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_graph *graph, npc_match_fn *entry_fn, npc_match_fn *timeout_fn, unsigned index_size, int64_t timeout)
 {
     SLOG(LOG_DEBUG, "Construct new vertex %s with %u buckets (timeout=%"PRId64"us)", name, index_size, timeout);
 
@@ -268,19 +268,21 @@ static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_
         vertex->timeout = timeout;
     }
 
-    // Additionally, there may be an entry function to be called whenever this vertex is entered.
+    // Additionally, there may be some functions to be called whenever this vertex is entered/timeouted.
     vertex->entry_fn = entry_fn;
+    vertex->timeout_fn = timeout_fn;
+    assert(! timeout_fn || timeout > 0);
 
     return 0;
 }
 
-static struct nt_vertex *nt_vertex_new(char const *name, struct nt_graph *graph, npc_match_fn *entry_fn, unsigned index_size, int64_t timeout)
+static struct nt_vertex *nt_vertex_new(char const *name, struct nt_graph *graph, npc_match_fn *entry_fn, npc_match_fn *timeout_fn, unsigned index_size, int64_t timeout)
 {
     MALLOCER(nt_vertices);
     if (! index_size) index_size = graph->default_index_size;
     struct nt_vertex *vertex = MALLOC(nt_vertices, sizeof(*vertex) + index_size*sizeof(vertex->index[0]));
     if (! vertex) return NULL;
-    if (0 != nt_vertex_ctor(vertex, name, graph, entry_fn, index_size, timeout)) {
+    if (0 != nt_vertex_ctor(vertex, name, graph, entry_fn, timeout_fn, index_size, timeout)) {
         FREE(vertex);
         return NULL;
     }
@@ -463,6 +465,7 @@ static void nt_graph_start(struct nt_graph *graph)
     LIST_INSERT_HEAD(&started_graphs, graph, entry);
 }
 
+static struct npc_register empty_rest = { .size = 0, .value = (uintptr_t)NULL };
 static void edge_ageing(struct nt_edge *, struct timeval const *);
 
 static void nt_graph_stop(struct nt_graph *graph)
@@ -472,14 +475,28 @@ static void nt_graph_stop(struct nt_graph *graph)
     LIST_REMOVE(graph, entry);
     graph->started = false;
 
+    struct timeval now;
+    timeval_set_now(&now);
+
     // age out all states capable of ageing
     struct nt_edge *edge;
     LIST_FOREACH(edge, &graph->edges, same_graph) {
         SLOG(LOG_DEBUG, "Pass all states from %s to %s", edge->from->name, edge->to->name);
-        struct timeval now;
-        timeval_set_now(&now);
-        timeval_add_sec(&now, edge->min_age+1); // pretend to be later so that aging will happen
-        edge_ageing(edge, &now);
+        struct timeval later;
+        later = now;
+        timeval_add_sec(&later, edge->min_age+1); // pretend to be later so that aging will happen
+        edge_ageing(edge, &later);
+    }
+    // timeout all states capable of timeouting
+    struct nt_vertex *vertex;
+    LIST_FOREACH(vertex, &graph->vertices, same_graph) {
+        if (! vertex->timeout_fn) continue;
+        SLOG(LOG_DEBUG, "Timeouting from vertex %s", vertex->name);
+        struct nt_state *state;
+        while (NULL != (state = TAILQ_FIRST(&vertex->age_list))) {
+            vertex->timeout_fn(NULL, empty_rest, state->regfile, NULL);
+            nt_state_del(state, graph);
+        }
     }
 }
 
@@ -554,6 +571,10 @@ static bool edge_matching(struct nt_edge *edge, struct proto_info const *last, s
             // While we are there try to timeout this state?
             if (edge->from->timeout > 0LL && edge->from->timeout < timeval_sub(now, &state->last_used)) {
                 SLOG(LOG_DEBUG, "Timeouting state in vertex %s", edge->from->name);
+                if (edge->from->timeout_fn) {
+                    SLOG(LOG_DEBUG, "Calling timeout function for vertex '%s'", edge->from->name);
+                    edge->to->timeout_fn(NULL, rest, state->regfile, NULL);
+                }
                 nt_state_del(state, edge->graph);
                 continue;
             }
@@ -614,14 +635,19 @@ static bool edge_matching(struct nt_edge *edge, struct proto_info const *last, s
                 // first we need to know the location in the index
                 unsigned new_h_value = 0;
                 if (edge->to->index_size > 1) { // we'd better have a hashing function then!
-                    if (!edge->to_index_fn) {
+                    if (edge->to_index_fn) {
+                        // Notice this hashing function can use the regfile but can still perform no bindings
+                        new_h_value = edge->to_index_fn(last, rest, merged_regfile, NULL);
+                        SLOG(LOG_DEBUG, "Will store at index location %u", new_h_value % edge->to->index_size);
+                    } else if (edge->from == edge->to) {
+                        // when we stay in place we do not need rehashing
+                        new_h_value = state->h_value;
+                    } else {
+                        // if not, then that's another story
                         SLOG(LOG_WARNING, "Don't know how to store spawned state in vertex %s, missing hashing function when coming from %s", edge->to->name, edge->from->name);
                         if (merged_regfile) npc_regfile_del(merged_regfile, edge->graph->nb_registers);
                         goto hell;
                     }
-                    // Notice this hashing function can use the regfile but can still perform no bindings
-                    new_h_value = edge->to_index_fn(last, rest, merged_regfile, NULL);
-                    SLOG(LOG_DEBUG, "Will store at index location %u", new_h_value % edge->to->index_size);
                 }
                 if (edge->spawn) {
                     if (!LIST_EMPTY(&edge->to->outgoing_edges) && merged_regfile) { // or we do not need to spawn anything
@@ -656,8 +682,6 @@ static void edge_ageing(struct nt_edge *edge, struct timeval const *now)
 {
     if (! edge->min_age) return;
 
-    struct npc_register empty_rest = { .size = 0, .value = (uintptr_t)NULL };
-
     struct nt_state *state, *tmp;
     TAILQ_FOREACH_REVERSE_SAFE(state, &edge->from->age_list, nt_states_tq, same_vertex, tmp) {   // Beware that this state may move
         if (timeval_sub(now, &state->last_enter) < edge->min_age) break;
@@ -676,14 +700,17 @@ static void edge_ageing(struct nt_edge *edge, struct timeval const *now)
         // first we need to know the location in the index
         unsigned new_h_value = 0;
         if (edge->to->index_size > 1) { // we'd better have a hashing function then!
-            if (!edge->to_index_fn) {
+            if (edge->to_index_fn) {
+                // Notice this hashing function can use the regfile but can still perform no bindings
+                // Also, it better not use the incoming packet (NULL) when aging out states!
+                new_h_value = edge->to_index_fn(NULL, empty_rest, state->regfile, NULL);
+                SLOG(LOG_DEBUG, "Will store at index location %u", new_h_value % edge->to->index_size);
+            } else if (edge->from == edge->to) {
+                new_h_value = state->h_value;
+            } else {
                 SLOG(LOG_WARNING, "Don't know how to store spawned state in vertex %s, missing hashing function when coming from %s", edge->to->name, edge->from->name);
                 goto hell;
             }
-            // Notice this hashing function can use the regfile but can still perform no bindings
-            // Also, it better not use the incoming packet (NULL) when aging out states!
-            new_h_value = edge->to_index_fn(NULL, empty_rest, state->regfile, NULL);
-            SLOG(LOG_DEBUG, "Will store at index location %u", new_h_value % edge->to->index_size);
         }
         if (edge->spawn) {
             if (!LIST_EMPTY(&edge->to->outgoing_edges)) { // or we do not need to spawn anything
@@ -743,7 +770,7 @@ static struct nt_vertex *nt_vertex_lookup(struct nt_graph *graph, char const *na
     }
 
     // Create a new one
-    return nt_vertex_new(name, graph, NULL, 1, 1000000LL);
+    return nt_vertex_new(name, graph, NULL, NULL, 1, 1000000LL);
 }
 
 static scm_t_bits graph_tag;
@@ -806,7 +833,7 @@ static SCM g_make_nettrack(SCM name_, SCM libname_)
         assert(!"Never reached");
     }
     for (unsigned vi = 0; vi < *nb_vertice_defs; vi++) {
-        struct nt_vertex *vertex = nt_vertex_new(v_def[vi].name, graph, v_def[vi].entry_fn, v_def[vi].index_size, v_def[vi].timeout);
+        struct nt_vertex *vertex = nt_vertex_new(v_def[vi].name, graph, v_def[vi].entry_fn, v_def[vi].timeout_fn, v_def[vi].index_size, v_def[vi].timeout);
         if (! vertex) {
             scm_throw(scm_from_latin1_symbol("cannot-create-nt-vertex"), scm_list_1(scm_from_locale_string(v_def[vi].name)));
             assert(!"Never reached");
