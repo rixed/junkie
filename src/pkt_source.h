@@ -33,6 +33,7 @@ struct pkt_source {
         (same underlying interface will have same dev_id, while same pcap files will have distinct dev_id). */
     uint8_t dev_id;
     char *filter;                   ///< Packet filter expression in use for this device (for reference only)
+    struct digest_queue *digests;   ///< Digests queue used for deduplication on this pkt_source
 };
 
 /** Now the frame structure that will be given to the cap parser, since
