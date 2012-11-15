@@ -122,7 +122,7 @@ static void digest_queue_ctor(struct digest_queue *dq, uint8_t dev_id)
         timeval_reset(&q->period_start);    // will be set later with TS of first packet
         q->dt_sum = q->dt_sum2 = 0;
         q->nb_dups = 0;
-        // defer initialization of max_dt until the first packet is met so that the user has a chance to set initial max_dup_delay from cmd line (useful for tests)
+        // defer initialization of dt_max until the first packet is met so that the user has a chance to set initial max_dup_delay from cmd line (useful for tests)
     }
 
     dq->dev_id = dev_id;
@@ -307,7 +307,8 @@ static unsigned new_avg_dt_max(struct digest_queue_ *q, unsigned dt)
 {
     uint_least64_t const old = q->dt_max;
     uint_least64_t const new = dt;
-    return MIN((old+old+old+new)>>2, max_dup_delay);
+    // raise fast, lower slowly
+    return MIN(new >= old ? new : (old+old+old+new)>>2, max_dup_delay);
 }
 
 bool digest_queue_find(struct digest_queue *dq, size_t cap_len, uint8_t *packet, struct timeval const *frame_tv)
@@ -344,13 +345,16 @@ bool digest_queue_find(struct digest_queue *dq, size_t cap_len, uint8_t *packet,
             SLOG(LOG_INFO, "dev=%"PRIu8",queue[%u]: Leaving comprehensive deduplication since we got from %s to %s", dq->dev_id, h, timeval_2_str(&q->period_start), timeval_2_str(frame_tv));
             if (q->nb_dups == 0) {
                 // Wow, no dups at all?!
+                unsigned const old = q->dt_max;
                 q->dt_max = new_avg_dt_max(q, 0);  // welcome in the autobahn!
+                SLOG(LOG_DEBUG, "dev=%"PRIu8",queue[%u]: New dt_max=%u->%uus, since nb_dups=0", dq->dev_id, h, old, q->dt_max);
             } else {
                 uint64_t const avg = (q->dt_sum + (q->nb_dups>>1)) / q->nb_dups;
                 uint64_t const sigma = q->nb_dups > 1 ? sqrt((q->dt_sum2 + (q->nb_dups>>1)) / q->nb_dups - avg*avg) : avg/2;
                 uint64_t const dt_max = 1U + avg + fast_dedup_distance * sigma;
+                unsigned const old = q->dt_max;
                 q->dt_max = new_avg_dt_max(q, dt_max);
-                SLOG(LOG_DEBUG, "dev=%"PRIu8",queue[%u]: New dt_max=%uus, since nb_dups=%u, dt_sum=%"PRId64"us, dt_sum2=%"PRId64"us2 -> avg=%"PRId64"us, sigma=%"PRId64"us", dq->dev_id, h, q->dt_max, q->nb_dups, q->dt_sum, q->dt_sum2, avg, sigma);
+                SLOG(LOG_DEBUG, "dev=%"PRIu8",queue[%u]: New dt_max=%u->%uus, since nb_dups=%u, dt_sum=%"PRId64"us, dt_sum2=%"PRId64"us2 -> avg=%"PRId64"us, sigma=%"PRId64"us", dq->dev_id, h, old, q->dt_max, q->nb_dups, q->dt_sum, q->dt_sum2, avg, sigma);
             }
             q->comprehensive = false;
         }
@@ -363,14 +367,16 @@ bool digest_queue_find(struct digest_queue *dq, size_t cap_len, uint8_t *packet,
             q->period_start = *frame_tv;
             q->dt_sum = q->dt_sum2 = 0;
             q->nb_dups = 0;
-            q->dt_max = max_dup_delay;
             q->comprehensive = true;
         }
     }
 
+    // the effective dt_max for this run
+    unsigned dt_max = q->comprehensive ? max_dup_delay : q->dt_max;
+
     // we are going to look dt_max usecs in the past
     min_tv = *frame_tv;
-    timeval_sub_usec(&min_tv, q->dt_max);
+    timeval_sub_usec(&min_tv, dt_max);
 
     unsigned count = 0;
     // now look all qcells for a dup
@@ -384,7 +390,7 @@ bool digest_queue_find(struct digest_queue *dq, size_t cap_len, uint8_t *packet,
         ) { // found a dup
             struct dedup_proto_info info;
             proto_info_ctor(&info.info, NULL /* hum */, NULL, 0, cap_len);
-            SLOG(LOG_DEBUG, "dev=%"PRIu8",queue[%u]: Found a dup after %u/%u digests (max_dt=%uus)", dq->dev_id, h, count, q->length, q->dt_max);
+            SLOG(LOG_DEBUG, "dev=%"PRIu8",queue[%u]: Found a dup after %u/%u digests (max_dt=%uus)", dq->dev_id, h, count, q->length, dt_max);
             // Note that we do not promote the dup in order to avoid dup + dup + dup + retrans being interpreted as 4 dups.
             if (q->comprehensive) {
                 info.dt = timeval_sub(frame_tv, &qc->tv);
@@ -404,7 +410,7 @@ bool digest_queue_find(struct digest_queue *dq, size_t cap_len, uint8_t *packet,
     }
 
     // Here we have no dup thus we must store qc_new
-    SLOG(LOG_DEBUG, "dev=%"PRIu8",queue[%u]: No dup found after %u/%u digests (max_dt=%uus)", dq->dev_id, h, count, q->length, q->dt_max);
+    SLOG(LOG_DEBUG, "dev=%"PRIu8",queue[%u]: No dup found after %u/%u digests (max_dt=%uus)", dq->dev_id, h, count, q->length, dt_max);
     update_dedup_stats(dq, 0, 1);
     digest_qcell_ctor(qc_new, q, frame_tv);
     mutex_unlock(&q->mutex);
