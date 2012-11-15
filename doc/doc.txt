@@ -131,8 +131,9 @@ plugin(s) with unscrambled informations instead of raw bytes:
 [graphviz]
 -------------------------------------------------------------------------------
 digraph G {
-    libpcap -> junkie [label=" packets"]
-    junkie -> plugins [label=" infos + packets"]
+    graph [ rankdir="LR" ]
+    libpcap -> junkie [label="packets"]
+    junkie -> plugins [label="packets + infos"]
 }
 -------------------------------------------------------------------------------
 
@@ -147,21 +148,29 @@ showing the parsing of an HTTP packet:
 digraph G {
     libpcap -> junkie
     node [ shape=box ]
+
     {
         color=blue
-        junkie -> Deduplication
-        Deduplication -> Cap
-        Cap -> Eth [ label=" + timestamp, wirelen..." ]
-        Eth -> IP [ label=" + MACs, Vlan..." ]
-        IP -> TCP [ label=" + IP addresses..." style=dashed ]
-        TCP -> HTTP [ label=" + ports, options..." style=dashed ]
+        junkie -> deduplication
+        deduplication -> Cap
+
+        subgraph parsers {
+            Cap -> Eth [ label=" + timestamp, wirelen..." ]
+            Eth -> IP [ label=" + MACs, Vlan..." ]
+            IP -> TCP [ label=" + IP addresses..." style=dashed ]
+            TCP -> HTTP [ label=" + ports, options..." style=dashed ]
+        }
     }
+
     HTTP -> plugin [ label=" + URL, Host..." style=dashed]
+
     {
         color=blue
         plugin
     }
+
     junkie [ shape=ellipse ]
+    deduplication [ shape=ellipse ]
     plugin [ shape=ellipse ]
 }
 -------------------------------------------------------------------------------
@@ -193,17 +202,27 @@ digraph G {
     
     queue0 [
         shape=record
-        label="<h>Digests|{MD4|TS}|{MD4|TS}|{MD4|TS}|{MD4|TS}|{MD4|TS}|{...}"
+        label="<h>Digests for dev 1|\<&#8710;t\>, &#963;|{MD4|TS0}|{MD4|TS1}|{MD4|TS2}|{MD4|TS3}|{MD4|TS4}|{...}|{MD4|<last>TSn}"
     ]
 
     queue1 [
         shape=record
-        label="<h>Digests|{MD4|TS}|{MD4|TS}|{MD4|TS}|{MD4|TS}|{MD4|TS}|{...}"
+        label="<h>Digests for dev 2|\<&#8710;t\>, &#963;|{MD4|TS0}|{MD4|TS1}|{MD4|TS2}|{MD4|TS3}|{MD4|TS4}|{...}|{MD4|<last>TSn}"
+    ]
+    info0 [
+        shape=plaintext
+        label="TSn &#8805; TS0 + \<&#8710;t\> + s*&#963;"
+    ]
+    info0 -> queue1:last
+
+    glob_queue [
+        shape=record
+        label="<h>All Digests|\<&#8710;t\>, &#963;|{MD4|TS0}|{MD4|TS1}|{MD4|TS2}|{MD4|TS3}|{MD4|TS4}|{...}|{MD4|<last>TSn}"
     ]
 
     devs [
         shape=record
-        label="Devices|{<d0>ID|DEDUP_STATS|<q0>Digests}|{<d1>ID|DEDUP_STATS|<q1>Digests}|{...}"
+        label="Devices|{<d0>ID=1|DEDUP_STATS|<q0>Digests}|{<d1>ID=2|DEDUP_STATS|<q1>Digests}|{...}"
     ]
 
     sources [
@@ -216,6 +235,9 @@ digraph G {
     sources:s2 -> devs:d0
     devs:q0 -> queue0:h
     devs:q1 -> queue1:h
+    sources:s0 -> glob_queue:h
+    sources:s1 -> glob_queue:h
+    sources:s2 -> glob_queue:h
 }
 -------------------------------------------------------------------------------
 
@@ -247,7 +269,8 @@ the plug.
 
 If network interfaces are to be collapsed into one, then an additional
 deduplication pass using it's own average and standard deviation is to be
-performed.
+performed. Notice that in this case the frame will be handled twice: the
+digest will be computed and stored twice. Yes this is considered a bug.
 
 === Hooks
 
