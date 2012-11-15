@@ -575,7 +575,7 @@ static bool edge_matching(struct nt_edge *edge, struct proto_info const *last, s
                 SLOG(LOG_DEBUG, "Timeouting state in vertex %s", edge->from->name);
                 if (edge->from->timeout_fn) {
                     SLOG(LOG_DEBUG, "Calling timeout function for vertex '%s'", edge->from->name);
-                    edge->to->timeout_fn(NULL, rest, state->regfile, NULL);
+                    edge->from->timeout_fn(NULL, rest, state->regfile, NULL);
                 }
                 nt_state_del(state, edge->graph);
                 continue;
