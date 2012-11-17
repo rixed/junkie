@@ -545,6 +545,26 @@ static void nt_graph_del(struct nt_graph *graph)
  * Update graph with proto_infos
  */
 
+
+static bool ensure_merged_regfile(struct npc_register **merged_regfile, struct npc_register *prev_regfile, struct npc_register *new_regfile, unsigned nb_registers, bool steal_from_prev)
+{
+    if (*merged_regfile) return true;
+    *merged_regfile = npc_regfile_merge(prev_regfile, new_regfile, nb_registers, steal_from_prev);
+    if (! *merged_regfile) {
+        SLOG(LOG_WARNING, "Cannot create the new register file");
+        return false;
+    }
+    return true;
+}
+
+static void destroy_merged_regfile(struct npc_register **merged_regfile, unsigned nb_registers)
+{
+    if (! *merged_regfile) return;
+
+    npc_regfile_del(*merged_regfile, nb_registers);
+    *merged_regfile = NULL;
+}
+
 // Test an edge for all possible transitions
 // returns false to stop the search.
 static bool edge_matching(struct nt_edge *edge, struct proto_info const *last, struct npc_register rest, struct timeval const *now)
@@ -623,15 +643,9 @@ static bool edge_matching(struct nt_edge *edge, struct proto_info const *last, s
                 edge->nb_matches ++;
                 // We need the merged state in all cases but when we have no action and don't keep the result
                 struct npc_register *merged_regfile = NULL;
-                if (edge->to->entry_fn || !LIST_EMPTY(&edge->to->outgoing_edges)) {
-                    merged_regfile = npc_regfile_merge(state->regfile, tmp_regfile, edge->graph->nb_registers, !edge->spawn);
-                    if (! merged_regfile) {
-                        SLOG(LOG_WARNING, "Cannot create the new register file");
-                        // so be it
-                    }
-                }
+
                 // Call the entry function
-                if (edge->to->entry_fn && merged_regfile) {
+                if (edge->to->entry_fn && ensure_merged_regfile(&merged_regfile, state->regfile, tmp_regfile, edge->graph->nb_registers, !edge->spawn)) {
                     SLOG(LOG_DEBUG, "Calling entry function for vertex '%s'", edge->to->name);
                     // Entry function is not supposed to bind anything... for now (FIXME).
                     edge->to->entry_fn(last, rest, merged_regfile, NULL);
@@ -640,7 +654,7 @@ static bool edge_matching(struct nt_edge *edge, struct proto_info const *last, s
                 // first we need to know the location in the index
                 unsigned new_h_value = 0;
                 if (edge->to->index_size > 1) { // we'd better have a hashing function then!
-                    if (edge->to_index_fn) {
+                    if (edge->to_index_fn && ensure_merged_regfile(&merged_regfile, state->regfile, tmp_regfile, edge->graph->nb_registers, !edge->spawn)) {
                         // Notice this hashing function can use the regfile but can still perform no bindings
                         new_h_value = edge->to_index_fn(last, rest, merged_regfile, NULL);
                         SLOG(LOG_DEBUG, "Will store at index location %u", new_h_value % edge->to->index_size);
@@ -650,22 +664,29 @@ static bool edge_matching(struct nt_edge *edge, struct proto_info const *last, s
                     } else {
                         // if not, then that's another story
                         SLOG(LOG_WARNING, "Don't know how to store spawned state in vertex %s, missing hashing function when coming from %s", edge->to->name, edge->from->name);
-                        if (merged_regfile) npc_regfile_del(merged_regfile, edge->graph->nb_registers);
+                        destroy_merged_regfile(&merged_regfile, edge->graph->nb_registers);
                         goto hell;
                     }
                 }
                 // whatever we clone or move it, we must tag it
                 state->last_moved_run = edge->graph->run_id;
                 if (edge->spawn) {
-                    if (!LIST_EMPTY(&edge->to->outgoing_edges) && merged_regfile) { // or we do not need to spawn anything
+                    if (!LIST_EMPTY(&edge->to->outgoing_edges) && ensure_merged_regfile(&merged_regfile, state->regfile, tmp_regfile, edge->graph->nb_registers, !edge->spawn)) { // or we do not need to spawn anything
                         if (NULL == (state = nt_state_new(state, edge->to, merged_regfile, now, new_h_value, edge->graph->run_id))) {
                             npc_regfile_del(merged_regfile, edge->graph->nb_registers);
+                            merged_regfile = NULL;
                         }
+                    } else {
+                        destroy_merged_regfile(&merged_regfile, edge->graph->nb_registers);
                     }
                 } else {    // move the whole state
                     if (LIST_EMPTY(&edge->to->outgoing_edges)) {  // rather dispose of former state
                         nt_state_del(state, edge->graph);
-                    } else if (merged_regfile) {    // replace former regfile with new one
+                        if (merged_regfile) {
+                            npc_regfile_del(merged_regfile, edge->graph->nb_registers);
+                            merged_regfile = NULL;
+                        }
+                    } else if (ensure_merged_regfile(&merged_regfile, state->regfile, tmp_regfile, edge->graph->nb_registers, !edge->spawn)) {    // replace former regfile with new one
                         npc_regfile_del(state->regfile, edge->graph->nb_registers);
                         state->regfile = merged_regfile;
                         nt_state_move(state, edge->to, new_h_value, now);
