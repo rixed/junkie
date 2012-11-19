@@ -712,6 +712,18 @@
 
 (add-operator 'now now)
 
+(define zero-timestamp
+  (make-op 'zero-timestamp timestamp '()
+           (lambda ()
+             (let ((res (gensymC "timestamp")))
+               (make-stub
+                 (string-append
+                   "    struct timeval " res " = { .tv_sec = 0; .tv_usec = 0; };\n")
+                 (string-append "&" res)
+                 '())))))
+
+(add-operator 'zero-timestamp zero-timestamp)
+
 (define age ; returns the number of microsecs between now and a given timestamp from the past (since result is unsigned)
   (make-op 'age uint (list timestamp)
            (lambda (ts)
