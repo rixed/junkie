@@ -202,42 +202,27 @@ digraph G {
     
     queue0 [
         shape=record
-        label="<h>Digests for dev 1|\<&#8710;t\>, &#963;|{MD4|TS0}|{MD4|TS1}|{MD4|TS2}|{MD4|TS3}|{MD4|TS4}|{...}|{MD4|<last>TSn}"
+        label="<h>digests for eth1|\<&#8710;t\>, &#963;|{MD4|TimeStamp0}|{MD4|TimeStamp1}|{MD4|TimeStamp2}|{MD4|TimeStamp3}|{MD4|TimeStamp4}|{...}|{MD4|<last>TimeStampN}"
     ]
 
     queue1 [
         shape=record
-        label="<h>Digests for dev 2|\<&#8710;t\>, &#963;|{MD4|TS0}|{MD4|TS1}|{MD4|TS2}|{MD4|TS3}|{MD4|TS4}|{...}|{MD4|<last>TSn}"
+        label="<h>digests for eth2|\<&#8710;t\>, &#963;|{MD4|TimeStamp0}|{MD4|TimeStamp1}|{MD4|TimeStamp2}|{MD4|TimeStamp3}|{MD4|TimeStamp4}|{...}|{MD4|<last>TimeStampN}"
     ]
     info0 [
         shape=plaintext
-        label="TSn &#8805; TS0 + \<&#8710;t\> + s*&#963;"
+        label="TimeStampN &#8805; TimeStamp0 + \<&#8710;t\> + &#963;&#215;fast-dedup-distance"
     ]
     info0 -> queue1:last
 
-    glob_queue [
-        shape=record
-        label="<h>All Digests|\<&#8710;t\>, &#963;|{MD4|TS0}|{MD4|TS1}|{MD4|TS2}|{MD4|TS3}|{MD4|TS4}|{...}|{MD4|<last>TSn}"
-    ]
-
-    devs [
-        shape=record
-        label="Devices|{<d0>ID=1|DEDUP_STATS|<q0>Digests}|{<d1>ID=2|DEDUP_STATS|<q1>Digests}|{...}"
-    ]
-
     sources [
         shape=record
-        label="Pkt Sources|{Pcap Handle|Callback|<s0>Device.ID}|{Pcap Handle|Callback|<s1>Device.ID}|{Pcap Handle|Callback|<s2>Device.ID}|{...}"
+        label="Pkt Sources|{eth1[0]|<s0>Digest}|{eth1[1]|<s1>Digest}|{eth2[0]|<s2>Digest}|{...}"
     ]
 
-    sources:s0 -> devs:d0
-    sources:s1 -> devs:d1
-    sources:s2 -> devs:d0
-    devs:q0 -> queue0:h
-    devs:q1 -> queue1:h
-    sources:s0 -> glob_queue:h
-    sources:s1 -> glob_queue:h
-    sources:s2 -> glob_queue:h
+    sources:s0 -> queue0:h
+    sources:s1 -> queue0:h
+    sources:s2 -> queue1:h
 }
 -------------------------------------------------------------------------------
 
