@@ -308,7 +308,7 @@ static unsigned new_avg_dt_max(struct digest_queue_ *q, unsigned dt)
     uint_least64_t const old = q->dt_max;
     uint_least64_t const new = dt;
     // raise fast, lower slowly
-    return MIN(new >= old ? new : (old+old+old+new)>>2, max_dup_delay);
+    return MIN(new >= old ? new : (3*old+new)/4, max_dup_delay);
 }
 
 bool digest_queue_find(struct digest_queue *dq, size_t cap_len, uint8_t *packet, struct timeval const *frame_tv)
