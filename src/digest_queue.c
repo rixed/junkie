@@ -193,19 +193,14 @@ static void reset_dedup_stats(void)
 // caller must own nb_digests lock
 static void update_dedup_stats(struct digest_queue *dq, unsigned dup_found, unsigned nodup_found)
 {
-    uint64_t d, nd;
 #   ifdef __GNUC__
-    d  = __sync_add_and_fetch(&dq->nb_dup_found, dup_found);
-    nd = __sync_add_and_fetch(&dq->nb_nodup_found, nodup_found);
+    __sync_add_and_fetch(&dq->nb_dup_found, dup_found);
+    __sync_add_and_fetch(&dq->nb_nodup_found, nodup_found);
 #   else
-    d  = (dq->nb_dup_found += dup_found);
-    nd = (dq->nb_nodup_found += nodup_found);
+    dq->nb_dup_found += dup_found;
+    dq->nb_nodup_found += nodup_found;
 #   endif
-
-    if (d == UINT_LEAST64_MAX || nd == UINT_LEAST64_MAX) {  // fail! unsafe. But these are user stats
-        dq->nb_dup_found >>= 1;
-        dq->nb_nodup_found >>= 1;
-    }
+    // as nb_dup_found and nb_nodup_found are 64 bits we don't fear a wrap around
 }
 
 /*
