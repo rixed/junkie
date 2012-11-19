@@ -40,7 +40,7 @@ void stress_check(struct proto *proto)
         free(buf);
     }
 
-    parser_unref(parser);
+    parser_unref(&parser);
 }
 
 /*

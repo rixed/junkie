@@ -35,7 +35,7 @@ static void flood_check(unsigned nb)
     fflush(stdout);
     assert(proto_udp->nb_parsers < 20); // Limiting the nb of children is a best effort attempt
 
-    parser_unref(ip_parser);
+    parser_unref(&ip_parser);
 }
 
 int main(void)

@@ -252,10 +252,10 @@ static enum proto_parse_status discovery_parse(struct parser *parser, struct pro
                 if (subparser) {
                     SLOG(LOG_DEBUG, "Destroy the dedicated subparser since it does not fit the payload");
                     mux_subparser_deindex(subparser);
-                    mux_subparser_unref(subparser);
+                    mux_subparser_unref(&subparser);
                 }
             }
-            parser_unref(actual_parser);
+            parser_unref(&actual_parser);
             return status;
         }
     }

@@ -72,7 +72,7 @@ static void callid_2_sdp_dtor(struct callid_2_sdp *c2s)
     SLOG(LOG_DEBUG, "Destruct callid_2_sdp@%p for callid '%s'", c2s, c2s->call_id);
     HASH_REMOVE(&callids_2_sdps, c2s, entry);
     TAILQ_REMOVE(&callids_2_sdps_used, c2s, used_entry);
-    parser_unref(c2s->sdp_parser);
+    parser_unref(&c2s->sdp_parser);
 }
 
 static void callid_2_sdp_del(struct callid_2_sdp *c2s)

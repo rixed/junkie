@@ -114,8 +114,8 @@ static void parse_check(size_t cap_len_, size_t padding)
     }
 
     pkt_subscriber_dtor(&sub);
-    parser_unref(ip6_parser);
-    parser_unref(ip_parser);
+    parser_unref(&ip6_parser);
+    parser_unref(&ip_parser);
 }
 
 int main(void)

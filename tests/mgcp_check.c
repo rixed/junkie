@@ -143,7 +143,7 @@ static void parse_check(void)
     }
 
     pkt_subscriber_dtor(&sub);
-    parser_unref(mgcp_parser);
+    parser_unref(&mgcp_parser);
 }
 
 struct proto *proto_sdp;

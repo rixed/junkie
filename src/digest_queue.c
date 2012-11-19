@@ -164,9 +164,10 @@ static void digest_queue_del_by_ref(struct ref *ref)
     digest_queue_del(dq);
 }
 
-struct digest_queue *digest_queue_unref(struct digest_queue *dq)
+void digest_queue_unref(struct digest_queue **dq)
 {
-    return unref(&dq->ref);
+    if (! *dq) return;
+    unref(&(*dq)->ref);
 }
 
 struct digest_queue *digest_queue_get(uint8_t dev_id)

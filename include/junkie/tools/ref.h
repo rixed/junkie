@@ -76,9 +76,9 @@ static inline void *ref(struct ref *ref)
 SLIST_HEAD(refs, ref) death_row;
 struct mutex death_row_mutex;
 
-static inline void *unref(struct ref *ref)
+static inline void unref(struct ref *ref)
 {
-    if (! ref) return NULL;
+    if (! ref) return;
 
 #   ifdef __GNUC__
     unsigned const c = __sync_fetch_and_sub(&ref->count, 1);
@@ -103,7 +103,6 @@ static inline void *unref(struct ref *ref)
         if (ref->entry.sle_next == NOT_IN_DEATH_ROW) SLIST_INSERT_HEAD(&death_row, ref, entry);
         mutex_unlock(&death_row_mutex);
     }
-    return NULL;
 }
 
 void enter_unsafe_region(void);

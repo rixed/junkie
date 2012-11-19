@@ -52,7 +52,7 @@ static enum proto_parse_status dns_tcp_parse(struct parser unused_ *parser, stru
         if (! dns) break;
 
         enum proto_parse_status status = proto_parse(dns, parent, way, packet+offset, cap_len-offset, wire_len-offset, now, tot_cap_len, tot_packet);
-        parser_unref(dns);
+        parser_unref(&dns);
         if (status != PROTO_OK) break;
 
         offset += len;

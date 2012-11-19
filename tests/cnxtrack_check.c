@@ -175,7 +175,7 @@ static void cnxtrack_check(void)
     }
 
     pkt_subscriber_dtor(&sub);
-    parser_unref(eth_parser);
+    parser_unref(&eth_parser);
 }
 
 int main(void)

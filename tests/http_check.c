@@ -305,7 +305,7 @@ static void parse_check(void)
     }
 
     pkt_subscriber_dtor(&sub);
-    parser_unref(parser);
+    parser_unref(&parser);
 }
 
 void build_url_check(void)

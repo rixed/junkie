@@ -79,7 +79,7 @@ static enum proto_parse_status netbios_parse(struct parser *parser, struct proto
 
     /* List of protocols above NetBios: CIFS, SMB, ... */
     enum proto_parse_status status = proto_parse(parser_cifs, parent, way, next_packet, cap_len - NETBIOS_HEADER_SIZE, wire_len - NETBIOS_HEADER_SIZE, now, tot_cap_len, tot_packet);
-    parser_unref(parser_cifs);
+    parser_unref(&parser_cifs);
     if (status == PROTO_OK) return PROTO_OK;
 
 fallback:

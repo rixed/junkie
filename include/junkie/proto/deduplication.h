@@ -38,7 +38,7 @@ struct digest_queue {
 struct digest_queue *digest_queue_get(uint8_t dev_id);
 
 /// Unref a digest_queue (returns NULL)
-struct digest_queue *digest_queue_unref(struct digest_queue *);
+void digest_queue_unref(struct digest_queue **);
 
 bool digest_queue_find(struct digest_queue *dq, size_t cap_len, uint8_t *packet, struct timeval const *frame_tv);
 

@@ -97,7 +97,7 @@ static void parse_check(void)
     }
 
     pkt_subscriber_dtor(&sub);
-    parser_unref(sdp_parser);
+    parser_unref(&sdp_parser);
 }
 
 int main(void)

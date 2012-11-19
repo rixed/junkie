@@ -510,7 +510,7 @@ static void pkt_source_dtor(struct pkt_source *pkt_source)
         objfree(pkt_source->filter);
         pkt_source->filter = NULL;
     }
-    pkt_source->digests = digest_queue_unref(pkt_source->digests);
+    digest_queue_unref(&pkt_source->digests);
 }
 
 static void pkt_source_del(struct pkt_source *pkt_source)
@@ -687,7 +687,8 @@ void pkt_source_init(void)
     ref_init();
     digest_init();
 
-    global_digests = digest_queue_get(255); // 255?
+#   define IFACE_ALL 255
+    global_digests = digest_queue_get(IFACE_ALL);
 
 #   ifdef WITH_GIANT_LOCK
     mutex_ctor(&giant_lock, "Giant Lock");
@@ -778,7 +779,7 @@ void pkt_source_fini(void)
         sleep(1);
     }
 
-    if (cap_parser) cap_parser = parser_unref(cap_parser);
+    parser_unref(&cap_parser);
     mutex_dtor(&pkt_sources_lock);
 
 #   ifdef WITH_GIANT_LOCK
@@ -788,9 +789,7 @@ void pkt_source_fini(void)
     log_category_pkt_sources_fini();
     ext_param_quit_when_done_fini();
 
-    if (global_digests) {
-        global_digests = digest_queue_unref(global_digests);
-    }
+    digest_queue_unref(&global_digests);
 
     digest_fini();
     ref_fini();

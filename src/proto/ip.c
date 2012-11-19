@@ -522,17 +522,17 @@ static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info
             status = PROTO_OK;  // for now
         }
         mutex_unlock(&ip_subparser->mutex);
-        mux_subparser_unref(subparser);
+        mux_subparser_unref(&subparser);
         return status;
 unlock_fallback:    // Beeeerk
         mutex_unlock(&ip_subparser->mutex);
-        mux_subparser_unref(subparser);
+        mux_subparser_unref(&subparser);
         goto fallback;
     }
 
     // Parse it at once
     status = proto_parse(subparser->parser, &info.info, info.way, packet + iphdr_len, cap_payload, payload, now, tot_cap_len, tot_packet);
-    mux_subparser_unref(subparser);
+    mux_subparser_unref(&subparser);
     if (status == PROTO_OK) return PROTO_OK;
 
 fallback:
