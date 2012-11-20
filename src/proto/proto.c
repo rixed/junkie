@@ -222,7 +222,10 @@ void proto_subscriber_dtor(struct proto_subscriber *sub, struct proto *proto)
 
 void proto_subscribers_call(struct proto *proto, struct proto_info *info, size_t tot_cap_len, uint8_t const *tot_packet, struct timeval const *now)
 {
-    if (info->proto_sbc_called) return;
+    if (info->proto_sbc_called) {
+        SLOG(LOG_DEBUG, "Already called");
+        return;
+    }
     info->proto_sbc_called = true;
 
     // Call the callbacks for the completed proto_info
@@ -360,11 +363,12 @@ struct parser *parser_ref(struct parser *parser)
     return DOWNCAST(ref(&parser->ref), ref, parser);
 }
 
-struct parser *parser_unref(struct parser *parser)
+void parser_unref(struct parser **parser)
 {
-    if (parser) SLOG(LOG_DEBUG, "unref parser %s count=%u", parser_name(parser), parser->ref.count-1);
-    unref(&parser->ref);
-    return NULL;
+    if (! *parser) return;
+    SLOG(LOG_DEBUG, "unref parser %s count=%u", parser_name(*parser), (*parser)->ref.count-1);
+    unref(&(*parser)->ref);
+    *parser = NULL;
 }
 
 /*
@@ -472,7 +476,7 @@ static void mux_subparser_deindex_locked(struct mux_subparser *subparser)
     STAILQ_REMOVE(&h_list->list, subparser, mux_subparser, h_entry);
     TAILQ_REMOVE(&to_list->timeout_queue, subparser, to_entry);
     subparser->h_idx = NOT_HASHED;
-    (void)unref(&subparser->ref);
+    unref(&subparser->ref);
 }
 
 void mux_subparser_deindex(struct mux_subparser *subparser)
@@ -519,7 +523,7 @@ static void mux_subparser_index(struct mux_subparser *subparser)
 void mux_subparser_dtor(struct mux_subparser *subparser)
 {
     SLOG(LOG_DEBUG, "Destructing mux_subparser@%p", subparser);
-    subparser->parser = parser_unref(subparser->parser);
+    parser_unref(&subparser->parser);
     ref_dtor(&subparser->ref);
 #   ifndef NDEBUG
     subparser->mux_parser = POISON;
@@ -660,10 +664,12 @@ struct mux_subparser *mux_subparser_ref(struct mux_subparser *subparser)
     return ref(&subparser->ref);
 }
 
-struct mux_subparser *mux_subparser_unref(struct mux_subparser *subparser)
+void mux_subparser_unref(struct mux_subparser **subparser)
 {
-    if (subparser) SLOG(LOG_DEBUG, "unref mux_subparser@%p count=%u", subparser, subparser->ref.count-1);
-    return unref(&subparser->ref);
+    if (! *subparser) return;
+    SLOG(LOG_DEBUG, "unref mux_subparser@%p count=%u", *subparser, (*subparser)->ref.count-1);
+    unref(&(*subparser)->ref);
+    *subparser = NULL;
 }
 
 struct mux_subparser *mux_subparser_and_parser_new(struct mux_parser *mux_parser, struct proto *proto, struct proto *requestor, void const *key, struct timeval const *now)
@@ -673,7 +679,7 @@ struct mux_subparser *mux_subparser_and_parser_new(struct mux_parser *mux_parser
 
     struct mux_proto *mux_proto = DOWNCAST(mux_parser->parser.proto, proto, mux_proto);
     struct mux_subparser *subparser = mux_proto->ops.subparser_new(mux_parser, child, requestor, key, now);
-    parser_unref(child);    // whatever the outcome, no need to keep this anymore
+    parser_unref(&child);    // whatever the outcome, no need to keep this anymore
 
     return subparser;
 }
@@ -947,7 +953,7 @@ void uniq_proto_ctor(struct uniq_proto *uniq_proto, struct proto_ops const *ops,
 
 void uniq_proto_dtor(struct uniq_proto *uniq_proto)
 {
-    uniq_proto->parser = parser_unref(uniq_proto->parser);
+    parser_unref(&uniq_proto->parser);
     proto_dtor(&uniq_proto->proto);
 }
 

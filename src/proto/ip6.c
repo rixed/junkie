@@ -138,7 +138,7 @@ static enum proto_parse_status ip6_parse(struct parser *parser, struct proto_inf
     }
 
     enum proto_parse_status status = proto_parse(subparser->parser, &info.info, way2, packet + iphdr_len, cap_payload, payload, now, tot_cap_len, tot_packet);
-    mux_subparser_unref(subparser);
+    mux_subparser_unref(&subparser);
     if (status == PROTO_OK) return PROTO_OK;
 
 fallback:

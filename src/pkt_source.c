@@ -43,6 +43,7 @@
 static LIST_HEAD(pkt_sources, pkt_source) pkt_sources = LIST_HEAD_INITIALIZER(pkt_sources);
 static struct mutex pkt_sources_lock;   // only valid when !terminating
 static volatile sig_atomic_t terminating = 0;
+static struct digest_queue *global_digests;
 
 unsigned pkt_count; // if not 0, max number of packets to parse before exiting
 
@@ -120,7 +121,12 @@ static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, 
     if (pkt_source->patch_ts) timeval_set_now(&frame.tv);
 
     // drop the frame if we previously saw it in the last 5ms.
-    if (digest_queue_find(header->caplen, (uint8_t *)packet, pkt_source->dev_id, &header->ts)) {
+    if (
+        // Per iface dedup
+        (pkt_source->digests && digest_queue_find(pkt_source->digests, header->caplen, (uint8_t *)packet, &header->ts)) ||
+        // Additional pass if we collapse ifaces
+        (collapse_ifaces && global_digests && digest_queue_find(global_digests, header->caplen, (uint8_t *)packet, &header->ts))
+    ) {
         SLOG(LOG_DEBUG, "Drop duplicated packet");
         pkt_source->nb_duplicates ++;
         return;
@@ -311,6 +317,7 @@ static void *start_guile_sniffer(void *pkt_source_)
     return scm_with_guile(pkt_source->sniffer_fun, pkt_source);
 }
 
+// TODO: add a parameter to enable/disable deduplication
 static int pkt_source_ctor(struct pkt_source *pkt_source, char const *name, pcap_t *pcap_handle, void *(*sniffer)(void *), bool is_file, bool patch_ts, uint8_t dev_id, char const *filter, bool loop)
 {
     SLOG(LOG_DEBUG, "Construct pkt_source@%p of name %s and dev_id %"PRIu8, pkt_source, name, dev_id);
@@ -328,6 +335,7 @@ static int pkt_source_ctor(struct pkt_source *pkt_source, char const *name, pcap
     pkt_source->loop = loop;
     pkt_source->filter = filter ? objalloc_strdup(filter) : NULL;
     pkt_source->sniffer_fun = sniffer;
+    pkt_source->digests = digest_queue_get(dev_id); // if we can't have a deduplicator, let's go without one!
 
     mutex_lock(&pkt_sources_lock);
     if (terminating) {
@@ -502,6 +510,7 @@ static void pkt_source_dtor(struct pkt_source *pkt_source)
         objfree(pkt_source->filter);
         pkt_source->filter = NULL;
     }
+    digest_queue_unref(&pkt_source->digests);
 }
 
 static void pkt_source_del(struct pkt_source *pkt_source)
@@ -678,6 +687,9 @@ void pkt_source_init(void)
     ref_init();
     digest_init();
 
+#   define IFACE_ALL 255
+    global_digests = digest_queue_get(IFACE_ALL);
+
 #   ifdef WITH_GIANT_LOCK
     mutex_ctor(&giant_lock, "Giant Lock");
 #   endif
@@ -767,7 +779,7 @@ void pkt_source_fini(void)
         sleep(1);
     }
 
-    if (cap_parser) cap_parser = parser_unref(cap_parser);
+    parser_unref(&cap_parser);
     mutex_dtor(&pkt_sources_lock);
 
 #   ifdef WITH_GIANT_LOCK
@@ -776,6 +788,8 @@ void pkt_source_fini(void)
 
     log_category_pkt_sources_fini();
     ext_param_quit_when_done_fini();
+
+    digest_queue_unref(&global_digests);
 
     digest_fini();
     ref_fini();

@@ -41,7 +41,7 @@ static void proto_info_del_rec(struct proto_info *info)
 {
     void *start = (void *)info->parser->proto->ops->info_addr(info, NULL);
 
-    info->parser = parser_unref(info->parser);
+    parser_unref(&info->parser);
 
     if (info->parent) {
         proto_info_del_rec(info->parent);
@@ -225,7 +225,7 @@ enum proto_parse_status pkt_wait_list_flush(struct pkt_wait_list *pkt_wl, uint8_
 
     if (! payload) {
         // start by cleaning the parser so that the subparse method won't be called
-        pkt_wl->parser = parser_unref(pkt_wl->parser);
+        parser_unref(&pkt_wl->parser);
         last_status = pkt_wait_list_empty(pkt_wl, now); // may deadlock
     } else { // slightly different version
         struct parser *parser = pkt_wl->parser; // transfert the ref to this local variable
@@ -239,7 +239,7 @@ enum proto_parse_status pkt_wait_list_flush(struct pkt_wait_list *pkt_wl, uint8_
                 last_status = pkt_wait_finalize(pkt, pkt_wl, now);  // may deadlock
             }
         }
-        parser_unref(parser);
+        parser_unref(&parser);
         assert(pkt_wl->nb_pkts == 0);
         assert(pkt_wl->tot_payload == 0);
     }
@@ -273,7 +273,7 @@ void pkt_wait_list_dtor(struct pkt_wait_list *pkt_wl, struct timeval const *now)
     SLOG(LOG_DEBUG, "Destruct pkt_wait_list @%p", pkt_wl);
 
     // start by cleaning the parser so that the subparse method won't be called
-    pkt_wl->parser = parser_unref(pkt_wl->parser);
+    parser_unref(&pkt_wl->parser);
 
     struct supermutex *const mutex = &pkt_wl->list->mutex;
     supermutex_lock_maydeadlock(mutex);
@@ -387,11 +387,11 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
     if (pkt_wl->config->nb_pkts_max && pkt_wl->nb_pkts >= pkt_wl->config->nb_pkts_max) {
         SLOG(LOG_DEBUG, "Waiting list too long, disbanding");
         // We don't need the parser anymore, and must not call its parse method
-        pkt_wl->parser = parser_unref(pkt_wl->parser);
+        parser_unref(&pkt_wl->parser);
     }
     if (pkt_wl->config->payload_max && pkt_wl->tot_payload >= pkt_wl->config->payload_max) {
         SLOG(LOG_DEBUG, "Waiting list too big, disbanding");
-        pkt_wl->parser = parser_unref(pkt_wl->parser);
+        parser_unref(&pkt_wl->parser);
     }
 
     if (! pkt_wl->parser) {

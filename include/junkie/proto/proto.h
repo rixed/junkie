@@ -347,9 +347,8 @@ char const *parser_name(struct parser const *parser);
 struct parser *parser_ref(struct parser *parser);
 
 /// Declare that a ref to a parser is no more used
-/** @note It's OK to unref NULL.
- * @returns NULL to remember you of actually NULLing your ref */
-struct parser *parser_unref(struct parser *parser);
+/** @note It's OK to unref NULL. */
+void parser_unref(struct parser **parser);
 
 struct mux_parser;
 struct mux_subparser;
@@ -590,7 +589,7 @@ void mux_subparser_change_key(
 struct mux_subparser *mux_subparser_ref(struct mux_subparser *);
 
 /// Declare that a ref to a mux_subparser is no more used
-struct mux_subparser *mux_subparser_unref(struct mux_subparser *);
+void mux_subparser_unref(struct mux_subparser **);
 
 /// Remove a mux_subparser from it's mux_proto hash, thus probably killing the only left ref apart yours.
 void mux_subparser_deindex(struct mux_subparser *);

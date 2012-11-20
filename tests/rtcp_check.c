@@ -105,7 +105,7 @@ static void parse_check(void)
     }
 
     pkt_subscriber_dtor(&sub);
-    parser_unref(rtcp_parser);
+    parser_unref(&rtcp_parser);
 }
 
 struct proto *proto_ip;

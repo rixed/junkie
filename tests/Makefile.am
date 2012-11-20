@@ -24,7 +24,11 @@ dist_check_SCRIPTS = \
 	dedup_conf1.test dedup_conf2.test \
 	http-chunked.test tcp.test os-detect.test \
 	http-multiline.test icmp.test tools-check \
-	netmatch_check.scm sock-check.scm \
+	netmatch_check0.scm netmatch_check1.scm \
+	netmatch_check2.scm netmatch_check3.scm \
+	netmatch_check4.scm netmatch_check5.scm \
+	netmatch_check6.scm netmatch_check7.scm \
+	sock-check.scm \
 	discovery.test
 
 TESTS = $(check_PROGRAMS) $(dist_check_SCRIPTS)
@@ -33,6 +37,7 @@ TESTS_ENVIRONMENT = \
 	EF_ALLOW_MALLOC_0=1 \
 	GUILE_LOAD_PATH=$(top_srcdir)/guile \
 	GUILE_LOAD_COMPILED_PATH=$(top_srcdir)/guile \
+	GUILE_AUTO_COMPILE=0 \
 	GUILE_WARN_DEPRECATED=no \
 	NETMATCH_CPPFLAGS="$(AM_CPPFLAGS) -I$(top_srcdir)/include"
 
@@ -131,4 +136,5 @@ EXTRA_DIST = \
 	os-detect.out \
 	postgres.out \
 	sip.out \
-	tcp.out
+	tcp.out \
+	netmatch_check_lib.scm

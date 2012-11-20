@@ -147,8 +147,8 @@ static void parse_check(void)
     }
 
     pkt_subscriber_dtor(&sub);
-    parser_unref(icmpv6_parser);
-    parser_unref(icmp_parser);
+    parser_unref(&icmpv6_parser);
+    parser_unref(&icmp_parser);
 }
 
 int main(void)

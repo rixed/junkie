@@ -31,7 +31,7 @@ static void ctor_dtor_check(void)
     assert(0 == pkt_wait_list_ctor(&wl, 10, &config, dummy, &now));
     pkt_wait_list_dtor(&wl, &now);
 
-    parser_unref(dummy);
+    parser_unref(&dummy);
     pkt_wl_config_dtor(&config);
 }
 
@@ -84,7 +84,7 @@ static void wl_check_setup(void)
 
 static void wl_check_teardown(void)
 {
-    parser_unref(test_parser);
+    parser_unref(&test_parser);
     uniq_proto_dtor(&test_proto);
     pkt_wl_config_dtor(&config);
 }

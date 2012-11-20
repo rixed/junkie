@@ -270,7 +270,7 @@ static void setup(void)
 static void teardown(void)
 {
     pkt_subscriber_dtor(&sub);
-    parser_unref(eth_parser);
+    parser_unref(&eth_parser);
 }
 
 // Send all fragments in order and check we have the various HTTP informations

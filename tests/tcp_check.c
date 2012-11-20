@@ -100,7 +100,7 @@ static void parse_check(void)
     }
 
     pkt_subscriber_dtor(&sub);
-    parser_unref(tcp_parser);
+    parser_unref(&tcp_parser);
 }
 
 int main(void)

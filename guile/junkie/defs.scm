@@ -133,8 +133,8 @@
 
 ; get the percentage of duplicate frames over the total number (check out if the
 ; port mirroring is correctly set)
-(define-public (duplicate-percentage)
-  (let* ((stats  (deduplication-stats))
+(define-public (duplicate-percentage dev-id)
+  (let* ((stats  (deduplication-stats dev-id))
          (dups   (assq-ref stats 'dup-found))
          (nodups (assq-ref stats 'nodup-found))
          (pkts   (+ dups nodups)))

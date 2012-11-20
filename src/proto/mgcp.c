@@ -68,7 +68,7 @@ static struct parser *mgcp_parser_new(struct proto *proto)
 
 static void mgcp_parser_dtor(struct mgcp_parser *mgcp_parser)
 {
-    mgcp_parser->sdp_parser = parser_unref(mgcp_parser->sdp_parser);
+    parser_unref(&mgcp_parser->sdp_parser);
     parser_dtor(&mgcp_parser->parser);
 }
 

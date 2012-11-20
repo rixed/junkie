@@ -106,7 +106,7 @@ static void *doomer_thread(void unused_ *dummy)
 extern inline void ref_ctor(struct ref *, void (*del)(struct ref *));
 extern inline void ref_dtor(struct ref *);
 extern inline void *ref(struct ref *);
-extern inline void *unref(struct ref *);
+extern inline void unref(struct ref *);
 
 void doomer_stop(void)
 {

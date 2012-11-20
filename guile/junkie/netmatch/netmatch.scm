@@ -246,7 +246,8 @@
 
 (define register-types (make-fluid)) ; an alist of name->type (persistant data structure for fast save/restore (just in case)
 (define (reset-register-types)
-  (fluid-set! register-types '()))
+  (fluid-set! register-types '())
+  (fluid-set! expected-type type:any))
 (export reset-register-types)
 (reset-register-types)
 (define (set-register-type regname type)

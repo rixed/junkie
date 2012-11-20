@@ -247,7 +247,7 @@ static enum proto_parse_status eth_parse(struct parser *parser, struct proto_inf
     assert(ethhdr_len <= cap_len);
 
     enum proto_parse_status status = proto_parse(subparser->parser, &info.info, way, packet + ethhdr_len, frame_cap_len, frame_wire_len, now, tot_cap_len, tot_packet);
-    mux_subparser_unref(subparser);
+    mux_subparser_unref(&subparser);
 
     if (status == PROTO_OK) return PROTO_OK;
 

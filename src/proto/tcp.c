@@ -495,7 +495,7 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
         }
         mux_subparser_deindex(subparser);
     }
-    mux_subparser_unref(subparser);
+    mux_subparser_unref(&subparser);
 
     if (err == PROTO_OK) return PROTO_OK;
 

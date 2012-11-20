@@ -142,7 +142,7 @@ static void gre_subparser_dtor(struct gre_subparser *gre_subparser)
     mutex_lock(&gre_subparsers_mutex);
     LIST_REMOVE(gre_subparser, entry);
     mutex_unlock(&gre_subparsers_mutex);
-    gre_subparser->parser = parser_unref(gre_subparser->parser);
+    parser_unref(&gre_subparser->parser);
 }
 
 static void gre_subparser_del(struct gre_subparser *gre_subparser)
@@ -216,14 +216,14 @@ static enum proto_parse_status gre_parse(struct parser *parser, struct proto_inf
         // Remember it for next occurrence
         gre_subparser = gre_subparser_new(h_proto, subparser);
         if (! gre_subparser) {
-            subparser = parser_unref(subparser);
+            parser_unref(&subparser);
             goto fallback;
         }
     }
 
     assert(subparser);
     enum proto_parse_status status = proto_parse(subparser, &info.info, way, packet + h_len, cap_len - h_len, wire_len - h_len, now, tot_cap_len, tot_packet);
-    parser_unref(subparser);
+    parser_unref(&subparser);
 
     if (status == PROTO_OK) return PROTO_OK;
 
