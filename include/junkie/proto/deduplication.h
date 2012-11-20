@@ -20,15 +20,8 @@ struct digest_queue {
 #   define NB_QUEUES (MIN(CPU_MAX, 256))   /* Must not be greater that 256 since we use only one byte from digest to hash */
     struct digest_queue_ {
         struct mutex mutex; // protecting this queue
-        // List of previously received packets, most recent first, ie loosely ordered according to frame timestamp
+        // Previously received packets, indexed by their digests
         HASH_TABLE(qcells, digest_qcell) qcells;
-        unsigned length;    // size of qcells list
-        // Deduplication variables (protected by the above mutex)
-        bool comprehensive; // make a comprehensive search for dups (otherwise look only up to dt_max)
-        struct timeval period_start;    // start of the deduplication period
-        uint64_t dt_sum, dt_sum2;   // sum of all dups dt and dt^2 (in microseconds)
-        unsigned dt_max;    // microseconds (only defined if period_start is set)
-        unsigned nb_dups;   // dups found in this run
     } queues[NB_QUEUES];    // The queue is chosen according to digest hash, so that several distinct threads can perform lookups simultaneously.
     // Some stats for the user
     uint_least64_t nb_dup_found, nb_nodup_found;
@@ -47,7 +40,7 @@ bool digest_queue_find(struct digest_queue *dq, size_t cap_len, uint8_t *packet,
 
 struct dedup_proto_info {
     struct proto_info info;
-    uint64_t dt;
+    uint64_t dt;    // delay between dup and original packet
 };
 
 /** Delay, in microseconds, after which a dup cannot be a dup any more but
