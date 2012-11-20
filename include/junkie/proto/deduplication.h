@@ -8,6 +8,7 @@
 #include <junkie/tools/timeval.h>
 #include <junkie/tools/queue.h>
 #include <junkie/tools/ref.h>
+#include <junkie/tools/hash.h>
 
 #define DIGEST_SIZE MD4_DIGEST_LENGTH
 
@@ -20,7 +21,7 @@ struct digest_queue {
     struct digest_queue_ {
         struct mutex mutex; // protecting this queue
         // List of previously received packets, most recent first, ie loosely ordered according to frame timestamp
-        TAILQ_HEAD(qcells, digest_qcell) qcells;
+        HASH_TABLE(qcells, digest_qcell) qcells;
         unsigned length;    // size of qcells list
         // Deduplication variables (protected by the above mutex)
         bool comprehensive; // make a comprehensive search for dups (otherwise look only up to dt_max)

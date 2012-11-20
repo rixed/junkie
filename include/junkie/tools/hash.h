@@ -69,6 +69,14 @@ struct name_ { \
 #define HASH_FUNC(key) hashlittle(key, sizeof(*(key)), 0x12345678U)
 #define HASH_LIST(hash, key) ((hash)->lists + (HASH_FUNC(key) % (hash)->base.nb_lists))
 
+#define HASH_FOREACH_SAME_KEY(var, hash, key, key_field, field) \
+    ASSERT_COMPILE(sizeof(*(key)) == sizeof((var)->key_field)); \
+    LIST_FOREACH(var, HASH_LIST(hash, key), field)
+
+#define HASH_FOREACH_SAME_KEY_SAFE(var, hash, key, key_field, field, tvar) \
+    ASSERT_COMPILE(sizeof(*(key)) == sizeof((var)->key_field)); \
+    LIST_FOREACH_SAFE(var, HASH_LIST(hash, key), field, tvar)
+
 #define HASH_FOREACH_MATCH(var, hash, key, key_field, field) \
     ASSERT_COMPILE(sizeof(*(key)) == sizeof((var)->key_field)); \
     LIST_FOREACH(var, HASH_LIST(hash, key), field) \

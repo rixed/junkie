@@ -32,11 +32,16 @@
 #include "junkie/tools/timeval.h"
 #include "junkie/tools/queue.h"
 #include "junkie/tools/ext.h"
+#include "junkie/tools/hash.h"
 #include "junkie/proto/cap.h"   // for collapse_ifaces
 #include "junkie/proto/eth.h"   // for collapse_vlans
 #include "junkie/proto/deduplication.h"
 #include "junkie/cpp.h"
 #include "hook.h"
+
+// We use directly the MD4 as a hash key
+#undef HASH_FUNC
+#define HASH_FUNC(key) (*(uint32_t *)key)
 
 LOG_CATEGORY_DEF(digest);
 #undef LOG_CAT
@@ -61,7 +66,7 @@ static LIST_HEAD(digest_queues, digest_queue) digest_queues;    // FIXME: Please
  */
 
 struct digest_qcell {
-    TAILQ_ENTRY(digest_qcell) entry;
+    HASH_ENTRY(digest_qcell) entry;
     unsigned char digest[DIGEST_SIZE];
     struct timeval tv;
 };
@@ -71,7 +76,7 @@ static void digest_qcell_ctor(struct digest_qcell *qc, struct digest_queue_ *q, 
 {
     qc->tv = *tv;
     q->length ++;
-    TAILQ_INSERT_HEAD(&q->qcells, qc, entry);
+    HASH_INSERT(&q->qcells, qc, &qc->digest, entry);
 }
 
 // Note: there is no qcell_new since the qcell is allocated before construction to avoid copying the digest
@@ -81,7 +86,7 @@ static void digest_qcell_dtor(struct digest_qcell *qc, struct digest_queue_ *q)
 {
     assert(q->length > 0);
     q->length --;
-    TAILQ_REMOVE(&q->qcells, qc, entry);
+    HASH_REMOVE(&q->qcells, qc, entry);
 }
 
 // Caller must own q->mutex
@@ -96,8 +101,8 @@ static void reset_digests(struct digest_queue *dq)
     for (unsigned i = 0; i < NB_ELEMS(dq->queues); i++) {
         struct digest_queue_ *const q = dq->queues + i;
         mutex_lock(&q->mutex);
-        struct digest_qcell *qc;
-        while (NULL != (qc = TAILQ_FIRST(&q->qcells))) {
+        struct digest_qcell *qc, *tmp;
+        HASH_FOREACH_SAFE(qc, &q->qcells, entry, tmp) {
             digest_qcell_del(qc, q);
         }
         mutex_unlock(&q->mutex);
@@ -116,7 +121,7 @@ static void digest_queue_ctor(struct digest_queue *dq, uint8_t dev_id)
         struct digest_queue_ *const q = dq->queues + i;
 
         mutex_ctor(&q->mutex, "digest queue");
-        TAILQ_INIT(&q->qcells);
+        HASH_INIT(&q->qcells, 256, "digest queue");
         q->length = 0;
         q->comprehensive = true;
         timeval_reset(&q->period_start);    // will be set later with TS of first packet
@@ -147,6 +152,7 @@ static void digest_queue_dtor(struct digest_queue *dq)
     for (unsigned i = 0; i < NB_ELEMS(dq->queues); i++) {
         struct digest_queue_ *const q = dq->queues + i;
         mutex_dtor(&q->mutex);
+        HASH_DEINIT(&q->qcells);
     }
 
     ref_dtor(&dq->ref);
@@ -295,6 +301,7 @@ static void digest_frame(unsigned char buf[DIGEST_SIZE], size_t size, uint8_t *r
     }
 }
 
+/*
 // This computes the dt_max that will be used in the fast_dedup phase
 // (called at the end of the comprehensive dedup phase).
 // We merely blur the new instantaneous dt_max with the previous one.
@@ -306,7 +313,7 @@ static unsigned new_avg_dt_max(struct digest_queue_ *q, unsigned dt)
     // raise fast, lower slowly
     return MIN(new >= old ? new : (3*old+new)/4, max_dup_delay);
 }
-
+*/
 bool digest_queue_find(struct digest_queue *dq, size_t cap_len, uint8_t *packet, struct timeval const *frame_tv)
 {
     if (! max_dup_delay) return false;
@@ -323,16 +330,16 @@ bool digest_queue_find(struct digest_queue *dq, size_t cap_len, uint8_t *packet,
     struct timeval min_tv = *frame_tv;
     timeval_sub_usec(&min_tv, max_dup_delay);
     // min_tv is now set to minimal TS for a packet we want to consider for dup detection.
-
+    struct digest_qcell *qc, *qc_tmp;
+/*
     // First of all, delete the old qcells
-    struct digest_qcell *qc;
     while (NULL != (qc = TAILQ_LAST(&q->qcells, qcells))) {
         if (timeval_cmp(&qc->tv, &min_tv) > 0) break;
         digest_qcell_del(qc, q);
     }
-
+*/
     // set min_tv to the min TS we want to check at this run
-    if (q->comprehensive) {
+/*    if (q->comprehensive) {
         if (! timeval_is_set(&q->period_start)) {
             q->period_start = *frame_tv;
             q->dt_max = max_dup_delay;
@@ -373,20 +380,18 @@ bool digest_queue_find(struct digest_queue *dq, size_t cap_len, uint8_t *packet,
     // we are going to look dt_max usecs in the past
     min_tv = *frame_tv;
     timeval_sub_usec(&min_tv, dt_max);
-
+*/
     unsigned count = 0;
     // now look all qcells for a dup
-    TAILQ_FOREACH(qc, &q->qcells, entry) {  // loop over all cells from recent to old
+    HASH_FOREACH_SAME_KEY_SAFE(qc, &q->qcells, &qc_new->digest, digest, entry, qc_tmp) {
+        // timeout first (so that retransmissions are elimiated)
         if (timeval_cmp(&qc->tv, &min_tv) < 0) {
-            // too far back in time, this can't be a dup.
-            SLOG(LOG_DEBUG, "dev=%"PRIu8",queue[%u]: Reached an old digest dating back to %s (while we limit ourself at %s, being at %s)", dq->dev_id, h, timeval_2_str(&qc->tv), timeval_2_str(&min_tv), timeval_2_str(frame_tv));
-            break;
-        } else if (
-            0 == memcmp(qc->digest, qc_new->digest, DIGEST_SIZE)
-        ) { // found a dup
+            digest_qcell_del(qc, q);
+        } else if (0 == memcmp(qc->digest, qc_new->digest, DIGEST_SIZE)) {
+            // found a dup
             struct dedup_proto_info info;
             proto_info_ctor(&info.info, NULL /* hum */, NULL, 0, cap_len);
-            SLOG(LOG_DEBUG, "dev=%"PRIu8",queue[%u]: Found a dup after %u/%u digests (max_dt=%uus)", dq->dev_id, h, count, q->length, dt_max);
+            SLOG(LOG_DEBUG, "dev=%"PRIu8",queue[%u]: Found a dup after %u/%u digests", dq->dev_id, h, count, q->length);
             // Note that we do not promote the dup in order to avoid dup + dup + dup + retrans being interpreted as 4 dups.
             if (q->comprehensive) {
                 info.dt = timeval_sub(frame_tv, &qc->tv);
@@ -406,7 +411,7 @@ bool digest_queue_find(struct digest_queue *dq, size_t cap_len, uint8_t *packet,
     }
 
     // Here we have no dup thus we must store qc_new
-    SLOG(LOG_DEBUG, "dev=%"PRIu8",queue[%u]: No dup found after %u/%u digests (max_dt=%uus)", dq->dev_id, h, count, q->length, dt_max);
+    SLOG(LOG_DEBUG, "dev=%"PRIu8",queue[%u]: No dup found after %u/%u digests", dq->dev_id, h, count, q->length);
     update_dedup_stats(dq, 0, 1);
     digest_qcell_ctor(qc_new, q, frame_tv);
     mutex_unlock(&q->mutex);
@@ -502,6 +507,7 @@ void digest_init(void)
     mutex_init();
     objalloc_init();
     ext_init();
+    hash_init();
 
     dup_found_sym       = scm_permanent_object(scm_from_latin1_symbol("dup-found"));
     nodup_found_sym     = scm_permanent_object(scm_from_latin1_symbol("nodup-found"));
@@ -550,6 +556,7 @@ void digest_fini(void)
     ext_param_max_dup_delay_fini();
     log_category_digest_fini();
 
+    hash_fini();
     ext_fini();
     objalloc_fini();
     mutex_fini();
