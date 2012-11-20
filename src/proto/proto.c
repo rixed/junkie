@@ -222,7 +222,10 @@ void proto_subscriber_dtor(struct proto_subscriber *sub, struct proto *proto)
 
 void proto_subscribers_call(struct proto *proto, struct proto_info *info, size_t tot_cap_len, uint8_t const *tot_packet, struct timeval const *now)
 {
-    if (info->proto_sbc_called) return;
+    if (info->proto_sbc_called) {
+        SLOG(LOG_DEBUG, "Already called");
+        return;
+    }
     info->proto_sbc_called = true;
 
     // Call the callbacks for the completed proto_info
