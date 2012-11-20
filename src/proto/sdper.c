@@ -34,16 +34,12 @@
 int sdper_parse(struct sdper const *sdper, size_t *head_sz, uint8_t const *packet, size_t packet_len, void *user_data)
 {
     // REVIEW: eols and spcs should be provided by liner.
-    struct liner_delimiter
-        eols[] = { { "\r\n", 2 }, { "\n", 1 } },
-        cols[] = { { "= ", 2}, { "=", 1 } };
-    struct liner_delimiter_set const
-        lines =  { NB_ELEMS(eols), eols, false },
-        eq = { NB_ELEMS(cols), cols, true };
+    struct liner_delimiter cols[] = { { "= ", 2}, { "=", 1 } };
+    struct liner_delimiter_set const eq = { NB_ELEMS(cols), cols, true };
 
     struct liner liner, tokenizer;
 
-    liner_init(&liner, &lines, (char const *)packet, packet_len);
+    liner_init(&liner, &delim_lines, (char const *)packet, packet_len);
 
     // Parse header fields
     while (true) {
