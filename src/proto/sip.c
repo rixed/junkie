@@ -503,6 +503,7 @@ static struct port_muxer udp_port_muxer, tcp_port_muxer;
 void sip_init(void)
 {
     log_category_proto_sip_init();
+    hash_init();
     mutex_ctor(&callids_2_sdps_mutex, "callids_2_sdps");
     HASH_INIT(&callids_2_sdps, 67, "SIP->SDP");
 
@@ -528,4 +529,5 @@ void sip_fini(void)
     log_category_proto_sip_fini();
     HASH_DEINIT(&callids_2_sdps);
     mutex_dtor(&callids_2_sdps_mutex);
+    hash_fini();
 }

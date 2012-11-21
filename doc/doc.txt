@@ -202,16 +202,16 @@ digraph G {
     
     queue0 [
         shape=record
-        label="<h>digests for eth1|\<&#8710;t\>, &#963;|{MD4|TimeStamp0}|{MD4|TimeStamp1}|{MD4|TimeStamp2}|{MD4|TimeStamp3}|{MD4|TimeStamp4}|{...}|{MD4|<last>TimeStampN}"
+        label="<h>digests for eth1|\<&#8710;t\>, &#963;|{MD4 &#8594; TimeStamp0}|{MD4 &#8594; TimeStamp1}|{MD4 &#8594; TimeStamp2}|{...}|{<last>MD4 &#8594; TimeStampN}"
     ]
 
     queue1 [
         shape=record
-        label="<h>digests for eth2|\<&#8710;t\>, &#963;|{MD4|TimeStamp0}|{MD4|TimeStamp1}|{MD4|TimeStamp2}|{MD4|TimeStamp3}|{MD4|TimeStamp4}|{...}|{MD4|<last>TimeStampN}"
+        label="<h>digests for eth2|\<&#8710;t\>, &#963;|{MD4 &#8594; TimeStamp0}|{MD4 &#8594; TimeStamp1}|{MD4 &#8594; TimeStamp2}|{...}|{<last>MD4 &#8594; TimeStampN}"
     ]
     info0 [
         shape=plaintext
-        label="TimeStampN &#8805; TimeStamp0 + \<&#8710;t\> + &#963;&#215;fast-dedup-distance"
+        label="TimeStampN &#8805; TimeStamp0 + max-dup-delay"
     ]
     info0 -> queue1:last
 
@@ -226,7 +226,7 @@ digraph G {
 }
 -------------------------------------------------------------------------------
 
-The main parameter governing deduplication is the maximum delay between two
+The only parameter governing deduplication is the maximum delay between two
 dup frames, which is set by default to 100ms (+max-dup-delay+ from Guile).
 Junkie will never check digests older than this (at the contrary these old
 digests will be freed from memory). As a consequence, setting this parameter
@@ -236,26 +236,13 @@ For each incoming packet, junkie will compute its MD4 digest (masking out some
 field such as IP's TTL or, optionally, the 802.1q vlan tag), and compare it to
 all previous digests, up to +max-dup-delay+. If a packet with same digest and
 which came from the same interface is found then the incoming one is merely
-discarded (Note: as usual we do not use a single queue of digests but one per
+discarded (Note: as usual we do not use a single hash of digests but one per
 CPU to avoid locking).
 
-The only inconvenience of this naive algorithm is that it's too slow for
-production.  Thus, it's used only for twice as long as +max-dup-delay+ (ie.
-200ms) every +fast-dedup-duration+ (10s by default), just to find out what's
-the average delay between original packets and their dups, as well as the
-standard deviation. Then a faster algorithm is used: instead of examining all
-previous digests up to +max-dup-delay+ it only looks for dups up to the
-observed average plus +fast-dedup-distance+ (2 by default) times the observed
-standard deviation.
-
-This is important to compute this average and standard deviation per network
-interface as these values greatly depends on the switch at the other end of
-the plug.
-
 If network interfaces are to be collapsed into one, then an additional
-deduplication pass using it's own average and standard deviation is to be
-performed. Notice that in this case the frame will be handled twice: the
-digest will be computed and stored twice. Yes this is considered a bug.
+deduplication pass is to be performed. Notice that in this case the frame will
+be handled twice: the digest will be computed and stored twice. Yes this is
+considered a bug.
 
 === Hooks
 
