@@ -216,7 +216,7 @@ int file_write(int fd, void const *buf, size_t len)
         if (ret >= 0) {
             r += ret;
         } else if (errno != EINTR) {
-            SLOG(LOG_ERR, "Cannot read %zu bytes on fd %d: %s", len, fd, strerror(errno));
+            SLOG(LOG_ERR, "Cannot write %zu bytes on fd %d: %s", len, fd, strerror(errno));
             return -1;
         }
     }

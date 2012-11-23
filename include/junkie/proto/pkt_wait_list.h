@@ -14,9 +14,9 @@
  *
  * IP, TCP and many other protocols on UDP can receive packets in the wrong
  * order and must reorder the data before calling their subparsers so that
- * those can understand their protocol.  The basic idea is thus to maintain a
+ * those can understand their payload.  The basic idea is thus to maintain a
  * list of out of order packets in the mux_subparsers, provisioned with all
- * arriving packets and dequeuing the head of the list whenever complete. The
+ * incoming packets and dequeuing the head of the list whenever complete. The
  * purpose of this list is thus to reorder and wait for missing packets,
  * according to an "offset" in the stream that can be TCP sequence number, IP
  * fragment offset, WTP sequence number...  The user callbacks will not be

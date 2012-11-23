@@ -131,6 +131,7 @@ plugin(s) with unscrambled informations instead of raw bytes:
 [graphviz]
 -------------------------------------------------------------------------------
 digraph G {
+    node [ fontsize=10 ]
     graph [ rankdir="LR" ]
     libpcap -> junkie [label="packets"]
     junkie -> plugins [label="packets + infos"]
@@ -147,7 +148,10 @@ showing the parsing of an HTTP packet:
 -------------------------------------------------------------------------------
 digraph G {
     libpcap -> junkie
-    node [ shape=box ]
+    node [
+        shape=box
+        fontsize=10
+    ]
 
     {
         color=blue
@@ -194,7 +198,10 @@ deduplication:
 [graphviz]
 -------------------------------------------------------------------------------
 digraph G {
-    node [ shape=box ]
+    node [
+        shape=box
+        fontsize=10
+    ]
     graph [
         rankdir="LR"
         splines=curved
@@ -243,6 +250,219 @@ If network interfaces are to be collapsed into one, then an additional
 deduplication pass is to be performed. Notice that in this case the frame will
 be handled twice: the digest will be computed and stored twice. Yes this is
 considered a bug.
+
+=== Reassembly, reordering and buffering
+
+To be able to chain parsers from the transport layer up to the application
+layers junkie must provide a mecanism to rebuild a stream of bytes from
+fragmented or out of order segments, and to buffer temporarily a payload
+until a complete message is received.
+
+Reordering and reassembly are done using the +pkt_wait_list+ facility. For
+instance, the IP parser uses this to reassemble fragmented packets and TCP
+parser uses this to reorder out of order segments.
+
+Buffering is achieved through the +streambuf+ facility. For instance, the
+HTTP parser uses this to wait until the HTTP headers are complete before
+parsing them.
+
+==== Packet Waiting Lists
+
+IP, TCP and many other protocols based on UDP can receive packets in the wrong
+order and must reorder the data before calling their subparsers so that those
+can understand their payload.  The basic idea is thus to maintain a list of
+out of order packets, provisioned with all incoming packets and dequeuing the
+head of the list whenever complete. The purpose of this list is thus to
+reorder and wait for missing packets, according to an offset in the stream
+that can be TCP sequence number, IP fragment offset, WTP sequence number...
+
+Once created, the user of a +pkt_wait_list+ can then add data to it using
++pkt_wait_list_add+, and this function will take care of calling the
+subparser whenever possible and timeouting fragments.
+
+This is more complex that it sounds; remember that all the +proto_info+
+structures build by previous parsers lay on the stack, and so must be copied
+in the heap when the parse is suspended, so that when eventualy the parse is
+resumed (either the gap in sequence number is filled or the pending packets
+is timeouted) the subparsers can get called with these +proto_info+
+structs and add new infos from there.
+
+Another problem, easier to solve but probably more expensive, is that due to
+the way the kernel sends the packets to libpcap we also need to copy the
+packet itself.
+
+That's why we try to only push the packets in the waiting list when
+this is strictly required; in other words, when we add to a waiting list a
+packet that can be processed at once then the parse function is called
+directly and the packet is not stored.
+
+Here is for instance two +pkt_wait_list+, sharing the same configuration:
+
+[graphviz]
+-------------------------------------------------------------------------------
+digraph G {
+    node [
+        shape=box
+        fontsize=10
+    ]
+    graph [
+        rankdir="LR"
+        splines=curved
+    ]
+    
+    config [
+        shape=record
+        label="<h>pkt_wl_config|acceptable_gap|nb_pkts_max|payload_max|timeout"
+    ]
+    
+    wl1 [
+        shape=record
+        label="pkt_wait_list (1)|<p>pkts|<c>config|nb_pkts|tot_payload|next_offset|last_used|parser"
+    ]
+    wl2 [
+        shape=record
+        label="pkt_wait_list (2)|<p>pkts|<c>config|nb_pkts|tot_payload|next_offset|last_used|parser"
+    ]
+
+    wl1:c -> config:h
+    wl2:c -> config:h
+
+    pkt1 [
+        shape=record
+        label="pkt_wait (1)|<e>entry|offset|next_offset|tot_cap_len|<s>start|cap_len|wire_len|<p>parent|way|packet:|<start>...|<mid>8a d7 67 ab 26 44 21 c9|f2 e7 00 9a 08 19 43 b9|76 bc 28 03 44 25 d1 66|e1 15 91 97 20 bf e8 fe|...|<end>bc a4 d5 9f a2 08 80 47"
+    ]
+    pkt1:s -> pkt1:mid
+    pkt1:mid -> pkt1:end [decorate,fontsize="8",label="+caplen"]
+    pkt1:start -> pkt1:end [decorate,fontsize="8",label="+tot_cap_len"]
+
+    pkt2 [
+        shape=record
+        label="pkt_wait (2)|<e>entry|offset|next_offset|tot_cap_len|<s>start|cap_len|wire_len|<p>parent|way|packet:|85 ce 2e a0 1e 81 e5 09|..."
+    ]
+    pkt3 [
+        shape=plaintext
+        label="..."
+    ]
+    wl1:p -> pkt1:e -> pkt2:e -> pkt3
+
+    pkt4 [
+        shape=record
+        label="pkt_wait (1)|<e>entry|offset|next_offset|tot_cap_len|<s>start|cap_len|wire_len|<p>parent|way|packet:|fb 09 15 c5 de bc 95 c8|..."
+    ]
+    pkt5 [
+        shape=plaintext
+        label="..."
+    ]
+    wl2:p -> pkt4:e -> pkt5
+
+    info1 [
+        shape=record
+        label="<h>proto_info (HTTP)|<p>parent|<r>parser|infos..."
+    ]
+    info2 [
+        shape=record
+        label="<h>proto_info (TCP)|<p>parent|<r>parser|infos..."
+    ]
+    info3 [
+        shape=plaintext
+        label="..."
+    ]
+    pkt1:p -> info1:h
+    info1:p -> info2:h
+    info2:p -> info3
+
+    info4 [
+        shape=record
+        label="<h>proto_info (HTTP)|<p>parent|<r>parser|infos..."
+    ]
+    info5 [
+        shape=record
+        label="<h>proto_info (TCP)|<p>parent|<r>parser|infos..."
+    ]
+    info6 [
+        shape=plaintext
+        label="..."
+    ]
+    pkt2:p -> info4:h
+    info4:p -> info5:h
+    info5:p -> info6
+
+    http [
+        shape=record
+        label="<h>parser|..."
+    ]
+    tcp [
+        shape=record
+        label="<h>parser|..."
+    ]
+    info1:r -> http:h
+    info2:r -> tcp:h
+    info4:r -> http:h
+    info5:r -> tcp:h
+}
+-------------------------------------------------------------------------------
+
+Notice in particular that each packet are copied entirely right into the
++pkt_wait+ structure, which is thus of varying size.
+
+When timeouting packets or destroying them for any other reason, plugins
+that are subscribed to the packet hook will get called for every fragment so
+that the packet count is reliable. The drawback is that the timestamp they
+see can jump back in time.
+
+==== Stream Buffers
+
+Most application parsers are concerned about some kind of messages which
+boundaries does not correspond to packet boundaries. They receive chunks of
+payload from their parent and must wait for a full message to be available
+before proceeding. This is were the zero-copy tradition of network sniffing
+falls short: insisting in not copying payloads will force these parsers to
+handle many tricky pointer arithmetic, which will be quite slow especially
+considering the parse is often restarted from the beginning.
+
+That's why, for the +streambuf+ facility, it was chosen to merely copy the
+payload in a single, linear memory buffer so that life is easier for applicative
+parsers.
+
+Once created, a +streambuf+ provides a parsing function that wrap your parser
+own parsing function, adding the ability to give up parsing after a given
+offset (your parsing function will then be called again later after some new
+content was received, starting from this restart offset). See
++streambuf_set_restart+ for more informations.
+
+[graphviz]
+-------------------------------------------------------------------------------
+digraph G {
+    node [
+        shape=box
+        fontsize=10
+    ]
+    graph [
+        rankdir="LR"
+        splines=curved
+    ]
+
+    streambuf [
+        shape=record
+        label="streambuf|parse|max_size|{{dir[0]|<b0>buffer|buffer_size|restart_offset|buffer_is_malloced|wait}|{dir[1]|<b1>buffer|buffer_size|<r1>restart_offset|buffer_is_malloced|wait}}"
+    ]
+
+    buffer0 [
+        shape=record
+        label="<h>...|28 2f 61 ef c9 2a 09 e5|..."
+    ]
+    buffer1 [
+        shape=record
+        label="<h>...|<r>b0 1d 60 31 bd dc 51 58|..."
+    ]
+    streambuf:b0 -> buffer0:h
+    streambuf:b1 -> buffer1:h
+    streambuf:r1 -> buffer1:r
+}
+-------------------------------------------------------------------------------
+
+Notice that we have actually two buffers: one for each direction (since a
+parser is required to handle both directions).
 
 === Hooks
 
@@ -555,6 +775,7 @@ So the above example could be schematically represented as:
 [graphviz]
 -------------------------------------------------------------------------------
 digraph G {
+    node [ fontsize=10 ]
     root -> "dns-query" [ style=dashed label="3) on any DNS,\l saving the query identifiers" ]
     "dns-query" -> "dns-fast-answer" [ label="2) if match the\l saved identifiers" ]
     "dns-query" -> "dns-slow-answer" [ label="1) if match the\l saved identifiers\l and DT > 150ms" ]
