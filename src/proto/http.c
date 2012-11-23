@@ -433,6 +433,10 @@ static enum proto_parse_status http_parse_chunk_header(struct http_parser *http_
     assert(http_parser->state[way].phase == CHUNK_HEAD);
 
     SLOG(LOG_DEBUG, "Parsing chunk header");
+
+    // We won't be able to parse anything if we lack these bytes
+    if (cap_len == 0 && wire_len > 0) return PROTO_TOO_SHORT;   // nothing to report in this case
+
     // The chunk header is composed of a mere size and optional ";" followed by some garbage up to end of line.
     // So we need at least one line of data
     struct liner liner;
@@ -441,8 +445,8 @@ static enum proto_parse_status http_parse_chunk_header(struct http_parser *http_
         streambuf_set_restart(&http_parser->sbuf, way, packet, true);   // more luck later
         return PROTO_OK;
     }
-    char *end;
-    unsigned len = strtoul(liner.start, &end, 16);
+    char const *end;
+    unsigned len = liner_strtoull(&liner, &end, 16);
     if (end == liner.start) {
         return PROTO_PARSE_ERR;
     }

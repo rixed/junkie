@@ -100,6 +100,7 @@ static enum proto_parse_status pkt_wait_parse(struct pkt_wait *pkt, struct pkt_w
     enum proto_parse_status const status =
         trim < pkt->cap_len ?
             proto_parse(pkt_wl->parser, pkt->parent, pkt->way, pkt->packet + pkt->start + trim, pkt->cap_len - trim, pkt->wire_len - trim, now, pkt->tot_cap_len, pkt->packet) :
+            // The parser may be able to parse this (if he just skip, for instance HTTP skipping a body)
             proto_parse(pkt_wl->parser, pkt->parent, pkt->way, NULL, 0, trim < pkt->wire_len ? pkt->wire_len - trim : 0, now, pkt->tot_cap_len, pkt->packet);
     pkt_wl->next_offset = pkt->next_offset;
     return status;

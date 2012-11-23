@@ -165,20 +165,29 @@ enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *par
             now, tot_cap_len, tot_packet);
         assert(dir->restart_offset >= offset);
 
-        /* 2 cases here: either the user parsed everything, and we can dispose of the buffer.
-         * or the user set the restart_offset somewhere and expect more data.
-         * In this situation, if we have a hole at the end of the buffer (because wire_len > cap_len)
-         * then we are doomed to fail. If we have no hole, or if the user do not want to wait, then it's all good.
+        /* 3 cases here:
+         * - either the parser failed,
+         * - or it succeeded and parsed everything, and we can dispose of the buffer,
+         * - or restart_offset was set somewhere because the parser expect more data (that may already been there).
+         * In this situation, if we have a hole at the end of the buffer (because wire_len > cap_len) and we
+         * parsed everything up to here, or the parser returned PROTO_TOO_SHORT, then we are doomed to fail.
          */
-        if (status == PROTO_OK && dir->restart_offset != dir->buffer_size) {
-            if (dir->wait && wire_len > cap_len) return PROTO_TOO_SHORT;
-            // we must keep the buffer
-            if (0 != streambuf_keep(dir)) return PROTO_PARSE_ERR;
-            if (dir->wait) return PROTO_OK;
-        } else {
-            // In all other cases, dispose of the buffer
-            streambuf_empty(dir);
-            return status;
+        switch (status) {
+            case PROTO_PARSE_ERR:
+                return status;
+            case PROTO_OK:
+                if (dir->restart_offset == dir->buffer_size) {
+                    streambuf_empty(dir);
+                    return status;
+                } else {
+                    if (0 != streambuf_keep(dir)) return PROTO_PARSE_ERR;
+                    if (dir->wait) return status;
+                }
+                break;
+            case PROTO_TOO_SHORT:
+                if (wire_len > cap_len) return PROTO_PARSE_ERR; // FIXME: in this case we should kill only in one direction!
+                if (dir->wait) return status;
+                break;
         }
     }
 
