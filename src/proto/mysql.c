@@ -40,7 +40,7 @@ LOG_CATEGORY_DEF(proto_mysql);
 struct mysql_parser {
     struct parser parser;
     struct mutex mutex;     // Essentially to protect the streambuf
-    unsigned c2s_way;       // The way when traffic is going from client to server (~0U for unset)
+    unsigned c2s_way;       // The way when traffic is going from client to server (UNSET for unset)
     enum phase { NONE, STARTUP, QUERY, EXIT } phase;
     struct streambuf sbuf;
     unsigned nb_eof;        // count the Srv->Clt EOF packets (to parse result sets)
@@ -54,7 +54,7 @@ static int mysql_parser_ctor(struct mysql_parser *mysql_parser, struct proto *pr
     assert(proto == proto_mysql);
     if (0 != parser_ctor(&mysql_parser->parser, proto)) return -1;
     mysql_parser->phase = NONE;
-    mysql_parser->c2s_way = ~0U;    // unset
+    mysql_parser->c2s_way = UNSET;    // unset
     if (0 != streambuf_ctor(&mysql_parser->sbuf, mysql_sbuf_parse, 30000)) return -1;
     mysql_parser->nb_eof = 0;
     mutex_ctor(&mysql_parser->mutex, "mysql");
@@ -429,7 +429,7 @@ static enum proto_parse_status mysql_sbuf_parse(struct parser *parser, struct pr
     struct mysql_parser *mysql_parser = DOWNCAST(parser, parser, mysql_parser);
 
     // If this is the first time we are called, init c2s_way
-    if (mysql_parser->c2s_way == ~0U) {
+    if (mysql_parser->c2s_way == UNSET) {
         mysql_parser->c2s_way = !way;
         SLOG(LOG_DEBUG, "First packet, init c2s_way to %u", mysql_parser->c2s_way);
     }

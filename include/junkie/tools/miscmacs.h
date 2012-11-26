@@ -89,4 +89,7 @@
 /// Returns a/b, rounded to closest.
 #define ROUND_DIV(a, b) (((a) + (b/2) - 1)/(b))
 
+// Used here and there
+#define UNSET ((unsigned)(-1))
+
 #endif

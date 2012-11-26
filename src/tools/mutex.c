@@ -224,7 +224,7 @@ int supermutex_lock(struct supermutex *super)
 
     // Easy case: maybe I already own it?
     unsigned l;
-    unsigned free_l = ~0U;
+    unsigned free_l = UNSET;
     for (l = 0; l < my_supermutex_user->nb_locks; l++) {
         if (my_supermutex_user->locks[l].supermutex == super) break;
         if (my_supermutex_user->locks[l].supermutex == NULL) free_l = l;
@@ -251,7 +251,7 @@ int supermutex_lock(struct supermutex *super)
     }
 
     // Adding me in the list of holders
-    if (free_l != ~0U) {
+    if (free_l != UNSET) {
         l = free_l;
     } else {
         if (my_supermutex_user->nb_locks == NB_ELEMS(my_supermutex_user->locks)) {

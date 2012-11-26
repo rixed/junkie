@@ -38,7 +38,7 @@ LOG_CATEGORY_DEF(proto_tns);
 struct tns_parser {
 	struct parser parser;
     struct mutex mutex;     // Essentially to protect the streambuf
-	unsigned c2s_way;	// The way when traffic is going from client to server (~0U for unset)
+	unsigned c2s_way;	// The way when traffic is going from client to server (UNSET for unset)
     struct streambuf sbuf;
 };
 
@@ -48,7 +48,7 @@ static int tns_parser_ctor(struct tns_parser *tns_parser, struct proto *proto)
 {
     assert(proto == proto_tns);
     if (0 != parser_ctor(&tns_parser->parser, proto)) return -1;
-    tns_parser->c2s_way = ~0U;    // unset
+    tns_parser->c2s_way = UNSET;    // unset
     if (0 != streambuf_ctor(&tns_parser->sbuf, tns_sbuf_parse, 30000)) return -1;
     mutex_ctor(&tns_parser->mutex, "TNS");
 
@@ -352,7 +352,7 @@ static enum proto_parse_status tns_sbuf_parse(struct parser *parser, struct prot
     struct tns_parser *tns_parser = DOWNCAST(parser, parser, tns_parser);
 
     // If this is the first time we are called, init c2s_way
-    if (tns_parser->c2s_way == ~0U) {
+    if (tns_parser->c2s_way == UNSET) {
         tns_parser->c2s_way = way;
         SLOG(LOG_DEBUG, "First packet, init c2s_way to %u", tns_parser->c2s_way);
     }

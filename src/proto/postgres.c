@@ -41,7 +41,7 @@ LOG_CATEGORY_DEF(proto_pgsql);
 struct pgsql_parser {
     struct parser parser;
     struct mutex mutex;     // Essentially to protect the streambuf
-    unsigned c2s_way;       // The way when traffic is going from client to server (~0U for unset)
+    unsigned c2s_way;       // The way when traffic is going from client to server (UNSET for unset)
     enum phase { NONE, STARTUP, QUERY, EXIT } phase;
     struct streambuf sbuf;
 };
@@ -53,7 +53,7 @@ static int pg_parser_ctor(struct pgsql_parser *pg_parser, struct proto *proto)
     assert(proto == proto_pgsql);
     if (0 != parser_ctor(&pg_parser->parser, proto)) return -1;
     pg_parser->phase = NONE;
-    pg_parser->c2s_way = ~0U;    // unset
+    pg_parser->c2s_way = UNSET;    // unset
     if (0 != streambuf_ctor(&pg_parser->sbuf, pg_sbuf_parse, 30000)) return -1;
     mutex_ctor(&pg_parser->mutex, "pgsqlql");
 
@@ -508,7 +508,7 @@ static enum proto_parse_status pg_sbuf_parse(struct parser *parser, struct proto
     struct pgsql_parser *pg_parser = DOWNCAST(parser, parser, pgsql_parser);
 
     // If this is the first time we are called, init c2s_way
-    if (pg_parser->c2s_way == ~0U) {
+    if (pg_parser->c2s_way == UNSET) {
         SLOG(LOG_DEBUG, "First packet, init c2s_way to %u", way);
         pg_parser->c2s_way = way;
     }

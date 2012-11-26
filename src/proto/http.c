@@ -26,6 +26,7 @@
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/objalloc.h"
 #include "junkie/tools/mutex.h"
+#include "junkie/tools/miscmacs.h"
 #include "junkie/proto/serialize.h"
 #include "junkie/proto/tcp.h"
 #include "junkie/proto/http.h"
@@ -44,7 +45,7 @@ LOG_CATEGORY_DEF(proto_http);
 struct http_parser {
     struct parser parser;
     struct mutex mutex;     // Essentially to protect the streambuf
-    unsigned c2s_way;   // The way when traffic is going from client to server (~0U for unset)
+    unsigned c2s_way;   // The way when traffic is going from client to server (UNSET for unset)
     struct streambuf sbuf;
     struct http_state {
         enum http_phase {
@@ -83,9 +84,9 @@ static int http_parser_ctor(struct http_parser *http_parser, struct proto *proto
     if (0 != parser_ctor(&http_parser->parser, proto)) return -1;
     http_parser->state[0].phase = HEAD;
     http_parser->state[1].phase = HEAD;
-    http_parser->state[0].last_method = ~0U;
-    http_parser->state[1].last_method = ~0U;
-    http_parser->c2s_way = ~0U;
+    http_parser->state[0].last_method = UNSET;
+    http_parser->state[1].last_method = UNSET;
+    http_parser->c2s_way = UNSET;
 #   define HTTP_MAX_HDR_SIZE 10000   // in bytes
     if (0 != streambuf_ctor(&http_parser->sbuf, http_sbuf_parse, HTTP_MAX_HDR_SIZE)) return -1;
     mutex_ctor(&http_parser->mutex, "http");
@@ -300,7 +301,7 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
 
     // Save some values into our http_parser
     http_parser->state[way].last_method =
-        info.set_values & HTTP_METHOD_SET ? info.method : ~0U;
+        info.set_values & HTTP_METHOD_SET ? info.method : UNSET;
 
     // Handle short capture
     if (status == PROTO_TOO_SHORT) {
@@ -474,7 +475,7 @@ static enum proto_parse_status http_sbuf_parse(struct parser *parser, struct pro
     struct http_parser *http_parser = DOWNCAST(parser, parser, http_parser);
 
     // If this is the first time we are called, init c2s_way
-    if (http_parser->c2s_way == ~0U) {
+    if (http_parser->c2s_way == UNSET) {
         http_parser->c2s_way = way;
         SLOG(LOG_DEBUG, "First packet, init c2s_way to %u", http_parser->c2s_way);
     }

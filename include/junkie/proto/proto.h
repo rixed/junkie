@@ -484,7 +484,7 @@ struct mux_subparser {
     struct proto *requestor;                ///< The proto that requested its creation
     struct mux_parser *mux_parser;          ///< Backlink to our mux_parser
     struct mux_proto *mux_proto;            ///< Backlink to our mux_proto, for when mux_parser cannot be used (see mux_subparser_del_as_ref())
-#   define NOT_HASHED (~0U)
+#   define NOT_HASHED UNSET
     unsigned h_idx;                         ///< Our hash index into mux_parser->subparsers (NO_HASHED if not queued in any list)
     char key[];                             ///< The key used to identify it (beware of the variable size)
 };
