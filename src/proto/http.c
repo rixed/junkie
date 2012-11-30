@@ -36,7 +36,6 @@
 #include "proto/httper.h"
 #include "proto/liner.h"
 
-
 #undef LOG_CAT
 #define LOG_CAT proto_http_log_category
 
@@ -159,7 +158,7 @@ static char const *http_info_2_str(struct proto_info const *info_)
 {
     struct http_proto_info const *info = DOWNCAST(info_, info, http_proto_info);
     char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, method=%s, code=%s, content_length=%s, transfert_encoding=%s, mime_type=%s, host=%s, url=%s",
+    snprintf(str, TEMPSTR_SIZE, "%s, method=%s, code=%s, content_length=%s, transfert_encoding=%s, mime_type=%s, host=%s, user_agent=%s, url=%s",
         proto_info_2_str(info_),
         info->set_values & HTTP_METHOD_SET   ? http_method_2_str(info->method)            : "unset",
         info->set_values & HTTP_CODE_SET     ? tempstr_printf("%u", info->code)           : "unset",
@@ -168,6 +167,8 @@ static char const *http_info_2_str(struct proto_info const *info_)
                                                (info->chunked_encoding ? "chunked":"set") : "unset",
         info->set_values & HTTP_MIME_SET     ? info->mime_type                            : "unset",
         info->set_values & HTTP_HOST_SET     ? info->host                                 : "unset",
+        info->set_values & HTTP_USER_AGENT_SET ?
+                                               info->user_agent                           : "unset",
         info->set_values & HTTP_URL_SET      ? info->url                                  : "unset");
     return str;
 }
@@ -183,6 +184,7 @@ static void http_serialize(struct proto_info const *info_, uint8_t **buf)
     if (info->set_values & HTTP_TRANSFERT_ENCODING_SET) serialize_1(buf, info->chunked_encoding);
     if (info->set_values & HTTP_MIME_SET) serialize_str(buf, info->mime_type);
     if (info->set_values & HTTP_HOST_SET) serialize_str(buf, info->host);
+    if (info->set_values & HTTP_USER_AGENT_SET) serialize_str(buf, info->user_agent);
     if (info->set_values & HTTP_URL_SET) serialize_str(buf, info->url);
 }
 
@@ -197,6 +199,7 @@ static void http_deserialize(struct proto_info *info_, uint8_t const **buf)
     if (info->set_values & HTTP_TRANSFERT_ENCODING_SET) info->chunked_encoding = deserialize_1(buf);
     if (info->set_values & HTTP_MIME_SET) deserialize_str(buf, info->mime_type, sizeof(info->mime_type));
     if (info->set_values & HTTP_HOST_SET) deserialize_str(buf, info->host, sizeof(info->host));
+    if (info->set_values & HTTP_USER_AGENT_SET) deserialize_str(buf, info->user_agent, sizeof(info->user_agent));
     if (info->set_values & HTTP_URL_SET) deserialize_str(buf, info->url, sizeof(info->url));
 }
 
@@ -262,6 +265,14 @@ static int http_extract_host(unsigned unused_ field, struct liner *liner, void *
     return 0;
 }
 
+static int http_extract_user_agent(unsigned unused_ field, struct liner *liner, void *info_)
+{
+    struct http_proto_info *info = info_;
+    info->set_values |= HTTP_USER_AGENT_SET;
+    copy_token(info->user_agent, sizeof(info->user_agent), liner);
+    return 0;
+}
+
 static enum proto_parse_status http_parse_header(struct http_parser *http_parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     assert(http_parser->state[way].phase == HEAD);
@@ -284,6 +295,7 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
         { "content-type",      12, http_extract_content_type },
         { "transfer-encoding", 17, http_extract_transfert_encoding },
         { "host",               4, http_extract_host },
+        { "user-agent",        10, http_extract_user_agent },
     };
     static struct httper const httper = {
         .nb_commands = NB_ELEMS(commands),
