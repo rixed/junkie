@@ -25,6 +25,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/uio.h>
+#include <sys/socket.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <pwd.h>
@@ -372,6 +373,19 @@ int chdir_for_file(char const *dir, bool is_filename)
 
     return 0;
 }
+
+void set_rcvbuf(int fd, size_t sz_)
+{
+    SLOG(LOG_DEBUG, "Setting receive buffer size to %zu", sz_);
+    int sz = sz_;
+    if (0 != setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &sz, sizeof(sz))) {
+        SLOG(LOG_ERR, "Cannot set receive buffer size to %zu bytes: %s", sz_, strerror(errno));
+    }
+}
+
+/*
+ * Init
+ */
 
 static unsigned inited;
 void files_init(void)

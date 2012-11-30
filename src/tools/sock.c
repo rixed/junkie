@@ -146,7 +146,7 @@ static struct sock_ops sock_udp_ops = {
     .del = sock_udp_del,
 };
 
-static int sock_udp_client_ctor(struct sock_udp *s, char const *host, char const *service)
+static int sock_udp_client_ctor(struct sock_udp *s, char const *host, char const *service, size_t buf_size)
 {
     int res = -1;
     SLOG(LOG_DEBUG, "Construct sock to udp://%s:%s", host, service);
@@ -203,22 +203,24 @@ static int sock_udp_client_ctor(struct sock_udp *s, char const *host, char const
         break;  // go with this one
     }
 
+    if (buf_size) set_rcvbuf(s->fd, buf_size);
+
     freeaddrinfo(info);
     return res;
 }
 
-struct sock *sock_udp_client_new(char const *host, char const *service)
+struct sock *sock_udp_client_new(char const *host, char const *service, size_t buf_size)
 {
     struct sock_udp *s = objalloc(sizeof(*s), "udp sockets");
     if (! s) return NULL;
-    if (0 != sock_udp_client_ctor(s, host, service)) {
+    if (0 != sock_udp_client_ctor(s, host, service, buf_size)) {
         objfree(s);
         return NULL;
     }
     return &s->sock;
 }
 
-static int sock_udp_server_ctor(struct sock_udp *s, char const *service)
+static int sock_udp_server_ctor(struct sock_udp *s, char const *service, size_t buf_size)
 {
     int res = -1;
     SLOG(LOG_DEBUG, "Construct sock for serving %s/udp", service);
@@ -264,15 +266,17 @@ static int sock_udp_server_ctor(struct sock_udp *s, char const *service)
         }
     }
 
+    if (buf_size) set_rcvbuf(s->fd, buf_size);
+
     freeaddrinfo(info);
     return res;
 }
 
-struct sock *sock_udp_server_new(char const *service)
+struct sock *sock_udp_server_new(char const *service, size_t buf_size)
 {
     struct sock_udp *s = objalloc(sizeof(*s), "udp sockets");
     if (! s) return NULL;
-    if (0 != sock_udp_server_ctor(s, service)) {
+    if (0 != sock_udp_server_ctor(s, service, buf_size)) {
         objfree(s);
         return NULL;
     }
@@ -289,12 +293,12 @@ struct sock_tcp {
     // TODO: plus a list/array of clients
 };
 
-struct sock *sock_tcp_client_new(char const unused_ *host, char const unused_ *service)
+struct sock *sock_tcp_client_new(char const unused_ *host, char const unused_ *service, size_t unused_ buf_size)
 {
     assert(!"TODO");
 }
 
-struct sock *sock_tcp_server_new(char const unused_ *service)
+struct sock *sock_tcp_server_new(char const unused_ *service, size_t unused_ buf_size)
 {
     assert(!"TODO");
 }
@@ -853,22 +857,15 @@ static char *scm_to_service(SCM p)
 }
 
 // Caller must have started a scm-dynwind region
-static struct sock *make_sock_udp(SCM p1_, SCM p2_)
+static struct sock *make_sock_udp_client(SCM server_, SCM service_, SCM buf_size_)
 {
-    struct sock *s = NULL;
+    char *server = scm_to_locale_string(server_);
+    scm_dynwind_free(server);
 
-    if (SCM_BNDP(p2_)) {
-        // when host+service are given, we are a client. first parameter is a hostname
-        char *p1 = scm_to_locale_string(p1_);
-        scm_dynwind_free(p1);
+    char *service = scm_to_service(service_);
+    size_t buf_size = SCM_BNDP(buf_size_) ? scm_to_size_t(buf_size_) : 0;
 
-        char *service = scm_to_service(p2_);
-        s = sock_udp_client_new(p1, service);
-    } else {
-        // when only service is given, we are a server, first parameter is a service
-        char *service = scm_to_service(p1_);
-        s = sock_udp_server_new(service);
-    }
+    struct sock *s = sock_udp_client_new(server, service, buf_size);
 
     if (! s) {
         scm_throw(scm_from_latin1_symbol("cannot-create-sock"),
@@ -876,6 +873,38 @@ static struct sock *make_sock_udp(SCM p1_, SCM p2_)
     }
 
     return s;
+}
+
+// Caller must have started a scm-dynwind region
+static struct sock *make_sock_udp_server(SCM service_, SCM buf_size_)
+{
+    char *service = scm_to_service(service_);
+    size_t buf_size = SCM_BNDP(buf_size_) ? scm_to_size_t(buf_size_) : 0;
+
+    struct sock *s = sock_udp_server_new(service, buf_size);
+
+    if (! s) {
+        scm_throw(scm_from_latin1_symbol("cannot-create-sock"),
+                  SCM_EOL);
+    }
+
+    return s;
+}
+
+static struct sock *make_sock_udp(SCM type_, SCM p2_, SCM p3_, SCM p4_)
+{
+    if (! scm_is_symbol(type_)) goto inval_type;
+
+    if (scm_is_eq(type_, server_sym)) {
+        return make_sock_udp_server(p2_, p3_);
+    } else if (scm_is_eq(type_, client_sym)) {
+        return make_sock_udp_client(p2_, p3_, p4_);
+    }
+
+inval_type:
+    scm_throw(scm_from_latin1_symbol("invalid-argument"),
+              scm_list_1(type_));
+    return NULL;    // never reached
 }
 
 // Caller must have started a scm-dynwind region
@@ -972,12 +1001,15 @@ static struct sock *make_sock_buf(SCM mtu_, SCM ll_sock_)
 }
 
 static struct ext_function sg_make_sock;
-static SCM g_make_sock(SCM type, SCM p1, SCM p2, SCM p3)
+static SCM g_make_sock(SCM type, SCM p1, SCM p2, SCM p3, SCM p4)
 {
+    /* p1, p2, p3 and p4 signification depends on the type.
+     * See make-sock documentation below for usage examples. */
+    // FIXME: This function is too high level and should been implemented in guile
     scm_dynwind_begin(0);
     struct sock *s = NULL;
     if (scm_is_eq(type, udp_sym)) {
-        s = make_sock_udp(p1, p2);
+        s = make_sock_udp(p1, p2, p3, p4);
     } else if (scm_is_eq(type, unix_sym)) {
         s = make_sock_unix(p1, p2);
     } else if (scm_is_eq(type, file_sym)) {
@@ -1048,9 +1080,10 @@ void sock_init(void)
     ip_addr_ctor_from_str_any(&local_ip, "127.0.0.1");
 
     ext_function_ctor(&sg_make_sock,
-        "make-sock", 2, 2, 0, g_make_sock,
-        "(make-sock 'udp \"some.host.com\" 5431): Connect to this host\n"
-        "(make-sock 'udp 5431): receive messages on this port\n"
+        "make-sock", 2, 3, 0, g_make_sock,
+        "(make-sock 'udp 'client \"some.host.com\" 5431): Connect to this host, port 5431, with default bufsize\n"
+        "(make-sock 'udp 'server 5431): receive messages on this port\n"
+        "(make-sock 'udp 'server 5431 300000): receive messages on this port with rcv buf size of 300kb\n"
         "(make-sock 'unix 'client \"/tmp/socket.file\" [max-file-size]): to use UNIX domain sockets\n"
         "(make-sock 'file 'client \"/tmp/msg_dir\" [max-file-size]): to convey messages through files\n"
         "(make-sock 'buffered 1024 other-sock)\n"

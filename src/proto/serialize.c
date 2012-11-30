@@ -369,7 +369,7 @@ static SCM g_open_deserializer(SCM port_)
         }
     }
 
-    struct sock *sock = sock_udp_server_new(service);
+    struct sock *sock = sock_udp_server_new(service, 0);
     struct deserializer *deser = deserializer_new(sock);
     if (deser) {
         ret = scm_from_latin1_string(deser->sock->name);

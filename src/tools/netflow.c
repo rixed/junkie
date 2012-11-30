@@ -155,7 +155,7 @@ int netflow_listen(char const *service, int (*cb)(struct ip_addr const *, struct
 {
     int err = -1;
 
-    struct sock *sock = sock_udp_server_new(service);
+    struct sock *sock = sock_udp_server_new(service, 0);
     if (! sock) return -1;
 
     while (sock) {

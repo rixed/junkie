@@ -55,11 +55,11 @@ struct sock {
 
 // Constructors
 
-struct sock *sock_tcp_client_new(char const *host, char const *service);
-struct sock *sock_tcp_server_new(char const *service);
+struct sock *sock_tcp_client_new(char const *host, char const *service, size_t buf_size);
+struct sock *sock_tcp_server_new(char const *service, size_t buf_size);
 
-struct sock *sock_udp_client_new(char const *host, char const *service);
-struct sock *sock_udp_server_new(char const *service);
+struct sock *sock_udp_client_new(char const *host, char const *service, size_t buf_size);
+struct sock *sock_udp_server_new(char const *service, size_t buf_size);
 
 struct sock *sock_unix_client_new(char const *file);
 struct sock *sock_unix_server_new(char const *file);

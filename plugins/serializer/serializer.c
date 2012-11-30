@@ -56,7 +56,7 @@ static void ser_init(void)
 {
     if (inited) return;
     ser_source = getpid();
-    sock = sock_udp_client_new(opt_dest_name, opt_dest_port);
+    sock = sock_udp_client_new(opt_dest_name, opt_dest_port, 0);
     if (! sock) {
         SLOG(LOG_ERR, "Cannot connect to %s:%s", opt_dest_name, opt_dest_port);
         return;

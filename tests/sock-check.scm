@@ -28,7 +28,7 @@
 
 (define (test-udp-sock-to host port)
   (false-if-exception
-    (let ((sock (make-sock 'udp host port)))
+    (let ((sock (make-sock 'udp 'client host port)))
       (sock-send sock "hello"))))
 
 (slog log-debug "test UDP sock")
@@ -40,7 +40,7 @@
           (let ((port (random-port)))
             (catch 'cannot-create-sock
                    (lambda ()
-                     (values port (make-sock 'udp port)))
+                     (values port (make-sock 'udp 'server port)))
                    (lambda (k . args) (loop (1+ nb-try))))))))
   (lambda (port srv-sock)
     (slog log-debug "UDP server listening on port ~s, socket ~s" port srv-sock)
@@ -101,8 +101,8 @@
         (test-msg    "glop glop pas glop")
         (nb-rcvd     0)
         (nb-sent     0))
-    (set! ll-srv-sock (make-sock 'udp port))
-    (set! ll-clt-sock (make-sock 'udp "localhost" port))
+    (set! ll-srv-sock (make-sock 'udp 'server port))
+    (set! ll-clt-sock (make-sock 'udp 'client "localhost" port))
     (set! srv-sock (make-sock 'buffered mtu ll-srv-sock))
     (slog log-debug "server: ~s" srv-sock)
     ; now try to connect to it
