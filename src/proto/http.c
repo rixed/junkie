@@ -279,23 +279,23 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
 
     // Sanity checks + Parse
     static struct httper_command const commands[] = {
-        [HTTP_METHOD_GET]      = { "GET",      3, http_set_method },
-        [HTTP_METHOD_HEAD]     = { "HEAD",     4, http_set_method },
-        [HTTP_METHOD_POST]     = { "POST",     4, http_set_method },
-        [HTTP_METHOD_CONNECT]  = { "CONNECT",  7, http_set_method },
-        [HTTP_METHOD_PUT]      = { "PUT",      3, http_set_method },
-        [HTTP_METHOD_OPTIONS]  = { "OPTIONS",  7, http_set_method },
-        [HTTP_METHOD_TRACE]    = { "TRACE",    5, http_set_method },
-        [HTTP_METHOD_DELETE]   = { "DELETE",   6, http_set_method },
-        [HTTP_METHOD_DELETE+1] = { "HTTP/1.1", 8, http_extract_code },
-        [HTTP_METHOD_DELETE+2] = { "HTTP/1.0", 8, http_extract_code },
+        [HTTP_METHOD_GET]      = { STRING_AND_LEN("GET"),      http_set_method },
+        [HTTP_METHOD_HEAD]     = { STRING_AND_LEN("HEAD"),     http_set_method },
+        [HTTP_METHOD_POST]     = { STRING_AND_LEN("POST"),     http_set_method },
+        [HTTP_METHOD_CONNECT]  = { STRING_AND_LEN("CONNECT"),  http_set_method },
+        [HTTP_METHOD_PUT]      = { STRING_AND_LEN("PUT"),      http_set_method },
+        [HTTP_METHOD_OPTIONS]  = { STRING_AND_LEN("OPTIONS"),  http_set_method },
+        [HTTP_METHOD_TRACE]    = { STRING_AND_LEN("TRACE"),    http_set_method },
+        [HTTP_METHOD_DELETE]   = { STRING_AND_LEN("DELETE"),   http_set_method },
+        [HTTP_METHOD_DELETE+1] = { STRING_AND_LEN("HTTP/1.1"), http_extract_code },
+        [HTTP_METHOD_DELETE+2] = { STRING_AND_LEN("HTTP/1.0"), http_extract_code },
     };
     static struct httper_field const fields[] = {
-        { "content-length",    14, http_extract_content_length },
-        { "content-type",      12, http_extract_content_type },
-        { "transfer-encoding", 17, http_extract_transfert_encoding },
-        { "host",               4, http_extract_host },
-        { "user-agent",        10, http_extract_user_agent },
+        { STRING_AND_LEN("content-length"),    http_extract_content_length },
+        { STRING_AND_LEN("content-type"),      http_extract_content_type },
+        { STRING_AND_LEN("transfer-encoding"), http_extract_transfert_encoding },
+        { STRING_AND_LEN("host"),              http_extract_host },
+        { STRING_AND_LEN("user-agent"),        http_extract_user_agent },
     };
     static struct httper const httper = {
         .nb_commands = NB_ELEMS(commands),
