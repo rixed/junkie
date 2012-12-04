@@ -33,6 +33,7 @@
 #include "junkie/tools/ext.h"
 #include "junkie/tools/timeval.h"
 #include "junkie/tools/objalloc.h"
+#include "junkie/tools/bench.h"
 
 LOG_CATEGORY_DEF(mutex)
 #undef LOG_CAT
@@ -43,12 +44,30 @@ static char const *mutex_name(struct mutex const *mutex)
     return tempstr_printf("%s@%p", mutex->name, mutex);
 }
 
+static struct bench_event bench_aquiring_lock = BENCH("aquiring locks");
+static struct bench_atomic_event bench_lock_free = BENCH_ATOMIC("locking for free");
+static struct bench_atomic_event bench_lock_wait = BENCH_ATOMIC("locking needs wait");
+
 void mutex_lock(struct mutex *mutex)
 {
     assert(mutex->name);
     SLOG(LOG_DEBUG, "Locking %s", mutex_name(mutex));
-    int const err = pthread_mutex_lock(&mutex->mutex);
+    uint64_t start = bench_event_start();
+    int err = pthread_mutex_trylock(&mutex->mutex);
+    switch (err) {
+        case 0:
+            bench_event_fire(&bench_lock_free);
+            break;
+        case EBUSY:
+            bench_event_fire(&bench_lock_wait);
+            err = pthread_mutex_lock(&mutex->mutex);
+            break;
+        default:
+            // other errors (for lock and trylock) handled below
+            break;
+    }
     if (! err) {
+        bench_event_stop(&bench_aquiring_lock, start);
         SLOG(LOG_DEBUG, "Locked %s", mutex_name(mutex));
     } else {
         SLOG(LOG_ERR, "Cannot lock %s: %s", mutex_name(mutex), strerror(err));
@@ -356,6 +375,7 @@ static unsigned inited;
 void mutex_init(void)
 {
     if (inited++) return;
+    bench_init();
     ext_init();
     log_init();
 
@@ -371,9 +391,13 @@ void mutex_fini(void)
 {
     if (--inited) return;
 
+    bench_event_dtor(&bench_aquiring_lock);
+    bench_atomic_event_dtor(&bench_lock_free);
+    bench_atomic_event_dtor(&bench_lock_wait);
     mutex_dtor(&supermutex_meta_lock);
     log_category_mutex_fini();
 
     log_init();
     ext_fini();
+    bench_fini();
 }

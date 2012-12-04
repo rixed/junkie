@@ -93,6 +93,8 @@ Minor
 
 - writer www plugin must mergecap fractionned pcap files for download;
 
+- automatic resolution of inter-modules dependancies during init;
+
 Parsers for:
 ------------
 

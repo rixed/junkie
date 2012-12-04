@@ -3,6 +3,7 @@
 #ifndef METRIC_H_121203
 #define METRIC_H_121203
 #include <inttypes.h>
+#include <stdbool.h>
 #include <junkie/cpp.h>
 
 /** @file
@@ -27,10 +28,14 @@ static inline uint64_t rdtsc(void)
 struct bench_atomic_event {
     uint64_t count;
     char *name;
+    bool name_malloced;
 };
 
 void bench_atomic_event_ctor(struct bench_atomic_event *e, char const *name);
 void bench_atomic_event_dtor(struct bench_atomic_event *e);
+
+// Or use this for static initialization:
+#define BENCH_ATOMIC(n) { .count = 0, .name = (n), .name_malloced = false }
 
 static inline void bench_event_fire(struct bench_atomic_event *e)
 {
@@ -48,6 +53,9 @@ struct bench_event {
 };
 
 void bench_event_ctor(struct bench_event *e, char const *name);
+
+// Ot use this for static initialization:
+#define BENCH(n) { .count = BENCH_ATOMIC(n), .tot_duration = 0 }
 
 void bench_event_dtor(struct bench_event *);
 
