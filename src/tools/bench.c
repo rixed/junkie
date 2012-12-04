@@ -19,9 +19,9 @@
  */
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 #include "junkie/config.h"
 #include "junkie/tools/tempstr.h"
+#include "junkie/tools/log.h"
 #include "junkie/tools/bench.h"
 
 extern inline uint64_t rdtsc(void);
@@ -37,7 +37,8 @@ void bench_atomic_event_ctor(struct bench_atomic_event *e, char const *name)
 void bench_atomic_event_dtor(struct bench_atomic_event *e)
 {
     // Log result
-    fprintf(stderr, "Event '%s' triggered %"PRIu64" times\n", e->name, e->count);
+    // Note: by the time we destruct a bench log module will already be initialized
+    SLOG(LOG_INFO, "Event '%s' triggered %"PRIu64" times", e->name, e->count);
     if (e->name_malloced) {
         free(e->name);
         e->name = NULL;
@@ -55,7 +56,7 @@ extern inline void bench_event_ctor(struct bench_event *e, char const *name)
 void bench_event_dtor(struct bench_event *e)
 {
     // Log result
-    fprintf(stderr, "Event '%s' avg duration: %"PRIu64" cycles\n", e->count.name, e->count.count > 0 ? e->tot_duration / e->count.count : 0);
+    SLOG(LOG_INFO, "Event '%s' avg duration: %"PRIu64" cycles", e->count.name, e->count.count > 0 ? e->tot_duration / e->count.count : 0);
     // Destroy
     bench_atomic_event_dtor(&e->count);
 }
