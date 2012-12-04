@@ -15,10 +15,15 @@
 static inline uint64_t rdtsc(void)
 {
 #   if defined(__GNUC__) && defined(__x86_64__)
+    uint32_t hi, lo;
+    __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
+    return (((uint64_t)hi)<<32U) | lo;
+#   elif defined(__GNUC__) && defined(__i386__)
     uint64_t x;
     __asm__ __volatile__("rdtsc" : "=A" (x));
     return x;
 #   else
+#   warning No rdtsc no bench
     return 0U;
 #   endif
 }
