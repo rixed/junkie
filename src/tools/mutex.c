@@ -32,7 +32,6 @@
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/ext.h"
 #include "junkie/tools/timeval.h"
-#include "junkie/tools/objalloc.h"
 #include "junkie/tools/bench.h"
 
 LOG_CATEGORY_DEF(mutex)
@@ -169,7 +168,7 @@ static void supermutex_user_ctor(struct supermutex_user *usr)
 
 static struct supermutex_user *supermutex_user_new(void)
 {
-    struct supermutex_user *usr = objalloc(sizeof(*usr), "supermutex_user");
+    struct supermutex_user *usr = malloc(sizeof(*usr)); // we do not use objalloc to avoid circular dependancy here
     if (! usr) {
         SLOG(LOG_CRIT, "Cannot allocate for a supermutex_user! I'm sorry there's no alternative!");
         abort();
@@ -374,7 +373,14 @@ static SCM g_set_thread_name(SCM name_)
 static unsigned inited;
 void mutex_init(void)
 {
-    if (inited++) return;
+    if (
+#       ifdef __GNUC__
+        __sync_fetch_and_add(&inited, 1)
+#       else
+        inited++
+#       endif
+    ) return;
+
     bench_init();
     ext_init();
     log_init();
@@ -389,7 +395,13 @@ void mutex_init(void)
 
 void mutex_fini(void)
 {
-    if (--inited) return;
+    if (
+#       ifdef __GNUC__
+        __sync_sub_and_fetch(&inited, 1)
+#       else
+        --inited
+#       endif
+    ) return;
 
     bench_event_dtor(&bench_aquiring_lock);
     bench_atomic_event_dtor(&bench_lock_free);

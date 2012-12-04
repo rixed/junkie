@@ -77,3 +77,4 @@ config/instvars.scm
 config/.index
 .tarball-version
 instvars.scm
+module-deps.dot

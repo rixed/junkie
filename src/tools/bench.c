@@ -19,21 +19,15 @@
  */
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include "junkie/config.h"
-#include "junkie/tools/log.h"
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/bench.h"
-
-#undef LOG_CAT
-#define LOG_CAT bench_log_category
-LOG_CATEGORY_DEF(bench);
-
 
 extern inline uint64_t rdtsc(void);
 
 void bench_atomic_event_ctor(struct bench_atomic_event *e, char const *name)
 {
-    SLOG(LOG_DEBUG, "Construct bench atomic event %s@%p", name, e);
     e->count = 0;
     e->name = strdup(name);
     e->name_malloced = true;
@@ -42,9 +36,8 @@ void bench_atomic_event_ctor(struct bench_atomic_event *e, char const *name)
 
 void bench_atomic_event_dtor(struct bench_atomic_event *e)
 {
-    SLOG(LOG_DEBUG, "Destruct bench atomic event %s@%p", e->name, e);
     // Log result
-    SLOG(LOG_INFO, "Event %s triggered %"PRIu64" times", e->name, e->count);
+    fprintf(stderr, "Event '%s' triggered %"PRIu64" times\n", e->name, e->count);
     if (e->name_malloced) {
         free(e->name);
         e->name = NULL;
@@ -55,16 +48,14 @@ extern inline void bench_event_fire(struct bench_atomic_event *);
 
 extern inline void bench_event_ctor(struct bench_event *e, char const *name)
 {
-    SLOG(LOG_DEBUG, "Construct bench event %s@%p", name, e);
     bench_atomic_event_ctor(&e->count, name);
     e->tot_duration = 0;
 }
 
 void bench_event_dtor(struct bench_event *e)
 {
-    SLOG(LOG_DEBUG, "Destruct bench event %s@%p", e->count.name, e);
     // Log result
-    SLOG(LOG_INFO, "Event %s avg duration: %"PRIu64" cycles", e->count.name, e->count.count > 0 ? e->tot_duration / e->count.count : 0);
+    fprintf(stderr, "Event '%s' avg duration: %"PRIu64" cycles\n", e->count.name, e->count.count > 0 ? e->tot_duration / e->count.count : 0);
     // Destroy
     bench_atomic_event_dtor(&e->count);
 }
@@ -81,16 +72,10 @@ static unsigned inited;
 void bench_init(void)
 {
     if (inited++) return;
-
-    log_init();
-    log_category_bench_init();
 }
 
 void bench_fini(void)
 {
     if (--inited) return;
-
-    log_category_bench_fini();
-    log_fini();
 }
 

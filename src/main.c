@@ -122,10 +122,10 @@ static void all_fini(void)
 
     redim_array_fini();
     hash_fini();
-    mallocer_fini();
     ref_fini();
-    ext_fini();
+    mallocer_fini();
     cli_fini();
+    ext_fini();
     files_fini();
     log_fini();
 }

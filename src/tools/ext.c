@@ -28,7 +28,6 @@
 #include "junkie/config.h"
 #include "junkie/cpp.h"
 #include "junkie/tools/miscmacs.h"
-#include "junkie/tools/log.h"
 #include "junkie/tools/ext.h"
 
 char version_string[1024];
@@ -260,8 +259,6 @@ void ext_init(void)
 
     if (SUCCESS != scm_with_guile(init_scm_extensions, NULL)) exit(EXIT_FAILURE);
 
-    log_init();
-
     ext_function_ctor(&sg_parameter_names,
         "parameter-names", 0, 0, 0, g_parameter_names,
         "(parameter-names): returns the list of junkie configuration parameters.\n");
@@ -288,6 +285,4 @@ void ext_init(void)
 void ext_fini(void)
 {
     if (--inited) return;
-
-    log_fini();
 }

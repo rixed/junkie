@@ -346,6 +346,7 @@ void cli_init(void)
 {
     if (inited++) return;
     mutex_init();
+    objalloc_init();
 
     mutex_ctor(&cli_mutex, "CLI");
     cli_register(NULL, help_opts, NB_ELEMS(help_opts));
@@ -358,6 +359,7 @@ void cli_fini(void)
     cli_unregister(help_opts);
     mutex_dtor(&cli_mutex);
 
+    objalloc_fini();
     mutex_fini();
 }
 
