@@ -4,6 +4,7 @@
 #define MUTEX_H_100914
 #include <pthread.h>
 #include <errno.h>
+#include <junkie/config.h>
 #include <junkie/cpp.h>
 #include <junkie/tools/queue.h>
 #include <junkie/tools/bench.h>
@@ -28,6 +29,14 @@ void mutex_unlock2(struct mutex *restrict, struct mutex *restrict);
 void mutex_ctor(struct mutex *, char const *name);
 void mutex_ctor_with_type(struct mutex *, char const *, int);
 void mutex_dtor(struct mutex *);
+
+struct mutex_pool {
+    struct mutex locks[CPU_MAX*2];
+};
+
+void mutex_pool_ctor(struct mutex_pool *, char const *name);
+void mutex_pool_dtor(struct mutex_pool *);
+struct mutex *mutex_pool_anyone(struct mutex_pool *);
 
 /// Assert you own a lock (works only for mutex created without the RECURSIVE attribute !)
 #define PTHREAD_ASSERT_LOCK(mutex) assert(EDEADLK == pthread_mutex_lock(mutex))

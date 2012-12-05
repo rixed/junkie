@@ -366,6 +366,33 @@ static SCM g_set_thread_name(SCM name_)
 }
 
 /*
+ * Mutex pools
+ */
+
+void mutex_pool_ctor(struct mutex_pool *p, char const *name)
+{
+    for (unsigned i = 0; i < NB_ELEMS(p->locks); i++) {
+        mutex_ctor(p->locks+i, name);
+    }
+}
+
+void mutex_pool_dtor(struct mutex_pool *p)
+{
+    for (unsigned i = 0; i < NB_ELEMS(p->locks); i++) {
+        mutex_dtor(p->locks+i);
+    }
+}
+
+struct mutex *mutex_pool_anyone(struct mutex_pool *p)
+{
+    static unsigned idx = 0;
+    idx = (idx + 1) % NB_ELEMS(p->locks);
+    return p->locks + idx;
+}
+
+
+
+/*
  * Init
  */
 

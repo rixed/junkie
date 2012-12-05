@@ -28,7 +28,7 @@
  * Pool of mutexes
  */
 
-static struct mutex locks[CPU_MAX*2];
+static struct mutex_pool streambuf_locks;
 
 /*
  * Construction
@@ -40,9 +40,7 @@ int streambuf_ctor(struct streambuf *sbuf, parse_fun *parse, size_t max_size)
 
     sbuf->parse = parse;
     sbuf->max_size = max_size;
-    static unsigned lock_idx = 0;
-    lock_idx = (lock_idx + 1) % NB_ELEMS(locks);
-    sbuf->mutex = locks + lock_idx;
+    sbuf->mutex = mutex_pool_anyone(&streambuf_locks);
 
     for (unsigned d = 0; d < 2; d++) {
         sbuf->dir[d].buffer = NULL;
@@ -220,18 +218,12 @@ quit:
 void streambuf_init(void)
 {
     mutex_init();
-
-    for (unsigned i = 0; i < NB_ELEMS(locks); i++) {
-        mutex_ctor(locks+i, "streambuf");
-    }
+    mutex_pool_ctor(&streambuf_locks, "streambuf");
 }
 
 void streambuf_fini(void)
 {
-    for (unsigned i = 0; i < NB_ELEMS(locks); i++) {
-        mutex_dtor(locks+i);
-    }
-
+    mutex_pool_dtor(&streambuf_locks);
     mutex_fini();
 }
 

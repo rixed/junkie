@@ -254,6 +254,8 @@ static SCM g_tcp_del_port(SCM name, SCM port_min, SCM port_max)
 
 static struct pkt_wl_config tcp_wl_config;
 
+static struct mutex_pool tcp_locks;
+
 // We overload the mux_subparser in order to store cnx state.
 struct tcp_subparser {
     bool fin[2], ack[2], syn[2];
@@ -261,7 +263,7 @@ struct tcp_subparser {
     uint32_t max_acknum[2];
     uint32_t isn[2];
     struct pkt_wait_list wl[2]; // for packets reordering. offsets will be relative to ISN
-    struct mutex mutex;         // protects this structure
+    struct mutex *mutex;        // protects this structure
     struct mux_subparser mux_subparser;
 };
 
@@ -299,13 +301,12 @@ static int tcp_subparser_ctor(struct tcp_subparser *tcp_subparser, struct mux_pa
         return -1;
     }
 
-    mutex_ctor(&tcp_subparser->mutex, "TCP subparser");
+    tcp_subparser->mutex = mutex_pool_anyone(&tcp_locks);
 
     // Now that everything is ready, make this subparser public
     if (0 != mux_subparser_ctor(&tcp_subparser->mux_subparser, mux_parser, child, requestor, key, now)) {
         pkt_wait_list_dtor(tcp_subparser->wl+0, now);
         pkt_wait_list_dtor(tcp_subparser->wl+1, now);
-        mutex_dtor(&tcp_subparser->mutex);
         return -1;
     }
 
@@ -344,7 +345,6 @@ static void tcp_subparser_dtor(struct tcp_subparser *tcp_subparser)
     pkt_wait_list_dtor(tcp_subparser->wl+1, &now);
 
     mux_subparser_dtor(&tcp_subparser->mux_subparser);
-    mutex_dtor(&tcp_subparser->mutex);
 }
 
 static void tcp_subparser_del(struct mux_subparser *mux_subparser)
@@ -441,7 +441,7 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
 
     // Keep track of TCP flags & ISN
     struct tcp_subparser *tcp_sub = DOWNCAST(subparser, mux_subparser, tcp_subparser);
-    mutex_lock(&tcp_sub->mutex);
+    mutex_lock(tcp_sub->mutex);
     if (
         info.ack &&
         (!tcp_sub->ack[way] || seqnum_gt(info.ack_num, tcp_sub->max_acknum[way]))
@@ -485,7 +485,7 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
     }
 
     bool const term = tcp_subparser_term(tcp_sub);
-    mutex_unlock(&tcp_sub->mutex);
+    mutex_unlock(tcp_sub->mutex);
 
     if (term || err == PROTO_PARSE_ERR) {
         if (term) {
@@ -514,6 +514,7 @@ static struct ip_subproto ip_subproto, ip6_subproto;
 
 void tcp_init(void)
 {
+    mutex_pool_ctor(&tcp_locks, "TCP subparsers");
     log_category_proto_tcp_init();
     pkt_wl_config_ctor(&tcp_wl_config, "TCP-reordering", 100000, 100, 100000, 10 /* REORDERING TIMEOUT (second) */);
 
@@ -559,4 +560,5 @@ void tcp_fini(void)
     mux_proto_dtor(&mux_proto_tcp);
     pkt_wl_config_dtor(&tcp_wl_config);
     log_category_proto_tcp_fini();
+    mutex_pool_dtor(&tcp_locks);
 }
