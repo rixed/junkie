@@ -19,7 +19,6 @@
  */
 #include <stdlib.h>
 #include <string.h>
-#include "junkie/config.h"
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/log.h"
 #include "junkie/tools/bench.h"
@@ -28,14 +27,20 @@ extern inline uint64_t rdtsc(void);
 
 void bench_atomic_event_ctor(struct bench_atomic_event *e, char const *name)
 {
+#   ifdef WITH_BENCH
     e->count = 0;
     e->name = strdup(name);
     e->name_malloced = true;
+#   else
+    (void)e;
+    (void)name;
+#   endif
 }
 
 
 void bench_atomic_event_dtor(struct bench_atomic_event *e)
 {
+#   ifdef WITH_BENCH
     // Log result
     // Note: by the time we destruct a bench log module will already be initialized
     SLOG(LOG_INFO, "Event '%s' triggered %"PRIu64" times", e->name, e->count);
@@ -43,20 +48,29 @@ void bench_atomic_event_dtor(struct bench_atomic_event *e)
         free(e->name);
         e->name = NULL;
     }
+#   else
+    (void)e;
+#   endif
 }
 
 extern inline void bench_event_fire(struct bench_atomic_event *);
 
 extern inline void bench_event_ctor(struct bench_event *e, char const *name)
 {
+#   ifdef WITH_BENCH
     bench_atomic_event_ctor(&e->count, name);
     e->tot_duration = 0;
     e->min_duration = UINT64_MAX;
     e->max_duration = 0;
+#   else
+    (void)e;
+    (void)name;
+#   endif
 }
 
 void bench_event_dtor(struct bench_event *e)
 {
+#   ifdef WITH_BENCH
     // Log result
     if (e->count.count > 0) {
         SLOG(LOG_INFO, "Event '%s' avg duration: %"PRIu64" cycles, in [%"PRIu64";%"PRIu64"]",
@@ -65,6 +79,9 @@ void bench_event_dtor(struct bench_event *e)
     }
     // Destroy
     bench_atomic_event_dtor(&e->count);
+#   else
+    (void)e;
+#   endif
 }
 
 extern inline uint64_t bench_event_start(void);

@@ -65,6 +65,7 @@ AS_IF([test "x$GUILECACHEDIR" = x], [if test -n "$DEFAULT_GUILECACHEDIR"; then G
 AC_ARG_VAR([CONFDIR], [Where to store configuration files [SYSCONFDIR/junkie]])
 AS_IF([test "x$CONFDIR" = x], [CONFDIR="$sysconfdir/junkie"])
 
+AC_ARG_ENABLE(bench, AC_HELP_STRING([--enable-bench], [Include benchmarking code]), [AC_DEFINE([WITH_BENCH], [], [Include benchmarking code])], [])
 
 AC_CONFIG_FILES([
 	Makefile
