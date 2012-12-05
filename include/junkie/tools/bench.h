@@ -3,6 +3,7 @@
 #ifndef METRIC_H_121203
 #define METRIC_H_121203
 #include <inttypes.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <junkie/cpp.h>
 
@@ -54,13 +55,13 @@ static inline void bench_event_fire(struct bench_atomic_event *e)
 /** To record events that have a duration. */
 struct bench_event {
     struct bench_atomic_event count;
-    uint64_t tot_duration;
+    uint64_t tot_duration, min_duration, max_duration;
 };
 
 void bench_event_ctor(struct bench_event *e, char const *name);
 
-// Ot use this for static initialization:
-#define BENCH(n) { .count = BENCH_ATOMIC(n), .tot_duration = 0 }
+// Or use this for static initialization:
+#define BENCH(n) { .count = BENCH_ATOMIC(n), .tot_duration = 0, .min_duration = UINT64_MAX, .max_duration = 0, }
 
 void bench_event_dtor(struct bench_event *);
 
@@ -75,6 +76,9 @@ static inline void bench_event_stop(struct bench_event *e, uint64_t start)
 #   else
     e->tot_duration += duration;
 #   endif
+    // min and max are approximate only
+    if (duration < e->min_duration) e->min_duration = duration;
+    if (duration > e->max_duration) e->max_duration = duration;
 }
 
 /** Init */

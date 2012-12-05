@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <junkie/cpp.h>
 #include <junkie/tools/queue.h>
+#include <junkie/tools/bench.h>
 
 /** @file
  * @brief Wrappers around pthread_mutex_t
@@ -14,6 +15,8 @@
 struct mutex {
     pthread_mutex_t mutex;
     char const *name;
+    struct bench_atomic_event lock_for_free;
+    struct bench_event aquiring_lock;
 };
 
 void mutex_lock(struct mutex *);

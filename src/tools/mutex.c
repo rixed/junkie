@@ -43,10 +43,6 @@ static char const *mutex_name(struct mutex const *mutex)
     return tempstr_printf("%s@%p", mutex->name, mutex);
 }
 
-static struct bench_event bench_aquiring_lock = BENCH("aquiring locks");
-static struct bench_atomic_event bench_lock_free = BENCH_ATOMIC("locking for free");
-static struct bench_atomic_event bench_lock_wait = BENCH_ATOMIC("locking needs wait");
-
 void mutex_lock(struct mutex *mutex)
 {
     assert(mutex->name);
@@ -55,10 +51,9 @@ void mutex_lock(struct mutex *mutex)
     int err = pthread_mutex_trylock(&mutex->mutex);
     switch (err) {
         case 0:
-            bench_event_fire(&bench_lock_free);
+            bench_event_fire(&mutex->lock_for_free);
             break;
         case EBUSY:
-            bench_event_fire(&bench_lock_wait);
             err = pthread_mutex_lock(&mutex->mutex);
             break;
         default:
@@ -66,7 +61,7 @@ void mutex_lock(struct mutex *mutex)
             break;
     }
     if (! err) {
-        bench_event_stop(&bench_aquiring_lock, start);
+        bench_event_stop(&mutex->aquiring_lock, start);
         SLOG(LOG_DEBUG, "Locked %s", mutex_name(mutex));
     } else {
         SLOG(LOG_ERR, "Cannot lock %s: %s", mutex_name(mutex), strerror(err));
@@ -115,6 +110,8 @@ void mutex_ctor_with_type(struct mutex *mutex, char const *name, int type)
     int err;
 
     mutex->name = name;
+    bench_atomic_event_ctor(&mutex->lock_for_free, tempstr_printf("%s locked for free", name));
+    bench_event_ctor(&mutex->aquiring_lock, tempstr_printf("aquiring %s", name));
 
     pthread_mutexattr_t attr;
     err = pthread_mutexattr_init(&attr);
@@ -135,6 +132,8 @@ void mutex_ctor(struct mutex *mutex, char const *name)
 void mutex_dtor(struct mutex *mutex)
 {
     assert(mutex->name);
+    bench_atomic_event_dtor(&mutex->lock_for_free);
+    bench_event_dtor(&mutex->aquiring_lock);
     SLOG(LOG_DEBUG, "Destruct mutex %s", mutex_name(mutex));
     (void)pthread_mutex_destroy(&mutex->mutex);
     mutex->name = NULL;
@@ -403,9 +402,6 @@ void mutex_fini(void)
 #       endif
     ) return;
 
-    bench_event_dtor(&bench_aquiring_lock);
-    bench_atomic_event_dtor(&bench_lock_free);
-    bench_atomic_event_dtor(&bench_lock_wait);
     mutex_dtor(&supermutex_meta_lock);
     log_category_mutex_fini();
 

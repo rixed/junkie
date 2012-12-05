@@ -51,12 +51,18 @@ extern inline void bench_event_ctor(struct bench_event *e, char const *name)
 {
     bench_atomic_event_ctor(&e->count, name);
     e->tot_duration = 0;
+    e->min_duration = UINT64_MAX;
+    e->max_duration = 0;
 }
 
 void bench_event_dtor(struct bench_event *e)
 {
     // Log result
-    SLOG(LOG_INFO, "Event '%s' avg duration: %"PRIu64" cycles", e->count.name, e->count.count > 0 ? e->tot_duration / e->count.count : 0);
+    if (e->count.count > 0) {
+        SLOG(LOG_INFO, "Event '%s' avg duration: %"PRIu64" cycles, in [%"PRIu64";%"PRIu64"]",
+            e->count.name, e->tot_duration / e->count.count,
+            e->min_duration, e->max_duration);
+    }
     // Destroy
     bench_atomic_event_dtor(&e->count);
 }
