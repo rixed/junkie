@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include <junkie/proto/proto.h>
+#include <junkie/tools/mutex.h>
 
 /** @file
  * @brief Stream payload buffering
@@ -33,6 +34,7 @@
 struct streambuf {
     parse_fun *parse;       ///< The user parse function
     size_t max_size;        ///< The max buffered size
+    struct mutex *mutex;    ///< Protect the buffers
     /// We want actually one buffer for each direction
     struct streambuf_unidir {
         uint8_t const *buffer;      ///< The buffer itself.
@@ -53,5 +55,8 @@ void streambuf_set_restart(struct streambuf *, unsigned way, uint8_t const *, bo
 
 /// Add the new payload to the buffered payload, then call the parse callback
 enum proto_parse_status streambuf_add(struct streambuf *, struct parser *, struct proto_info *, unsigned, uint8_t const *, size_t, size_t, struct timeval const *, size_t tot_cap_len, uint8_t const *tot_packet);
+
+void streambuf_init(void);
+void streambuf_fini(void);
 
 #endif

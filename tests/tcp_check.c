@@ -112,6 +112,7 @@ int main(void)
     ref_init();
     hash_init();
     ext_init();
+    streambuf_init();
     proto_init();
     cap_init();
     eth_init();
@@ -134,6 +135,7 @@ int main(void)
     eth_fini();
     cap_fini();
     proto_fini();
+    streambuf_fini();
     hash_fini();
     ext_fini();
     ref_fini();

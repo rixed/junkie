@@ -113,6 +113,7 @@ int main(void)
     log_init();
     ext_init();
     objalloc_init();
+    streambuf_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("streambuf_check.log");
 
@@ -120,6 +121,7 @@ int main(void)
     check_vicious();
     check_drop();
 
+    streambuf_fini();
     objalloc_fini();
     ext_fini();
     log_fini();

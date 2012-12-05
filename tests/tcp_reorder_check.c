@@ -13,6 +13,7 @@
 #include <junkie/proto/ip.h>
 #include <junkie/proto/tcp.h>
 #include <junkie/proto/http.h>
+#include <junkie/proto/streambuf.h>
 #include <junkie/proto/cnxtrack.h>
 #include "lib.h"
 
@@ -318,6 +319,7 @@ int main(void)
     cnxtrack_init();
     pkt_wait_list_init();
     ref_init();
+    streambuf_init();
     proto_init();
     cap_init();
     eth_init();
@@ -340,6 +342,7 @@ int main(void)
     eth_fini();
     cap_fini();
     proto_fini();
+    streambuf_fini();
     ref_fini();
     pkt_wait_list_fini();
     cnxtrack_fini();

@@ -375,6 +375,7 @@ int main(void)
     log_init();
     ext_init();
     objalloc_init();
+    streambuf_init();
     proto_init();
     pkt_wait_list_init();
     ref_init();
@@ -402,6 +403,7 @@ int main(void)
     ref_fini();
     pkt_wait_list_fini();
     proto_fini();
+    streambuf_fini();
     objalloc_fini();
     ext_fini();
     log_fini();
