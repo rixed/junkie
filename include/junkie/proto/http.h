@@ -36,7 +36,7 @@ struct http_proto_info {
     bool chunked_encoding;          ///< Set if the transfert encoding is chunked (only relevant if set_values&HTTP_TRANSFERT_ENCODING_SET)
     char mime_type[256];            ///< The Mime-type, if present
     char host[256];                 ///< The Host, if present
-    char user_agent[128];           ///< The User-Agent field, if present
+    char user_agent[256];           ///< The User-Agent field, if present
 #   define HTTP_URL_SIZE 2048
     char url[HTTP_URL_SIZE];        ///< The URL, for methods that have one
 };

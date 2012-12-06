@@ -260,6 +260,7 @@ int main(int nb_args, char **args)
 
     loop(&set);
 
+    // never reached
     return EXIT_SUCCESS;
 }
 
