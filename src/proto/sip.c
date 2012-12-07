@@ -402,23 +402,23 @@ static void conntrack_via(struct sip_proto_info const *info, struct timeval cons
 static enum proto_parse_status sip_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     static struct httper_command const commands[] = {
-        [SIP_CMD_REGISTER] = { "REGISTER", 8, sip_set_command },
-        [SIP_CMD_INVITE] =   { "INVITE",   6, sip_set_command },
-        [SIP_CMD_ACK] =      { "ACK",      3, sip_set_command },
-        [SIP_CMD_CANCEL] =   { "CANCEL",   6, sip_set_command },
-        [SIP_CMD_OPTIONS] =  { "OPTIONS",  7, sip_set_command },
-        [SIP_CMD_BYE] =      { "BYE",      3, sip_set_command },
-        [SIP_CMD_BYE+1] =    { "SIP/2.0",  7, sip_set_response },
+        [SIP_CMD_REGISTER] = { STRING_AND_LEN("REGISTER"), sip_set_command },
+        [SIP_CMD_INVITE] =   { STRING_AND_LEN("INVITE"),   sip_set_command },
+        [SIP_CMD_ACK] =      { STRING_AND_LEN("ACK"),      sip_set_command },
+        [SIP_CMD_CANCEL] =   { STRING_AND_LEN("CANCEL"),   sip_set_command },
+        [SIP_CMD_OPTIONS] =  { STRING_AND_LEN("OPTIONS"),  sip_set_command },
+        [SIP_CMD_BYE] =      { STRING_AND_LEN("BYE"),      sip_set_command },
+        [SIP_CMD_BYE+1] =    { STRING_AND_LEN("SIP/2.0"),  sip_set_response },
     };
 
     static struct httper_field const fields[] = {
-        { "content-length", 14, sip_extract_content_length },
-        { "content-type",   12, sip_extract_content_type },
-        { "cseq",           4,  sip_extract_cseq },
-        { "call-id",        7,  sip_extract_callid },
-        { "from",           4,  sip_extract_from },
-        { "to",             2,  sip_extract_to },
-        { "via",            3,  sip_extract_via },
+        { STRING_AND_LEN("content-length"), sip_extract_content_length },
+        { STRING_AND_LEN("content-type"),   sip_extract_content_type },
+        { STRING_AND_LEN("cseq"),           sip_extract_cseq },
+        { STRING_AND_LEN("call-id"),        sip_extract_callid },
+        { STRING_AND_LEN("from"),           sip_extract_from },
+        { STRING_AND_LEN("to"),             sip_extract_to },
+        { STRING_AND_LEN("via"),            sip_extract_via },
     };
 
     static struct httper const httper = {

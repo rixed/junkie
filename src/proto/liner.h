@@ -18,6 +18,7 @@ struct liner {
         struct liner_delimiter {
             char const *str;    // This works only if all delimiter chars are different
             size_t len;
+#           define STRING_AND_LEN(s) s, (sizeof(s)-1) // So that we don't have to count chars manually
         } const *delims;
         bool collapse;    // several successive delimiters count as one
     } const *delims;

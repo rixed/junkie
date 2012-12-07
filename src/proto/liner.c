@@ -229,11 +229,11 @@ extern inline void liner_expand(struct liner *liner);
 // for semicols), since spaces are skipped anyway?  A single case
 // (":") should suffice.
 static struct liner_delimiter
-    eols[]     = { { "\r\n", 2 }, { "\n", 1 } },
-    blanks[]   = { { " ", 1 }, { "\r\n", 2 }, { "\n", 1 } },
-    spaces[]   = { { " ", 1 } },
-    colons[]   = { { ": ", 2 }, { ":", 1 } },
-    semicols[] = { { "; ", 2 }, { ";", 1 } };
+    eols[]     = { { STRING_AND_LEN("\r\n") }, { STRING_AND_LEN("\n") } },
+    blanks[]   = { { STRING_AND_LEN(" ") }, { STRING_AND_LEN("\r\n") }, { STRING_AND_LEN("\n") } },
+    spaces[]   = { { STRING_AND_LEN(" ") } },
+    colons[]   = { { STRING_AND_LEN(": ") }, { STRING_AND_LEN(":") } },
+    semicols[] = { { STRING_AND_LEN("; ") }, { STRING_AND_LEN(";") } };
 struct liner_delimiter_set const
     delim_lines      = { NB_ELEMS(eols), eols, false },
     delim_blanks     = { NB_ELEMS(blanks), blanks, true },
