@@ -26,6 +26,7 @@ struct http_proto_info {
 #   define HTTP_URL_SET                0x20
 #   define HTTP_TRANSFERT_ENCODING_SET 0x40
 #   define HTTP_USER_AGENT_SET         0x80
+#   define HTTP_REFERRER_SET           0x100
     uint32_t set_values;            ///< Mask of the fields that are actually set in this struct
     enum http_method {
         HTTP_METHOD_GET, HTTP_METHOD_HEAD, HTTP_METHOD_POST, HTTP_METHOD_CONNECT,
@@ -34,9 +35,11 @@ struct http_proto_info {
     unsigned code;                  ///< The response code, if the message is a response
     unsigned content_length;        ///< The Content-Length, if present
     bool chunked_encoding;          ///< Set if the transfert encoding is chunked (only relevant if set_values&HTTP_TRANSFERT_ENCODING_SET)
+    // TODO: that's becoming huge. Use a single string of some 2 or 3k and store everything in there
     char mime_type[256];            ///< The Mime-type, if present
     char host[256];                 ///< The Host, if present
     char user_agent[256];           ///< The User-Agent field, if present
+    char referrer[256];             ///< The Referrer field, if present
 #   define HTTP_URL_SIZE 2048
     char url[HTTP_URL_SIZE];        ///< The URL, for methods that have one
 };

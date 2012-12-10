@@ -8,8 +8,8 @@ PIPI: head_len=0, payload=1180, protocol=3(TLS), trust=medium
 -- pcap/voip/single-rtp.pcap --
 RTP: head_len=12, payload=160, payload_type=PCMU, SSRC=1438910670, seqnum=23777, timestamp=2240
 -- pcap/http/on-alt-port.pcap --
-HTTP: head_len=95, payload=0, method=GET, code=unset, content_length=unset, transfert_encoding=unset, mime_type=unset, host=192.168.1.1:8080, user_agent=RobiNet, url=/
-HTTP: head_len=67, payload=0, method=unset, code=200, content_length=1011, transfert_encoding=unset, mime_type=text/plain, host=unset, user_agent=unset, url=unset
+HTTP: head_len=95, payload=0, method=GET, code=unset, content_length=unset, transfert_encoding=unset, mime_type=unset, host=192.168.1.1:8080, user_agent=RobiNet, referrer=unset, url=/
+HTTP: head_len=67, payload=0, method=unset, code=200, content_length=1011, transfert_encoding=unset, mime_type=text/plain, host=unset, user_agent=unset, referrer=unset, url=unset
 -- pcap/ftp/on-alt-port.pcap --
 FTP: head_len=0, payload=20
 FTP: head_len=0, payload=16

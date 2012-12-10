@@ -154,7 +154,7 @@ static char const *http_info_2_str(struct proto_info const *info_)
 {
     struct http_proto_info const *info = DOWNCAST(info_, info, http_proto_info);
     char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, method=%s, code=%s, content_length=%s, transfert_encoding=%s, mime_type=%s, host=%s, user_agent=%s, url=%s",
+    snprintf(str, TEMPSTR_SIZE, "%s, method=%s, code=%s, content_length=%s, transfert_encoding=%s, mime_type=%s, host=%s, user_agent=%s, referrer=%s, url=%s",
         proto_info_2_str(info_),
         info->set_values & HTTP_METHOD_SET   ? http_method_2_str(info->method)            : "unset",
         info->set_values & HTTP_CODE_SET     ? tempstr_printf("%u", info->code)           : "unset",
@@ -165,6 +165,7 @@ static char const *http_info_2_str(struct proto_info const *info_)
         info->set_values & HTTP_HOST_SET     ? info->host                                 : "unset",
         info->set_values & HTTP_USER_AGENT_SET ?
                                                info->user_agent                           : "unset",
+        info->set_values & HTTP_REFERRER_SET ? info->referrer                             : "unset",
         info->set_values & HTTP_URL_SET      ? info->url                                  : "unset");
     return str;
 }
@@ -181,6 +182,7 @@ static void http_serialize(struct proto_info const *info_, uint8_t **buf)
     if (info->set_values & HTTP_MIME_SET) serialize_str(buf, info->mime_type);
     if (info->set_values & HTTP_HOST_SET) serialize_str(buf, info->host);
     if (info->set_values & HTTP_USER_AGENT_SET) serialize_str(buf, info->user_agent);
+    if (info->set_values & HTTP_REFERRER_SET) serialize_str(buf, info->referrer);
     if (info->set_values & HTTP_URL_SET) serialize_str(buf, info->url);
 }
 
@@ -196,6 +198,7 @@ static void http_deserialize(struct proto_info *info_, uint8_t const **buf)
     if (info->set_values & HTTP_MIME_SET) deserialize_str(buf, info->mime_type, sizeof(info->mime_type));
     if (info->set_values & HTTP_HOST_SET) deserialize_str(buf, info->host, sizeof(info->host));
     if (info->set_values & HTTP_USER_AGENT_SET) deserialize_str(buf, info->user_agent, sizeof(info->user_agent));
+    if (info->set_values & HTTP_REFERRER_SET) deserialize_str(buf, info->referrer, sizeof(info->referrer));
     if (info->set_values & HTTP_URL_SET) deserialize_str(buf, info->url, sizeof(info->url));
 }
 
@@ -285,6 +288,14 @@ static int http_extract_user_agent(unsigned unused_ field, struct liner *liner, 
     return 0;
 }
 
+static int http_extract_referrer(unsigned unused_ field, struct liner *liner, void *info_)
+{
+    struct http_proto_info *info = info_;
+    info->set_values |= HTTP_REFERRER_SET;
+    copy_token(info->referrer, sizeof(info->referrer), liner);
+    return 0;
+}
+
 static enum proto_parse_status http_parse_header(struct http_parser *http_parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     assert(http_parser->state[way].phase == HEAD);
@@ -308,6 +319,8 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
         { STRING_AND_LEN("transfer-encoding"), http_extract_transfert_encoding },
         { STRING_AND_LEN("host"),              http_extract_host },
         { STRING_AND_LEN("user-agent"),        http_extract_user_agent },
+        { STRING_AND_LEN("referrer"),          http_extract_referrer },
+        { STRING_AND_LEN("referer"),           http_extract_referrer },
     };
     static struct httper const httper = {
         .nb_commands = NB_ELEMS(commands),

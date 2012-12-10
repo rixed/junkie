@@ -1,18 +1,18 @@
 -- pcap/http/http_multiline.pcap --
-HTTP: head_len=155, payload=0, method=GET, code=unset, content_length=unset, transfert_encoding=unset, mime_type=unset, host=www.google.com, user_agent=curl/7.24.0 (x86_64-pc-linux-gnu) libcurl/7.24.0 OpenSSL/1.0.0j zlib/1.2.5.1, url=/no-such-page
+HTTP: head_len=155, payload=0, method=GET, code=unset, content_length=unset, transfert_encoding=unset, mime_type=unset, host=www.google.com, user_agent=curl/7.24.0 (x86_64-pc-linux-gnu) libcurl/7.24.0 OpenSSL/1.0.0j zlib/1.2.5.1, referrer=unset, url=/no-such-page
 HTTP: head_len=159, payload=0, method=GET, code=unset, content_length=unset, transfert_encoding=unset, mime_type=unset, host=
-			 www.google.com, user_agent=curl/7.24.0 (x86_64-pc-linux-gnu) libcurl/7.24.0 OpenSSL/1.0.0j zlib/1.2.5.1, url=/no-such-page
+			 www.google.com, user_agent=curl/7.24.0 (x86_64-pc-linux-gnu) libcurl/7.24.0 OpenSSL/1.0.0j zlib/1.2.5.1, referrer=unset, url=/no-such-page
 HTTP: head_len=164, payload=0, method=GET, code=unset, content_length=unset, transfert_encoding=unset, mime_type=unset, host=
  
  
  
  
- www.google.com, user_agent=curl/7.24.0 (x86_64-pc-linux-gnu) libcurl/7.24.0 OpenSSL/1.0.0j zlib/1.2.5.1, url=/no-such-page
+ www.google.com, user_agent=curl/7.24.0 (x86_64-pc-linux-gnu) libcurl/7.24.0 OpenSSL/1.0.0j zlib/1.2.5.1, referrer=unset, url=/no-such-page
 HTTP: head_len=163, payload=0, method=GET, code=unset, content_length=unset, transfert_encoding=unset, mime_type=unset, host=www.google.com, user_agent=
  curl/7.24.0
  (x86_64-pc-linux-gnu)
  libcurl/7.24.0
  OpenSSL/1.0.0j
  zlib/1.2.5.1
-  , url=/no-such-page
-HTTP: head_len=86, payload=0, method=GET, code=unset, content_length=0, transfert_encoding=unset, mime_type=unset, host=unset, user_agent=unset, url=/no-such-page
+  , referrer=unset, url=/no-such-page
+HTTP: head_len=86, payload=0, method=GET, code=unset, content_length=0, transfert_encoding=unset, mime_type=unset, host=unset, user_agent=unset, referrer=unset, url=/no-such-page
