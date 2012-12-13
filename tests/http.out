@@ -1,4 +1,4 @@
 -- pcap/http/space_in_head_value.pcap --
-HTTP: head_len=327, payload=0, method=POST, code=unset, content_length=1, transfert_encoding=unset, mime_type=application/x-fcs, host=195.27.183.211, user_agent=Shockwave Flash, url=/idle/GMKmdz02ySLGyCcC/2503
-HTTP: head_len=0, payload=1, method=unset, code=unset, content_length=unset, transfert_encoding=unset, mime_type=unset, host=unset, user_agent=unset, url=unset
-HTTP: head_len=114, payload=0, method=unset, code=200, content_length=1, transfert_encoding=unset, mime_type=application/x-fcs, host=unset, user_agent=unset, url=unset
+HTTP: head_len=327, payload=0, method=POST, code=unset, content_length=1, transfert_encoding=unset, mime_type=application/x-fcs, host=195.27.183.211, user_agent=Shockwave Flash, referrer=unset, url=/idle/GMKmdz02ySLGyCcC/2503
+HTTP: head_len=0, payload=1, method=unset, code=unset, content_length=unset, transfert_encoding=unset, mime_type=unset, host=unset, user_agent=unset, referrer=unset, url=unset
+HTTP: head_len=114, payload=0, method=unset, code=200, content_length=1, transfert_encoding=unset, mime_type=application/x-fcs, host=unset, user_agent=unset, referrer=unset, url=unset

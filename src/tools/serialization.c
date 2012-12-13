@@ -34,5 +34,5 @@ extern inline uint_least32_t deserialize_3(uint8_t const **buf);
 extern inline uint_least32_t deserialize_4(uint8_t const **buf);
 extern inline uint_least64_t deserialize_8(uint8_t const **buf);
 extern inline void deserialize_n(uint8_t const **buf, void *dst, size_t n);
-extern inline void deserialize_str(uint8_t const **buf, char *dst, size_t max_len);
+extern inline unsigned deserialize_str(uint8_t const **buf, char *dst, size_t max_len);
 

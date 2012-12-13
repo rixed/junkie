@@ -156,17 +156,17 @@ static char const *http_info_2_str(struct proto_info const *info_)
     char *str = tempstr();
     snprintf(str, TEMPSTR_SIZE, "%s, method=%s, code=%s, content_length=%s, transfert_encoding=%s, mime_type=%s, host=%s, user_agent=%s, referrer=%s, url=%s",
         proto_info_2_str(info_),
-        HTTP_IS_QUERY(http)                  ? http_method_2_str(info->method)            : "unset",
+        HTTP_IS_QUERY(info)                  ? http_method_2_str(info->method)            : "unset",
         info->set_values & HTTP_CODE_SET     ? tempstr_printf("%u", info->code)           : "unset",
         info->set_values & HTTP_LENGTH_SET   ? tempstr_printf("%u", info->content_length) : "unset",
         info->set_values & HTTP_TRANSFERT_ENCODING_SET ?
                                                (info->chunked_encoding ? "chunked":"set") : "unset",
-        info->set_values & HTTP_MIME_SET     ? info->mime_type                            : "unset",
-        info->set_values & HTTP_HOST_SET     ? info->host                                 : "unset",
+        info->set_values & HTTP_MIME_SET     ? info->strs+info->mime_type                 : "unset",
+        info->set_values & HTTP_HOST_SET     ? info->strs+info->host                      : "unset",
         info->set_values & HTTP_USER_AGENT_SET ?
-                                               info->user_agent                           : "unset",
-        info->set_values & HTTP_REFERRER_SET ? info->referrer                             : "unset",
-        info->set_values & HTTP_URL_SET      ? info->url                                  : "unset");
+                                               info->strs+info->user_agent                : "unset",
+        info->set_values & HTTP_REFERRER_SET ? info->strs+info->referrer                  : "unset",
+        info->set_values & HTTP_URL_SET      ? info->strs+info->url                       : "unset");
     return str;
 }
 
@@ -179,11 +179,20 @@ static void http_serialize(struct proto_info const *info_, uint8_t **buf)
     if (info->set_values & HTTP_CODE_SET) serialize_2(buf, info->code);
     if (info->set_values & HTTP_LENGTH_SET) serialize_4(buf, info->content_length);
     if (info->set_values & HTTP_TRANSFERT_ENCODING_SET) serialize_1(buf, info->chunked_encoding);
-    if (info->set_values & HTTP_MIME_SET) serialize_str(buf, info->mime_type);
-    if (info->set_values & HTTP_HOST_SET) serialize_str(buf, info->host);
-    if (info->set_values & HTTP_USER_AGENT_SET) serialize_str(buf, info->user_agent);
-    if (info->set_values & HTTP_REFERRER_SET) serialize_str(buf, info->referrer);
-    if (info->set_values & HTTP_URL_SET) serialize_str(buf, info->url);
+    if (info->set_values & HTTP_MIME_SET) serialize_str(buf, info->strs+info->mime_type);
+    if (info->set_values & HTTP_HOST_SET) serialize_str(buf, info->strs+info->host);
+    if (info->set_values & HTTP_USER_AGENT_SET) serialize_str(buf, info->strs+info->user_agent);
+    if (info->set_values & HTTP_REFERRER_SET) serialize_str(buf, info->strs+info->referrer);
+    if (info->set_values & HTTP_URL_SET) serialize_str(buf, info->strs+info->url);
+}
+
+// Deserialize a string in strs, setting the offset of the result in offset
+static void deserialize_in_strs(uint8_t const **buf, unsigned *offset, struct http_proto_info *info)
+{
+    *offset = info->free_strs;
+    /* We must pass to deserialize_str the total size of the buffer, it will null term the string.
+     * The returned values is the length of the resulting string (not including terminator zero) */
+    info->free_strs += 1 + deserialize_str(buf, info->strs+info->free_strs, sizeof(info->strs) - info->free_strs);
 }
 
 static void http_deserialize(struct proto_info *info_, uint8_t const **buf)
@@ -195,23 +204,25 @@ static void http_deserialize(struct proto_info *info_, uint8_t const **buf)
     if (info->set_values & HTTP_CODE_SET) info->code = deserialize_2(buf);
     if (info->set_values & HTTP_LENGTH_SET) info->content_length = deserialize_4(buf);
     if (info->set_values & HTTP_TRANSFERT_ENCODING_SET) info->chunked_encoding = deserialize_1(buf);
-    if (info->set_values & HTTP_MIME_SET) deserialize_str(buf, info->mime_type, sizeof(info->mime_type));
-    if (info->set_values & HTTP_HOST_SET) deserialize_str(buf, info->host, sizeof(info->host));
-    if (info->set_values & HTTP_USER_AGENT_SET) deserialize_str(buf, info->user_agent, sizeof(info->user_agent));
-    if (info->set_values & HTTP_REFERRER_SET) deserialize_str(buf, info->referrer, sizeof(info->referrer));
-    if (info->set_values & HTTP_URL_SET) deserialize_str(buf, info->url, sizeof(info->url));
+    if (info->set_values & HTTP_MIME_SET) deserialize_in_strs(buf, &info->mime_type, info);
+    if (info->set_values & HTTP_HOST_SET) deserialize_in_strs(buf, &info->host, info);
+    if (info->set_values & HTTP_USER_AGENT_SET) deserialize_in_strs(buf, &info->user_agent, info);
+    if (info->set_values & HTTP_REFERRER_SET) deserialize_in_strs(buf, &info->referrer, info);
+    if (info->set_values & HTTP_URL_SET) deserialize_in_strs(buf, &info->url, info);
 }
 
-static void http_proto_info_ctor(struct http_proto_info *info, struct http_parser *http_parser, struct proto_info *parent, size_t head_len, size_t payload)
+static void http_proto_info_ctor(struct http_proto_info *http)
 {
-    proto_info_ctor(&info->info, &http_parser->parser, parent, head_len, payload);
+    http->set_values = 0;
+    http->free_strs = 0;
+    // http->info insitialized later
 }
 
 /*
  * Parse HTTP header
  */
 
-static void copy_token_choped(char *dest, size_t dest_sz, struct liner *liner)
+static unsigned copy_token_chopped(char *dest, size_t dest_sz, struct liner *liner)
 {
     if (liner->tok_size >= 2) {
         if (liner->start[0] == '\13' && liner->start[1] == '\10') {
@@ -224,7 +235,13 @@ static void copy_token_choped(char *dest, size_t dest_sz, struct liner *liner)
         (liner->start[0] == ' ' || liner->start[0] == '\t')
     ) liner_skip(liner, 1);
 
-    copy_token(dest, dest_sz, liner);
+    return copy_token(dest, dest_sz, liner);
+}
+
+static void copy_token_in_strs(struct http_proto_info *info, unsigned *offset, struct liner *liner)
+{
+    *offset = info->free_strs;
+    info->free_strs += 1 + copy_token_chopped(info->strs + info->free_strs, sizeof(info->strs) - info->free_strs, liner);
 }
 
 static int http_set_method(unsigned cmd, struct liner *liner, void *info_)
@@ -235,7 +252,7 @@ static int http_set_method(unsigned cmd, struct liner *liner, void *info_)
     // URL is the next token
     if (! liner_eof(liner)) {
         info->set_values |= HTTP_URL_SET;
-        copy_token_choped(info->url, sizeof(info->url), liner);
+        copy_token_in_strs(info, &info->url, liner);
     }
     return 0;
 }
@@ -260,7 +277,7 @@ static int http_extract_content_type(unsigned unused_ field, struct liner *liner
 {
     struct http_proto_info *info = info_;
     info->set_values |= HTTP_MIME_SET;
-    copy_token_choped(info->mime_type, sizeof(info->mime_type), liner);
+    copy_token_in_strs(info, &info->mime_type, liner);
     return 0;
 }
 
@@ -276,7 +293,7 @@ static int http_extract_host(unsigned unused_ field, struct liner *liner, void *
 {
     struct http_proto_info *info = info_;
     info->set_values |= HTTP_HOST_SET;
-    copy_token_choped(info->host, sizeof(info->host), liner);
+    copy_token_in_strs(info, &info->host, liner);
     return 0;
 }
 
@@ -284,7 +301,7 @@ static int http_extract_user_agent(unsigned unused_ field, struct liner *liner, 
 {
     struct http_proto_info *info = info_;
     info->set_values |= HTTP_USER_AGENT_SET;
-    copy_token_choped(info->user_agent, sizeof(info->user_agent), liner);
+    copy_token_in_strs(info, &info->user_agent, liner);
     return 0;
 }
 
@@ -292,7 +309,7 @@ static int http_extract_referrer(unsigned unused_ field, struct liner *liner, vo
 {
     struct http_proto_info *info = info_;
     info->set_values |= HTTP_REFERRER_SET;
-    copy_token(info->referrer, sizeof(info->referrer), liner);
+    copy_token_in_strs(info, &info->referrer, liner);
     return 0;
 }
 
@@ -329,8 +346,8 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
         .fields = fields
     };
 
-    struct http_proto_info info;    // we init the proto_info once validated
-    info.set_values = 0;
+    struct http_proto_info info;
+    http_proto_info_ctor(&info);    // we init the proto_info once validated
 
     size_t httphdr_len;
     enum proto_parse_status status = httper_parse(&httper, &httphdr_len, packet, cap_len, &info);
@@ -351,7 +368,7 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
             return PROTO_OK;
         } else {
             // No, the header was truncated. We want to report as much as we can.
-            http_proto_info_ctor(&info, http_parser, parent, cap_len, 0);
+            proto_info_ctor(&info.info, &http_parser->parser, parent, cap_len, 0);
             return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
             // We are going to look for another header at the start of the next packet, hoping for the best.
         }
@@ -360,7 +377,7 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
     /* What payload should we set? the one advertised? Or the payload of this header (ie 0),
      * and then let the body parser report other proto_info with head_len=0 and payload set?
      * will be definitively FIXED once we ditch this reporting policy for a hook based approach. */
-    http_proto_info_ctor(&info, http_parser, parent, httphdr_len, 0);
+    proto_info_ctor(&info.info, &http_parser->parser, parent, httphdr_len, 0);
 
     /* "The presence of a message-body in a request is signaled by the
      * inclusion of a Content-Length or Transfer-Encoding header field in
@@ -433,8 +450,8 @@ static enum proto_parse_status http_parse_body(struct http_parser *http_parser, 
 
     if (body_part > 0) {    // Ack this body part
         struct http_proto_info info;
-        info.set_values = 0;
-        http_proto_info_ctor(&info, http_parser, parent, 0, body_part);
+        http_proto_info_ctor(&info);
+        proto_info_ctor(&info.info, &http_parser->parser, parent, 0, body_part);
         // TODO: choose a subparser according to mime type ?
         (void)proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
         // What to do with this partial parse status ?

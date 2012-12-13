@@ -247,8 +247,8 @@ static void okfn(struct proto_subscriber unused_ *s, struct proto_info const *la
         struct http_proto_info const *info = DOWNCAST(last, info, http_proto_info);
         if ((info->set_values & HTTP_METHOD_SET) && info->method == HTTP_METHOD_GET) {
             assert(nb_gets < 2);
-            if (nb_gets == 0) assert(info->url[1] == 'g');  // check GETs order
-            if (nb_gets == 1) assert(info->url[1] == 'c');
+            if (nb_gets == 0) assert(info->strs[info->url+1] == 'g');  // check GETs order
+            if (nb_gets == 1) assert(info->strs[info->url+1] == 'c');
             nb_gets ++;
         } else if (! (info->set_values & HTTP_METHOD_SET) && (info->set_values & HTTP_CODE_SET)) {
             assert(nb_resps < 2);

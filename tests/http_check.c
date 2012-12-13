@@ -38,7 +38,8 @@ static struct parse_test {
                 .set_values = HTTP_METHOD_SET,
                 .method = HTTP_METHOD_GET, .code = 0,
                 .content_length = 0, .chunked_encoding = false,
-                .mime_type = "", .host = "", .user_agent="", .url = "",
+                .mime_type = 0, .host = 0, .user_agent = 0, .url = 0,
+                .free_strs = 0, .strs = "",
             },
         },
         .ret = PROTO_OK,
@@ -56,7 +57,8 @@ static struct parse_test {
                 .set_values = HTTP_METHOD_SET|HTTP_URL_SET,
                 .method = HTTP_METHOD_GET, .code = 0,
                 .content_length = 0,.chunked_encoding = false,
-                .mime_type = "", .host = "", .user_agent="", .url = "/",
+                .mime_type = 0, .host = 0, .user_agent = 0, .url = 0,
+                .free_strs = 2, .strs = "/",
             },
         },
         .ret = PROTO_OK,
@@ -85,9 +87,12 @@ static struct parse_test {
                     .set_values = HTTP_METHOD_SET|HTTP_HOST_SET|HTTP_URL_SET|HTTP_USER_AGENT_SET,
                     .method = HTTP_METHOD_GET, .code = 0,
                     .content_length = 0, .chunked_encoding = false,
-                    .mime_type = "", .host = "fr.wikipedia.org",
-                    .user_agent = "Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.9.0.5) Gecko/2008121622 Ubuntu/8.04 (hardy) Firefox/3.0.5",
-                    .url = "/wiki/UDP",
+                    .mime_type = 0, .host = 10, .user_agent = 27, .url = 0,
+                    .free_strs = 130,
+                    .strs =
+                        "/wiki/UDP\0"
+                        "fr.wikipedia.org\0"
+                        "Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.9.0.5) Gecko/2008121622 Ubuntu/8.04 (hardy) Firefox/3.0.5\0",
                 },
             },
             .ret = PROTO_OK,
@@ -115,7 +120,9 @@ static struct parse_test {
                     .set_values = HTTP_CODE_SET|HTTP_MIME_SET,
                     .method = 0, .code = 304,
                     .content_length = 0, .chunked_encoding = false,
-                    .mime_type = "text/html; charset=utf-8", .host = "", .user_agent = "", .url = "",
+                    .mime_type = 0, .host = 0, .user_agent = 0, .url = 0,
+                    .free_strs = 25,
+                    .strs = "text/html; charset=utf-8"
                 },
             },
             .ret = PROTO_OK,
@@ -152,13 +159,17 @@ static struct parse_test {
                     .set_values = HTTP_CODE_SET|HTTP_MIME_SET|HTTP_LENGTH_SET,
                     .method = 0, .code = 200,
                     .content_length = 6320, .chunked_encoding = false,
-                    .mime_type = "text/css", .host = "", .user_agent = "", .url = "",
+                    .mime_type = 0, .host = 0, .user_agent = 0, .url = 0,
+                    .free_strs = 9,
+                    .strs = "text/css"
                 }, {
                     .info = { .head_len = 0, .payload = 4 },
                     .set_values = 0,
                     .method = 0, .code = 0,
                     .content_length = 0, .chunked_encoding = false,
-                    .mime_type = "", .host = "", .user_agent = "", .url = "",
+                    .mime_type = 0, .host = 0, .user_agent = 0, .url = 0,
+                    .free_strs = 0,
+                    .strs = ""
                 }
             },
             .ret = PROTO_OK,
@@ -178,7 +189,9 @@ static struct parse_test {
                     .set_values = HTTP_METHOD_SET|HTTP_LENGTH_SET|HTTP_HOST_SET|HTTP_URL_SET,
                     .method = HTTP_METHOD_GET, .code = 0,
                     .content_length = 123, .chunked_encoding = false,
-                    .mime_type = "", .host = "", .user_agent = "", .url = "/",
+                    .mime_type = 0, .host = 2, .user_agent = 0, .url = 0,
+                    .free_strs = 3, // beware: empty host is still present!
+                    .strs = "/\0"
                 },
             },
             .ret = PROTO_OK,
@@ -194,7 +207,8 @@ static struct parse_test {
                     .set_values = 0,
                     .method = 0, .code = 0,
                     .content_length = 0, .chunked_encoding = false,
-                    .mime_type = "", .host = "", .user_agent = "", .url = "",
+                    .mime_type = 0, .host = 0, .user_agent = 0, .url = 0,
+                    .free_strs = 0, .strs = ""
                 },
             },
             .ret = PROTO_PARSE_ERR,
@@ -216,13 +230,17 @@ static struct parse_test {
                     .set_values = HTTP_CODE_SET|HTTP_LENGTH_SET|HTTP_MIME_SET,
                     .method = 0, .code = 200,
                     .content_length = 32, .chunked_encoding = false,
-                    .mime_type = "text/plain", .host = "", .user_agent = "", .url = "",
+                    .mime_type = 0, .host = 0, .user_agent = 0, .url = 0,
+                    .free_strs = 11,
+                    .strs = "text/plain"
                 }, {
                     .info = { .head_len = 0, .payload = 10 },
                     .set_values = 0,
                     .method = 0, .code = 0,
                     .content_length = 0, .chunked_encoding = false,
-                    .mime_type = "text/plain", .host = "", .user_agent = "", .url = "",
+                    .mime_type = 0, .host = 0, .user_agent = 0, .url = 0,
+                    .free_strs = 0,
+                    .strs = ""
                 }
             },
             .ret = PROTO_OK,
@@ -242,13 +260,15 @@ static struct parse_test {
                     .set_values = 0,
                     .method = 0, .code = 0,
                     .content_length = 0, .chunked_encoding = false,
-                    .mime_type = "", .host = "", .user_agent = "", .url = "",
+                    .mime_type = 0, .host = 0, .user_agent = 0, .url = 0,
+                    .free_strs = 0, .strs = "",
                 }, {
                     .info = { .head_len = 46, .payload = 0 },
                     .set_values = HTTP_CODE_SET|HTTP_LENGTH_SET,
                     .method = 0, .code = 204,
                     .content_length = 0, .chunked_encoding = false,
-                    .mime_type = "", .host = "", .user_agent = "", .url = "",
+                    .mime_type = 0, .host = 0, .user_agent = 0, .url = 0,
+                    .free_strs = 0, .strs = "",
                 },
             },
             .ret = PROTO_OK,
@@ -271,10 +291,11 @@ static void http_info_check(struct proto_subscriber unused_ *s, struct proto_inf
     if (info->set_values & HTTP_METHOD_SET)     assert(info->method         == expected->method);
     if (info->set_values & HTTP_CODE_SET)       assert(info->code           == expected->code);
     if (info->set_values & HTTP_LENGTH_SET)     assert(info->content_length == expected->content_length);
-    if (info->set_values & HTTP_MIME_SET)       assert(0 == strcmp(info->mime_type,  expected->mime_type));
-    if (info->set_values & HTTP_USER_AGENT_SET) assert(0 == strcmp(info->user_agent, expected->user_agent));
-    if (info->set_values & HTTP_HOST_SET)       assert(0 == strcmp(info->host,       expected->host));
-    if (info->set_values & HTTP_URL_SET)        assert(0 == strcmp(info->url,        expected->url));
+    if (info->set_values & HTTP_MIME_SET)       assert(0 == strcmp(info->strs+info->mime_type,  expected->strs+expected->mime_type));
+    if (info->set_values & HTTP_USER_AGENT_SET) assert(0 == strcmp(info->strs+info->user_agent, expected->strs+expected->user_agent));
+    if (info->set_values & HTTP_HOST_SET)       assert(0 == strcmp(info->strs+info->host,       expected->strs+expected->host));
+    if (info->set_values & HTTP_URL_SET)        assert(0 == strcmp(info->strs+info->url,        expected->strs+expected->url));
+    assert(info->free_strs == expected->free_strs);
 }
 
 static void http_parser_reset(struct parser *parser)

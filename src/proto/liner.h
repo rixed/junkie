@@ -24,7 +24,8 @@ struct liner {
     } const *delims;
 };
 
-void copy_token(char *, size_t, struct liner *);
+// Returns the number of chars written, exluding the terminal nul
+unsigned copy_token(char *, size_t, struct liner *);
 
 void liner_init(struct liner *, struct liner_delimiter_set const *, char const *, size_t);
 

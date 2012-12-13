@@ -35,13 +35,14 @@ struct http_proto_info {
     unsigned code;                  ///< The response code, if the message is a response
     unsigned content_length;        ///< The Content-Length, if present
     bool chunked_encoding;          ///< Set if the transfert encoding is chunked (only relevant if set_values&HTTP_TRANSFERT_ENCODING_SET)
-    // TODO: that's becoming huge. Use a single string of some 2 or 3k and store everything in there
-    char mime_type[256];            ///< The Mime-type, if present
-    char host[256];                 ///< The Host, if present
-    char user_agent[256];           ///< The User-Agent field, if present
-    char referrer[256];             ///< The Referrer field, if present
-#   define HTTP_URL_SIZE 2048
-    char url[HTTP_URL_SIZE];        ///< The URL, for methods that have one
+    unsigned mime_type;             ///< The Mime-type, if present (as offset in strs)
+    unsigned host;                  ///< The Host, if present (as offset in strs)
+    unsigned user_agent;            ///< The User-Agent field, if present (as offset in strs)
+    unsigned referrer;              ///< The Referrer field, if present (as offset in strs)
+    unsigned url;                   ///< The URL, for methods that have one (as offset in strs)
+#   define HTTP_STRS_SIZE 4000      ///< So that the whole http_info is below 4k
+    unsigned free_strs;             ///< Offset of the next free byte in strs
+    char strs[HTTP_STRS_SIZE];      ///< We store all the previous strings in there, as nul term strings
 };
 
 #define HTTP_IS_QUERY(http) ((http)->set_values & HTTP_METHOD_SET)
