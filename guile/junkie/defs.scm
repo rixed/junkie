@@ -131,16 +131,41 @@
       (map stat-one (mallocer-names))
       (list (cons "total" tot-size)))))
 
+; Uniquify a sorted list, for what it's worth...
+(define-public (uniq l . rest)
+  (let ((eq (if (null? rest)
+                equal?
+                (car rest))))
+    (reverse
+      (fold
+        (lambda (i p)
+          (if (or (null? p)
+                  (not (eq (car p) i)))
+              (cons i p)
+              p))
+        '() l))))
+
 ; get the percentage of duplicate frames over the total number (check out if the
 ; port mirroring is correctly set)
-(define-public (duplicate-percentage dev-id)
-  (let* ((stats  (deduplication-stats dev-id))
-         (dups   (assq-ref stats 'dup-found))
-         (nodups (assq-ref stats 'nodup-found))
-         (pkts   (+ dups nodups)))
-    (if (> pkts 0)
-        (exact->inexact (* 100 (/ dups pkts)))
-        0)))
+(define-public (duplicate-percentage)
+  (let* ((devs (uniq (sort (map (lambda (i)
+                                  (cons i (assq-ref (iface-stats i) 'id)))
+                                (iface-names))
+                           (lambda (p1 p2) (< (cdr p1) (cdr p2))))
+                     (lambda (p1 p2) (= (cdr p1) (cdr p2)))))
+         (devs (append devs (list (cons "multi-ifaces" 255))))) ; 255 is like, hum, special...
+    (map (lambda (dev)
+           (let* ((name   (car dev))
+                  (dev-id (cdr dev))
+                  (stats  (deduplication-stats dev-id))
+                  (dups   (assq-ref stats 'dup-found))
+                  (nodups (assq-ref stats 'nodup-found))
+                  (pkts   (+ dups nodups)))
+             (list name
+                   (if (> pkts 0)
+                       (exact->inexact (* 100 (/ dups pkts)))
+                       0))))
+         devs)))
 
 ; get the percentage of dropped packets
 (define-public (dropped-percentage)
