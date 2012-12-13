@@ -44,6 +44,8 @@ struct http_proto_info {
     char url[HTTP_URL_SIZE];        ///< The URL, for methods that have one
 };
 
+#define HTTP_IS_QUERY(http) ((http)->set_values & HTTP_METHOD_SET)
+
 /// @return the name of an HTTP method
 char const *http_method_2_str(enum http_method);
 

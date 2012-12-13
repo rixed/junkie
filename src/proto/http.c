@@ -156,7 +156,7 @@ static char const *http_info_2_str(struct proto_info const *info_)
     char *str = tempstr();
     snprintf(str, TEMPSTR_SIZE, "%s, method=%s, code=%s, content_length=%s, transfert_encoding=%s, mime_type=%s, host=%s, user_agent=%s, referrer=%s, url=%s",
         proto_info_2_str(info_),
-        info->set_values & HTTP_METHOD_SET   ? http_method_2_str(info->method)            : "unset",
+        HTTP_IS_QUERY(http)                  ? http_method_2_str(info->method)            : "unset",
         info->set_values & HTTP_CODE_SET     ? tempstr_printf("%u", info->code)           : "unset",
         info->set_values & HTTP_LENGTH_SET   ? tempstr_printf("%u", info->content_length) : "unset",
         info->set_values & HTTP_TRANSFERT_ENCODING_SET ?
@@ -338,7 +338,7 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
 
     // Save some values into our http_parser
     http_parser->state[way].last_method =
-        info.set_values & HTTP_METHOD_SET ? info.method : UNSET;
+        HTTP_IS_QUERY(&info) ? info.method : UNSET;
 
     // Handle short capture
     if (status == PROTO_TOO_SHORT) {
@@ -375,7 +375,7 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
      * message-body, although it MAY be of zero length." - RFC2616 */
     bool const have_body =
         (
-            (info.set_values & HTTP_METHOD_SET) &&
+            HTTP_IS_QUERY(&info) &&
             (info.set_values & (HTTP_LENGTH_SET | HTTP_TRANSFERT_ENCODING_SET))
         ) || (
             (info.set_values & HTTP_CODE_SET) &&
