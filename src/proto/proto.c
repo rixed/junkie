@@ -359,14 +359,13 @@ static void parser_del(struct parser *parser)
 
 struct parser *parser_ref(struct parser *parser)
 {
-    if (parser) SLOG(LOG_DEBUG, "ref parser %s count=%u", parser_name(parser), parser->ref.count+1);
+    if (! parser) return NULL;
     return DOWNCAST(ref(&parser->ref), ref, parser);
 }
 
 void parser_unref(struct parser **parser)
 {
     if (! *parser) return;
-    SLOG(LOG_DEBUG, "unref parser %s count=%u", parser_name(*parser), (*parser)->ref.count-1);
     unref(&(*parser)->ref);
     *parser = NULL;
 }
@@ -660,14 +659,13 @@ struct mux_subparser *mux_subparser_new(struct mux_parser *mux_parser, struct pa
 
 struct mux_subparser *mux_subparser_ref(struct mux_subparser *subparser)
 {
-    if (subparser) SLOG(LOG_DEBUG, "ref mux_subparser@%p count=%u", subparser, subparser->ref.count+1);
+    if (! subparser) return NULL;
     return ref(&subparser->ref);
 }
 
 void mux_subparser_unref(struct mux_subparser **subparser)
 {
     if (! *subparser) return;
-    SLOG(LOG_DEBUG, "unref mux_subparser@%p count=%u", *subparser, (*subparser)->ref.count-1);
     unref(&(*subparser)->ref);
     *subparser = NULL;
 }
