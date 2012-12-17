@@ -260,6 +260,8 @@ void ip_subproto_dtor(struct ip_subproto *ip_subproto)
  * Parse
  */
 
+static struct mutex_pool ip_locks;
+
 // We overload the mux_subparser to fit the pkt_wait_list required for IP reassembly
 struct ip_subparser {
     /* We may have a list per IP id, but we do not want to create a pkt_list whenever a new id is encountered.
@@ -278,7 +280,7 @@ struct ip_subparser {
         unsigned end_offset;        // only valid when got_last flag is set
         struct pkt_wait_list wl;    // only constructed when constructed flag is set
     } reassembly[4];
-    struct mutex mutex;             // To protect the reassembly machinery
+    struct mutex *mutex;            // To protect the reassembly machinery
     struct mux_subparser mux_subparser;
 };
 
@@ -293,11 +295,10 @@ static int ip_subparser_ctor(struct ip_subparser *ip_subparser, struct mux_parse
         ip_subparser->reassembly[r].got_last = 0;
     }
 
-    mutex_ctor(&ip_subparser->mutex, "IP subparser");
+    ip_subparser->mutex = mutex_pool_anyone(&ip_locks);
 
     // Now that everything is ready, make this subparser public
     if (0 != mux_subparser_ctor(&ip_subparser->mux_subparser, mux_parser, child, requestor, key, now)) {
-        mutex_dtor(&ip_subparser->mutex);
         return -1;
     }
 
@@ -335,7 +336,6 @@ static void ip_subparser_dtor(struct ip_subparser *ip_subparser, struct timeval 
         ip_reassembly_dtor(ip_subparser->reassembly+r, now);
     }
     mux_subparser_dtor(&ip_subparser->mux_subparser);
-    mutex_dtor(&ip_subparser->mutex);
 }
 
 static void ip_subparser_del(struct mux_subparser *mux_subparser)
@@ -501,7 +501,7 @@ static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info
     if (is_fragment(iphdr) && reassembly_enabled) {
         struct ip_subparser *ip_subparser = DOWNCAST(subparser, mux_subparser, ip_subparser);
         // Do not tolerate concurrent access from this point
-        mutex_lock(&ip_subparser->mutex);
+        mutex_lock(ip_subparser->mutex);
         unsigned const offset = fragment_offset(iphdr);
         uint16_t id = READ_U16N(&iphdr->id);
         SLOG(LOG_DEBUG, "IP packet is a fragment of id %"PRIu16", offset=%u", id, offset);
@@ -521,11 +521,11 @@ static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info
         } else {
             status = PROTO_OK;  // for now
         }
-        mutex_unlock(&ip_subparser->mutex);
+        mutex_unlock(ip_subparser->mutex);
         mux_subparser_unref(&subparser);
         return status;
 unlock_fallback:    // Beeeerk
-        mutex_unlock(&ip_subparser->mutex);
+        mutex_unlock(ip_subparser->mutex);
         mux_subparser_unref(&subparser);
         goto fallback;
     }
@@ -550,6 +550,7 @@ static struct eth_subproto ip_eth_subproto;
 
 void ip_init(void)
 {
+    mutex_pool_ctor(&ip_locks, "IP subparsers");
     log_category_proto_ip_init();
     ext_param_reassembly_enabled_init();
     mutex_ctor(&ip_subprotos_mutex, "IPv4 subprotocols");
@@ -582,4 +583,5 @@ void ip_fini(void)
     mutex_dtor(&ip_subprotos_mutex);
     ext_param_reassembly_enabled_fini();
     log_category_proto_ip_fini();
+    mutex_pool_dtor(&ip_locks);
 }

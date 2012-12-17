@@ -62,7 +62,7 @@ static struct redim_array_chunk *chunk_new(struct redim_array *ra)
     unsigned const nb_malloced = ra->alloc_size * ra->nb_chunks;    // first chunk is alloc_size entries long, second is twice this, third is 3 times this, and so on
 
     struct redim_array_chunk *chunk = MALLOC(redim_array, sizeof(*chunk) + nb_malloced * ra->entry_size);
-    SLOG(LOG_INFO, "New chunk@%p of %zu bytes for array %s@%p", chunk, (nb_malloced * ra->entry_size), ra->name, ra);
+    SLOG(LOG_DEBUG, "New chunk@%p of %zu bytes for array %s@%p", chunk, (nb_malloced * ra->entry_size), ra->name, ra);
 
     TAILQ_INSERT_TAIL(&ra->chunks, chunk, entry);
     chunk->nb_used = 0;
@@ -77,7 +77,7 @@ static struct redim_array_chunk *chunk_new(struct redim_array *ra)
 // Caller must own chunks_mutex
 static void chunk_del(struct redim_array_chunk *chunk)
 {
-    SLOG(LOG_INFO, "Del chunk@%p of array %s@%p", chunk, chunk->array->name, chunk->array);
+    SLOG(LOG_DEBUG, "Del chunk@%p of array %s@%p", chunk, chunk->array->name, chunk->array);
     TAILQ_REMOVE(&chunk->array->chunks, chunk, entry);
     chunk->array->nb_used -= chunk->nb_used;
     chunk->array->nb_malloced -= chunk->nb_malloced;
@@ -93,7 +93,7 @@ static void chunk_del(struct redim_array_chunk *chunk)
 int redim_array_ctor(struct redim_array *ra, unsigned alloc_size, size_t entry_size, char const *name)
 {
     entry_size = MAX(entry_size, sizeof(struct freecell));
-    SLOG(LOG_INFO, "Construct redim_array %s@%p for entries of size %zu", name, ra, entry_size);
+    SLOG(LOG_DEBUG, "Construct redim_array %s@%p for entries of size %zu", name, ra, entry_size);
     ra->nb_used = 0;
     ra->nb_malloced = 0;
     ra->nb_holes = 0;
@@ -111,7 +111,7 @@ int redim_array_ctor(struct redim_array *ra, unsigned alloc_size, size_t entry_s
 
 void redim_array_dtor(struct redim_array *ra)
 {
-    SLOG(LOG_INFO, "Destruct redim_array %s@%p", ra->name, ra);
+    SLOG(LOG_DEBUG, "Destruct redim_array %s@%p", ra->name, ra);
     redim_array_clear(ra);
     mutex_lock(&redim_arrays_mutex);
     LIST_REMOVE(ra, entry);

@@ -32,7 +32,7 @@
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/ext.h"
 #include "junkie/tools/timeval.h"
-#include "junkie/tools/objalloc.h"
+#include "junkie/tools/bench.h"
 
 LOG_CATEGORY_DEF(mutex)
 #undef LOG_CAT
@@ -47,8 +47,21 @@ void mutex_lock(struct mutex *mutex)
 {
     assert(mutex->name);
     SLOG(LOG_DEBUG, "Locking %s", mutex_name(mutex));
-    int const err = pthread_mutex_lock(&mutex->mutex);
+    uint64_t start = bench_event_start();
+    int err = pthread_mutex_trylock(&mutex->mutex);
+    switch (err) {
+        case 0:
+            bench_event_fire(&mutex->lock_for_free);
+            break;
+        case EBUSY:
+            err = pthread_mutex_lock(&mutex->mutex);
+            break;
+        default:
+            // other errors (for lock and trylock) handled below
+            break;
+    }
     if (! err) {
+        bench_event_stop(&mutex->aquiring_lock, start);
         SLOG(LOG_DEBUG, "Locked %s", mutex_name(mutex));
     } else {
         SLOG(LOG_ERR, "Cannot lock %s: %s", mutex_name(mutex), strerror(err));
@@ -97,6 +110,8 @@ void mutex_ctor_with_type(struct mutex *mutex, char const *name, int type)
     int err;
 
     mutex->name = name;
+    bench_atomic_event_ctor(&mutex->lock_for_free, tempstr_printf("%s locked for free", name));
+    bench_event_ctor(&mutex->aquiring_lock, tempstr_printf("aquiring %s", name));
 
     pthread_mutexattr_t attr;
     err = pthread_mutexattr_init(&attr);
@@ -117,6 +132,8 @@ void mutex_ctor(struct mutex *mutex, char const *name)
 void mutex_dtor(struct mutex *mutex)
 {
     assert(mutex->name);
+    bench_atomic_event_dtor(&mutex->lock_for_free);
+    bench_event_dtor(&mutex->aquiring_lock);
     SLOG(LOG_DEBUG, "Destruct mutex %s", mutex_name(mutex));
     (void)pthread_mutex_destroy(&mutex->mutex);
     mutex->name = NULL;
@@ -150,7 +167,7 @@ static void supermutex_user_ctor(struct supermutex_user *usr)
 
 static struct supermutex_user *supermutex_user_new(void)
 {
-    struct supermutex_user *usr = objalloc(sizeof(*usr), "supermutex_user");
+    struct supermutex_user *usr = malloc(sizeof(*usr)); // we do not use objalloc to avoid circular dependancy here
     if (! usr) {
         SLOG(LOG_CRIT, "Cannot allocate for a supermutex_user! I'm sorry there's no alternative!");
         abort();
@@ -349,13 +366,48 @@ static SCM g_set_thread_name(SCM name_)
 }
 
 /*
+ * Mutex pools
+ */
+
+void mutex_pool_ctor(struct mutex_pool *p, char const *name)
+{
+    for (unsigned i = 0; i < NB_ELEMS(p->locks); i++) {
+        mutex_ctor(p->locks+i, name);
+    }
+}
+
+void mutex_pool_dtor(struct mutex_pool *p)
+{
+    for (unsigned i = 0; i < NB_ELEMS(p->locks); i++) {
+        mutex_dtor(p->locks+i);
+    }
+}
+
+struct mutex *mutex_pool_anyone(struct mutex_pool *p)
+{
+    static unsigned idx = 0;
+    idx = (idx + 1) % NB_ELEMS(p->locks);
+    return p->locks + idx;
+}
+
+
+
+/*
  * Init
  */
 
 static unsigned inited;
 void mutex_init(void)
 {
-    if (inited++) return;
+    if (
+#       ifdef __GNUC__
+        __sync_fetch_and_add(&inited, 1)
+#       else
+        inited++
+#       endif
+    ) return;
+
+    bench_init();
     ext_init();
     log_init();
 
@@ -369,11 +421,18 @@ void mutex_init(void)
 
 void mutex_fini(void)
 {
-    if (--inited) return;
+    if (
+#       ifdef __GNUC__
+        __sync_sub_and_fetch(&inited, 1)
+#       else
+        --inited
+#       endif
+    ) return;
 
     mutex_dtor(&supermutex_meta_lock);
     log_category_mutex_fini();
 
     log_init();
     ext_fini();
+    bench_fini();
 }

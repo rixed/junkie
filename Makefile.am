@@ -19,7 +19,7 @@ SUBDIRS = \
 	tests \
 	doc
 
-.PHONY: cscope doc clear
+.PHONY: cscope doc clear module-deps
 
 EXTRA_DIST = .tarball-version
 .tarball-version:
@@ -29,10 +29,27 @@ cscope:
 	cd $(top_srcdir) && cscope -Rb $(CPPFLAGS)
 
 distclean-local:
-	rm -f cscope.out .tarball-version
+	rm -f cscope.out .tarball-version module-deps.dot
 
 clear:
 	find $(top_srcdir) -type f -\( -name '*.c' -o -name '*.h' -o -name '*.scm' -\) | xargs sed -i -e 's/[ \t]\+$$//'
 
 doc: Doxyfile
 	doxygen $<
+
+module-deps.dot:
+	@(echo "digraph deps {" ;\
+	 find $(top_srcdir)/src -type f -name '*.c' |\
+	 while read f ; do grep '_init()' $$f |\
+	   sed -e 's|^[ \t]*\(\<.*\)_init();.*$$|\1|g' |\
+	   grep -v _ |\
+	   while read g ; do \
+	     ff=$$(basename $$f .c) ;\
+	     echo "$$ff -> $$g" ;\
+	   done ;\
+	 done ;\
+	 echo "}") > $@
+
+module-deps: module-deps.dot
+	@$(top_srcdir)/find_cycles
+

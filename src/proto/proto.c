@@ -1089,6 +1089,7 @@ static SCM g_mux_proto_set_hash_size(SCM name_, SCM hash_size_)
 void proto_init(void)
 {
     log_category_proto_init();
+    mutex_init();
     ext_param_nb_fuzzed_bits_init();
     ext_param_mux_timeout_init();
     ext_param_denied_parsers_init();
@@ -1163,4 +1164,5 @@ void proto_fini(void)
     ext_param_mux_timeout_fini();
     ext_param_nb_fuzzed_bits_fini();
     log_category_proto_fini();
+    mutex_fini();
 }

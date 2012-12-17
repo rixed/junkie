@@ -17,6 +17,7 @@
 #include <junkie/proto/tcp.h>
 #include <junkie/proto/ftp.h>
 #include <junkie/proto/http.h>
+#include <junkie/proto/streambuf.h>
 #include <junkie/proto/cnxtrack.h>
 
 static struct test {
@@ -187,6 +188,7 @@ int main(void)
     objalloc_init();
     hash_init();
     cnxtrack_init();
+    streambuf_init();
     proto_init();
     pkt_wait_list_init();
     ref_init();
@@ -213,6 +215,7 @@ int main(void)
     ref_fini();
     pkt_wait_list_fini();
     proto_fini();
+    streambuf_fini();
     cnxtrack_fini();
     hash_fini();
     objalloc_fini();

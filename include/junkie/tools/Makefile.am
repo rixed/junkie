@@ -20,5 +20,6 @@ thisinclude_HEADERS = \
 	serialization.h \
 	netflow.h \
 	objalloc.h \
-	proto.h
+	proto.h \
+	bench.h
 

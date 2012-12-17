@@ -25,7 +25,6 @@
 #include "junkie/tools/log.h"
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/objalloc.h"
-#include "junkie/tools/mutex.h"
 #include "junkie/proto/proto.h"
 #include "junkie/proto/tcp.h"
 #include "junkie/proto/sql.h"
@@ -39,7 +38,6 @@ LOG_CATEGORY_DEF(proto_mysql);
 
 struct mysql_parser {
     struct parser parser;
-    struct mutex mutex;     // Essentially to protect the streambuf
     unsigned c2s_way;       // The way when traffic is going from client to server (UNSET for unset)
     enum phase { NONE, STARTUP, QUERY, EXIT } phase;
     struct streambuf sbuf;
@@ -57,7 +55,6 @@ static int mysql_parser_ctor(struct mysql_parser *mysql_parser, struct proto *pr
     mysql_parser->c2s_way = UNSET;    // unset
     if (0 != streambuf_ctor(&mysql_parser->sbuf, mysql_sbuf_parse, 30000)) return -1;
     mysql_parser->nb_eof = 0;
-    mutex_ctor(&mysql_parser->mutex, "mysql");
 
     return 0;
 }
@@ -80,7 +77,6 @@ static void mysql_parser_dtor(struct mysql_parser *mysql_parser)
     SLOG(LOG_DEBUG, "Destructing mysql_parser@%p", mysql_parser);
     parser_dtor(&mysql_parser->parser);
     streambuf_dtor(&mysql_parser->sbuf);
-    mutex_dtor(&mysql_parser->mutex);
 }
 
 static void mysql_parser_del(struct parser *parser)
@@ -454,9 +450,7 @@ static enum proto_parse_status mysql_parse(struct parser *parser, struct proto_i
 {
     struct mysql_parser *mysql_parser = DOWNCAST(parser, parser, mysql_parser);
 
-    mutex_lock(&mysql_parser->mutex);
     enum proto_parse_status const status = streambuf_add(&mysql_parser->sbuf, parser, parent, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
-    mutex_unlock(&mysql_parser->mutex);
 
     return status;
 }

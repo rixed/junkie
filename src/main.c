@@ -36,6 +36,7 @@
 #include "junkie/tools/objalloc.h"
 #include "junkie/cpp.h"
 // For initers/finiters
+#include "junkie/proto/streambuf.h"
 #include "junkie/proto/capfile.h"
 #include "junkie/proto/proto.h"
 #include "junkie/proto/pkt_wait_list.h"
@@ -78,7 +79,7 @@ static struct {
 #   define I(x) { x##_init, x##_fini }
     I(objalloc),      I(plugins),     I(nettrack),
     I(cnxtrack),      I(proto),       I(fuzzing),
-    I(pkt_wait_list), I(port_muxer),
+    I(pkt_wait_list), I(port_muxer),  I(streambuf),
     I(cap),           I(eth),         I(arp),
     I(ip6),           I(ip),          I(gre),
     I(udp),           I(icmpv6),      I(tcp),
@@ -122,10 +123,10 @@ static void all_fini(void)
 
     redim_array_fini();
     hash_fini();
-    mallocer_fini();
     ref_fini();
-    ext_fini();
+    mallocer_fini();
     cli_fini();
+    ext_fini();
     files_fini();
     log_fini();
 }

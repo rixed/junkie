@@ -25,6 +25,12 @@
 #include "junkie/proto/streambuf.h"
 
 /*
+ * Pool of mutexes
+ */
+
+static struct mutex_pool streambuf_locks;
+
+/*
  * Construction
  */
 
@@ -34,6 +40,8 @@ int streambuf_ctor(struct streambuf *sbuf, parse_fun *parse, size_t max_size)
 
     sbuf->parse = parse;
     sbuf->max_size = max_size;
+    sbuf->mutex = mutex_pool_anyone(&streambuf_locks);
+
     for (unsigned d = 0; d < 2; d++) {
         sbuf->dir[d].buffer = NULL;
         sbuf->dir[d].buffer_size = 0;
@@ -145,9 +153,11 @@ static int streambuf_keep(struct streambuf_unidir *dir)
 
 enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
+    mutex_lock(sbuf->mutex);
+
     assert(way < 2);
     enum proto_parse_status status = streambuf_append(sbuf, way, packet, cap_len, wire_len);
-    if (status != PROTO_OK) return status;
+    if (status != PROTO_OK) goto quit;
 
     struct streambuf_unidir *dir = sbuf->dir+way;
 
@@ -174,24 +184,46 @@ enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *par
          */
         switch (status) {
             case PROTO_PARSE_ERR:
-                return status;
+                goto quit;
             case PROTO_OK:
                 if (dir->restart_offset == dir->buffer_size) {
                     streambuf_empty(dir);
-                    return status;
+                    goto quit;
                 } else {
                     if (0 != streambuf_keep(dir)) return PROTO_PARSE_ERR;
-                    if (dir->wait) return status;
+                    if (dir->wait) goto quit;
                 }
                 break;
             case PROTO_TOO_SHORT:
-                if (wire_len > cap_len) return PROTO_PARSE_ERR; // FIXME: in this case we should kill only in one direction!
-                if (dir->wait) return status;
+                if (wire_len > cap_len) {
+                    status = PROTO_PARSE_ERR; // FIXME: in this case we should kill only in one direction!
+                    goto quit;
+                }
+                if (dir->wait) goto quit;
                 break;
         }
     }
 
     // We reach here when we are constantly restarting. Assume the parser is bugged.
-    return PROTO_PARSE_ERR;
+    status = PROTO_PARSE_ERR;
+quit:
+    mutex_unlock(sbuf->mutex);
+    return status;
+}
+
+/*
+ * Init
+ */
+
+void streambuf_init(void)
+{
+    mutex_init();
+    mutex_pool_ctor(&streambuf_locks, "streambuf");
+}
+
+void streambuf_fini(void)
+{
+    mutex_pool_dtor(&streambuf_locks);
+    mutex_fini();
 }
 
