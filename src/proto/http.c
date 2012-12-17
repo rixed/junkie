@@ -255,11 +255,10 @@ static int http_set_method(unsigned cmd, struct liner *liner, void *info_)
         copy_token_in_strs(info, &info->url, liner);
         /* The URL is what we fetch first and we risk filling up the whole strs buffer
          * right from the start. To avoid this, limit what we use for URL to this amount: */
-#       define HTTP_MAX_URL_LEN 3500   ///< Do not fill up strs with the URL only
         assert(info->free_strs >= info->url);
         unsigned const url_size = info->free_strs - info->url;
-        if (url_size > HTTP_MAX_URL_LEN + 1) {
-            info->free_strs = info->url + HTTP_MAX_URL_LEN + 1;
+        if (url_size > HTTP_MAX_URL_SIZE) {
+            info->free_strs = info->url + HTTP_MAX_URL_SIZE;
             info->strs[info->free_strs - 1] = '\0';
         }
     }

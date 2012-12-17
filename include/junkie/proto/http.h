@@ -41,6 +41,7 @@ struct http_proto_info {
     unsigned referrer;              ///< The Referrer field, if present (as offset in strs)
     unsigned url;                   ///< The URL, for methods that have one (as offset in strs)
 #   define HTTP_STRS_SIZE 4000      ///< So that the whole http_info is below 4k
+#   define HTTP_MAX_URL_SIZE 3500   ///< Do not fill up strs with the URL only
     unsigned free_strs;             ///< Offset of the next free byte in strs
     char strs[HTTP_STRS_SIZE];      ///< We store all the previous strings in there, as nul term strings
 };
