@@ -30,6 +30,12 @@ void ip_addr_ctor_from_ip4(struct ip_addr *, uint32_t);
 void ip_addr_ctor_from_ip6(struct ip_addr *, struct in6_addr const *);
 int ip_addr_ctor_from_sockaddr(struct ip_addr *, struct sockaddr const *, socklen_t);
 int ip_addr_cmp(struct ip_addr const *, struct ip_addr const *);
+
+static inline bool ip_addr_eq(struct ip_addr const *a, struct ip_addr const *b)
+{
+    return 0 == ip_addr_cmp(a, b);
+}
+
 bool ip_addr_is_v6(struct ip_addr const *);
 char const *ip_addr_2_str(struct ip_addr const *);
 char const *ip_addr_2_strv6(struct ip_addr const *);
