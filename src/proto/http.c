@@ -240,8 +240,12 @@ static unsigned copy_token_chopped(char *dest, size_t dest_sz, struct liner *lin
 
 static void copy_token_in_strs(struct http_proto_info *info, unsigned *offset, struct liner *liner)
 {
-    *offset = info->free_strs;
-    info->free_strs += 1 + copy_token_chopped(info->strs + info->free_strs, sizeof(info->strs) - info->free_strs, liner);
+    if (info->free_strs >= sizeof(info->strs)) {
+        *offset = sizeof(info->strs)-1; // points to the last '\0'
+    } else {
+        *offset = info->free_strs;
+        info->free_strs += 1 + copy_token_chopped(info->strs + info->free_strs, sizeof(info->strs) - info->free_strs, liner);
+    }
 }
 
 static int http_set_method(unsigned cmd, struct liner *liner, void *info_)

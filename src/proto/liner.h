@@ -24,7 +24,9 @@ struct liner {
     } const *delims;
 };
 
-// Returns the number of chars written, exluding the terminal nul
+/** Returns the number of chars written, exluding the terminal nul
+ * As this function will write a nul byte no matter what the given
+ * buffer must be at least 1 byte long. */
 unsigned copy_token(char *, size_t, struct liner *);
 
 void liner_init(struct liner *, struct liner_delimiter_set const *, char const *, size_t);
