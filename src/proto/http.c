@@ -40,6 +40,67 @@
 
 LOG_CATEGORY_DEF(proto_http);
 
+/*
+ * Utilities
+ */
+
+#define HTTP_SEL "http://"
+#define HTTP_SEL_LEN 7
+
+static bool end_of_host(int c)
+{
+    return c == '\0' || c == '/' || c == ':';
+}
+
+char const *http_build_domain(struct ip_addr const *server, char const *host, char const *url, int version)
+{
+    char const *src = NULL;
+    if (host) {
+        src = host;
+    } else if (url && 0 == strncasecmp(url, HTTP_SEL, HTTP_SEL_LEN)) {
+        src = url + HTTP_SEL_LEN;
+    }
+
+    if (! src) return (version == 6 ? ip_addr_2_strv6:ip_addr_2_str)(server);
+
+    // takes everything from url+HTTP_SEL_LEN up to '\0', ':' or '/'
+    char *str = tempstr();
+    unsigned c;
+    for (c = 0; c < TEMPSTR_SIZE-1 && !end_of_host(src[c]); c++) {
+        str[c] = src[c];
+    }
+    str[c] = '\0';
+    return str;
+}
+
+char const *http_build_url(struct ip_addr const *server, char const *host, char const *url)
+{
+    if (url && 0 == strncasecmp(url, HTTP_SEL, HTTP_SEL_LEN)) {
+        url += HTTP_SEL_LEN;
+        // Remove port from url
+        char const *colon = url;
+        while (! end_of_host(*colon)) colon ++;
+        if (*colon != ':') return url;
+        char *str = tempstr();
+        char const *end_port = colon;
+        while (! end_of_host(*end_port)) end_port ++;
+        if (*end_port == ':') return url; // ?
+        snprintf(str, TEMPSTR_SIZE, "%.*s%s", (int)(colon-url), url, end_port != '\0' ? end_port+1:end_port);
+        return str;
+    } else {    // url does not include host
+        char *str = tempstr();
+        snprintf(str, TEMPSTR_SIZE, "%s%s%s",
+            http_build_domain(server, host, url, 4),
+            !url || url[0] == '/' ? "" : "/",
+            url ? url : "");
+        return str;
+    }
+}
+
+/*
+ * Parsing
+ */
+
 struct http_parser {
     struct parser parser;
     unsigned c2s_way;   // The way when traffic is going from client to server (UNSET for unset)
@@ -55,7 +116,6 @@ struct http_parser {
         size_t remaining_content;   // nb bytes before next header (or (ssize_t)-1 if unknown). Only relevant when phase=BODY|CHUNK.
         // Store the last query command, to be taken it into account to skip body in answer to HEADs
         enum http_method last_method;
-        // FIXME: parse transfert-encoding: chunked
         // FIXME: take into account http-range?
     } state[2];    // One per direction (depending on "way", ie. 0 will be smaller IP)
 };
@@ -268,6 +328,8 @@ static int http_set_method(unsigned cmd, struct liner *liner, void *info_)
     }
     return 0;
 }
+
+// TODO: some boolean EXT_PARAMS to disable fetching of each HTTP fields
 
 static int http_extract_code(unsigned unused_ cmd, struct liner *liner, void *info_)
 {
@@ -585,6 +647,7 @@ static struct port_muxer tcp_port_muxer;
 
 void http_init(void)
 {
+    objalloc_init();
     log_category_proto_http_init();
 
     static struct proto_ops const ops = {
@@ -603,64 +666,8 @@ void http_init(void)
 void http_fini(void)
 {
     port_muxer_dtor(&tcp_port_muxer, &tcp_port_muxers);
+
     proto_dtor(&proto_http_);
     log_category_proto_http_fini();
+    objalloc_fini();
 }
-
-/*
- * Utilities
- */
-
-#define HTTP_SEL "http://"
-#define HTTP_SEL_LEN 7
-
-static bool end_of_host(int c)
-{
-    return c == '\0' || c == '/' || c == ':';
-}
-
-char const *http_build_domain(struct ip_addr const *server, char const *host, char const *url, int version)
-{
-    char const *src = NULL;
-    if (host) {
-        src = host;
-    } else if (url && 0 == strncasecmp(url, HTTP_SEL, HTTP_SEL_LEN)) {
-        src = url + HTTP_SEL_LEN;
-    }
-
-    if (! src) return (version == 6 ? ip_addr_2_strv6:ip_addr_2_str)(server);
-
-    // takes everything from url+HTTP_SEL_LEN up to '\0', ':' or '/'
-    char *str = tempstr();
-    unsigned c;
-    for (c = 0; c < TEMPSTR_SIZE-1 && !end_of_host(src[c]); c++) {
-        str[c] = src[c];
-    }
-    str[c] = '\0';
-    return str;
-}
-
-char const *http_build_url(struct ip_addr const *server, char const *host, char const *url)
-{
-    if (url && 0 == strncasecmp(url, HTTP_SEL, HTTP_SEL_LEN)) {
-        url += HTTP_SEL_LEN;
-        // Remove port from url
-        char const *colon = url;
-        while (! end_of_host(*colon)) colon ++;
-        if (*colon != ':') return url;
-        char *str = tempstr();
-        char const *end_port = colon;
-        while (! end_of_host(*end_port)) end_port ++;
-        if (*end_port == ':') return url; // ?
-        snprintf(str, TEMPSTR_SIZE, "%.*s%s", (int)(colon-url), url, end_port != '\0' ? end_port+1:end_port);
-        return str;
-    } else {    // url does not include host
-        char *str = tempstr();
-        snprintf(str, TEMPSTR_SIZE, "%s%s%s",
-            http_build_domain(server, host, url, 4),
-            !url || url[0] == '/' ? "" : "/",
-            url ? url : "");
-        return str;
-    }
-}
-

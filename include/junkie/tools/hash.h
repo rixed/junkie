@@ -78,8 +78,7 @@ struct name_ { \
     LIST_FOREACH_SAFE(var, HASH_LIST(hash, key), field, tvar)
 
 #define HASH_FOREACH_MATCH(var, hash, key, key_field, field) \
-    ASSERT_COMPILE(sizeof(*(key)) == sizeof((var)->key_field)); \
-    LIST_FOREACH(var, HASH_LIST(hash, key), field) \
+    HASH_FOREACH_SAME_KEY(var, hash, key, key_field, field) \
         if (0 == memcmp(key, &((var)->key_field), sizeof(*(key))))
 
 #define HASH_LOOKUP(var, hash, key, key_field, field) \
