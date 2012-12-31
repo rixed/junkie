@@ -140,6 +140,8 @@ static char const *http_parser_phase_2_str(enum http_phase phase)
 
 static void http_parser_reset_phase(struct http_parser *http_parser, unsigned way, enum http_phase phase)
 {
+    SLOG(LOG_DEBUG, "Reset phase for direction %s to %s", way == http_parser->c2s_way ? "clt->srv" : "srv->clt", http_parser_phase_2_str(phase));
+
     http_parser->state[way].phase = phase;
     /* Note that we do not init first to now because we can create the parser
      * before receiving the first packet (in case of conntracking for
@@ -517,7 +519,8 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
             http_parser->state[way].remaining_content = CONTENT_UP_TO_END;
         }
     } else {
-        // We stay in HEAD phase
+        // We stay in HEAD phase (but we reset msg nonetheless)
+        http_parser_reset_phase(http_parser, way, HEAD);
     }
 
     // call hooks on header
