@@ -18,6 +18,8 @@ extern struct proto *proto_http;
 /// HTTP message
 struct http_proto_info {
     struct proto_info info;         ///< Header and payload sizes
+    unsigned pkts;                  ///< Packet count in this HTTP message (head+body)
+    struct timeval first;           ///< First packet timestamp
 #   define HTTP_METHOD_SET             0x1
 #   define HTTP_CODE_SET               0x2
 #   define HTTP_LENGTH_SET             0x4
@@ -47,6 +49,17 @@ struct http_proto_info {
 };
 
 #define HTTP_IS_QUERY(http) ((http)->set_values & HTTP_METHOD_SET)
+
+/// To subscribe to HTTP "completed header" event
+/** You will receive the same http_proto_info than you'd receive for each packet,
+ * but in the future it may be simpler to have distinct messages. */
+int http_head_subscriber_ctor(struct proto_subscriber *, proto_cb_t *);
+void http_head_subscriber_dtor(struct proto_subscriber *);
+
+/// To subscribe to HTTP "body chunk" event
+/** Same remark apply */
+int http_body_subscriber_ctor(struct proto_subscriber *, proto_cb_t *);
+void http_body_subscriber_dtor(struct proto_subscriber *);
 
 /// @return the name of an HTTP method
 char const *http_method_2_str(enum http_method);

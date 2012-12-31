@@ -1,7 +1,7 @@
 -- pcap/truncation/http-96.pcap --
-head_len=24, payload=0, method=GET, code=unset, content_length=unset, transfert_encoding=unset, mime_type=unset, host=unset, user_agent=unset, referrer=unset, url=/
-head_len=24, payload=0, method=unset, code=301, content_length=unset, transfert_encoding=unset, mime_type=unset, host=unset, user_agent=unset, referrer=unset, url=unset
-head_len=24, payload=0, method=GET, code=unset, content_length=unset, transfert_encoding=unset, mime_type=unset, host=unset, user_agent=unset, referrer=unset, url=/content/widgets/exp
-head_len=24, payload=0, method=unset, code=301, content_length=unset, transfert_encoding=unset, mime_type=unset, host=unset, user_agent=unset, referrer=unset, url=unset
-head_len=24, payload=0, method=GET, code=unset, content_length=unset, transfert_encoding=unset, mime_type=unset, host=unset, user_agent=unset, referrer=unset, url=/com/bazarchic-box/m
-head_len=24, payload=0, method=unset, code=301, content_length=unset, transfert_encoding=unset, mime_type=unset, host=unset, user_agent=unset, referrer=unset, url=unset
+head_len=24, payload=0, method=GET, code=unset, content_length=unset, transfert_encoding=unset, mime_type=unset, host=unset, user_agent=unset, referrer=unset, url=/, pkts=1
+head_len=24, payload=0, method=unset, code=301, content_length=unset, transfert_encoding=unset, mime_type=unset, host=unset, user_agent=unset, referrer=unset, url=unset, pkts=1
+head_len=24, payload=0, method=GET, code=unset, content_length=unset, transfert_encoding=unset, mime_type=unset, host=unset, user_agent=unset, referrer=unset, url=/content/widgets/exp, pkts=2
+head_len=24, payload=0, method=unset, code=301, content_length=unset, transfert_encoding=unset, mime_type=unset, host=unset, user_agent=unset, referrer=unset, url=unset, pkts=2
+head_len=24, payload=0, method=GET, code=unset, content_length=unset, transfert_encoding=unset, mime_type=unset, host=unset, user_agent=unset, referrer=unset, url=/com/bazarchic-box/m, pkts=3
+head_len=24, payload=0, method=unset, code=301, content_length=unset, transfert_encoding=unset, mime_type=unset, host=unset, user_agent=unset, referrer=unset, url=unset, pkts=3
