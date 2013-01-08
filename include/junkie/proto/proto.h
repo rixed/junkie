@@ -15,6 +15,7 @@
 #include <junkie/tools/timeval.h>
 #include <junkie/tools/mutex.h>
 #include <junkie/tools/ref.h>
+#include <junkie/tools/bench.h>
 
 /** @file
  * @brief Packet inspection
@@ -196,6 +197,8 @@ struct proto {
     LIST_HEAD(proto_subscribers, proto_subscriber) subscribers;
     /// Mutex to protect the mutable values of this proto (entry, parsers, nb_parsers, nb_frames, subscribers list)
     struct mutex lock;
+    /// Some benchmark counters
+    struct bench_event parsing; // measure time spent parsing this protocol
 };
 
 /// The list of registered protos
