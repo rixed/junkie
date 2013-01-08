@@ -111,6 +111,9 @@ void enter_safe_region(void);
 /// Will stop the doomer_thread (must be called bedore ref_fini(), and probably before any parser_fini()
 void doomer_stop(void);
 
+/// Will run the doomer thread to kill all unreachable objects (safe for multithread)
+void doomer_run(void);
+
 void ref_init(void);
 void ref_fini(void);
 

@@ -111,6 +111,8 @@ static void digest_queue_del_by_ref(struct ref *);
 
 static void digest_queue_ctor(struct digest_queue *dq, uint8_t dev_id)
 {
+    SLOG(LOG_DEBUG, "Constructing digest_queue@%p for dev_id=%"PRIu8, dq, dev_id);
+
     for (unsigned i = 0; i < NB_ELEMS(dq->queues); i++) {
         struct digest_queue_ *const q = dq->queues + i;
 
@@ -134,6 +136,8 @@ static struct digest_queue *digest_queue_new(uint8_t dev_id)
 
 static void digest_queue_dtor(struct digest_queue *dq)
 {
+    SLOG(LOG_DEBUG, "Destructing digest_queue@%p", dq);
+
     LIST_REMOVE(dq, entry);
 
     reset_digests(dq);
@@ -428,9 +432,8 @@ void digest_fini(void)
 
     dup_hook_fini();
 
-    if (! LIST_EMPTY(&digest_queues)) {
-        SLOG(LOG_WARNING, "Some digest queues are still in use");
-    }
+    doomer_run();
+    assert(LIST_EMPTY(&digest_queues));
 
     ext_param_max_dup_delay_fini();
     log_category_digest_fini();

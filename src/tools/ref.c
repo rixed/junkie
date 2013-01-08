@@ -73,14 +73,19 @@ static void delete_doomed(void)
     SLOG(nb_dels + nb_rescued > 0 ? LOG_INFO:LOG_DEBUG, "Deleted %u objects, rescued %u", nb_dels, nb_rescued);
 }
 
+void doomer_run(void)
+{
+    rwlock_acquire(&rwlock, true);
+    delete_doomed();
+    rwlock_release(&rwlock);
+}
+
 static void *doomer_thread(void unused_ *dummy)
 {
     set_thread_name("J-doomer");
 
     while (1) {
-        rwlock_acquire(&rwlock, true);
-        delete_doomed();
-        rwlock_release(&rwlock);
+        doomer_run();
         sleep(1);
     }
     return NULL;

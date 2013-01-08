@@ -42,7 +42,8 @@
 
 static LIST_HEAD(pkt_sources, pkt_source) pkt_sources = LIST_HEAD_INITIALIZER(pkt_sources);
 static struct mutex pkt_sources_lock;   // only valid when !terminating
-static volatile sig_atomic_t terminating = 0;
+static volatile sig_atomic_t terminating;   // set once in the fini process. terminating imply want_exit
+static volatile sig_atomic_t want_exit; // set from a pcap callback, asking for exit to be called as soon as possible (ie when leaving callback)
 static struct digest_queue *global_digests;
 
 unsigned pkt_count; // if not 0, max number of packets to parse before exiting
@@ -101,6 +102,8 @@ static char const *pkt_source_guile_name(struct pkt_source *pkt_source)
 
 static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, const u_char *packet)
 {
+    if (want_exit) return;
+
     struct pkt_source *pkt_source = (struct pkt_source *)pkt_source_;
     SLOG(LOG_DEBUG, "Received a new packet from packet source %s, wire-len: %u", pkt_source_name(pkt_source), header->len);
 
@@ -150,7 +153,7 @@ static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, 
 #           else
             --pkt_count
 #           endif
-        ) exit(0);
+        ) want_exit = 1; // we cannot call exit from pcap callback (since we cannot destroy this pkt_source from pcap callback)
     }
 
 #   ifdef WITH_GIANT_LOCK
@@ -185,21 +188,20 @@ static void *sniffer(struct pkt_source *pkt_source, pcap_handler callback)
                 SLOG(LOG_ALERT, "Cannot pcap_dispatch on pkt_source %s: %s", pkt_source_name(pkt_source), pcap_geterr(pkt_source->pcap_handle));
             }
             SLOG(LOG_INFO, "Stop sniffing on packet source %s (%"PRIuLEAST64" packets received)", pkt_source_name(pkt_source), pkt_source->nb_packets);
-            pkt_source_del(pkt_source);
-            return NULL;
+            break;
         } else if (nb_packets == 0) {
             if (pkt_source->is_file) {
                 if (pkt_source->loop) {
                     rewind_file(pkt_source);
                 } else {
                     SLOG(LOG_INFO, "Stop sniffing from file %s (%"PRIuLEAST64" packets read)", pkt_source_name(pkt_source), pkt_source->nb_packets);
-                    pkt_source_del(pkt_source);
-                    return NULL;
+                    break;
                 }
             }
         }
-    } while (! terminating);
+    } while (! want_exit);
 
+    pkt_source_del(pkt_source);
     return NULL;
 }
 
@@ -218,9 +220,9 @@ static void sync_times(struct timeval const *file_start, struct timeval const *r
 #       define MAX_SLEEP 400000
         // Don't sleep less than 10ms since the sleep + parse would likely last more than that
         if (wait_time < MIN_SLEEP) break;
-        // Don't sleep more than 400ms straight so that we can check for terminating flag from time to time
+        // Don't sleep more than 400ms straight so that we can check for want_exit flag from time to time
         usleep(MIN(MIN_SLEEP, wait_time));
-    } while (! terminating);
+    } while (! want_exit);
     SLOG(LOG_DEBUG, "Patching packet TS from %s to %s", timeval_2_str(pkt), timeval_2_str(&tv));
     *pkt = tv; // Set ideal 'now' time in pkt
 }
@@ -240,7 +242,7 @@ static void *sniffer_rt(struct pkt_source *pkt_source, pcap_handler callback)
         if (res < 0) {
             if (res == -2) {    // end of file
                 assert(pkt_source->is_file);
-                if (pkt_source->loop) {
+                if (pkt_source->loop && !want_exit) {
                     rewind_file(pkt_source);
                     timeval_set_now(&replay_start);
                     continue;
@@ -249,7 +251,7 @@ static void *sniffer_rt(struct pkt_source *pkt_source, pcap_handler callback)
                     break;
                 }
             } else { // error
-                SLOG(LOG_ERR, "Cannot pcap_dispatch on pkt_source %s: %s", pkt_source_name(pkt_source), pcap_geterr(pkt_source->pcap_handle));
+                SLOG(LOG_ERR, "Cannot pcap_next_ex on pkt_source %s: %s", pkt_source_name(pkt_source), pcap_geterr(pkt_source->pcap_handle));
                 break;
             }
         }
@@ -257,7 +259,7 @@ static void *sniffer_rt(struct pkt_source *pkt_source, pcap_handler callback)
         if (pkt_hdr->ts.tv_sec == 0) continue;   // should not happen, but does occur sometime (same goes for all other pcap header fields)
         if (! timeval_is_set(&file_start)) file_start = pkt_hdr->ts;
         sync_times(&file_start, &replay_start, &pkt_hdr->ts);
-        if (terminating) break;
+        if (want_exit) break;
         callback((void *)pkt_source, pkt_hdr, packet);
     } while (1);
 
@@ -338,7 +340,7 @@ static int pkt_source_ctor(struct pkt_source *pkt_source, char const *name, pcap
     pkt_source->digests = digest_queue_get(dev_id); // if we can't have a deduplicator, let's go without one!
 
     mutex_lock(&pkt_sources_lock);
-    if (terminating) {
+    if (want_exit) {
         ret = -1;
         goto unlock_quit;
     }
@@ -412,7 +414,7 @@ static struct pkt_source *pkt_source_new_file(char const *filename, char const *
     return pkt_source;
 }
 
-static void quit_if_nothing_opened(void)
+static void may_quit(void)
 {
     bool do_exit = false;
     mutex_lock(&pkt_sources_lock);
@@ -423,7 +425,7 @@ static void quit_if_nothing_opened(void)
     }
     mutex_unlock(&pkt_sources_lock);
 
-    if (do_exit) exit(0);
+    if (want_exit || do_exit) exit(0);
 }
 
 // We use the number that folows ifname as a device_id. Should work as intended in most cases
@@ -489,7 +491,7 @@ static struct pkt_source *pkt_source_new_if(char const *ifname, bool promisc, ch
 err1:
     pcap_close(handle);
 err2:
-    quit_if_nothing_opened();
+    may_quit();
     return NULL;
 }
 
@@ -517,7 +519,7 @@ static void pkt_source_del(struct pkt_source *pkt_source)
 {
     pkt_source_dtor(pkt_source);
     objfree(pkt_source);
-    if (! terminating) quit_if_nothing_opened();
+    if (! terminating) may_quit();
 }
 
 // Caller must own pkt_sources_lock
@@ -764,7 +766,7 @@ void pkt_source_fini(void)
     if (--inited) return;
 
     mutex_lock(&pkt_sources_lock);
-    terminating = 1;
+    terminating = want_exit = 1;
     pkt_source_terminate_all();
     mutex_unlock(&pkt_sources_lock);
 
@@ -773,9 +775,9 @@ void pkt_source_fini(void)
     for (unsigned nb_try = 0; nb_try < 3; nb_try ++) {
         mutex_lock(&pkt_sources_lock);
         bool is_empty = LIST_EMPTY(&pkt_sources);
-        if (! is_empty) SLOG(LOG_DEBUG, "Waiting for termination of packet source '%s'", pkt_source_name(LIST_FIRST(&pkt_sources)));
         mutex_unlock(&pkt_sources_lock);
         if (is_empty) break;
+        SLOG(LOG_DEBUG, "Waiting for termination of packet source '%s'", pkt_source_name(LIST_FIRST(&pkt_sources)));
         sleep(1);
     }
 
