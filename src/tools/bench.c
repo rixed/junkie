@@ -46,7 +46,7 @@ struct report {
 static LIST_HEAD(reports, report) reports;
 static pthread_mutex_t report_lock;
 
-static void report_dump(struct report *report)
+static void report_dump(struct report const *report)
 {
     switch (report->type) {
         case REPORT_ATOMIC:;
@@ -61,8 +61,8 @@ static void report_dump(struct report *report)
             struct bench_event const *e = &report->u.event;
             // Log result
             if (e->count.count > 0) {
-                SLOG(LOG_INFO, "%30.30s(x%6u): %"PRIu64" times, [%"PRIu64" / %"PRIu64" / %"PRIu64"]",
-                    e->count.name, report->count, e->count.count,
+                SLOG(LOG_INFO, "%30.30s(x%6u): %"PRIu64" times, tot:%"PRIu64", min:%"PRIu64" avg:%"PRIu64" max:%"PRIu64"",
+                    e->count.name, report->count, e->count.count, e->tot_duration,
                     e->min_duration, e->tot_duration / e->count.count, e->max_duration);
             }
             break;
@@ -147,7 +147,6 @@ static void report_dtor(struct report *report)
 
 static void report_del(struct report *report)
 {
-    report_dump(report);
     report_dtor(report);
     free(report);
 }
@@ -249,13 +248,49 @@ void bench_init(void)
     (void)pthread_mutex_init(&report_lock, NULL);
 }
 
+static int report_cmp(void const *a_, void const *b_)
+{
+    struct report const *a = *(struct report const **)a_;
+    struct report const *b = *(struct report const **)b_;
+
+    switch (a->type) {
+        case REPORT_ATOMIC:
+            if (b->type == REPORT_EVENT) return -1;
+            assert(b->type == REPORT_ATOMIC);
+            if (a->u.atomic.count < b->u.atomic.count) return -1;
+            if (a->u.atomic.count > b->u.atomic.count) return 1;
+            break;
+        case REPORT_EVENT:
+            if (b->type == REPORT_ATOMIC) return 1;
+            assert(b->type == REPORT_EVENT);
+            if (a->u.event.tot_duration < b->u.event.tot_duration) return -1;
+            if (a->u.event.tot_duration > b->u.event.tot_duration) return 1;
+            break;
+    }
+    return 0;
+}
+
 void bench_fini(void)
 {
     if (--inited) return;
 
     SLOG(LOG_DEBUG, "Fini bench...");
 
+    // Dump reports (sorted)
+    unsigned length = 0;
     struct report *report;
+    LIST_FOREACH(report, &reports, entry) length++;
+    struct report const *arr[length];
+    unsigned i = 0;
+    LIST_FOREACH(report, &reports, entry) {
+        arr[i++] = report;
+    }
+    qsort(arr, length, sizeof(arr[0]), report_cmp);
+    for (i = 0; i < length; i++) {
+        report_dump(arr[i]);
+    }
+
+    // Dell all reports
     while (NULL != (report = LIST_FIRST(&reports))) {
         report_del(report);
     }
