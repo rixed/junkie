@@ -46,7 +46,7 @@ struct report {
 static LIST_HEAD(reports, report) reports;
 static pthread_mutex_t report_lock;
 
-static void report_dump(struct report const *report)
+static void report_dump(struct report const *report, int64_t tot)
 {
     switch (report->type) {
         case REPORT_ATOMIC:;
@@ -61,8 +61,8 @@ static void report_dump(struct report const *report)
             struct bench_event const *e = &report->u.event;
             // Log result
             if (e->count.count > 0) {
-                SLOG(LOG_INFO, "%30.30s(x%6u): %"PRIu64" times, tot:%"PRIu64", min:%"PRIu64" avg:%"PRIu64" max:%"PRIu64"",
-                    e->count.name, report->count, e->count.count, e->tot_duration,
+                SLOG(LOG_INFO, "%30.30s(x%6u): %"PRIu64" times, tot:%"PRIu64"(%5.2f%%), min:%"PRIu64" avg:%"PRIu64" max:%"PRIu64"",
+                    e->count.name, report->count, e->count.count, e->tot_duration, (e->tot_duration*100.)/tot,
                     e->min_duration, e->tot_duration / e->count.count, e->max_duration);
             }
             break;
@@ -238,6 +238,8 @@ extern inline void bench_event_stop(struct bench_event *, uint64_t);
  * We depends on nothing but log.
  */
 
+static uint64_t program_start;
+
 static unsigned inited;
 void bench_init(void)
 {
@@ -246,6 +248,8 @@ void bench_init(void)
     log_category_bench_init();
     LIST_INIT(&reports);
     (void)pthread_mutex_init(&report_lock, NULL);
+
+    program_start = rdtsc();
 }
 
 static int report_cmp(void const *a_, void const *b_)
@@ -276,19 +280,26 @@ void bench_fini(void)
 
     SLOG(LOG_DEBUG, "Fini bench...");
 
-    // Dump reports (sorted)
-    unsigned length = 0;
     struct report *report;
-    LIST_FOREACH(report, &reports, entry) length++;
-    struct report const *arr[length];
-    unsigned i = 0;
-    LIST_FOREACH(report, &reports, entry) {
-        arr[i++] = report;
+
+#   ifdef WITH_BENCH
+    int64_t const tot_cycles = rdtsc() - program_start;
+    // Dump reports (sorted)
+    if (tot_cycles > 0) {
+        unsigned length = 0;
+        LIST_FOREACH(report, &reports, entry) length++;
+        struct report const *arr[length];
+        unsigned i = 0;
+        LIST_FOREACH(report, &reports, entry) {
+            arr[i++] = report;
+        }
+        qsort(arr, length, sizeof(arr[0]), report_cmp);
+        for (i = 0; i < length; i++) {
+            report_dump(arr[i], tot_cycles);
+        }
+        SLOG(LOG_INFO, "total running time: %"PRId64" cycles", tot_cycles);
     }
-    qsort(arr, length, sizeof(arr[0]), report_cmp);
-    for (i = 0; i < length; i++) {
-        report_dump(arr[i]);
-    }
+#   endif
 
     // Dell all reports
     while (NULL != (report = LIST_FIRST(&reports))) {
