@@ -52,6 +52,7 @@ static void supermutex_check(void)
 
 int main(void)
 {
+    log_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("mutex_check.log");
     mutex_init();
@@ -59,5 +60,6 @@ int main(void)
     supermutex_check();
 
     mutex_fini();
+    log_fini();
     return EXIT_SUCCESS;
 }

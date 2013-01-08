@@ -19,11 +19,150 @@
  */
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/log.h"
 #include "junkie/tools/bench.h"
 
+LOG_CATEGORY_DEF(bench)
+#undef LOG_CAT
+#define LOG_CAT bench_log_category
+
 extern inline uint64_t rdtsc(void);
+
+/* We accumulate several counters with same name into a repport.
+ * Reports are displayed at the end. */
+
+struct report {
+    LIST_ENTRY (report) entry;
+    enum report_type { REPORT_ATOMIC, REPORT_EVENT } type;
+    unsigned count;
+    union {
+        struct bench_atomic_event atomic;
+        struct bench_event event;
+    } u;
+};
+
+static LIST_HEAD(reports, report) reports;
+static pthread_mutex_t report_lock;
+
+static void report_dump(struct report *report)
+{
+    switch (report->type) {
+        case REPORT_ATOMIC:;
+            struct bench_atomic_event const *a = &report->u.atomic;
+            // Log result
+            // Note: by the time we destruct a bench log module will already be initialized
+            if (a->count > 0) {
+                SLOG(LOG_INFO, "%30.30s(x%6u): %"PRIu64" times", a->name, report->count, a->count);
+            }
+            break;
+        case REPORT_EVENT:;
+            struct bench_event const *e = &report->u.event;
+            // Log result
+            if (e->count.count > 0) {
+                SLOG(LOG_INFO, "%30.30s(x%6u): %"PRIu64" times, [%"PRIu64" / %"PRIu64" / %"PRIu64"]",
+                    e->count.name, report->count, e->count.count,
+                    e->min_duration, e->tot_duration / e->count.count, e->max_duration);
+            }
+            break;
+    }
+}
+
+static void report_ctor(struct report *report, enum report_type type, char const *name)
+{
+    SLOG(LOG_DEBUG, "Construct report for %s", name);
+
+    report->count = 0;
+    report->type = type;
+
+    switch (type) {
+        case REPORT_ATOMIC:
+            bench_atomic_event_ctor(&report->u.atomic, name);   // FIXME: save strdup of the name
+            break;
+        case REPORT_EVENT:
+            bench_event_ctor(&report->u.event, name);
+            break;
+    }
+
+    LIST_INSERT_HEAD(&reports, report, entry);
+}
+
+static struct report *report_new(enum report_type type, char const *name)
+{
+    struct report *report = malloc(sizeof(*report));
+    if (! report) return NULL;
+    report_ctor(report, type, name);
+    return report;
+}
+
+static char const *report_name(struct report *report)
+{
+    switch (report->type) {
+        case REPORT_ATOMIC: return report->u.atomic.name;
+        case REPORT_EVENT:  return report->u.event.count.name;
+    }
+    assert(!"Invalid report");
+}
+
+// Same as below but do not report it (usefull for bench_event and report itself)
+static void bench_atomic_event_dtor_(struct bench_atomic_event *e)
+{
+#   ifdef WITH_BENCH
+    // Destruct
+    if (e->name_malloced) {
+        free(e->name);
+        e->name = NULL;
+    }
+#   else
+    (void)e;
+#   endif
+}
+
+void bench_event_dtor_(struct bench_event *e)
+{
+#   ifdef WITH_BENCH
+    // Destroy (without producing a report)
+    bench_atomic_event_dtor_(&e->count);
+#   else
+    (void)e;
+#   endif
+}
+
+static void report_dtor(struct report *report)
+{
+    SLOG(LOG_DEBUG, "Destruct report for %s", report_name(report));
+
+    LIST_REMOVE(report, entry);
+
+    switch (report->type) {
+        case REPORT_ATOMIC:
+            bench_atomic_event_dtor_(&report->u.atomic);
+            break;
+        case REPORT_EVENT:
+            bench_event_dtor_(&report->u.event);
+            break;
+    }
+}
+
+static void report_del(struct report *report)
+{
+    report_dump(report);
+    report_dtor(report);
+    free(report);
+}
+
+// Caller must own report_lock
+static struct report *report_lookup_or_create(enum report_type type, char const *name)
+{
+    struct report *report;
+    LIST_LOOKUP(report, &reports, entry, report->type == type && 0 == strcmp(name, report_name(report)));
+    if (report) return report;
+
+    return report_new(type, name);
+}
+
+// Then the individual bench counters
 
 void bench_atomic_event_ctor(struct bench_atomic_event *e, char const *name)
 {
@@ -37,17 +176,19 @@ void bench_atomic_event_ctor(struct bench_atomic_event *e, char const *name)
 #   endif
 }
 
-
 void bench_atomic_event_dtor(struct bench_atomic_event *e)
 {
 #   ifdef WITH_BENCH
-    // Log result
-    // Note: by the time we destruct a bench log module will already be initialized
-    SLOG(LOG_INFO, "Event '%s' triggered %"PRIu64" times", e->name, e->count);
-    if (e->name_malloced) {
-        free(e->name);
-        e->name = NULL;
+    // Add this result into the proper report
+    (void)pthread_mutex_lock(&report_lock);
+    struct report *report = report_lookup_or_create(REPORT_ATOMIC, e->name);
+    if (report) {
+        report->count ++;
+        report->u.atomic.count += e->count;
     }
+    (void)pthread_mutex_unlock(&report_lock);
+
+    bench_atomic_event_dtor_(e);
 #   else
     (void)e;
 #   endif
@@ -71,14 +212,20 @@ extern inline void bench_event_ctor(struct bench_event *e, char const *name)
 void bench_event_dtor(struct bench_event *e)
 {
 #   ifdef WITH_BENCH
-    // Log result
-    if (e->count.count > 0) {
-        SLOG(LOG_INFO, "Event '%s' avg duration: %"PRIu64" cycles, in [%"PRIu64";%"PRIu64"]",
-            e->count.name, e->tot_duration / e->count.count,
-            e->min_duration, e->max_duration);
+    // Add this result into the proper report
+    (void)pthread_mutex_lock(&report_lock);
+    struct report *report = report_lookup_or_create(REPORT_EVENT, e->count.name);
+    if (report) {
+        report->count ++;
+        report->u.event.count.count += e->count.count;
+        report->u.event.tot_duration += e->tot_duration;
+        if (e->min_duration < report->u.event.min_duration) report->u.event.min_duration = e->min_duration;
+        if (e->max_duration > report->u.event.max_duration) report->u.event.max_duration = e->max_duration;
     }
-    // Destroy
-    bench_atomic_event_dtor(&e->count);
+    (void)pthread_mutex_unlock(&report_lock);
+
+    // Destroy (without producing a report)
+    bench_atomic_event_dtor_(&e->count);
 #   else
     (void)e;
 #   endif
@@ -96,10 +243,24 @@ static unsigned inited;
 void bench_init(void)
 {
     if (inited++) return;
+
+    log_category_bench_init();
+    LIST_INIT(&reports);
+    (void)pthread_mutex_init(&report_lock, NULL);
 }
 
 void bench_fini(void)
 {
     if (--inited) return;
+
+    SLOG(LOG_DEBUG, "Fini bench...");
+
+    struct report *report;
+    while (NULL != (report = LIST_FIRST(&reports))) {
+        report_del(report);
+    }
+
+    log_category_bench_fini();
+    (void)pthread_mutex_destroy(&report_lock);
 }
 
