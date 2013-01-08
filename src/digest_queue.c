@@ -433,7 +433,9 @@ void digest_fini(void)
     dup_hook_fini();
 
     doomer_run();
-    assert(LIST_EMPTY(&digest_queues));
+    if (! LIST_EMPTY(&digest_queues)) {
+        SLOG(LOG_WARNING, "Stopping deduplication service while some digest_queues are still alive!?");
+    }
 
     ext_param_max_dup_delay_fini();
     log_category_digest_fini();
