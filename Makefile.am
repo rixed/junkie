@@ -53,3 +53,6 @@ module-deps.dot:
 module-deps: module-deps.dot
 	@$(top_srcdir)/find_cycles
 
+setcap:
+	sudo setcap cap_net_raw,cap_net_admin=eip $(bindir)/junkie || true
+
