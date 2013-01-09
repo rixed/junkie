@@ -525,8 +525,22 @@ static void pkt_source_dtor(struct pkt_source *pkt_source)
     digest_queue_unref(&pkt_source->digests);
 }
 
+static uint64_t tot_dropped, tot_recved;
+
 static void pkt_source_del(struct pkt_source *pkt_source)
 {
+    // Dump some stats
+    struct pcap_stat stats;
+    bool const have_stats = 0 == pcap_stats(pkt_source->pcap_handle, &stats);
+    if (! have_stats) {
+        SLOG(LOG_WARNING, "Cannot read stats for packet source %s: %s\n", pkt_source_name(pkt_source), pcap_geterr(pkt_source->pcap_handle));
+    } else if (stats.ps_recv > 0) {
+        tot_recved += stats.ps_recv;
+        tot_dropped += stats.ps_drop;
+        SLOG(LOG_INFO, "Statistics on packet source %s: received %u, dropped %u (%5.2f%%)", pkt_source_name(pkt_source),
+            stats.ps_recv, stats.ps_drop, (stats.ps_drop * 100.)/stats.ps_recv);
+    }
+
     mutex_lock(&pkt_sources_lock);
     pkt_source_dtor(pkt_source);
     objfree(pkt_source);
@@ -690,7 +704,12 @@ err:
     return ret;
 }
 
-// The first thing to do when quitting is to stop parsing traffic
+/*
+ * Init
+ */
+
+static struct timeval sniffing_start;
+
 static unsigned inited;
 void pkt_source_init(void)
 {
@@ -700,6 +719,8 @@ void pkt_source_init(void)
     objalloc_init();
     ref_init();
     digest_init();
+
+    timeval_set_now(&sniffing_start);
 
 #   define IFACE_ALL 255
     global_digests = digest_queue_get(IFACE_ALL);
@@ -798,6 +819,15 @@ void pkt_source_fini(void)
 #   ifdef WITH_GIANT_LOCK
     mutex_dtor(&giant_lock);
 #   endif
+
+    if (tot_recved > 0) {
+        struct timeval now;
+        timeval_set_now(&now);
+        int64_t dt = timeval_sub(&now, &sniffing_start) / 1000000ULL;
+        SLOG(LOG_INFO, "Received %"PRIu64" packets (%"PRIu64"/secs), dropped %"PRIu64" (%5.2f%%)",
+            tot_recved, dt > 0 ? tot_recved / dt : 0,
+            tot_dropped, (tot_dropped * 100.)/tot_recved);
+    }
 
     log_category_pkt_sources_fini();
     ext_param_quit_when_done_fini();
