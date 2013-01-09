@@ -41,7 +41,7 @@
 #include "nettrack.h"
 
 static LIST_HEAD(pkt_sources, pkt_source) pkt_sources = LIST_HEAD_INITIALIZER(pkt_sources);
-static struct mutex pkt_sources_lock;   // only valid when !terminating
+static struct mutex pkt_sources_lock;   // protects pkt_sources and terminating flag
 static volatile sig_atomic_t terminating;   // set once in the fini process. terminating imply want_exit
 static volatile sig_atomic_t want_exit; // set from a pcap callback, asking for exit to be called as soon as possible (ie when leaving callback)
 static struct digest_queue *global_digests;
@@ -414,18 +414,27 @@ static struct pkt_source *pkt_source_new_file(char const *filename, char const *
     return pkt_source;
 }
 
+// Caller must own pkt_sources_lock
 static void may_quit(void)
 {
+    if (terminating) return;
+
     bool do_exit = false;
-    mutex_lock(&pkt_sources_lock);
-    if (LIST_EMPTY(&pkt_sources)) {
+
+    if (want_exit) {
+        do_exit = true;
+    } else if (LIST_EMPTY(&pkt_sources)) {
         EXT_LOCK(quit_when_done);
         do_exit = quit_when_done;
         EXT_UNLOCK(quit_when_done);
     }
-    mutex_unlock(&pkt_sources_lock);
 
-    if (want_exit || do_exit) exit(0);
+    if (do_exit) {
+        SLOG(LOG_INFO, "Quitting...");
+        terminating = 1;
+        mutex_unlock(&pkt_sources_lock);
+        exit(0);
+    }
 }
 
 // We use the number that folows ifname as a device_id. Should work as intended in most cases
@@ -483,15 +492,15 @@ static struct pkt_source *pkt_source_new_if(char const *ifname, bool promisc, ch
 
     uint8_t dev_id = dev_id_of_ifname(ifname);
     struct pkt_source *pkt_source = pkt_source_new(ifname, handle, iface_sniffer, false, false, dev_id, filter, false);
-    if (! pkt_source) {
-        pcap_close(handle);
-    }
+    if (! pkt_source) goto err1;
 
     return pkt_source;
 err1:
     pcap_close(handle);
 err2:
+    mutex_lock(&pkt_sources_lock);
     may_quit();
+    mutex_unlock(&pkt_sources_lock);
     return NULL;
 }
 
@@ -500,9 +509,7 @@ static void pkt_source_dtor(struct pkt_source *pkt_source)
 {
     SLOG(LOG_DEBUG, "Closing packet source %s (parsed %"PRIu64" packets)", pkt_source_name(pkt_source), pkt_source->nb_packets);
 
-    mutex_lock(&pkt_sources_lock);
     LIST_REMOVE(pkt_source, entry);
-    mutex_unlock(&pkt_sources_lock);
 
     if (pkt_source->pcap_handle) {
         pcap_close(pkt_source->pcap_handle);
@@ -517,9 +524,11 @@ static void pkt_source_dtor(struct pkt_source *pkt_source)
 
 static void pkt_source_del(struct pkt_source *pkt_source)
 {
+    mutex_lock(&pkt_sources_lock);
     pkt_source_dtor(pkt_source);
     objfree(pkt_source);
-    if (! terminating) may_quit();
+    may_quit();
+    mutex_unlock(&pkt_sources_lock);
 }
 
 // Caller must own pkt_sources_lock
@@ -770,14 +779,13 @@ void pkt_source_fini(void)
     pkt_source_terminate_all();
     mutex_unlock(&pkt_sources_lock);
 
-    // Waiting for the dispatcher threads to terminate
-    // We don't wait forever since the thread executing this code might be the sniffer thread itself. (FIXME) (or change specs (junkie should perhaps not quit ?))
-    for (unsigned nb_try = 0; nb_try < 3; nb_try ++) {
+    // Waiting for the pkt_sources to be destroyed (and all listener threads - but me) to terminate
+    for (unsigned nb_try = 0; nb_try < 5; nb_try ++) {
         mutex_lock(&pkt_sources_lock);
         bool is_empty = LIST_EMPTY(&pkt_sources);
         mutex_unlock(&pkt_sources_lock);
         if (is_empty) break;
-        SLOG(LOG_DEBUG, "Waiting for termination of packet source '%s'", pkt_source_name(LIST_FIRST(&pkt_sources)));
+        SLOG(LOG_WARNING, "Waiting for termination of packet source '%s'", pkt_source_name(LIST_FIRST(&pkt_sources)));
         sleep(1);
     }
 
