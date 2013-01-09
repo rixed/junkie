@@ -139,7 +139,10 @@ static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, 
     mutex_lock(&giant_lock);
 #   endif
 
+    static struct bench_event waiting_for_unsafe = BENCH("parser waiting in safe zone");
+    uint64_t start_wait = bench_event_start();
     enter_unsafe_region();
+    bench_event_stop(&waiting_for_unsafe, start_wait);
 
     assert(cap_parser);
     (void)proto_parse(cap_parser, NULL, 0, (uint8_t *)&frame, frame.cap_len, frame.wire_len, &frame.tv, frame.cap_len, frame.data);

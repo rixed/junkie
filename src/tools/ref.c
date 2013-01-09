@@ -23,6 +23,7 @@
 #include "junkie/tools/log.h"
 #include "junkie/tools/ref.h"
 #include "junkie/tools/mutex.h"
+#include "junkie/tools/bench.h"
 
 LOG_CATEGORY_DEF(ref)
 #undef LOG_CAT
@@ -52,6 +53,9 @@ extern struct mutex death_row_mutex;
 
 static void delete_doomed(void)
 {
+    static struct bench_event dooming = BENCH("del doomed objs");
+    uint64_t start = bench_event_start();
+
     SLOG(LOG_DEBUG, "Deleting doomed objects...");
     unsigned nb_dels = 0, nb_rescued = 0;
 
@@ -71,6 +75,8 @@ static void delete_doomed(void)
     }
 
     SLOG(nb_dels + nb_rescued > 0 ? LOG_INFO:LOG_DEBUG, "Deleted %u objects, rescued %u", nb_dels, nb_rescued);
+
+    bench_event_stop(&dooming, start);
 }
 
 void doomer_run(void)

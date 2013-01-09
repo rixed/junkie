@@ -46,6 +46,7 @@ struct report {
 static LIST_HEAD(reports, report) reports;
 static pthread_mutex_t report_lock;
 
+#ifdef WITH_BENCH
 static void report_dump(struct report const *report, int64_t tot)
 {
     switch (report->type) {
@@ -68,7 +69,9 @@ static void report_dump(struct report const *report, int64_t tot)
             break;
     }
 }
+#endif
 
+#ifdef WITH_BENCH
 static void report_ctor(struct report *report, enum report_type type, char const *name)
 {
     SLOG(LOG_DEBUG, "Construct report for %s", name);
@@ -87,7 +90,9 @@ static void report_ctor(struct report *report, enum report_type type, char const
 
     LIST_INSERT_HEAD(&reports, report, entry);
 }
+#endif
 
+#ifdef WITH_BENCH
 static struct report *report_new(enum report_type type, char const *name)
 {
     struct report *report = malloc(sizeof(*report));
@@ -95,13 +100,18 @@ static struct report *report_new(enum report_type type, char const *name)
     report_ctor(report, type, name);
     return report;
 }
+#endif
 
 static char const *report_name(struct report *report)
 {
+#   ifdef WITH_BENCH
     switch (report->type) {
         case REPORT_ATOMIC: return report->u.atomic.name;
         case REPORT_EVENT:  return report->u.event.count.name;
     }
+#   else
+    (void)report;
+#   endif
     assert(!"Invalid report");
 }
 
@@ -152,6 +162,7 @@ static void report_del(struct report *report)
 }
 
 // Caller must own report_lock
+#ifdef WITH_BENCH
 static struct report *report_lookup_or_create(enum report_type type, char const *name)
 {
     struct report *report;
@@ -160,6 +171,7 @@ static struct report *report_lookup_or_create(enum report_type type, char const 
 
     return report_new(type, name);
 }
+#endif
 
 // Then the individual bench counters
 
@@ -252,6 +264,7 @@ void bench_init(void)
     program_start = rdtsc();
 }
 
+#ifdef WITH_BENCH
 static int report_cmp(void const *a_, void const *b_)
 {
     struct report const *a = *(struct report const **)a_;
@@ -273,6 +286,7 @@ static int report_cmp(void const *a_, void const *b_)
     }
     return 0;
 }
+#endif
 
 void bench_fini(void)
 {
