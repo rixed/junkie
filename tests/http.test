@@ -1,0 +1,10 @@
+#!/bin/sh
+
+NAME="HTTP"
+PCAPS="pcap/http/space_in_head_value.pcap"
+filter() {
+	grep -e '^HTTP' -e '^[[:space:]]'
+}
+OUTPUT="http.out"
+
+. ./dump_test

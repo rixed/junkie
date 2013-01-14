@@ -22,8 +22,8 @@ dist_check_SCRIPTS = \
 	ip.test timeout.scm eth.test sip.test \
 	serialize_check writer_check.scm \
 	dedup_conf1.test dedup_conf2.test \
-	http-chunked.test tcp.test os-detect.test \
-	http-multiline.test icmp.test tools-check \
+	http.test http-chunked.test http-multiline.test \
+	tcp.test os-detect.test icmp.test tools-check \
 	netmatch_check0.scm netmatch_check1.scm \
 	netmatch_check2.scm netmatch_check3.scm \
 	netmatch_check4.scm netmatch_check5.scm \

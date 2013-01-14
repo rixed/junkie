@@ -58,6 +58,14 @@ static inline void liner_expand(struct liner *liner)
     liner->delim_size = 0;
 }
 
+static inline void liner_skip(struct liner *liner, size_t len)
+{
+    assert(liner->rem_size >= len);
+    liner->start += len;
+    liner->rem_size -= len;
+    liner->tok_size -= len; // not necessarily defined but still
+}
+
 unsigned long long liner_strtoull(struct liner *, char const **end, int base);
 
 // Some widely used delimiters

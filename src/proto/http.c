@@ -208,6 +208,22 @@ static void http_proto_info_ctor(struct http_proto_info *info, struct http_parse
  * Parse HTTP header
  */
 
+static void copy_token_choped(char *dest, size_t dest_sz, struct liner *liner)
+{
+    if (liner->tok_size >= 2) {
+        if (liner->start[0] == '\13' && liner->start[1] == '\10') {
+            liner_skip(liner, 2);
+        }
+    }
+
+    while (
+        liner->tok_size > 0 &&
+        (liner->start[0] == ' ' || liner->start[0] == '\t')
+    ) liner_skip(liner, 1);
+
+    copy_token(dest, dest_sz, liner);
+}
+
 static int http_set_method(unsigned cmd, struct liner *liner, void *info_)
 {
     struct http_proto_info *info = info_;
@@ -216,7 +232,7 @@ static int http_set_method(unsigned cmd, struct liner *liner, void *info_)
     // URL is the next token
     if (! liner_eof(liner)) {
         info->set_values |= HTTP_URL_SET;
-        copy_token(info->url, sizeof(info->url), liner);
+        copy_token_choped(info->url, sizeof(info->url), liner);
     }
     return 0;
 }
@@ -241,7 +257,7 @@ static int http_extract_content_type(unsigned unused_ field, struct liner *liner
 {
     struct http_proto_info *info = info_;
     info->set_values |= HTTP_MIME_SET;
-    copy_token(info->mime_type, sizeof(info->mime_type), liner);
+    copy_token_choped(info->mime_type, sizeof(info->mime_type), liner);
     return 0;
 }
 
@@ -257,7 +273,7 @@ static int http_extract_host(unsigned unused_ field, struct liner *liner, void *
 {
     struct http_proto_info *info = info_;
     info->set_values |= HTTP_HOST_SET;
-    copy_token(info->host, sizeof(info->host), liner);
+    copy_token_choped(info->host, sizeof(info->host), liner);
     return 0;
 }
 
@@ -265,7 +281,7 @@ static int http_extract_user_agent(unsigned unused_ field, struct liner *liner, 
 {
     struct http_proto_info *info = info_;
     info->set_values |= HTTP_USER_AGENT_SET;
-    copy_token(info->user_agent, sizeof(info->user_agent), liner);
+    copy_token_choped(info->user_agent, sizeof(info->user_agent), liner);
     return 0;
 }
 

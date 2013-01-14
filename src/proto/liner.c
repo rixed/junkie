@@ -35,6 +35,7 @@
 
 void copy_token(char *dest, size_t dest_sz, struct liner *liner)
 {
+    assert(dest_sz >= 1);
     size_t len = MIN(dest_sz-1, liner_tok_length(liner));
     memcpy(dest, liner->start, len);
     dest[len] = '\0';
@@ -47,13 +48,6 @@ void liner_grow(struct liner *liner, char const *end)
     ssize_t diff = end - (liner->start + liner->rem_size);
     liner->rem_size += diff;
     liner->tot_size += diff;
-}
-
-static void liner_skip(struct liner *liner, size_t len)
-{
-    assert(liner->rem_size >= len);
-    liner->start += len;
-    liner->rem_size -= len;
 }
 
 unsigned long long liner_strtoull(struct liner *liner, char const **end, int base)
@@ -223,7 +217,8 @@ extern inline bool liner_eof(struct liner *);
 extern inline size_t liner_tok_length(struct liner *);
 extern inline size_t liner_rem_length(struct liner *);
 extern inline size_t liner_parsed(struct liner *);
-extern inline void liner_expand(struct liner *liner);
+extern inline void liner_expand(struct liner *);
+extern void liner_skip(struct liner *, size_t len);
 
 // FIXME: Should we keep both ": " and ":" for colons (and likewise
 // for semicols), since spaces are skipped anyway?  A single case
