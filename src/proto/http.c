@@ -116,6 +116,7 @@ struct http_parser {
             BODY,       // while scanning body
             CHUNK_HEAD, // while scanning a chunk header
             CHUNK,      // while scanning a body chunk
+            CHUNK_CRLF, // while scanning the trailing CRLF of a body chunk
         } phase;
         struct timeval first;   // first packet for this message
         struct timeval last;    // last packet we received (only set if first is set)
@@ -134,13 +135,20 @@ static char const *http_parser_phase_2_str(enum http_phase phase)
         case BODY: return "scanning body";
         case CHUNK: return "scanning chunk content";
         case CHUNK_HEAD: return "scanning chunk header";
+        case CHUNK_CRLF: return "scanning chunk trailing CRLF";
     }
     assert(!"Unknown HTTP pase");
 }
 
+static char const *way_2_str(unsigned way)
+{
+    if (way == 0) return "clt->srv";
+    return "srv->clt";
+}
+
 static void http_parser_reset_phase(struct http_parser *http_parser, unsigned way, enum http_phase phase)
 {
-    SLOG(LOG_DEBUG, "Reset phase for direction %s to %s", way == http_parser->c2s_way ? "clt->srv" : "srv->clt", http_parser_phase_2_str(phase));
+    SLOG(LOG_DEBUG, "Reset phase for direction %s to %s", way_2_str(way), http_parser_phase_2_str(phase));
 
     http_parser->state[way].phase = phase;
     /* Note that we do not init first to now because we can create the parser
@@ -582,7 +590,7 @@ static enum proto_parse_status http_parse_body(struct http_parser *http_parser, 
         if (http_parser->state[way].phase == BODY) {
             http_parser_reset_phase(http_parser, way, HEAD);
         } else {
-            http_parser_reset_phase(http_parser, way, CHUNK_HEAD);
+            http_parser_reset_phase(http_parser, way, CHUNK_CRLF);
         }
 
         if (body_part == wire_len) return PROTO_OK;
@@ -623,21 +631,51 @@ static enum proto_parse_status http_parse_chunk_header(struct http_parser *http_
     if (end == liner.start) {
         return PROTO_PARSE_ERR;
     }
-    if (end != liner.start + liner_tok_length(&liner)) {
-        streambuf_set_restart(&http_parser->sbuf, way, packet, true);   // more luck later
-        return PROTO_OK;
-    }
     SLOG(LOG_DEBUG, "Chunk header of size %u", len);
 
     liner_next(&liner);
     if (len > 0) {
         http_parser_reset_phase(http_parser, way, CHUNK);
-        http_parser->state[way].remaining_content = len + 2;    // for the CR+LF following the chunk (the day we will pass the body to a subparser we will need to parse these in next http_parse_chunk_header() call instead).
+        http_parser->state[way].remaining_content = len;    // for the CR+LF following the chunk (the day we will pass the body to a subparser we will need to parse these in next http_parse_chunk_header() call instead).
         streambuf_set_restart(&http_parser->sbuf, way, (const uint8_t *)liner.start, false);
     } else {
         // FIXME: skip chunk trailer, ie all lines up to a blank line.
         http_parser_reset_phase(http_parser, way, HEAD);
         streambuf_set_restart(&http_parser->sbuf, way, (const uint8_t *)liner.start, false);
+    }
+
+    return PROTO_OK;
+}
+
+static enum proto_parse_status http_parse_chunk_crlf(struct http_parser *http_parser, unsigned way, uint8_t const *packet, size_t cap_len, size_t unused_ wire_len)
+{
+    assert(http_parser->state[way].phase == CHUNK_CRLF);
+
+    SLOG(LOG_DEBUG, "Parsing chunk trailing CRLF");
+
+    if (wire_len < 2) {
+        streambuf_set_restart(&http_parser->sbuf, way, packet, true);   // more luck later
+        return PROTO_OK;
+    }
+
+    // check these are the expected CR LF
+    if (cap_len >= 1 && packet[0] != '\r') {
+invalid:
+        SLOG(LOG_DEBUG, "Invalid end of chunk headers (should be CRLF but have %02x %02x)", packet[0], cap_len >= 2 ? packet[1]:0);
+        return PROTO_PARSE_ERR;
+    }
+    if (cap_len >= 2 && packet[1] != '\n') goto invalid;
+
+    // Swallow these 2 bytes
+    http_parser_reset_phase(http_parser, way, CHUNK_HEAD);
+
+    if (2 == wire_len) return PROTO_OK;
+
+    if (cap_len > 2) {
+        streambuf_set_restart(&http_parser->sbuf, way, packet + 2, false);
+    } else {
+        // Next header was not captured :-(
+        return PROTO_TOO_SHORT;
     }
 
     return PROTO_OK;
@@ -662,12 +700,14 @@ static enum proto_parse_status http_sbuf_parse(struct parser *parser, struct pro
     http_parser->state[way].pkts ++;
 
     // Now are we waiting the header, or scanning through body ?
-    SLOG(LOG_DEBUG, "Http parser@%p is %s in direction %u", http_parser, http_parser_phase_2_str(http_parser->state[way].phase), way);
+    SLOG(LOG_DEBUG, "Http parser@%p is %s in direction %s", http_parser, http_parser_phase_2_str(http_parser->state[way].phase), way_2_str(way));
     switch (http_parser->state[way].phase) {
         case HEAD:  // In this mode we retry until we manage to parse a header
            return http_parse_header(http_parser, parent, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
         case CHUNK_HEAD:
            return http_parse_chunk_header(http_parser, way, payload, cap_len, wire_len);
+        case CHUNK_CRLF:
+           return http_parse_chunk_crlf(http_parser, way, payload, cap_len, wire_len);
         case BODY:
         case CHUNK:
            return http_parse_body(http_parser, parent, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
