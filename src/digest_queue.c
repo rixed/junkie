@@ -428,9 +428,8 @@ void digest_fini(void)
 
     dup_hook_fini();
 
-    struct digest_queue *q;
-    while (NULL != (q = LIST_FIRST(&digest_queues))) {
-        digest_queue_del(q);
+    if (! LIST_EMPTY(&digest_queues)) {
+        SLOG(LOG_WARNING, "Some digest queues are still in use");
     }
 
     ext_param_max_dup_delay_fini();
