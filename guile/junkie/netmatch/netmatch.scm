@@ -172,7 +172,7 @@
            ((or ('ip 'src) ('ip 'dst)) type:ip)
            ((or ('http 'mime-type) ('http 'host) ('http 'url) ('http 'user-agent)
                 ('http 'referrer) ('http 'referer) ('http 'server)) type:str)
-           (('http 'chunked-encoding) type:bool)
+           ((or ('http 'chunked-encoding) ('http 'ajax)) type:bool)
            ((or ('icmp 'src) ('icmp 'dst)) type:ip)
            (('mgcp 'response) type:bool)
            ((or ('mgcp 'dialed) ('mgcp 'cnx-id) ('mgcp 'call-id)) type:str)

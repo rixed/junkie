@@ -38,6 +38,7 @@ struct http_proto_info {
     unsigned code;                  ///< The response code, if the message is a response
     unsigned content_length;        ///< The Content-Length, if present
     bool chunked_encoding;          ///< Set if the transfert encoding is chunked (only relevant if set_values&HTTP_TRANSFERT_ENCODING_SET)
+    bool ajax;                      ///< Set whenever the message is suspected to be some sort of Ajax
     unsigned mime_type;             ///< The Mime-type, if present (as offset in strs)
     unsigned host;                  ///< The Host, if present (as offset in strs)
     unsigned user_agent;            ///< The User-Agent field, if present (as offset in strs)
