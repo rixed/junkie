@@ -63,6 +63,8 @@ struct pkt_wait {
     size_t cap_len;
     /// How many bytes were available on the wire
     size_t wire_len;
+    /// Timestamp of the packet (same as in cap_info)
+    struct timeval cap_tv;
     /// Where do we need to start parsing into the original packet
     /** The callback must not be called when the packet is put on hold, until :
      * - the head of the packet list is complete and the first packets are dequeued;
@@ -154,7 +156,7 @@ int pkt_wait_list_ctor(
 );
 
 /// Destruct a pkt_wait_list, calling the subscribers for every pending packets.
-void pkt_wait_list_dtor(struct pkt_wait_list *, struct timeval const *now);
+void pkt_wait_list_dtor(struct pkt_wait_list *);
 
 /// Enqueue a packet (or deal with it immediately if possible)
 /** This function may call the subparser immediately if no waiting is required.
@@ -196,8 +198,7 @@ enum proto_parse_status pkt_wait_list_flush(
     struct pkt_wait_list *pkt_wl,   ///< The waiting list
     uint8_t *payload,               ///< Optional payload for the last packet
     size_t cap_len,                 ///< It's length (if payload is set)
-    size_t wire_len,                ///< It's actual length on the wire (if payload is set)
-    struct timeval const *now       ///< The current time
+    size_t wire_len                 ///< It's actual length on the wire (if payload is set)
 );
 
 /// Removes a packet from a list, without calling the subparser.

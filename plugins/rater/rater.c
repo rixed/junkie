@@ -53,7 +53,9 @@ static struct cli_opt rater_opts[] = {
 static void init_capture(void)
 {
     if (! opt_file) return;
-    capfile = capfile_new_pcap(opt_file, opt_max_pkts, opt_max_size, opt_max_secs, opt_cap_len, opt_rotation);
+    struct timeval now;
+    timeval_set_now(&now);
+    capfile = capfile_new_pcap(opt_file, opt_max_pkts, opt_max_size, opt_max_secs, opt_cap_len, opt_rotation, &now);
 }
 
 static bool inited = false;
@@ -89,7 +91,7 @@ void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info const *i
     pld_since_start += cap_len;
 
     if (writing && capfile) {
-        (void)capfile->ops->write(capfile, info, cap_len, packet);
+        (void)capfile->ops->write(capfile, info, cap_len, packet, now);
     }
 }
 

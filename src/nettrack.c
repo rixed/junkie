@@ -254,8 +254,7 @@ static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_
 
     // A vertex named "root" starts with an initial state (and is not timeouted)
     if (0 == strcmp("root", name)) {
-        struct timeval now;
-        timeval_set_now(&now);
+        struct timeval now = TIMEVAL_INITIALIZER;
         for (unsigned i = 0; i < vertex->index_size; i++) { // actually, one state per index
             struct npc_register *regfile = npc_regfile_new(graph->nb_registers);
             if (! regfile) return -1;
@@ -477,17 +476,13 @@ static void nt_graph_stop(struct nt_graph *graph)
     LIST_REMOVE(graph, entry);
     graph->started = false;
 
-    struct timeval now;
-    timeval_set_now(&now);
+    struct timeval end_of_time = END_OF_TIME;
 
     // age out all states capable of ageing
     struct nt_edge *edge;
     LIST_FOREACH(edge, &graph->edges, same_graph) {
         SLOG(LOG_DEBUG, "Pass all states from %s to %s", edge->from->name, edge->to->name);
-        struct timeval later;
-        later = now;
-        timeval_add_sec(&later, edge->min_age+1); // pretend to be later so that aging will happen
-        edge_ageing(edge, &later);
+        edge_ageing(edge, &end_of_time);
     }
     // timeout all states capable of timeouting
     struct nt_vertex *vertex;

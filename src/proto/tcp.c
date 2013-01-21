@@ -297,7 +297,7 @@ static int tcp_subparser_ctor(struct tcp_subparser *tcp_subparser, struct mux_pa
     }
 
     if (0 != pkt_wait_list_ctor(tcp_subparser->wl+1, 0 /* relative to the ISN */, &tcp_wl_config, child, now)) {
-        pkt_wait_list_dtor(tcp_subparser->wl+0, now);
+        pkt_wait_list_dtor(tcp_subparser->wl+0);
         return -1;
     }
 
@@ -305,8 +305,8 @@ static int tcp_subparser_ctor(struct tcp_subparser *tcp_subparser, struct mux_pa
 
     // Now that everything is ready, make this subparser public
     if (0 != mux_subparser_ctor(&tcp_subparser->mux_subparser, mux_parser, child, requestor, key, now)) {
-        pkt_wait_list_dtor(tcp_subparser->wl+0, now);
-        pkt_wait_list_dtor(tcp_subparser->wl+1, now);
+        pkt_wait_list_dtor(tcp_subparser->wl+0);
+        pkt_wait_list_dtor(tcp_subparser->wl+1);
         return -1;
     }
 
@@ -339,10 +339,8 @@ static void tcp_subparser_dtor(struct tcp_subparser *tcp_subparser)
 {
     SLOG(LOG_DEBUG, "Destructing TCP subparser @%p", tcp_subparser);
 
-    struct timeval now;
-    timeval_set_now(&now);
-    pkt_wait_list_dtor(tcp_subparser->wl+0, &now);
-    pkt_wait_list_dtor(tcp_subparser->wl+1, &now);
+    pkt_wait_list_dtor(tcp_subparser->wl+0);
+    pkt_wait_list_dtor(tcp_subparser->wl+1);
 
     mux_subparser_dtor(&tcp_subparser->mux_subparser);
 }

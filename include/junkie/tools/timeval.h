@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <sys/time.h>
 #include <stdbool.h>
+#include <limits.h>
 
 /** @file
  * @brief utilities for handling struct timeval
@@ -12,6 +13,7 @@
 
 /// Define a struct timeval
 #define TIMEVAL_INITIALIZER { 0, 0 }
+#define END_OF_TIME { LONG_MAX, LONG_MAX }
 
 /// @return microseconds
 int64_t timeval_sub(struct timeval const *restrict, struct timeval const *restrict);

@@ -139,7 +139,7 @@ static int set_netmatch(struct capture_conf *conf, char const *value)
     return err;
 }
 
-static void conf_capture_start(struct capture_conf *conf)
+static void conf_capture_start(struct capture_conf *conf, struct timeval const *now)
 {
     if (! conf->file) return;
     if (conf->capfile) {
@@ -150,10 +150,10 @@ static void conf_capture_start(struct capture_conf *conf)
 
     switch (conf->method) {
         case PCAP:
-            conf->capfile = capfile_new_pcap(conf->file, conf->max_pkts, conf->max_size, conf->max_secs, conf->cap_len, conf->rotation);
+            conf->capfile = capfile_new_pcap(conf->file, conf->max_pkts, conf->max_size, conf->max_secs, conf->cap_len, conf->rotation, now);
             break;
         case CSV:
-            conf->capfile = capfile_new_csv(conf->file, conf->max_pkts, conf->max_size, conf->max_secs, conf->cap_len, conf->rotation);
+            conf->capfile = capfile_new_csv(conf->file, conf->max_pkts, conf->max_size, conf->max_secs, conf->cap_len, conf->rotation, now);
             break;
     }
 }
@@ -210,29 +210,29 @@ static bool info_match(struct capture_conf const *conf, struct proto_info const 
     return true;
 }
 
-static void try_write(struct capture_conf *conf, struct proto_info const *info, size_t cap_len, uint8_t const *packet)
+static void try_write(struct capture_conf *conf, struct proto_info const *info, size_t cap_len, uint8_t const *packet, struct timeval const *now)
 {
     if (conf->capfile && !conf->paused && info_match(conf, info, cap_len, packet)) {
         //SLOG(LOG_DEBUG, "Saving a packet into %s", conf->file);
-        (void)conf->capfile->ops->write(conf->capfile, info, cap_len, packet);
+        (void)conf->capfile->ops->write(conf->capfile, info, cap_len, packet, now);
     }
 }
 
-static void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info const *info, size_t cap_len, uint8_t const *packet, struct timeval const unused_ *now)
+static void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info const *info, size_t cap_len, uint8_t const *packet, struct timeval const *now)
 {
     static bool cli_inited = false;
     if (! cli_inited) {
-        conf_capture_start(&cli_conf);
+        conf_capture_start(&cli_conf, now);
         cli_inited = true;
     }
 
-    try_write(&cli_conf, info, cap_len, packet);
+    try_write(&cli_conf, info, cap_len, packet, now);
 
     mutex_lock(&confs_lock);
     struct capture_conf *conf;
     LIST_FOREACH(conf, &capture_confs, entry) {
         assert(conf->listed);
-        try_write(conf, info, cap_len, packet);
+        try_write(conf, info, cap_len, packet, now);
     }
     mutex_unlock(&confs_lock);
 }
@@ -335,7 +335,10 @@ static SCM g_capture_start(SCM conf_smob)
 {
     scm_assert_smob_type(conf_tag, conf_smob);
     struct capture_conf *conf = (struct capture_conf *)SCM_SMOB_DATA(conf_smob);
-    conf_capture_start(conf);
+
+    struct timeval now;
+    timeval_set_now(&now);
+    conf_capture_start(conf, &now);
 
     scm_remember_upto_here_1(conf_smob);
 

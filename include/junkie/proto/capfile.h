@@ -16,9 +16,9 @@
 
 struct capfile {
     struct capfile_ops {
-        int (*open)(struct capfile *, char const *path);
+        int (*open)(struct capfile *, char const *path, struct timeval const *now);
         void (*close)(struct capfile *);
-        int (*write)(struct capfile *, struct proto_info const *, size_t cap_len, uint8_t const *);
+        int (*write)(struct capfile *, struct proto_info const *, size_t cap_len, uint8_t const *, struct timeval const *now);
         void (*del)(struct capfile *);
     } const *ops;
     LIST_ENTRY(capfile) entry;
@@ -43,10 +43,11 @@ struct capfile *capfile_new_pcap(
     size_t max_size,    ///< If >0 then stop the capture after this file size
     unsigned max_secs,  ///< If >0 then stop the capture after this time
     size_t cap_len,     ///< If >0 then limit the packet size to this
-    unsigned rotation   ///< If >0 then a numeric prefix will be appended to file names and when a file is stopped a new file will be created, up to this number then wrap
+    unsigned rotation,  ///< If >0 then a numeric prefix will be appended to file names and when a file is stopped a new file will be created, up to this number then wrap
+    struct timeval const *  ///< Start time of the file
 );
 
-struct capfile *capfile_new_csv(char const *path, unsigned max_pkts, size_t max_size, unsigned max_secs, size_t caplen, unsigned rotation);
+struct capfile *capfile_new_csv(char const *path, unsigned max_pkts, size_t max_size, unsigned max_secs, size_t caplen, unsigned rotation, struct timeval const *start);
 char *capfile_csv_from_info(struct proto_info const *);
 
 void capfile_init(void);
