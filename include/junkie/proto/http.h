@@ -29,6 +29,7 @@ struct http_proto_info {
 #   define HTTP_TRANSFERT_ENCODING_SET 0x40
 #   define HTTP_USER_AGENT_SET         0x80
 #   define HTTP_REFERRER_SET           0x100
+#   define HTTP_SERVER_SET             0x200
     uint32_t set_values;            ///< Mask of the fields that are actually set in this struct
     enum http_method {
         HTTP_METHOD_GET, HTTP_METHOD_HEAD, HTTP_METHOD_POST, HTTP_METHOD_CONNECT,
@@ -41,6 +42,7 @@ struct http_proto_info {
     unsigned host;                  ///< The Host, if present (as offset in strs)
     unsigned user_agent;            ///< The User-Agent field, if present (as offset in strs)
     unsigned referrer;              ///< The Referrer field, if present (as offset in strs)
+    unsigned server;                ///< The Server field, if present (as offset in strs)
     unsigned url;                   ///< The URL, for methods that have one (as offset in strs)
 #   define HTTP_STRS_SIZE 4000      ///< So that the whole http_info is below 4k
 #   define HTTP_MAX_URL_SIZE 3500   ///< Do not fill up strs with the URL only
