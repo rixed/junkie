@@ -78,7 +78,7 @@ int log_set_file(char const *filename)
     }
     log_fd = file_open(filename, O_WRONLY | O_APPEND | O_CREAT);
 
-    if (log_fd == -1) return -1;
+    if (log_fd < 0) return -1;
 
     if (log_filename != filename) { // we often perform set_file(get_file), but snprintf won't work if src and dest overwrite.
         snprintf(log_filename, sizeof(log_filename), "%s", filename);

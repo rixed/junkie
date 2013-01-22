@@ -167,7 +167,7 @@ static int capfile_open(struct capfile *capfile, char const *path, struct timeva
     if (0 != mkdir_all(path, true)) return -1;
 
     capfile->fd = file_open(path, O_WRONLY|O_TRUNC|O_CREAT);
-    if (-1 == capfile->fd) return -1;
+    if (capfile->fd < 0) return -1;
     inc_capture_files();
 
     capfile->file_size = 0;

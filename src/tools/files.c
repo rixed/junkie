@@ -143,7 +143,7 @@ int file_open(char const *file_name, int flags)
     SLOG(LOG_DEBUG, "Opening file %s into fd %d", file_name, fd);
     if (fd < 0) {
         SLOG(LOG_ERR, "Cannot open file '%s': %s", file_name, strerror(errno));
-        return -1;
+        return -errno;
     }
 
     (void)close_on_exec(fd);    // we want all files closed on exec() (should be the default behavior imho)
