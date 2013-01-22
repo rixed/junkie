@@ -531,8 +531,8 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
         } else {
             // No, the header was truncated. We want to report as much as we can.
             proto_info_ctor(&info.info, &http_parser->parser, parent, cap_len, 0);
-            // call hooks on header
-            http_head_subscribers_call(&info.info, tot_cap_len, tot_packet, now);
+            // call hooks on header (for tx hooks we'd rather have pointers on message than pointer to packet)
+            http_head_subscribers_call(&info.info, cap_len, packet, now);
             // continuation
             return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
             // We are going to look for another header at the start of the next packet, hoping for the best.
@@ -585,7 +585,7 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
     }
 
     // call hooks on header
-    http_head_subscribers_call(&info.info, tot_cap_len, tot_packet, now);
+    http_head_subscribers_call(&info.info, cap_len, packet, now);
 
     // Restart from the end of this header
     streambuf_set_restart(&http_parser->sbuf, way, packet + httphdr_len, false);
@@ -621,7 +621,7 @@ static enum proto_parse_status http_parse_body(struct http_parser *http_parser, 
     struct http_proto_info info; http_proto_info_ctor(&info, &http_parser->state[way].first, http_parser->state[way].pkts);
     proto_info_ctor(&info.info, &http_parser->parser, parent, 0, body_part);
     // advertise this body part
-    http_body_subscribers_call(&info.info, tot_cap_len, tot_packet, now);
+    http_body_subscribers_call(&info.info, cap_len, packet, now);
 
     if (body_part > 0) {    // Ack this body part
         // TODO: choose a subparser according to mime type ?
