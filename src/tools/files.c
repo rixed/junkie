@@ -119,24 +119,6 @@ int chusergroup(const char * const path, const char * const user, const char * c
  * File utilities, log common errors.
  */
 
-static int close_on_exec(int fd)
-{
-#   ifdef FD_CLOEXEC
-    int oldflags = fcntl(fd, F_GETFD, 0);
-    if (oldflags < 0) {
-        SLOG(LOG_ERR, "Cannot fnctl(%d, F_GETFD): %s", fd, strerror(errno));
-        return -1;
-    }
-
-    if (0 != fcntl(fd, F_SETFD, oldflags | FD_CLOEXEC)) {
-        SLOG(LOG_ERR, "Cannot fnctl(%d, F_SETFD): %s", fd, strerror(errno));
-        return -1;
-    }
-#   endif
-
-    return 0;
-}
-
 int file_open(char const *file_name, int flags)
 {
     int fd = open(file_name, flags, 0644);
@@ -145,8 +127,6 @@ int file_open(char const *file_name, int flags)
         SLOG(LOG_ERR, "Cannot open file '%s': %s", file_name, strerror(errno));
         return -errno;
     }
-
-    (void)close_on_exec(fd);    // we want all files closed on exec() (should be the default behavior imho)
 
     return fd;
 }

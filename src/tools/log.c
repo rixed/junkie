@@ -76,7 +76,7 @@ int log_set_file(char const *filename)
         system_log(LOG_ERR, "Cannot create directory for log file '%s'", filename);
         return -1;
     }
-    log_fd = file_open(filename, O_WRONLY | O_APPEND | O_CREAT);
+    log_fd = file_open(filename, O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC);
 
     if (log_fd < 0) return -1;
 
