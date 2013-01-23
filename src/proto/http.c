@@ -585,7 +585,7 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
     }
 
     // call hooks on header
-    http_head_subscribers_call(&info.info, cap_len, packet, now);
+    http_head_subscribers_call(&info.info, httphdr_len, packet, now);
 
     // Restart from the end of this header
     streambuf_set_restart(&http_parser->sbuf, way, packet + httphdr_len, false);
@@ -618,10 +618,11 @@ static enum proto_parse_status http_parse_body(struct http_parser *http_parser, 
     SLOG(LOG_DEBUG, "%zu bytes of this payload belongs to the body", body_part);
 
     /* Build the info structure with body_part (payload) as the only useful information */
-    struct http_proto_info info; http_proto_info_ctor(&info, &http_parser->state[way].first, http_parser->state[way].pkts);
+    struct http_proto_info info;
+    http_proto_info_ctor(&info, &http_parser->state[way].first, http_parser->state[way].pkts);
     proto_info_ctor(&info.info, &http_parser->parser, parent, 0, body_part);
     // advertise this body part
-    http_body_subscribers_call(&info.info, cap_len, packet, now);
+    http_body_subscribers_call(&info.info, MIN(cap_len, body_part), packet, now);
 
     if (body_part > 0) {    // Ack this body part
         // TODO: choose a subparser according to mime type ?
