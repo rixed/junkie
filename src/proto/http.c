@@ -555,7 +555,7 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
      * (informational), 204 (no content), and 304 (not modified) responses
      * MUST NOT include a message-body. All other responses do include a
      * message-body, although it MAY be of zero length." - RFC2616 */
-    bool const have_body =
+    info.have_body =
         (
             HTTP_IS_QUERY(&info) &&
             (info.set_values & (HTTP_LENGTH_SET | HTTP_TRANSFERT_ENCODING_SET))
@@ -565,7 +565,7 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
             (info.code < 100 || (info.code > 199 && info.code != 204 && info.code != 304))
         );
 
-    if (have_body) {
+    if (info.have_body) {
         if (info.set_values & HTTP_LENGTH_SET) {
             http_parser_reset_phase(http_parser, way, BODY);
             http_parser->state[way].remaining_content = info.content_length;
