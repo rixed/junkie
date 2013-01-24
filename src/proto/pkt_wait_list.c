@@ -87,7 +87,7 @@ void pkt_wait_del(struct pkt_wait *pkt, struct pkt_wait_list *pkt_wl)
 static enum proto_parse_status pkt_wait_parse(struct pkt_wait *pkt, struct pkt_wait_list *pkt_wl)
 {
     if (
-        pkt_wl->next_offset >= pkt->next_offset ||  // or the pkt content was completely covered,
+        pkt_wl->next_offset >= pkt->next_offset ||  // the pkt content was completely covered,
         pkt->offset > pkt_wl->next_offset           // or the pkt was supposed to come later,
     ) {
         // then do not parse it
