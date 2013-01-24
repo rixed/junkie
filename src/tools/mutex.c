@@ -366,6 +366,55 @@ static SCM g_set_thread_name(SCM name_)
 }
 
 /*
+ * RW locks
+ *
+ * TODO: a wrapper to name and bench each rwlock
+ */
+
+void rwlock_ctor(pthread_rwlock_t *lock)
+{
+    int err = pthread_rwlock_init(lock, NULL);
+    if (err) {
+        SLOG(LOG_ERR, "Cannot pthread_rwlock_init(): %s", strerror(err));
+        // so be it
+    }
+}
+
+void rwlock_dtor(pthread_rwlock_t *lock)
+{
+    pthread_rwlock_destroy(lock);
+}
+
+static void acquire(int (*f)(pthread_rwlock_t *), pthread_rwlock_t *lock)
+{
+    int err = f(lock);
+    if (err) {
+        SLOG(LOG_ERR, "Cannot acquire RWLock: %s", strerror(err));
+        // so be it
+    }
+}
+
+void rwlock_acquire(pthread_rwlock_t *lock, bool write)
+{
+    if (write) acquire(pthread_rwlock_wrlock, lock);
+    else acquire(pthread_rwlock_rdlock, lock);
+}
+
+void rwlock_release(pthread_rwlock_t *lock)
+{
+    int err = pthread_rwlock_unlock(lock);
+    if (err) {
+        SLOG(LOG_ERR, "Cannot release RWLock: %s", strerror(err));
+        // so be it
+    }
+}
+
+void rwlock_release_(void *lock)
+{
+    rwlock_release(lock);
+}
+
+/*
  * Mutex pools
  */
 
