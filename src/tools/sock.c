@@ -59,97 +59,19 @@ static void sock_dtor(struct sock *s)
 }
 
 /*
- * UDP sockets
+ * Inet sock (used by UDP and TCP)
  */
 
-struct sock_udp {
+struct sock_inet {
     struct sock sock;
     int fd;
 };
 
-static int sock_udp_send(struct sock *s_, void const *buf, size_t len)
-{
-    struct sock_udp *s = DOWNCAST(s_, sock, sock_udp);
-
-    SLOG(LOG_DEBUG, "Sending %zu bytes to %s (fd %d)", len, s->sock.name, s->fd);
-
-    if (-1 == send(s->fd, buf, len, MSG_DONTWAIT)) {
-        TIMED_SLOG(LOG_ERR, "Cannot send %zu bytes into %s: %s", len, s->sock.name, strerror(errno));
-        return -1;
-    }
-    return 0;
-}
-
-static ssize_t sock_udp_recv(struct sock *s_, void *buf, size_t maxlen, struct ip_addr *sender)
-{
-    struct sock_udp *s = DOWNCAST(s_, sock, sock_udp);
-
-    SLOG(LOG_DEBUG, "Reading on socket %s (fd %d)", s->sock.name, s->fd);
-
-    union {
-        struct sockaddr a;
-        struct sockaddr_in ip4;
-        struct sockaddr_in6 ip6;
-        struct sockaddr_un unix;
-    } src_addr;
-    socklen_t addrlen = sizeof(src_addr);
-    ssize_t r = recvfrom(s->fd, buf, maxlen, 0, &src_addr.a, &addrlen);
-    if (r < 0) {
-        TIMED_SLOG(LOG_ERR, "Cannot receive datagram from %s: %s", s->sock.name, strerror(errno));
-    }
-    if (sender) {
-        if (addrlen > sizeof(src_addr)) {
-            SLOG(LOG_ERR, "Cannot set sender address: size too big (%zu > %zu)", (size_t)addrlen, sizeof(src_addr));
-            *sender = local_ip;
-        } else {
-            if (0 != ip_addr_ctor_from_sockaddr(sender, &src_addr.a, addrlen)) {
-                *sender = local_ip;
-            }
-        }
-    }
-
-    SLOG(LOG_DEBUG, "read %zd bytes from %s out of %s", r, sender ? ip_addr_2_str(sender) : "unknown", s->sock.name);
-    return r;
-}
-
-static int sock_udp_set_fd(struct sock *s_, fd_set *set)
-{
-    struct sock_udp *s = DOWNCAST(s_, sock, sock_udp);
-    FD_SET(s->fd, set);
-    return s->fd;
-}
-
-static bool sock_udp_is_set(struct sock *s_, fd_set const *set)
-{
-    struct sock_udp *s = DOWNCAST(s_, sock, sock_udp);
-    return FD_ISSET(s->fd, set);
-}
-
-static void sock_udp_dtor(struct sock_udp *s)
-{
-    sock_dtor(&s->sock);
-    file_close(s->fd);
-}
-
-static void sock_udp_del(struct sock *s_)
-{
-    struct sock_udp *s = DOWNCAST(s_, sock, sock_udp);
-    sock_udp_dtor(s);
-    objfree(s);
-}
-
-static struct sock_ops sock_udp_ops = {
-    .send = sock_udp_send,
-    .recv = sock_udp_recv,
-    .set_fd = sock_udp_set_fd,
-    .is_set = sock_udp_is_set,
-    .del = sock_udp_del,
-};
-
-static int sock_udp_client_ctor(struct sock_udp *s, char const *host, char const *service, size_t buf_size)
+static int sock_inet_client_ctor(struct sock_inet *s, char const *host, char const *service, size_t buf_size, int type, struct sock_ops const *ops)
 {
     int res = -1;
-    SLOG(LOG_DEBUG, "Construct sock to udp://%s:%s", host, service);
+    char const *proto = type == SOCK_STREAM ? "tcp":"udp";
+    SLOG(LOG_DEBUG, "Construct sock to %s://%s:%s", proto, host, service);
 
     struct addrinfo *info;
     struct addrinfo hints;
@@ -178,14 +100,14 @@ static int sock_udp_client_ctor(struct sock_udp *s, char const *host, char const
         char addr[256], srv[256];
         err = getnameinfo(&srv_addr, srv_addrlen, addr, sizeof(addr), srv, sizeof(srv), NI_DGRAM|NI_NOFQDN|NI_NUMERICSERV|NI_NUMERICHOST);
         if (! err) {
-            snprintf(s->sock.name, sizeof(s->sock.name), "udp://%s@%s:%s", info->ai_canonname, addr, srv);
+            snprintf(s->sock.name, sizeof(s->sock.name), "%s://%s@%s:%s", proto, info->ai_canonname, addr, srv);
         } else {
             SLOG(LOG_WARNING, "Cannot getnameinfo(): %s", gai_strerror(err));
-            snprintf(s->sock.name, sizeof(s->sock.name), "udp://%s@?:%s", info->ai_canonname, service);
+            snprintf(s->sock.name, sizeof(s->sock.name), "%s://%s@?:%s", proto, info->ai_canonname, service);
         }
         SLOG(LOG_DEBUG, "Trying to use socket %s", s->sock.name);
 
-        s->fd = socket(srv_family, SOCK_DGRAM, 0);
+        s->fd = socket(srv_family, type, 0);
         if (s->fd < 0) {
             SLOG(LOG_WARNING, "Cannot socket(): %s", strerror(errno));
             continue;
@@ -198,7 +120,7 @@ static int sock_udp_client_ctor(struct sock_udp *s, char const *host, char const
         }
 
         res = 0;
-        sock_ctor(&s->sock, &sock_udp_ops);
+        sock_ctor(&s->sock, ops);
         SLOG(LOG_INFO, "Connected to %s", s->sock.name);
         break;  // go with this one
     }
@@ -209,21 +131,11 @@ static int sock_udp_client_ctor(struct sock_udp *s, char const *host, char const
     return res;
 }
 
-struct sock *sock_udp_client_new(char const *host, char const *service, size_t buf_size)
-{
-    struct sock_udp *s = objalloc(sizeof(*s), "udp sockets");
-    if (! s) return NULL;
-    if (0 != sock_udp_client_ctor(s, host, service, buf_size)) {
-        objfree(s);
-        return NULL;
-    }
-    return &s->sock;
-}
-
-static int sock_udp_server_ctor(struct sock_udp *s, char const *service, size_t buf_size)
+static int sock_inet_server_ctor(struct sock_inet *s, char const *service, size_t buf_size, int type, struct sock_ops const *ops)
 {
     int res = -1;
-    SLOG(LOG_DEBUG, "Construct sock for serving %s/udp", service);
+    char const *proto = type == SOCK_STREAM ? "tcp":"udp";
+    SLOG(LOG_DEBUG, "Construct sock for serving %s/%s", service, proto);
 
     struct addrinfo *info;
     struct addrinfo hints;
@@ -246,9 +158,9 @@ static int sock_udp_server_ctor(struct sock_udp *s, char const *service, size_t 
         memcpy(&srv_addr, info_->ai_addr, info_->ai_addrlen);
         srv_addrlen = info_->ai_addrlen;
         srv_family = info_->ai_family;
-        snprintf(s->sock.name, sizeof(s->sock.name), "udp://*.%s", service);
+        snprintf(s->sock.name, sizeof(s->sock.name), "%s://*.%s", proto, service);
 
-        s->fd = socket(srv_family, SOCK_DGRAM, 0);
+        s->fd = socket(srv_family, type, 0);
         if (s->fd < 0) {
             SLOG(LOG_WARNING, "Cannot socket(): %s", strerror(errno));
             continue;
@@ -260,16 +172,130 @@ static int sock_udp_server_ctor(struct sock_udp *s, char const *service, size_t 
             continue;
         } else {
             res = 0;
-            sock_ctor(&s->sock, &sock_udp_ops);
+            if (buf_size) set_rcvbuf(s->fd, buf_size);
+            sock_ctor(&s->sock, ops);
             SLOG(LOG_INFO, "Serving %s", s->sock.name);
             break;
         }
     }
 
-    if (buf_size) set_rcvbuf(s->fd, buf_size);
-
     freeaddrinfo(info);
+
     return res;
+}
+
+static void sock_inet_dtor(struct sock_inet *s)
+{
+    sock_dtor(&s->sock);
+    file_close(s->fd);
+}
+
+/*
+ * UDP sockets
+ */
+
+struct sock_udp {
+    struct sock_inet inet;
+};
+
+static int sock_udp_send(struct sock *s_, void const *buf, size_t len)
+{
+    struct sock_inet *i_ = DOWNCAST(s_, sock, sock_inet);
+
+    SLOG(LOG_DEBUG, "Sending %zu bytes to %s (fd %d)", len, s_->name, i_->fd);
+
+    if (-1 == send(i_->fd, buf, len, MSG_DONTWAIT)) {
+        TIMED_SLOG(LOG_ERR, "Cannot send %zu bytes into %s: %s", len, s_->name, strerror(errno));
+        return -1;
+    }
+    return 0;
+}
+
+static ssize_t sock_udp_recv(struct sock *s_, void *buf, size_t maxlen, struct ip_addr *sender, int unused_ clt)
+{
+    struct sock_inet *i_ = DOWNCAST(s_, sock, sock_inet);
+
+    SLOG(LOG_DEBUG, "Reading on socket %s (fd %d)", s_->name, i_->fd);
+
+    union {
+        struct sockaddr a;
+        struct sockaddr_in ip4;
+        struct sockaddr_in6 ip6;
+        struct sockaddr_un unix;
+    } src_addr;
+    socklen_t addrlen = sizeof(src_addr);
+    ssize_t r = recvfrom(i_->fd, buf, maxlen, 0, &src_addr.a, &addrlen);
+    if (r < 0) {
+        TIMED_SLOG(LOG_ERR, "Cannot receive datagram from %s: %s", s_->name, strerror(errno));
+    }
+    if (sender) {
+        if (addrlen > sizeof(src_addr)) {
+            SLOG(LOG_ERR, "Cannot set sender address: size too big (%zu > %zu)", (size_t)addrlen, sizeof(src_addr));
+            *sender = local_ip;
+        } else {
+            if (0 != ip_addr_ctor_from_sockaddr(sender, &src_addr.a, addrlen)) {
+                *sender = local_ip;
+            }
+        }
+    }
+
+    SLOG(LOG_DEBUG, "read %zd bytes from %s out of %s", r, sender ? ip_addr_2_str(sender) : "unknown", s_->name);
+    return r;
+}
+
+static int sock_udp_set_fd(struct sock *s_, fd_set *set)
+{
+    struct sock_inet *i_ = DOWNCAST(s_, sock, sock_inet);
+    FD_SET(i_->fd, set);
+    return i_->fd;
+}
+
+static int sock_udp_is_set(struct sock *s_, fd_set const *set)
+{
+    struct sock_inet *i_ = DOWNCAST(s_, sock, sock_inet);
+    return FD_ISSET(i_->fd, set);
+}
+
+static void sock_udp_dtor(struct sock_udp *s)
+{
+    sock_inet_dtor(&s->inet);
+}
+
+static void sock_udp_del(struct sock *s_)
+{
+    struct sock_inet *i_ = DOWNCAST(s_, sock, sock_inet);
+    struct sock_udp *s = DOWNCAST(i_, inet, sock_udp);
+    sock_udp_dtor(s);
+    objfree(s);
+}
+
+static struct sock_ops sock_udp_ops = {
+    .send = sock_udp_send,
+    .recv = sock_udp_recv,
+    .set_fd = sock_udp_set_fd,
+    .is_set = sock_udp_is_set,
+    .del = sock_udp_del,
+};
+
+static int sock_udp_client_ctor(struct sock_udp *s, char const *host, char const *service, size_t buf_size)
+{
+    return sock_inet_client_ctor(&s->inet, host, service, buf_size, SOCK_DGRAM, &sock_udp_ops);
+}
+
+struct sock *sock_udp_client_new(char const *host, char const *service, size_t buf_size)
+{
+    struct sock_udp *s = objalloc(sizeof(*s), "udp sockets");
+    if (! s) return NULL;
+    if (0 != sock_udp_client_ctor(s, host, service, buf_size)) {
+        objfree(s);
+        return NULL;
+    }
+    return &s->inet.sock;
+}
+
+static int sock_udp_server_ctor(struct sock_udp *s, char const *service, size_t buf_size)
+{
+    return sock_inet_server_ctor(&s->inet, service, buf_size, SOCK_DGRAM, &sock_udp_ops);
 }
 
 struct sock *sock_udp_server_new(char const *service, size_t buf_size)
@@ -280,27 +306,211 @@ struct sock *sock_udp_server_new(char const *service, size_t buf_size)
         objfree(s);
         return NULL;
     }
-    return &s->sock;
+    return &s->inet.sock;
 }
 
 /*
  * TCP sockets
  */
 
+typedef uint32_t msg_len;
+
 struct sock_tcp {
-    struct sock sock;
-    int listener_fd;
-    // TODO: plus a list/array of clients
+    struct sock_inet inet;
+    // The folowing is used only by the server:
+#   define NB_MAX_TCP_CLIENTS 10    // should be good enough for most uses
+    struct sock_tcp_clients {
+        int fd; // <0 when free
+        struct ip_addr addr;
+    } clients[NB_MAX_TCP_CLIENTS];
 };
 
-struct sock *sock_tcp_client_new(char const unused_ *host, char const unused_ *service, size_t unused_ buf_size)
+static int sock_tcp_send(struct sock *s_, void const *buf, size_t len)
 {
-    assert(!"TODO");
+    struct sock_inet *i_ = DOWNCAST(s_, sock, sock_inet);
+
+    SLOG(LOG_DEBUG, "Sending %zu bytes to %s (fd %d)", len, s_->name, i_->fd);
+
+    msg_len msg_len = len;
+    struct iovec iov[2] = {
+        { .iov_base = &msg_len, .iov_len = sizeof(msg_len), },
+        { .iov_base = (void *)buf, .iov_len = len, },
+    };
+    if (-1 == writev(i_->fd, iov, NB_ELEMS(iov))) {
+        TIMED_SLOG(LOG_ERR, "Cannot send %zu bytes into %s: %s", len, s_->name, strerror(errno));
+        return -1;
+    }
+    return 0;
+}
+
+static ssize_t sock_tcp_recv(struct sock *s_, void *buf, size_t maxlen, struct ip_addr *sender, int clt)
+{
+    struct sock_inet *i_ = DOWNCAST(s_, sock, sock_inet);
+    struct sock_tcp *s = DOWNCAST(i_, inet, sock_tcp);
+
+    if (clt == 0) { // we want to block on the first sock (useful for tests)...
+        for (; clt < (int)NB_ELEMS(s->clients); clt++) {
+            if (s->clients[clt].fd >= 0) break;
+        }
+        if (clt >= (int)NB_ELEMS(s->clients)) {
+            SLOG(LOG_ERR, "Cannot read on any client since no client is currently connected to %s", s_->name);
+            return -1;
+        }
+    } else {
+        clt --; // we returned clt+1
+    }
+
+    SLOG(LOG_DEBUG, "Reading on socket %s (cnx to %s)", s_->name, ip_addr_2_str(&s->clients[clt].addr));
+
+    msg_len len;
+    ssize_t r = read(s->clients[clt].fd, &len, sizeof(len));
+    if (r < 0) {
+        SLOG(LOG_ERR, "Cannot read a message size from %s, client %d: %s", s_->name, clt, strerror(errno));
+fail:
+        (void)close(s->clients[clt].fd);
+        s->clients[clt].fd = -1;
+        return -1;
+    }
+
+    if (len > maxlen) {
+        SLOG(LOG_ERR, "Message size from %s (%zu) bigger than max expected message size (%zu)!", s_->name, (size_t)len, maxlen);
+        goto fail;
+    }
+
+    r = read(s->clients[clt].fd, buf, len);
+    if (r < 0) {
+        SLOG(LOG_ERR, "Cannot read from %s, client %d: %s", s_->name, clt, strerror(errno));
+        goto fail;
+    } else if (r == 0) {
+        SLOG(LOG_INFO, "closing connection %d of %s", clt, s_->name);
+        goto fail;
+    } else {
+        if (sender) *sender = local_ip;
+        SLOG(LOG_DEBUG, "read %zd bytes out of %s", r, s_->name);
+    }
+
+    return r;
+}
+
+static int sock_tcp_set_fd(struct sock *s_, fd_set *set)
+{
+    struct sock_inet *i_ = DOWNCAST(s_, sock, sock_inet);
+    struct sock_tcp *s = DOWNCAST(i_, inet, sock_tcp);
+    int max = i_->fd;
+    FD_SET(i_->fd, set);
+    for (unsigned c = 0; c < NB_ELEMS(s->clients); c++) {
+        if (s->clients[c].fd >= 0) {
+            max = MAX(max, s->clients[c].fd);
+            FD_SET(s->clients[c].fd, set);
+        }
+    }
+    return max;
+}
+
+static int sock_tcp_is_set(struct sock *s_, fd_set const *set)
+{
+    struct sock_inet *i_ = DOWNCAST(s_, sock, sock_inet);
+    struct sock_tcp *s = DOWNCAST(i_, inet, sock_tcp);
+    unsigned new_c = NB_ELEMS(s->clients);
+    if (FD_ISSET(i_->fd, set)) {
+        // accept the connection
+        struct sockaddr addr;
+        socklen_t addrlen = sizeof(addr);
+        int fd = accept(i_->fd, &addr, &addrlen);
+        if (fd < 0) {
+            SLOG(LOG_ERR, "Cannot accept new connection to %s: %s", s_->name, strerror(errno));
+            goto eoc;
+        }
+        // save it in a free client slot
+        for (new_c = 0; new_c < NB_ELEMS(s->clients); new_c++) {
+            if (s->clients[new_c].fd < 0) break;
+        }
+        if (new_c == NB_ELEMS(s->clients)) {
+            SLOG(LOG_ERR, "Cannot accept new connection to %s: no more available slots", s_->name);
+            goto eoc;
+        }
+        s->clients[new_c].fd = fd;
+        ip_addr_ctor_from_sockaddr(&s->clients[new_c].addr, &addr, addrlen);
+        SLOG(LOG_NOTICE, "New connection from %s to %s", ip_addr_2_str(&s->clients[new_c].addr), s_->name);
+    }
+eoc:
+
+    for (unsigned c = 0; c < NB_ELEMS(s->clients); c++) {
+        if (c == new_c) continue;   // avoids asking for a fd we didn't set (although this would work on glibc)
+        if (s->clients[c].fd >= 0 && FD_ISSET(s->clients[c].fd, set)) return c+1;
+    }
+    return 0;
+}
+
+static void sock_tcp_dtor(struct sock_tcp *s)
+{
+    sock_inet_dtor(&s->inet);
+    for (unsigned c = 0; c < NB_ELEMS(s->clients); c++) {
+        if (s->clients[c].fd >= 0) {
+            (void)close(s->clients[c].fd);
+            s->clients[c].fd = -1;
+        }
+    }
+}
+
+static void sock_tcp_del(struct sock *s_)
+{
+    struct sock_inet *i_ = DOWNCAST(s_, sock, sock_inet);
+    struct sock_tcp *s = DOWNCAST(i_, inet, sock_tcp);
+    sock_tcp_dtor(s);
+    objfree(s);
+}
+
+static struct sock_ops sock_tcp_ops = {
+    .send = sock_tcp_send,
+    .recv = sock_tcp_recv,
+    .set_fd = sock_tcp_set_fd,
+    .is_set = sock_tcp_is_set,
+    .del = sock_tcp_del,
+};
+
+static int sock_tcp_client_ctor(struct sock_tcp *s, char const *host, char const *service, size_t buf_size)
+{
+    return sock_inet_client_ctor(&s->inet, host, service, buf_size, SOCK_STREAM, &sock_tcp_ops);
+}
+
+struct sock *sock_tcp_client_new(char const *host, char const *service, size_t buf_size)
+{
+    struct sock_tcp *s = objalloc(sizeof(*s), "tcp sockets");
+    if (! s) return NULL;
+    if (0 != sock_tcp_client_ctor(s, host, service, buf_size)) {
+        objfree(s);
+        return NULL;
+    }
+    return &s->inet.sock;
+}
+
+static int sock_tcp_server_ctor(struct sock_tcp *s, char const *service, size_t buf_size)
+{
+    for (unsigned c = 0; c < NB_ELEMS(s->clients); c++) {
+        s->clients[c].fd = -1;
+    }
+
+    int err = sock_inet_server_ctor(&s->inet, service, buf_size, SOCK_STREAM, &sock_tcp_ops);
+    if (err) return err;
+
+    if (listen(s->inet.fd, 3) < 0) {
+        SLOG(LOG_ERR, "Cannot listen on socket %s: %s", s->inet.sock.name, strerror(errno));
+        return -1;
+    }
+
+    return 0;
 }
 
 struct sock *sock_tcp_server_new(char const unused_ *service, size_t unused_ buf_size)
 {
-    assert(!"TODO");
+    struct sock_tcp *s = objalloc(sizeof(*s), "tcp sockets");
+    if (! s) return NULL;
+    if (0 != sock_tcp_server_ctor(s, service, buf_size)) {
+        objfree(s);
+        return NULL;
+    }
+    return &s->inet.sock;
 }
 
 /*
@@ -328,7 +538,7 @@ static int sock_unix_send(struct sock *s_, void const *buf, size_t len)
     return 0;
 }
 
-static ssize_t sock_unix_recv(struct sock *s_, void *buf, size_t maxlen, struct ip_addr *sender)
+static ssize_t sock_unix_recv(struct sock *s_, void *buf, size_t maxlen, struct ip_addr *sender, int unused_ clt)
 {
     struct sock_unix *s = DOWNCAST(s_, sock, sock_unix);
 
@@ -353,7 +563,7 @@ static int sock_unix_set_fd(struct sock *s_, fd_set *set)
     return s->fd;
 }
 
-static bool sock_unix_is_set(struct sock *s_, fd_set const *set)
+static int sock_unix_is_set(struct sock *s_, fd_set const *set)
 {
     struct sock_unix *s = DOWNCAST(s_, sock, sock_unix);
     return FD_ISSET(s->fd, set);
@@ -472,8 +682,6 @@ struct sock *sock_unix_server_new(char const *file)
  * File "sockets"
  */
 
-typedef uint32_t file_msg_len;
-
 struct sock_file {
     struct sock sock;
     char dir[PATH_MAX];
@@ -529,7 +737,7 @@ static int sock_file_send(struct sock *s_, void const *buf, size_t len)
 
     SLOG(LOG_DEBUG, "Writing %zu bytes to %s (fd %d)", len, s->sock.name, s->fd);
 
-    file_msg_len msg_len = len;
+    msg_len msg_len = len;
     struct iovec iov[2] = {
         { .iov_base = &msg_len, .iov_len = sizeof(msg_len), },
         { .iov_base = (void *)buf, .iov_len = len, },
@@ -537,7 +745,7 @@ static int sock_file_send(struct sock *s_, void const *buf, size_t len)
     return file_writev(s->fd, iov, NB_ELEMS(iov));
 }
 
-static ssize_t sock_file_recv(struct sock *s_, void *buf, size_t maxlen, struct ip_addr *sender)
+static ssize_t sock_file_recv(struct sock *s_, void *buf, size_t maxlen, struct ip_addr *sender, int unused_ clt)
 {
     struct sock_file *s = DOWNCAST(s_, sock, sock_file);
 
@@ -547,7 +755,7 @@ static ssize_t sock_file_recv(struct sock *s_, void *buf, size_t maxlen, struct 
         if (0 != sock_file_open(s, s->fd >= 0 ? s->id+1 : 0)) return -1;
     }
 
-    file_msg_len len;
+    msg_len len;
     ssize_t r = file_read(s->fd, &len, sizeof(len));
     if (r < 0) {
         SLOG(LOG_ERR, "Cannot read a message size from %s: skip file!", s->sock.name);
@@ -585,7 +793,7 @@ static int sock_file_set_fd(struct sock *s_, fd_set *set)
     return s->fd;
 }
 
-static bool sock_file_is_set(struct sock *s_, fd_set const *set)
+static int sock_file_is_set(struct sock *s_, fd_set const *set)
 {
     struct sock_file *s = DOWNCAST(s_, sock, sock_file);
     return s->fd >= 0 && FD_ISSET(s->fd, set);
@@ -693,7 +901,7 @@ static int sock_buf_send(struct sock *s_, void const *buf, size_t len)
     return sock_buf_flush(s);
 }
 
-static ssize_t sock_buf_recv(struct sock *s_, void *buf, size_t maxlen, struct ip_addr *sender)
+static ssize_t sock_buf_recv(struct sock *s_, void *buf, size_t maxlen, struct ip_addr *sender, int unused_ clt)
 {
     struct sock_buf *s = DOWNCAST(s_, sock, sock_buf);
 
@@ -724,10 +932,10 @@ badmsg:     s->in_rcvd = s->in_sz = 0;
     } else {
         // Receive buffer is empty
         s->in_rcvd = s->in_sz = 0;
-        ssize_t ret = s->ll_sock->ops->recv(s->ll_sock, s->in, s->mtu, sender);
+        ssize_t ret = s->ll_sock->ops->recv(s->ll_sock, s->in, s->mtu, sender, clt);
         if (ret <= 0) return ret;
         s->in_sz = ret;
-        return sock_buf_recv(s_, buf, maxlen, sender);
+        return sock_buf_recv(s_, buf, maxlen, sender, clt);
     }
 }
 
@@ -737,7 +945,7 @@ static int sock_buf_set_fd(struct sock *s_, fd_set *set)
     return s->ll_sock->ops->set_fd(s->ll_sock, set);
 }
 
-static bool sock_buf_is_set(struct sock *s_, fd_set const *set)
+static int sock_buf_is_set(struct sock *s_, fd_set const *set)
 {
     struct sock_buf *s = DOWNCAST(s_, sock, sock_buf);
     // It's important to check ll_sock before received size because of its is_set side effects
@@ -807,6 +1015,7 @@ struct sock *sock_buf_new(size_t mtu, struct sock *ll_sock)
 
 static scm_t_bits sock_smob_tag;
 static SCM udp_sym;
+static SCM tcp_sym;
 static SCM unix_sym;
 static SCM file_sym;
 static SCM buf_sym;
@@ -891,6 +1100,7 @@ static struct sock *make_sock_udp_server(SCM service_, SCM buf_size_)
     return s;
 }
 
+// Caller must have started a scm-dynwind region
 static struct sock *make_sock_udp(SCM type_, SCM p2_, SCM p3_, SCM p4_)
 {
     if (! scm_is_symbol(type_)) goto inval_type;
@@ -899,6 +1109,58 @@ static struct sock *make_sock_udp(SCM type_, SCM p2_, SCM p3_, SCM p4_)
         return make_sock_udp_server(p2_, p3_);
     } else if (scm_is_eq(type_, client_sym)) {
         return make_sock_udp_client(p2_, p3_, p4_);
+    }
+
+inval_type:
+    scm_throw(scm_from_latin1_symbol("invalid-argument"),
+              scm_list_1(type_));
+    return NULL;    // never reached
+}
+
+// Caller must have started a scm-dynwind region
+static struct sock *make_sock_tcp_client(SCM server_, SCM service_, SCM buf_size_)
+{
+    char *server = scm_to_locale_string(server_);
+    scm_dynwind_free(server);
+
+    char *service = scm_to_service(service_);
+    size_t buf_size = SCM_BNDP(buf_size_) ? scm_to_size_t(buf_size_) : 0;
+
+    struct sock *s = sock_tcp_client_new(server, service, buf_size);
+
+    if (! s) {
+        scm_throw(scm_from_latin1_symbol("cannot-create-sock"),
+                  SCM_EOL);
+    }
+
+    return s;
+}
+
+// Caller must have started a scm-dynwind region
+static struct sock *make_sock_tcp_server(SCM service_, SCM buf_size_)
+{
+    char *service = scm_to_service(service_);
+    size_t buf_size = SCM_BNDP(buf_size_) ? scm_to_size_t(buf_size_) : 0;
+
+    struct sock *s = sock_tcp_server_new(service, buf_size);
+
+    if (! s) {
+        scm_throw(scm_from_latin1_symbol("cannot-create-sock"),
+                  SCM_EOL);
+    }
+
+    return s;
+}
+
+// Caller must have started a scm-dynwind region
+static struct sock *make_sock_tcp(SCM type_, SCM p2_, SCM p3_, SCM p4_)
+{
+    if (! scm_is_symbol(type_)) goto inval_type;
+
+    if (scm_is_eq(type_, server_sym)) {
+        return make_sock_tcp_server(p2_, p3_);
+    } else if (scm_is_eq(type_, client_sym)) {
+        return make_sock_tcp_client(p2_, p3_, p4_);
     }
 
 inval_type:
@@ -1010,6 +1272,8 @@ static SCM g_make_sock(SCM type, SCM p1, SCM p2, SCM p3, SCM p4)
     struct sock *s = NULL;
     if (scm_is_eq(type, udp_sym)) {
         s = make_sock_udp(p1, p2, p3, p4);
+    } else if (scm_is_eq(type, tcp_sym)) {
+        s = make_sock_tcp(p1, p2, p3, p4);
     } else if (scm_is_eq(type, unix_sym)) {
         s = make_sock_unix(p1, p2);
     } else if (scm_is_eq(type, file_sym)) {
@@ -1051,7 +1315,7 @@ static SCM g_sock_recv(SCM sock_)
     struct sock *sock = (struct sock *)SCM_SMOB_DATA(sock_);
 
     char buf[1024]; // Receiving from guile is for testing purpose only!
-    ssize_t len = sock->ops->recv(sock, buf, sizeof(buf), NULL);
+    ssize_t len = sock->ops->recv(sock, buf, sizeof(buf), NULL, 0 /* FIXME: an optional second parameter? */);
     if (len < 0) return SCM_BOOL_F;
 
     return scm_from_latin1_stringn(buf, len);
@@ -1070,6 +1334,7 @@ void sock_init(void)
     ext_init();
 
     udp_sym    = scm_permanent_object(scm_from_latin1_symbol("udp"));
+    tcp_sym    = scm_permanent_object(scm_from_latin1_symbol("tcp"));
     unix_sym   = scm_permanent_object(scm_from_latin1_symbol("unix"));
     file_sym   = scm_permanent_object(scm_from_latin1_symbol("file"));
     buf_sym    = scm_permanent_object(scm_from_latin1_symbol("buffered"));

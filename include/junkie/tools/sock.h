@@ -45,9 +45,9 @@
 struct sock {
     struct sock_ops {
         int (*send)(struct sock *, void const *, size_t);
-        ssize_t (*recv)(struct sock *, void *, size_t, struct ip_addr *sender);    // sender will be set to 127.0.0.1 for UNIX domain/files sockets
+        ssize_t (*recv)(struct sock *, void *, size_t, struct ip_addr *sender, int);    // sender will be set to 127.0.0.1 for UNIX domain/files sockets
         int (*set_fd)(struct sock *, fd_set *);  ///< add all selectable fds in this set, return the max
-        bool (*is_set)(struct sock *, fd_set const *);  ///< tells if the fd on which we receive/send message is set
+        int (*is_set)(struct sock *, fd_set const *);  ///< tells if (one of) the fd on which we receive message is set. the returned value is passed to recv.
         void (*del)(struct sock *);
     } const *ops;
     char name[64];

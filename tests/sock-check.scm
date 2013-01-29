@@ -26,12 +26,13 @@
        (lambda (k . args)
          (slog log-debug "Catched exception with args: ~s" args)))
 
+(slog log-debug "test UDP sock")
+
 (define (test-udp-sock-to host port)
   (false-if-exception
     (let ((sock (make-sock 'udp 'client host port)))
       (sock-send sock "hello"))))
 
-(slog log-debug "test UDP sock")
 (call-with-values
   (lambda ()
     (let loop ((nb-try 0))
@@ -48,6 +49,31 @@
     (assert (test-udp-sock-to "localhost" port)) ; should work
     (assert (test-udp-sock-to "localhost" (number->string port))) ; should work as well
     (assert (test-udp-sock-to "127.0.0.1" port))
+    port)) ; and again
+
+(slog log-debug "test TCP sock")
+
+(define (test-tcp-sock-to host port)
+  (false-if-exception
+    (let ((sock (make-sock 'tcp 'client host port)))
+      (sock-send sock "hello"))))
+
+(call-with-values
+  (lambda ()
+    (let loop ((nb-try 0))
+      (if (>= nb-try 10)
+          (throw 'cannot-create-tcp-server)
+          (let ((port (random-port)))
+            (catch 'cannot-create-sock
+                   (lambda ()
+                     (values port (make-sock 'tcp 'server port)))
+                   (lambda (k . args) (loop (1+ nb-try))))))))
+  (lambda (port srv-sock)
+    (slog log-debug "TCP server listening on port ~s, socket ~s" port srv-sock)
+    ; now try to connect to it
+    (assert (test-tcp-sock-to "localhost" port)) ; should work
+    (assert (test-tcp-sock-to "localhost" (number->string port))) ; should work as well
+    (assert (test-tcp-sock-to "127.0.0.1" port))
     port)) ; and again
 
 (slog log-debug "test UNIX sock")

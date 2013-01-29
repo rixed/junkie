@@ -258,7 +258,7 @@ static void *deserializer_thread(void *deser_)
     while (deser->sock) {
         uint32_t src_id;
         struct deserializer_source *source;
-        ssize_t s = deser->sock->ops->recv(deser->sock, buf, sizeof(buf), NULL);
+        ssize_t s = deser->sock->ops->recv(deser->sock, buf, sizeof(buf), NULL, 0 /* Use first available client */);
         uint8_t const *ptr = buf;
         if (s > 0) {
             while (ptr < buf+s) {

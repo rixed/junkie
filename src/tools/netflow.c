@@ -161,7 +161,7 @@ int netflow_listen(char const *service, int (*cb)(struct ip_addr const *, struct
     while (sock) {
         uint8_t buf[MAX_NETFLOW_PDU];
         struct ip_addr sender;
-        ssize_t sz = sock->ops->recv(sock, buf, sizeof(buf), &sender);
+        ssize_t sz = sock->ops->recv(sock, buf, sizeof(buf), &sender, 0 /* Use first available client */);
         if (sz < 0) goto quit;
         if (sz == sizeof(buf)) {
             SLOG(LOG_ERR, "Received a PDU that's bigger than expected. Bailing out!");
