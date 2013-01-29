@@ -883,12 +883,12 @@ static int sock_buf_send(struct sock *s_, void const *buf, size_t len)
 {
     struct sock_buf *s = DOWNCAST(s_, sock, sock_buf);
 
-    if (len >= s->mtu) {
+    if (LEN_BYTES + len >= s->mtu) {
         SLOG(LOG_ERR, "Can't buffer %zu bytes into MTU of %zu", len, s->mtu);
         return -1;
     }
 
-    if (s->mtu + len + LEN_BYTES > s->mtu) (void)sock_buf_flush(s);
+    if (s->out_sz + LEN_BYTES + len > s->mtu) (void)sock_buf_flush(s);
 
     uint8_t *ser_buf = s->out + s->out_sz;
     SERIALIZE(&ser_buf, len);
