@@ -133,6 +133,7 @@ static bool is_delim(char c)
 
 static void copy_token(char *dst, size_t dst_len, char const *src, size_t src_len)
 {
+    assert(dst_len > 0);
     while (src_len > 0 && dst_len > 1 && !is_delim(*src)) {
         *dst++ = *src++;
         dst_len --;

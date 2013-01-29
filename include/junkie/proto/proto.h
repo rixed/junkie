@@ -427,6 +427,7 @@ struct mux_proto {
     uint64_t nb_collisions;         ///< Nb collisions in the hashes since last change of hash size
     uint64_t nb_lookups;            ///< Nb lookups in the hashes since last change of hash size
     uint64_t nb_timeouts;           ///< Nb subparsers timeouted from the hashes (ie. not how many parsers of this proto were timeouted!)
+    time_t last_used;               ///< last time we had traffic (used to give time to timeouter thread)
     /** A pool of mutexes so that we have enough for all the subparsers hash lines
      * but not one per hash line (would require too much memory). Also, we turn this
      * into profit by having only a few timeout queues that can be visited often in order

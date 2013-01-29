@@ -718,7 +718,7 @@ static int sock_file_open(struct sock_file *s, unsigned max_n)
 
     // open/create the max file
     char *path = tempstr_printf("%s/%u", s->dir, max_n);
-    s->fd = file_open(path, (s->server ? O_RDONLY:O_WRONLY)|O_CREAT);
+    s->fd = file_open(path, (s->server ? O_RDONLY:O_WRONLY)|O_CREAT|O_CLOEXEC);
     if (s->fd < 0) goto quit;
     s->id = max_n;
     err = 0;

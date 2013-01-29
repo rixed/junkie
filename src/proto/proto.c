@@ -359,14 +359,13 @@ static void parser_del(struct parser *parser)
 
 struct parser *parser_ref(struct parser *parser)
 {
-    if (parser) SLOG(LOG_DEBUG, "ref parser %s count=%u", parser_name(parser), parser->ref.count+1);
+    if (! parser) return NULL;
     return DOWNCAST(ref(&parser->ref), ref, parser);
 }
 
 void parser_unref(struct parser **parser)
 {
     if (! *parser) return;
-    SLOG(LOG_DEBUG, "unref parser %s count=%u", parser_name(*parser), (*parser)->ref.count-1);
     unref(&(*parser)->ref);
     *parser = NULL;
 }
@@ -570,18 +569,17 @@ static unsigned hash_key(void const *key, size_t key_sz, unsigned hash_size)
 }
 
 // Caller must own list->mutex
-static unsigned mux_subparsers_timeout(struct mux_proto *mux_proto, struct per_mutex *to_list, unsigned timeout_s, struct timeval const *now)
+static unsigned mux_subparsers_timeout(struct mux_proto *mux_proto, struct per_mutex *to_list, unsigned const timeout_s, time_t const last_used)
 {
     if (0 == timeout_s) return 0;
 
     // Beware that deletion of a subparser can lead to the creation of new parsers !
-    int64_t const timeout = timeout_s * 1000000LL;
     struct mux_subparser *subparser;
     unsigned count = 0;
     while (NULL != (subparser = TAILQ_FIRST(&to_list->timeout_queue))) {
         // As parsers are sorted by last_used time (least recently used first in the timeout_queue),
         // we can stop scanning as soon as we met a survivor.
-        if (likely_(timeval_sub(now, &subparser->last_used) <= timeout)) break;
+        if (likely_(last_used - subparser->last_used.tv_sec <= timeout_s)) break;
 
         SLOG(LOG_DEBUG, "Timeouting subparser %s", mux_subparser_name(subparser));
         mux_subparser_deindex_locked(subparser);
@@ -660,14 +658,13 @@ struct mux_subparser *mux_subparser_new(struct mux_parser *mux_parser, struct pa
 
 struct mux_subparser *mux_subparser_ref(struct mux_subparser *subparser)
 {
-    if (subparser) SLOG(LOG_DEBUG, "ref mux_subparser@%p count=%u", subparser, subparser->ref.count+1);
+    if (! subparser) return NULL;
     return ref(&subparser->ref);
 }
 
 void mux_subparser_unref(struct mux_subparser **subparser)
 {
     if (! *subparser) return;
-    SLOG(LOG_DEBUG, "unref mux_subparser@%p count=%u", *subparser, (*subparser)->ref.count-1);
     unref(&(*subparser)->ref);
     *subparser = NULL;
 }
@@ -734,6 +731,8 @@ struct mux_subparser *mux_subparser_lookup(struct mux_parser *mux_parser, struct
     if (subparser) subparser = ref(&subparser->ref);
 
     mutex_unlock(mutex);
+
+    mux_proto->last_used = now->tv_sec;  // give time to timeouter thread (no need to lock as long as writting a time_t is atomic)
 
 #   ifdef __GNUC__
     (void)__sync_add_and_fetch(&mux_proto->nb_lookups, 1);
@@ -880,6 +879,7 @@ void mux_proto_ctor(struct mux_proto *mux_proto, struct proto_ops const *ops, st
     mux_proto->nb_collisions = 0;
     mux_proto->nb_lookups = 0;
     mux_proto->nb_timeouts = 0;
+    mux_proto->last_used = 0;
     for (unsigned m = 0; m < NB_ELEMS(mux_proto->mutexes); m++) {
         mutex_ctor_with_type(&mux_proto->mutexes[m].mutex, "subparsers", PTHREAD_MUTEX_RECURSIVE);
         TAILQ_INIT(&mux_proto->mutexes[m].timeout_queue);
@@ -906,14 +906,14 @@ struct mux_proto_ops mux_proto_ops = {
 
 static pthread_t timeouter_pth;
 
-static void mux_proto_timeout(struct mux_proto *mux_proto, struct timeval const *now)
+static void mux_proto_timeout(struct mux_proto *mux_proto)
 {
     unsigned count = 0;
 
     for (unsigned m = 0; m < NB_ELEMS(mux_proto->mutexes); m++) {
         enter_unsafe_region();
         mutex_lock(&mux_proto->mutexes[m].mutex);
-        count += mux_subparsers_timeout(mux_proto, mux_proto->mutexes+m, mux_timeout, now);
+        count += mux_subparsers_timeout(mux_proto, mux_proto->mutexes+m, mux_timeout, mux_proto->last_used /* safe here */);
         mutex_unlock(&mux_proto->mutexes[m].mutex);
         enter_safe_region();
     }
@@ -926,14 +926,9 @@ static void *timeouter_thread(void unused_ *dummy)
     set_thread_name("J-timeouter");
 
     while (1) {
-        struct timeval now;
-        /* We suppose we will be able to take the mutexes and timeout everything in less than a second.
-           Not very harmfull if that's not really the case. */
-        timeval_set_now(&now);
-
         struct mux_proto *mux_proto;
         LIST_FOREACH(mux_proto, &mux_protos, entry) {
-            mux_proto_timeout(mux_proto, &now);
+            mux_proto_timeout(mux_proto);
         }
 
         sleep(1);

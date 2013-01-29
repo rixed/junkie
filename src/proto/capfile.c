@@ -78,7 +78,7 @@ static char const *capfile_path(struct capfile *capfile)
     return tempstr_printf("%s.%u", capfile->path, (capfile->file_num++)%capfile->rotation);
 }
 
-static int capfile_ctor(struct capfile *capfile, struct capfile_ops const *ops, char const *path, unsigned max_pkts, size_t max_size, unsigned max_secs, size_t cap_len, unsigned rotation)
+static int capfile_ctor(struct capfile *capfile, struct capfile_ops const *ops, char const *path, unsigned max_pkts, size_t max_size, unsigned max_secs, size_t cap_len, unsigned rotation, struct timeval const *now)
 {
     mutex_ctor_with_type(&capfile->lock, path, PTHREAD_MUTEX_RECURSIVE);
     capfile->ops       = ops;
@@ -92,7 +92,7 @@ static int capfile_ctor(struct capfile *capfile, struct capfile_ops const *ops, 
     capfile->file_num  = 0;
     capfile->fd        = -1;
 
-    if (0 != capfile->ops->open(capfile, capfile_path(capfile))) goto err2;
+    if (0 != capfile->ops->open(capfile, capfile_path(capfile), now)) goto err2;
 
     mutex_lock(&capfiles_lock);
     LIST_INSERT_HEAD(&capfiles, capfile, entry);
@@ -106,12 +106,12 @@ err1:
     return -1;
 }
 
-static struct capfile *capfile_new(struct capfile_ops const *ops, char const *path, unsigned max_pkts, size_t max_size, unsigned max_secs, size_t cap_len, unsigned rotation)
+static struct capfile *capfile_new(struct capfile_ops const *ops, char const *path, unsigned max_pkts, size_t max_size, unsigned max_secs, size_t cap_len, unsigned rotation, struct timeval const *now)
 {
     struct capfile *capfile = objalloc(sizeof(*capfile), "capfiles");
     if (! capfile) return NULL;
 
-    if (0 != capfile_ctor(capfile, ops, path, max_pkts, max_size, max_secs, cap_len, rotation)) {
+    if (0 != capfile_ctor(capfile, ops, path, max_pkts, max_size, max_secs, cap_len, rotation, now)) {
         objfree(capfile);
         return NULL;
     }
@@ -157,7 +157,7 @@ static void capfile_close(struct capfile *capfile)
 }
 
 // Caller must own the capfile->lock
-static int capfile_open(struct capfile *capfile, char const *path)
+static int capfile_open(struct capfile *capfile, char const *path, struct timeval const *now)
 {
     if (capture_files >= max_capture_files) {   // not thread safe but if the test is not precise this is not a big deal
         SLOG(LOG_INFO, "Cannot open new capture files: %u already opened", capture_files);
@@ -166,30 +166,30 @@ static int capfile_open(struct capfile *capfile, char const *path)
 
     if (0 != mkdir_all(path, true)) return -1;
 
-    capfile->fd = file_open(path, O_WRONLY|O_TRUNC|O_CREAT);
-    if (-1 == capfile->fd) return -1;
+    capfile->fd = file_open(path, O_WRONLY|O_TRUNC|O_CREAT|O_CLOEXEC);
+    if (capfile->fd < 0) return -1;
     inc_capture_files();
 
     capfile->file_size = 0;
     capfile->nb_pkts = 0;
-    timeval_set_now(&capfile->start);
+    capfile->start = *now;
 
     return 0;
 }
 
-static void capfile_may_rotate(struct capfile *capfile)
+static void capfile_may_rotate(struct capfile *capfile, struct timeval const *now)
 {
     mutex_lock(&capfile->lock);
     if (
         (capfile->max_pkts && capfile->nb_pkts >= capfile->max_pkts) ||
         (capfile->max_size && capfile->file_size >= capfile->max_size) ||
-        (capfile->max_secs && timeval_age(&capfile->start)/1000000ULL > capfile->max_secs)
+        (capfile->max_secs && timeval_sub(now, &capfile->start) > 1000000LL * capfile->max_secs)
     ) {
         capfile->ops->close(capfile);
 
         if (capfile->rotation) {    // reopens the capfile
             SLOG(LOG_DEBUG, "Rotating capfile of %u packets", capfile->nb_pkts);
-            capfile->ops->open(capfile, capfile_path(capfile));
+            capfile->ops->open(capfile, capfile_path(capfile), now);
         }
     }
     mutex_unlock(&capfile->lock);
@@ -200,13 +200,13 @@ static void capfile_may_rotate(struct capfile *capfile)
  * Note: we do not use libpcap because it requires an activated pcap_t for cap_len, which does not suit our case
  */
 
-static int open_pcap(struct capfile *capfile, char const *path)
+static int open_pcap(struct capfile *capfile, char const *path, struct timeval const *now)
 {
     int ret = -1;
 
     mutex_lock(&capfile->lock);
 
-    if (0 != capfile_open(capfile, path)) goto err;
+    if (0 != capfile_open(capfile, path, now)) goto err;
 
     // Write the pcap header
 #   define TCPDUMP_MAGIC 0xa1b2c3d4
@@ -233,7 +233,7 @@ err:
     return ret;
 }
 
-static int write_pcap(struct capfile *capfile, struct proto_info const *info, size_t cap_len_, uint8_t const *pkt)
+static int write_pcap(struct capfile *capfile, struct proto_info const *info, size_t cap_len_, uint8_t const *pkt, struct timeval const *now)
 {
     if (capfile->fd < 0) return -1;
 
@@ -265,7 +265,7 @@ static int write_pcap(struct capfile *capfile, struct proto_info const *info, si
     capfile->nb_pkts++;
     capfile->file_size += sizeof(pkthdr) + cap_len;
 
-    capfile_may_rotate(capfile);
+    capfile_may_rotate(capfile, now);
 
     err = 0;
 err:
@@ -273,7 +273,7 @@ err:
     return err;
 }
 
-struct capfile *capfile_new_pcap(char const *path, unsigned max_pkts, size_t max_size, unsigned max_secs, size_t cap_len, unsigned rotation)
+struct capfile *capfile_new_pcap(char const *path, unsigned max_pkts, size_t max_size, unsigned max_secs, size_t cap_len, unsigned rotation, struct timeval const *now)
 {
     static struct capfile_ops const capfile_pcap_ops = {
         .open  = open_pcap,
@@ -281,17 +281,17 @@ struct capfile *capfile_new_pcap(char const *path, unsigned max_pkts, size_t max
         .write = write_pcap,
         .del   = capfile_del,
     };
-    return capfile_new(&capfile_pcap_ops, path, max_pkts, max_size, max_secs, cap_len, rotation);
+    return capfile_new(&capfile_pcap_ops, path, max_pkts, max_size, max_secs, cap_len, rotation, now);
 }
 
 /*
  * CSV files
  */
 
-static int open_csv(struct capfile *capfile, char const *path)
+static int open_csv(struct capfile *capfile, char const *path, struct timeval const *now)
 {
     mutex_lock(&capfile->lock);
-    int ret = capfile_open(capfile, path);
+    int ret = capfile_open(capfile, path, now);
     mutex_unlock(&capfile->lock);
 
     return ret;
@@ -307,7 +307,7 @@ char *capfile_csv_from_info(struct proto_info const *info)
     }
 }
 
-static int write_csv(struct capfile *capfile, struct proto_info const *info, size_t cap_len_, uint8_t const unused_ *pkt)
+static int write_csv(struct capfile *capfile, struct proto_info const *info, size_t cap_len_, uint8_t const unused_ *pkt, struct timeval const *now)
 {
     if (capfile->fd < 0) return -1;
 
@@ -328,7 +328,7 @@ static int write_csv(struct capfile *capfile, struct proto_info const *info, siz
     capfile->nb_pkts++;
     capfile->file_size += len;
 
-    capfile_may_rotate(capfile);
+    capfile_may_rotate(capfile, now);
 
     err = 0;
 err:
@@ -336,7 +336,7 @@ err:
     return err;
 }
 
-struct capfile *capfile_new_csv(char const *path, unsigned max_pkts, size_t max_size, unsigned max_secs, size_t cap_len, unsigned rotation)
+struct capfile *capfile_new_csv(char const *path, unsigned max_pkts, size_t max_size, unsigned max_secs, size_t cap_len, unsigned rotation, struct timeval const *now)
 {
     static struct capfile_ops const capfile_csv_ops = {
         .open  = open_csv,
@@ -344,7 +344,7 @@ struct capfile *capfile_new_csv(char const *path, unsigned max_pkts, size_t max_
         .write = write_csv,
         .del   = capfile_del,
     };
-    return capfile_new(&capfile_csv_ops, path, max_pkts, max_size, max_secs, cap_len, rotation);
+    return capfile_new(&capfile_csv_ops, path, max_pkts, max_size, max_secs, cap_len, rotation, now);
 }
 
 /*

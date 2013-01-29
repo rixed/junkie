@@ -84,12 +84,14 @@ static inline void deserialize_n(uint8_t const **buf, void *dst, size_t n)
     (*buf) += n;
 }
 
-static inline void deserialize_str(uint8_t const **buf, char *dst, size_t max_len)
+// returns the length of the result string that was copied in dst, not including the terminating nul
+static inline unsigned deserialize_str(uint8_t const **buf, char *dst, size_t max_len)
 {
     unsigned n = deserialize_2(buf);
     assert(n < max_len);
     deserialize_n(buf, (uint8_t *)dst, n);
     dst[n] = '\0';
+    return n;
 }
 
 #endif

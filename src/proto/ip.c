@@ -318,32 +318,30 @@ static struct mux_subparser *ip_subparser_new(struct mux_parser *mux_parser, str
     return &ip_subparser->mux_subparser;
 }
 
-static void ip_reassembly_dtor(struct ip_reassembly *reassembly, struct timeval const *now)
+static void ip_reassembly_dtor(struct ip_reassembly *reassembly)
 {
     SLOG(LOG_DEBUG, "Destructing ip_reassembly@%p", reassembly);
     if (reassembly->constructed) {
-        pkt_wait_list_dtor(&reassembly->wl, now);
+        pkt_wait_list_dtor(&reassembly->wl);
         reassembly->constructed = 0;
         reassembly->in_use = 0;
     }
 }
 
-static void ip_subparser_dtor(struct ip_subparser *ip_subparser, struct timeval const *now)
+static void ip_subparser_dtor(struct ip_subparser *ip_subparser)
 {
     SLOG(LOG_DEBUG, "Destruct an IP mux_subparser @%p", ip_subparser);
 
     for (unsigned r = 0; r < NB_ELEMS(ip_subparser->reassembly); r++) {
-        ip_reassembly_dtor(ip_subparser->reassembly+r, now);
+        ip_reassembly_dtor(ip_subparser->reassembly+r);
     }
     mux_subparser_dtor(&ip_subparser->mux_subparser);
 }
 
 static void ip_subparser_del(struct mux_subparser *mux_subparser)
 {
-    struct timeval now; // FIXME: add a now parameter to all parser_del methods ?
-    timeval_set_now(&now);
     struct ip_subparser *ip_subparser = DOWNCAST(mux_subparser, mux_subparser, ip_subparser);
-    ip_subparser_dtor(ip_subparser, &now);
+    ip_subparser_dtor(ip_subparser);
     objfree(ip_subparser);
 }
 
@@ -386,7 +384,7 @@ static struct ip_reassembly *ip_reassembly_lookup(struct ip_subparser *ip_subpar
     if (last_unused == -1) {
         last_unused = 0;    // a "random" value would be better
         SLOG(LOG_DEBUG, "No slot left on ip_reassembly, reusing slot at index %u", last_unused);
-        ip_reassembly_dtor(ip_subparser->reassembly + last_unused, now);
+        ip_reassembly_dtor(ip_subparser->reassembly + last_unused);
     }
 
     struct ip_reassembly *const reassembly = ip_subparser->reassembly + last_unused;
@@ -422,7 +420,7 @@ struct mux_subparser *ip_subparser_lookup(struct parser *parser, struct proto *p
  * But we also want to acknoledge the several IP fragments that were received (but the
  * first one that count for the whole payload), so we also must call subscribers for
  * each IP info. The pkt_wait_list_dtor will do this for us. */
-static enum proto_parse_status reassemble(struct ip_reassembly *reassembly, struct timeval const *now)
+static enum proto_parse_status reassemble(struct ip_reassembly *reassembly)
 {
     SLOG(LOG_DEBUG, "Reassembling ip_reassembly@%p", reassembly);
 
@@ -430,9 +428,9 @@ static enum proto_parse_status reassemble(struct ip_reassembly *reassembly, stru
      * we should use wait_pkt->tot_packet here, or rework pkt_wait_list so that it doesn't assume anymore that packet is within tot_packet. */
     // may fail for instance if cap_len was not big enough
     uint8_t *payload = pkt_wait_list_reassemble(&reassembly->wl, 0, reassembly->end_offset);
-    enum proto_parse_status status = pkt_wait_list_flush(&reassembly->wl, payload, reassembly->end_offset, reassembly->end_offset, now);
+    enum proto_parse_status status = pkt_wait_list_flush(&reassembly->wl, payload, reassembly->end_offset, reassembly->end_offset);
     if (payload) objfree(payload);
-    ip_reassembly_dtor(reassembly, now);
+    ip_reassembly_dtor(reassembly);
     return status;
 }
 
@@ -517,7 +515,7 @@ static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info
             goto unlock_fallback;  // should not happen
         }
         if (reassembly->got_last && pkt_wait_list_is_complete(&reassembly->wl, 0, reassembly->end_offset)) {
-            status = reassemble(reassembly, now);
+            status = reassemble(reassembly);
         } else {
             status = PROTO_OK;  // for now
         }

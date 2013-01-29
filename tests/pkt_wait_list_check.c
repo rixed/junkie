@@ -29,7 +29,7 @@ static void ctor_dtor_check(void)
     struct pkt_wait_list wl;
 
     assert(0 == pkt_wait_list_ctor(&wl, 10, &config, dummy, &now));
-    pkt_wait_list_dtor(&wl, &now);
+    pkt_wait_list_dtor(&wl);
 
     parser_unref(&dummy);
     pkt_wl_config_dtor(&config);

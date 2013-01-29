@@ -22,6 +22,7 @@
 #include <string.h>
 #include "junkie/tools/log.h"
 #include "junkie/tools/ref.h"
+#include "junkie/tools/mutex.h"
 
 LOG_CATEGORY_DEF(ref)
 #undef LOG_CAT
@@ -34,32 +35,14 @@ LOG_CATEGORY_DEF(ref)
 
 static pthread_rwlock_t rwlock;
 
-static void acquire(int (*f)(pthread_rwlock_t *))
-{
-    int err = f(&rwlock);
-    if (err) {
-        SLOG(LOG_ERR, "Cannot acquire RWLock: %s", strerror(err));
-        // so be it
-    }
-}
-
-static void release(void)
-{
-    int err = pthread_rwlock_unlock(&rwlock);
-    if (err) {
-        SLOG(LOG_ERR, "Cannot release RWLock: %s", strerror(err));
-        // so be it
-    }
-}
-
 void enter_unsafe_region(void)
 {
-    acquire(pthread_rwlock_rdlock);
+    rwlock_acquire(&rwlock, false);
 }
 
 void enter_safe_region(void)
 {
-    release();
+    rwlock_release(&rwlock);
 }
 
 static pthread_t doomer_pth;
@@ -95,9 +78,9 @@ static void *doomer_thread(void unused_ *dummy)
     set_thread_name("J-doomer");
 
     while (1) {
-        acquire(pthread_rwlock_wrlock);
+        rwlock_acquire(&rwlock, true);
         delete_doomed();
-        release();
+        rwlock_release(&rwlock);
         sleep(1);
     }
     return NULL;
@@ -110,10 +93,10 @@ extern inline void unref(struct ref *);
 
 void doomer_stop(void)
 {
-    acquire(pthread_rwlock_rdlock); // wait for doomer-thread to finish its run
+    rwlock_acquire(&rwlock, false);    // wait for doomer-thread to finish its run
     (void)pthread_cancel(doomer_pth);
     (void)pthread_join(doomer_pth, NULL);
-    release();
+    rwlock_release(&rwlock);
     SLOG(LOG_DEBUG, "doomer thread was cancelled");
 }
 
@@ -126,13 +109,9 @@ void ref_init(void)
     mutex_ctor(&death_row_mutex, "death row");
     SLIST_INIT(&death_row);
     log_category_ref_init();
-    int err = pthread_rwlock_init(&rwlock, NULL);
-    if (err) {
-        SLOG(LOG_ERR, "Cannot pthread_rwlock_init(): %s", strerror(err));
-        // so be it
-    }
+    rwlock_ctor(&rwlock);
 
-    err = pthread_create(&doomer_pth, NULL, doomer_thread, NULL);
+    int err = pthread_create(&doomer_pth, NULL, doomer_thread, NULL);
 
     if (! err) {
         pthread_detach(doomer_pth);
@@ -145,7 +124,7 @@ void ref_fini(void)
 {
     if (--inited) return;
 
-    pthread_rwlock_destroy(&rwlock);
+    rwlock_dtor(&rwlock);
     mutex_dtor(&death_row_mutex);
     log_category_ref_fini();
 

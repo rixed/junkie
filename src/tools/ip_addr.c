@@ -144,6 +144,8 @@ int ip_addr_cmp(struct ip_addr const *a, struct ip_addr const *b)
     return -1;
 }
 
+extern inline bool ip_addr_eq(struct ip_addr const *, struct ip_addr const *);
+
 bool ip_addr_is_v6(struct ip_addr const *addr)
 {
     return addr->family == AF_INET6;

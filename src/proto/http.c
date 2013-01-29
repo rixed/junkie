@@ -34,28 +34,96 @@
 #include "junkie/tools/log.h"
 #include "proto/httper.h"
 #include "proto/liner.h"
+#include "hook.h"
 
 #undef LOG_CAT
 #define LOG_CAT proto_http_log_category
 
 LOG_CATEGORY_DEF(proto_http);
 
+HOOK(http_head);    // at end of header
+HOOK(http_body);    // at every piece of body
+
+/*
+ * Utilities
+ */
+
+#define HTTP_SEL "http://"
+#define HTTP_SEL_LEN 7
+
+static bool end_of_host(int c)
+{
+    return c == '\0' || c == '/' || c == ':';
+}
+
+char const *http_build_domain(struct ip_addr const *server, char const *host, char const *url, int version)
+{
+    char const *src = NULL;
+    if (host) {
+        src = host;
+    } else if (url && 0 == strncasecmp(url, HTTP_SEL, HTTP_SEL_LEN)) {
+        src = url + HTTP_SEL_LEN;
+    }
+
+    if (! src) return (version == 6 ? ip_addr_2_strv6:ip_addr_2_str)(server);
+
+    // takes everything from url+HTTP_SEL_LEN up to '\0', ':' or '/'
+    char *str = tempstr();
+    unsigned c;
+    for (c = 0; c < TEMPSTR_SIZE-1 && !end_of_host(src[c]); c++) {
+        str[c] = src[c];
+    }
+    str[c] = '\0';
+    return str;
+}
+
+char const *http_build_url(struct ip_addr const *server, char const *host, char const *url)
+{
+    if (url && 0 == strncasecmp(url, HTTP_SEL, HTTP_SEL_LEN)) {
+        url += HTTP_SEL_LEN;
+        // Remove port from url
+        char const *colon = url;
+        while (! end_of_host(*colon)) colon ++;
+        if (*colon != ':') return url;
+        char *str = tempstr();
+        char const *end_port = colon;
+        while (! end_of_host(*end_port)) end_port ++;
+        if (*end_port == ':') return url; // ?
+        snprintf(str, TEMPSTR_SIZE, "%.*s%s", (int)(colon-url), url, end_port != '\0' ? end_port+1:end_port);
+        return str;
+    } else {    // url does not include host
+        char *str = tempstr();
+        snprintf(str, TEMPSTR_SIZE, "%s%s%s",
+            http_build_domain(server, host, url, 4),
+            !url || url[0] == '/' ? "" : "/",
+            url ? url : "");
+        return str;
+    }
+}
+
+/*
+ * Parsing
+ */
+
 struct http_parser {
     struct parser parser;
-    unsigned c2s_way;   // The way when traffic is going from client to server (UNSET for unset)
+    unsigned c2s_way;   // The way when traffic is going from client to server (or UNSET)
     struct streambuf sbuf;
     struct http_state {
+        unsigned pkts;  // number of pkts in this message (so far)
         enum http_phase {
             HEAD,       // while waiting for/scanning header
             BODY,       // while scanning body
             CHUNK_HEAD, // while scanning a chunk header
             CHUNK,      // while scanning a body chunk
+            CHUNK_CRLF, // while scanning the trailing CRLF of a body chunk
         } phase;
+        struct timeval first;   // first packet for this message
+        struct timeval last;    // last packet we received (only set if first is set)
 #       define CONTENT_UP_TO_END ((size_t)((ssize_t)-1))
         size_t remaining_content;   // nb bytes before next header (or (ssize_t)-1 if unknown). Only relevant when phase=BODY|CHUNK.
         // Store the last query command, to be taken it into account to skip body in answer to HEADs
         enum http_method last_method;
-        // FIXME: parse transfert-encoding: chunked
         // FIXME: take into account http-range?
     } state[2];    // One per direction (depending on "way", ie. 0 will be smaller IP)
 };
@@ -67,22 +135,42 @@ static char const *http_parser_phase_2_str(enum http_phase phase)
         case BODY: return "scanning body";
         case CHUNK: return "scanning chunk content";
         case CHUNK_HEAD: return "scanning chunk header";
+        case CHUNK_CRLF: return "scanning chunk trailing CRLF";
     }
     assert(!"Unknown HTTP pase");
 }
 
-static parse_fun http_sbuf_parse;
+static char const *way_2_str(unsigned way)
+{
+    if (way == 0) return "clt->srv";
+    return "srv->clt";
+}
 
+static void http_parser_reset_phase(struct http_parser *http_parser, unsigned way, enum http_phase phase)
+{
+    SLOG(LOG_DEBUG, "Reset phase for direction %s to %s", way_2_str(way), http_parser_phase_2_str(phase));
+
+    http_parser->state[way].phase = phase;
+    /* Note that we do not init first to now because we can create the parser
+     * before receiving the first packet (in case of conntracking for
+     * instance.) */
+    if (phase == HEAD) {
+        http_parser->state[way].pkts = 0;
+        timeval_reset(&http_parser->state[way].first);
+    }
+}
+
+static parse_fun http_sbuf_parse;
 static int http_parser_ctor(struct http_parser *http_parser, struct proto *proto)
 {
     SLOG(LOG_DEBUG, "Construct HTTP parser@%p", http_parser);
 
     assert(proto == proto_http);
     if (0 != parser_ctor(&http_parser->parser, proto)) return -1;
-    http_parser->state[0].phase = HEAD;
-    http_parser->state[1].phase = HEAD;
-    http_parser->state[0].last_method = UNSET;
-    http_parser->state[1].last_method = UNSET;
+    for (unsigned way = 0; way <= 1; way++) {
+        http_parser_reset_phase(http_parser, way, HEAD);
+        http_parser->state[way].last_method = UNSET;
+    }
     http_parser->c2s_way = UNSET;
 #   define HTTP_MAX_HDR_SIZE 10000   // in bytes
     if (0 != streambuf_ctor(&http_parser->sbuf, http_sbuf_parse, HTTP_MAX_HDR_SIZE)) return -1;
@@ -154,18 +242,22 @@ static char const *http_info_2_str(struct proto_info const *info_)
 {
     struct http_proto_info const *info = DOWNCAST(info_, info, http_proto_info);
     char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, method=%s, code=%s, content_length=%s, transfert_encoding=%s, mime_type=%s, host=%s, user_agent=%s, url=%s",
+    snprintf(str, TEMPSTR_SIZE, "%s, method=%s, code=%s, content_length=%s, transfert_encoding=%s, mime_type=%s, host=%s, user_agent=%s, referrer=%s, server=%s, url=%s, pkts=%u%s",
         proto_info_2_str(info_),
-        info->set_values & HTTP_METHOD_SET   ? http_method_2_str(info->method)            : "unset",
+        HTTP_IS_QUERY(info)                  ? http_method_2_str(info->method)            : "unset",
         info->set_values & HTTP_CODE_SET     ? tempstr_printf("%u", info->code)           : "unset",
         info->set_values & HTTP_LENGTH_SET   ? tempstr_printf("%u", info->content_length) : "unset",
         info->set_values & HTTP_TRANSFERT_ENCODING_SET ?
                                                (info->chunked_encoding ? "chunked":"set") : "unset",
-        info->set_values & HTTP_MIME_SET     ? info->mime_type                            : "unset",
-        info->set_values & HTTP_HOST_SET     ? info->host                                 : "unset",
+        info->set_values & HTTP_MIME_SET     ? info->strs+info->mime_type                 : "unset",
+        info->set_values & HTTP_HOST_SET     ? info->strs+info->host                      : "unset",
         info->set_values & HTTP_USER_AGENT_SET ?
-                                               info->user_agent                           : "unset",
-        info->set_values & HTTP_URL_SET      ? info->url                                  : "unset");
+                                               info->strs+info->user_agent                : "unset",
+        info->set_values & HTTP_REFERRER_SET ? info->strs+info->referrer                  : "unset",
+        info->set_values & HTTP_SERVER_SET   ? info->strs+info->server                    : "unset",
+        info->set_values & HTTP_URL_SET      ? info->strs+info->url                       : "unset",
+        info->pkts,
+        info->ajax                           ? ", ajax":"");
     return str;
 }
 
@@ -174,41 +266,65 @@ static void http_serialize(struct proto_info const *info_, uint8_t **buf)
     struct http_proto_info const *info = DOWNCAST(info_, info, http_proto_info);
     proto_info_serialize(info_, buf);
     serialize_1(buf, info->set_values);
+    serialize_4(buf, info->pkts);
+    timeval_serialize(&info->first, buf);
     if (info->set_values & HTTP_METHOD_SET) serialize_1(buf, info->method);
     if (info->set_values & HTTP_CODE_SET) serialize_2(buf, info->code);
     if (info->set_values & HTTP_LENGTH_SET) serialize_4(buf, info->content_length);
     if (info->set_values & HTTP_TRANSFERT_ENCODING_SET) serialize_1(buf, info->chunked_encoding);
-    if (info->set_values & HTTP_MIME_SET) serialize_str(buf, info->mime_type);
-    if (info->set_values & HTTP_HOST_SET) serialize_str(buf, info->host);
-    if (info->set_values & HTTP_USER_AGENT_SET) serialize_str(buf, info->user_agent);
-    if (info->set_values & HTTP_URL_SET) serialize_str(buf, info->url);
+    if (info->set_values & HTTP_MIME_SET) serialize_str(buf, info->strs+info->mime_type);
+    if (info->set_values & HTTP_HOST_SET) serialize_str(buf, info->strs+info->host);
+    if (info->set_values & HTTP_USER_AGENT_SET) serialize_str(buf, info->strs+info->user_agent);
+    if (info->set_values & HTTP_REFERRER_SET) serialize_str(buf, info->strs+info->referrer);
+    if (info->set_values & HTTP_SERVER_SET) serialize_str(buf, info->strs+info->server);
+    if (info->set_values & HTTP_URL_SET) serialize_str(buf, info->strs+info->url);
+    serialize_1(buf, info->ajax);
+}
+
+// Deserialize a string in strs, setting the offset of the result in offset
+static void deserialize_in_strs(uint8_t const **buf, unsigned *offset, struct http_proto_info *info)
+{
+    *offset = info->free_strs;
+    /* We must pass to deserialize_str the total size of the buffer, it will null term the string.
+     * The returned values is the length of the resulting string (not including terminator zero) */
+    info->free_strs += 1 + deserialize_str(buf, info->strs+info->free_strs, sizeof(info->strs) - info->free_strs);
 }
 
 static void http_deserialize(struct proto_info *info_, uint8_t const **buf)
 {
     struct http_proto_info *info = DOWNCAST(info_, info, http_proto_info);
     proto_info_deserialize(info_, buf);
+    info->pkts = deserialize_4(buf);
+    timeval_deserialize(&info->first, buf);
     info->set_values = deserialize_1(buf);
     if (info->set_values & HTTP_METHOD_SET) info->method = deserialize_1(buf);
     if (info->set_values & HTTP_CODE_SET) info->code = deserialize_2(buf);
     if (info->set_values & HTTP_LENGTH_SET) info->content_length = deserialize_4(buf);
     if (info->set_values & HTTP_TRANSFERT_ENCODING_SET) info->chunked_encoding = deserialize_1(buf);
-    if (info->set_values & HTTP_MIME_SET) deserialize_str(buf, info->mime_type, sizeof(info->mime_type));
-    if (info->set_values & HTTP_HOST_SET) deserialize_str(buf, info->host, sizeof(info->host));
-    if (info->set_values & HTTP_USER_AGENT_SET) deserialize_str(buf, info->user_agent, sizeof(info->user_agent));
-    if (info->set_values & HTTP_URL_SET) deserialize_str(buf, info->url, sizeof(info->url));
+    if (info->set_values & HTTP_MIME_SET) deserialize_in_strs(buf, &info->mime_type, info);
+    if (info->set_values & HTTP_HOST_SET) deserialize_in_strs(buf, &info->host, info);
+    if (info->set_values & HTTP_USER_AGENT_SET) deserialize_in_strs(buf, &info->user_agent, info);
+    if (info->set_values & HTTP_REFERRER_SET) deserialize_in_strs(buf, &info->referrer, info);
+    if (info->set_values & HTTP_SERVER_SET) deserialize_in_strs(buf, &info->server, info);
+    if (info->set_values & HTTP_URL_SET) deserialize_in_strs(buf, &info->url, info);
+    info->ajax = deserialize_1(buf);
 }
 
-static void http_proto_info_ctor(struct http_proto_info *info, struct http_parser *http_parser, struct proto_info *parent, size_t head_len, size_t payload)
+static void http_proto_info_ctor(struct http_proto_info *http, struct timeval const *first, unsigned pkts)
 {
-    proto_info_ctor(&info->info, &http_parser->parser, parent, head_len, payload);
+    http->set_values = 0;
+    http->free_strs = 0;
+    http->pkts = pkts;
+    http->first = *first;
+    http->ajax = false; // until proven otherwise
+    // http->info initialized later
 }
 
 /*
  * Parse HTTP header
  */
 
-static void copy_token_choped(char *dest, size_t dest_sz, struct liner *liner)
+static unsigned copy_token_chopped(char *dest, size_t dest_sz, struct liner *liner)
 {
     if (liner->tok_size >= 2) {
         if (liner->start[0] == '\13' && liner->start[1] == '\10') {
@@ -221,7 +337,17 @@ static void copy_token_choped(char *dest, size_t dest_sz, struct liner *liner)
         (liner->start[0] == ' ' || liner->start[0] == '\t')
     ) liner_skip(liner, 1);
 
-    copy_token(dest, dest_sz, liner);
+    return copy_token(dest, dest_sz, liner);
+}
+
+static void copy_token_in_strs(struct http_proto_info *info, unsigned *offset, struct liner *liner)
+{
+    if (info->free_strs >= sizeof(info->strs)) {
+        *offset = sizeof(info->strs)-1; // points to the last '\0'
+    } else {
+        *offset = info->free_strs;
+        info->free_strs += 1 + copy_token_chopped(info->strs + info->free_strs, sizeof(info->strs) - info->free_strs, liner);
+    }
 }
 
 static int http_set_method(unsigned cmd, struct liner *liner, void *info_)
@@ -232,10 +358,20 @@ static int http_set_method(unsigned cmd, struct liner *liner, void *info_)
     // URL is the next token
     if (! liner_eof(liner)) {
         info->set_values |= HTTP_URL_SET;
-        copy_token_choped(info->url, sizeof(info->url), liner);
+        copy_token_in_strs(info, &info->url, liner);
+        /* The URL is what we fetch first and we risk filling up the whole strs buffer
+         * right from the start. To avoid this, limit what we use for URL to this amount: */
+        assert(info->free_strs >= info->url);
+        unsigned const url_size = info->free_strs - info->url;
+        if (url_size > HTTP_MAX_URL_SIZE) {
+            info->free_strs = info->url + HTTP_MAX_URL_SIZE;
+            info->strs[info->free_strs - 1] = '\0';
+        }
     }
     return 0;
 }
+
+// TODO: some boolean EXT_PARAMS to disable fetching of each HTTP fields
 
 static int http_extract_code(unsigned unused_ cmd, struct liner *liner, void *info_)
 {
@@ -257,11 +393,11 @@ static int http_extract_content_type(unsigned unused_ field, struct liner *liner
 {
     struct http_proto_info *info = info_;
     info->set_values |= HTTP_MIME_SET;
-    copy_token_choped(info->mime_type, sizeof(info->mime_type), liner);
+    copy_token_in_strs(info, &info->mime_type, liner);
     return 0;
 }
 
-static int http_extract_transfert_encoding(unsigned unused_ field, struct liner unused_ *liner, void *info_)
+static int http_extract_transfert_encoding(unsigned unused_ field, struct liner *liner, void *info_)
 {
     struct http_proto_info *info = info_;
     info->set_values |= HTTP_TRANSFERT_ENCODING_SET;
@@ -273,7 +409,7 @@ static int http_extract_host(unsigned unused_ field, struct liner *liner, void *
 {
     struct http_proto_info *info = info_;
     info->set_values |= HTTP_HOST_SET;
-    copy_token_choped(info->host, sizeof(info->host), liner);
+    copy_token_in_strs(info, &info->host, liner);
     return 0;
 }
 
@@ -281,7 +417,47 @@ static int http_extract_user_agent(unsigned unused_ field, struct liner *liner, 
 {
     struct http_proto_info *info = info_;
     info->set_values |= HTTP_USER_AGENT_SET;
-    copy_token_choped(info->user_agent, sizeof(info->user_agent), liner);
+    copy_token_in_strs(info, &info->user_agent, liner);
+    return 0;
+}
+
+static int http_extract_referrer(unsigned unused_ field, struct liner *liner, void *info_)
+{
+    struct http_proto_info *info = info_;
+    info->set_values |= HTTP_REFERRER_SET;
+    copy_token_in_strs(info, &info->referrer, liner);
+    return 0;
+}
+
+static int http_extract_server(unsigned unused_ field, struct liner *liner, void *info_)
+{
+    struct http_proto_info *info = info_;
+    info->set_values |= HTTP_SERVER_SET;
+    copy_token_in_strs(info, &info->server, liner);
+    return 0;
+}
+
+static int http_extract_requested_with(unsigned unused_ field, struct liner *liner, void *info_)
+{
+    struct http_proto_info *info = info_;
+    info->ajax = 0 == strncasecmp(liner->start, "XMLHttpRequest", 14);
+    if (info->ajax) SLOG(LOG_DEBUG, "X-Requested-with looks like AJAX");
+    return 0;
+}
+
+static int http_extract_accept(unsigned unused_ field, struct liner *liner, void *info_)
+{
+    struct http_proto_info *info = info_;
+    info->ajax = 0 == strncasecmp(liner->start, "application/json", 16);
+    if (info->ajax) SLOG(LOG_DEBUG, "Accept looks like AJAX");
+    return 0;
+}
+
+static int http_extract_origin(unsigned unused_ field, struct liner unused_ *liner, void *info_)
+{
+    struct http_proto_info *info = info_;
+    info->ajax = true;
+    SLOG(LOG_DEBUG, "Origin field present -> AJAX");
     return 0;
 }
 
@@ -308,6 +484,12 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
         { STRING_AND_LEN("transfer-encoding"), http_extract_transfert_encoding },
         { STRING_AND_LEN("host"),              http_extract_host },
         { STRING_AND_LEN("user-agent"),        http_extract_user_agent },
+        { STRING_AND_LEN("referrer"),          http_extract_referrer },
+        { STRING_AND_LEN("referer"),           http_extract_referrer },
+        { STRING_AND_LEN("server"),            http_extract_server },
+        { STRING_AND_LEN("x-requested-with"),  http_extract_requested_with },
+        { STRING_AND_LEN("accept"),            http_extract_accept },
+        { STRING_AND_LEN("origin"),            http_extract_origin },
     };
     static struct httper const httper = {
         .nb_commands = NB_ELEMS(commands),
@@ -316,8 +498,8 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
         .fields = fields
     };
 
-    struct http_proto_info info;    // we init the proto_info once validated
-    info.set_values = 0;
+    struct http_proto_info info;
+    http_proto_info_ctor(&info, &http_parser->state[way].first, http_parser->state[way].pkts);    // we init the proto_info once validated
 
     size_t httphdr_len;
     enum proto_parse_status status = httper_parse(&httper, &httphdr_len, packet, cap_len, &info);
@@ -325,7 +507,17 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
 
     // Save some values into our http_parser
     http_parser->state[way].last_method =
-        info.set_values & HTTP_METHOD_SET ? info.method : UNSET;
+        HTTP_IS_QUERY(&info) ? info.method : UNSET;
+
+    // Ajax can also be guessed from URL
+    if (!info.ajax && info.set_values & HTTP_URL_SET) {
+        // Detects JSONP (cf. http://en.wikipedia.org/wiki/JSONP)
+        info.ajax = strcasestr(info.strs+info.url, "?jsonp=") ||
+                    strcasestr(info.strs+info.url, "&jsonp=") ||
+                    strcasestr(info.strs+info.url, "?callback=") ||
+                    strcasestr(info.strs+info.url, "&callback=");
+        if (info.ajax) SLOG(LOG_DEBUG, "URL looks like AJAX");
+    }
 
     // Handle short capture
     if (status == PROTO_TOO_SHORT) {
@@ -338,7 +530,10 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
             return PROTO_OK;
         } else {
             // No, the header was truncated. We want to report as much as we can.
-            http_proto_info_ctor(&info, http_parser, parent, cap_len, 0);
+            proto_info_ctor(&info.info, &http_parser->parser, parent, cap_len, 0);
+            // call hooks on header (for tx hooks we'd rather have pointers on message than pointer to packet)
+            http_head_subscribers_call(&info.info, cap_len, packet, now);
+            // continuation
             return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
             // We are going to look for another header at the start of the next packet, hoping for the best.
         }
@@ -347,7 +542,7 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
     /* What payload should we set? the one advertised? Or the payload of this header (ie 0),
      * and then let the body parser report other proto_info with head_len=0 and payload set?
      * will be definitively FIXED once we ditch this reporting policy for a hook based approach. */
-    http_proto_info_ctor(&info, http_parser, parent, httphdr_len, 0);
+    proto_info_ctor(&info.info, &http_parser->parser, parent, httphdr_len, 0);
 
     /* "The presence of a message-body in a request is signaled by the
      * inclusion of a Content-Length or Transfer-Encoding header field in
@@ -360,9 +555,9 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
      * (informational), 204 (no content), and 304 (not modified) responses
      * MUST NOT include a message-body. All other responses do include a
      * message-body, although it MAY be of zero length." - RFC2616 */
-    bool const have_body =
+    info.have_body =
         (
-            (info.set_values & HTTP_METHOD_SET) &&
+            HTTP_IS_QUERY(&info) &&
             (info.set_values & (HTTP_LENGTH_SET | HTTP_TRANSFERT_ENCODING_SET))
         ) || (
             (info.set_values & HTTP_CODE_SET) &&
@@ -370,23 +565,27 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
             (info.code < 100 || (info.code > 199 && info.code != 204 && info.code != 304))
         );
 
-    if (have_body) {
+    if (info.have_body) {
         if (info.set_values & HTTP_LENGTH_SET) {
-            http_parser->state[way].phase = BODY;
+            http_parser_reset_phase(http_parser, way, BODY);
             http_parser->state[way].remaining_content = info.content_length;
         } else if (info.set_values & HTTP_TRANSFERT_ENCODING_SET) {
             if (info.chunked_encoding) {
-                http_parser->state[way].phase = CHUNK_HEAD;
+                http_parser_reset_phase(http_parser, way, CHUNK_HEAD);
             } else {
                 // We will keep looking for header just after this one, hoping for the best.
             }
         } else {    // no length indication
-            http_parser->state[way].phase = BODY;
+            http_parser_reset_phase(http_parser, way, BODY);
             http_parser->state[way].remaining_content = CONTENT_UP_TO_END;
         }
     } else {
-        // We stay in HEAD phase
+        // We stay in HEAD phase (but we reset msg nonetheless)
+        http_parser_reset_phase(http_parser, way, HEAD);
     }
+
+    // call hooks on header
+    http_head_subscribers_call(&info.info, httphdr_len, packet, now);
 
     // Restart from the end of this header
     streambuf_set_restart(&http_parser->sbuf, way, packet + httphdr_len, false);
@@ -418,10 +617,14 @@ static enum proto_parse_status http_parse_body(struct http_parser *http_parser, 
             http_parser->state[way].remaining_content;
     SLOG(LOG_DEBUG, "%zu bytes of this payload belongs to the body", body_part);
 
+    /* Build the info structure with body_part (payload) as the only useful information */
+    struct http_proto_info info;
+    http_proto_info_ctor(&info, &http_parser->state[way].first, http_parser->state[way].pkts);
+    proto_info_ctor(&info.info, &http_parser->parser, parent, 0, body_part);
+    // advertise this body part
+    http_body_subscribers_call(&info.info, MIN(cap_len, body_part), packet, now);
+
     if (body_part > 0) {    // Ack this body part
-        struct http_proto_info info;
-        info.set_values = 0;
-        http_proto_info_ctor(&info, http_parser, parent, 0, body_part);
         // TODO: choose a subparser according to mime type ?
         (void)proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
         // What to do with this partial parse status ?
@@ -432,10 +635,18 @@ static enum proto_parse_status http_parse_body(struct http_parser *http_parser, 
         http_parser->state[way].remaining_content -= body_part;
     }
 
+    /* FIXME: if remaining_content == CONTENT_UP_TO_END, we won't be able to advertize
+     * the end of body. We could either:
+     * - subscribe also to some tcp_close event and use that instead
+     * - have TCP call it's parser with 0 payload to signal the end of stream */
+
     if (http_parser->state[way].remaining_content == 0) {
-        http_parser->state[way].phase =
-            http_parser->state[way].phase == BODY ?
-                HEAD : CHUNK_HEAD;
+        if (http_parser->state[way].phase == BODY) {
+            http_parser_reset_phase(http_parser, way, HEAD);
+        } else {
+            http_parser_reset_phase(http_parser, way, CHUNK_CRLF);
+        }
+
         if (body_part == wire_len) return PROTO_OK;
         if (body_part >= cap_len) {
             // Next header was not captured :-(
@@ -474,21 +685,51 @@ static enum proto_parse_status http_parse_chunk_header(struct http_parser *http_
     if (end == liner.start) {
         return PROTO_PARSE_ERR;
     }
-    if (end != liner.start + liner_tok_length(&liner)) {
-        streambuf_set_restart(&http_parser->sbuf, way, packet, true);   // more luck later
-        return PROTO_OK;
-    }
     SLOG(LOG_DEBUG, "Chunk header of size %u", len);
 
     liner_next(&liner);
     if (len > 0) {
-        http_parser->state[way].phase = CHUNK;
-        http_parser->state[way].remaining_content = len + 2;    // for the CR+LF following the chunk (the day we will pass the body to a subparser we will need to parse these in next http_parse_chunk_header() call instead).
+        http_parser_reset_phase(http_parser, way, CHUNK);
+        http_parser->state[way].remaining_content = len;    // for the CR+LF following the chunk (the day we will pass the body to a subparser we will need to parse these in next http_parse_chunk_header() call instead).
         streambuf_set_restart(&http_parser->sbuf, way, (const uint8_t *)liner.start, false);
     } else {
         // FIXME: skip chunk trailer, ie all lines up to a blank line.
-        http_parser->state[way].phase = HEAD;
+        http_parser_reset_phase(http_parser, way, HEAD);
         streambuf_set_restart(&http_parser->sbuf, way, (const uint8_t *)liner.start, false);
+    }
+
+    return PROTO_OK;
+}
+
+static enum proto_parse_status http_parse_chunk_crlf(struct http_parser *http_parser, unsigned way, uint8_t const *packet, size_t cap_len, size_t unused_ wire_len)
+{
+    assert(http_parser->state[way].phase == CHUNK_CRLF);
+
+    SLOG(LOG_DEBUG, "Parsing chunk trailing CRLF");
+
+    if (wire_len < 2) {
+        streambuf_set_restart(&http_parser->sbuf, way, packet, true);   // more luck later
+        return PROTO_OK;
+    }
+
+    // check these are the expected CR LF
+    if (cap_len >= 1 && packet[0] != '\r') {
+invalid:
+        SLOG(LOG_DEBUG, "Invalid end of chunk headers (should be CRLF but have %02x %02x)", packet[0], cap_len >= 2 ? packet[1]:0);
+        return PROTO_PARSE_ERR;
+    }
+    if (cap_len >= 2 && packet[1] != '\n') goto invalid;
+
+    // Swallow these 2 bytes
+    http_parser_reset_phase(http_parser, way, CHUNK_HEAD);
+
+    if (2 == wire_len) return PROTO_OK;
+
+    if (cap_len > 2) {
+        streambuf_set_restart(&http_parser->sbuf, way, packet + 2, false);
+    } else {
+        // Next header was not captured :-(
+        return PROTO_TOO_SHORT;
     }
 
     return PROTO_OK;
@@ -508,13 +749,19 @@ static enum proto_parse_status http_sbuf_parse(struct parser *parser, struct pro
         SLOG(LOG_DEBUG, "First packet, init c2s_way to %u", http_parser->c2s_way);
     }
 
+    if (! timeval_is_set(&http_parser->state[way].first)) http_parser->state[way].first = *now;
+    http_parser->state[way].last = *now;
+    http_parser->state[way].pkts ++;
+
     // Now are we waiting the header, or scanning through body ?
-    SLOG(LOG_DEBUG, "Http parser@%p is %s in direction %u", http_parser, http_parser_phase_2_str(http_parser->state[way].phase), way);
+    SLOG(LOG_DEBUG, "Http parser@%p is %s in direction %s", http_parser, http_parser_phase_2_str(http_parser->state[way].phase), way_2_str(way));
     switch (http_parser->state[way].phase) {
         case HEAD:  // In this mode we retry until we manage to parse a header
            return http_parse_header(http_parser, parent, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
         case CHUNK_HEAD:
            return http_parse_chunk_header(http_parser, way, payload, cap_len, wire_len);
+        case CHUNK_CRLF:
+           return http_parse_chunk_crlf(http_parser, way, payload, cap_len, wire_len);
         case BODY:
         case CHUNK:
            return http_parse_body(http_parser, parent, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
@@ -543,7 +790,11 @@ static struct port_muxer tcp_port_muxer;
 
 void http_init(void)
 {
+    objalloc_init();
     log_category_proto_http_init();
+
+    http_head_hook_init();
+    http_body_hook_init();
 
     static struct proto_ops const ops = {
         .parse       = http_parse,
@@ -561,64 +812,10 @@ void http_init(void)
 void http_fini(void)
 {
     port_muxer_dtor(&tcp_port_muxer, &tcp_port_muxers);
+    http_body_hook_fini();
+    http_head_hook_fini();
+
     proto_dtor(&proto_http_);
     log_category_proto_http_fini();
+    objalloc_fini();
 }
-
-/*
- * Utilities
- */
-
-#define HTTP_SEL "http://"
-#define HTTP_SEL_LEN 7
-
-static bool end_of_host(int c)
-{
-    return c == '\0' || c == '/' || c == ':';
-}
-
-char const *http_build_domain(struct ip_addr const *server, char const *host, char const *url, int version)
-{
-    char const *src = NULL;
-    if (host) {
-        src = host;
-    } else if (url && 0 == strncasecmp(url, HTTP_SEL, HTTP_SEL_LEN)) {
-        src = url + HTTP_SEL_LEN;
-    }
-
-    if (! src) return (version == 6 ? ip_addr_2_strv6:ip_addr_2_str)(server);
-
-    // takes everything from url+HTTP_SEL_LEN up to '\0', ':' or '/'
-    char *str = tempstr();
-    unsigned c;
-    for (c = 0; c < TEMPSTR_SIZE-1 && !end_of_host(src[c]); c++) {
-        str[c] = src[c];
-    }
-    str[c] = '\0';
-    return str;
-}
-
-char const *http_build_url(struct ip_addr const *server, char const *host, char const *url)
-{
-    if (url && 0 == strncasecmp(url, HTTP_SEL, HTTP_SEL_LEN)) {
-        url += HTTP_SEL_LEN;
-        // Remove port from url
-        char const *colon = url;
-        while (! end_of_host(*colon)) colon ++;
-        if (*colon != ':') return url;
-        char *str = tempstr();
-        char const *end_port = colon;
-        while (! end_of_host(*end_port)) end_port ++;
-        if (*end_port == ':') return url; // ?
-        snprintf(str, TEMPSTR_SIZE, "%.*s%s", (int)(colon-url), url, end_port != '\0' ? end_port+1:end_port);
-        return str;
-    } else {    // url does not include host
-        char *str = tempstr();
-        snprintf(str, TEMPSTR_SIZE, "%s%s%s",
-            http_build_domain(server, host, url, 4),
-            !url || url[0] == '/' ? "" : "/",
-            url ? url : "");
-        return str;
-    }
-}
-

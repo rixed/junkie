@@ -33,12 +33,13 @@
  * Tools
  */
 
-void copy_token(char *dest, size_t dest_sz, struct liner *liner)
+unsigned copy_token(char *dest, size_t dest_sz, struct liner *liner)
 {
     assert(dest_sz >= 1);
     size_t len = MIN(dest_sz-1, liner_tok_length(liner));
     memcpy(dest, liner->start, len);
     dest[len] = '\0';
+    return len;
 }
 
 // Grow the liner up to the given position.

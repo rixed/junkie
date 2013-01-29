@@ -99,4 +99,11 @@ void supermutex_lock_maydeadlock(struct supermutex *);
 /// Will abort if you are not the owner of the lock
 void supermutex_unlock(struct supermutex *);
 
+/// RWlock
+void rwlock_ctor(pthread_rwlock_t *);
+void rwlock_dtor(pthread_rwlock_t *);
+void rwlock_acquire(pthread_rwlock_t *, bool write);
+void rwlock_release(pthread_rwlock_t *);
+void rwlock_release_(void *);   ///< Same as rwlock_release but comply to scm_dynwind_unwind_handler signature
+
 #endif
