@@ -143,6 +143,15 @@
            (('dns 'class)                                                    "dns_class")
            (('dns 'type)                                                     "request_type")
            (('http 'error-code)                                              "code")
+           ; FIXME: we can't anymore build a C expression for the proto_info field since we now need
+           ;        the pointer itself (here "http"). We should, at a minimum, give this function the
+           ;        name of the proto_info.
+           (('http 'mime-type)                                               "strs+http->mime_type")
+           (('http 'host)                                                    "strs+http->host")
+           (('http 'user-agent)                                              "strs+http->user_agent")
+           (('http 'referrer)                                                "strs+http->referrer")
+           (('http 'server)                                                  "strs+http->server")
+           (('http 'url)                                                     "strs+http->url")
            (('sip 'via-protocol)                                             "via.protocol")
            (('sip 'via-addr)                                                 "via.addr")
            (('sip 'via-port)                                                 "via.port")
@@ -188,8 +197,8 @@
            ; then all others are uint
            (_ type:uint))))
 
-; given a proto, field and flag names, return the stub for the bool test of the set_values
-(define (set? proto field flag)
+; given a proto and flag names, return the stub for the bool test of the set_values
+(define (set? proto flag)
   (let ((res (type:gensymC "test_set")))
     (type:make-stub
       (string-append
@@ -395,7 +404,6 @@
                          (if (not flag)
                              (throw 'you-must-be-joking (simple-format #f "field ~s in ~s is either always set or unknown" f proto)))
                          (set? (type:symbol->C-ident proto)
-                               (field->C proto field)
                                flag)))
                       (_ (throw 'you-must-be-joking (simple-format #f "how could ~a be set or not?" fname)))))
               ; as a convenience for nettrack, (hash x y ...) is rewritten as ((hash x) + (hash y) + ...)
