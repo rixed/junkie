@@ -100,10 +100,10 @@ static int sock_inet_client_ctor(struct sock_inet *s, char const *host, char con
         char addr[256], srv[256];
         err = getnameinfo(&srv_addr, srv_addrlen, addr, sizeof(addr), srv, sizeof(srv), NI_DGRAM|NI_NOFQDN|NI_NUMERICSERV|NI_NUMERICHOST);
         if (! err) {
-            snprintf(s->sock.name, sizeof(s->sock.name), "%s://%s@%s:%s", proto, info->ai_canonname, addr, srv);
+            snprintf(s->sock.name, sizeof(s->sock.name), "%s://%s@%s:%s", proto, info_->ai_canonname, addr, srv);
         } else {
             SLOG(LOG_WARNING, "Cannot getnameinfo(): %s", gai_strerror(err));
-            snprintf(s->sock.name, sizeof(s->sock.name), "%s://%s@?:%s", proto, info->ai_canonname, service);
+            snprintf(s->sock.name, sizeof(s->sock.name), "%s://%s@?:%s", proto, info_->ai_canonname, service);
         }
         SLOG(LOG_DEBUG, "Trying to use socket %s", s->sock.name);
 
