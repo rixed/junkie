@@ -242,7 +242,7 @@ static char const *http_info_2_str(struct proto_info const *info_)
 {
     struct http_proto_info const *info = DOWNCAST(info_, info, http_proto_info);
     char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, method=%s, code=%s, content_length=%s, transfert_encoding=%s, mime_type=%s, host=%s, user_agent=%s, referrer=%s, server=%s, url=%s, pkts=%u%s",
+    snprintf(str, TEMPSTR_SIZE, "%s, method=%s, code=%s, content_length=%s, transfert_encoding=%s, mime_type=%s, host=%s, user_agent=%s, referrer=%s, server=%s, url=%s, pkts=%u%s%s",
         proto_info_2_str(info_),
         HTTP_IS_QUERY(info)                  ? http_method_2_str(info->method)            : "unset",
         info->set_values & HTTP_CODE_SET     ? tempstr_printf("%u", info->code)           : "unset",
@@ -257,7 +257,8 @@ static char const *http_info_2_str(struct proto_info const *info_)
         info->set_values & HTTP_SERVER_SET   ? info->strs+info->server                    : "unset",
         info->set_values & HTTP_URL_SET      ? info->strs+info->url                       : "unset",
         info->pkts,
-        info->ajax                           ? ", ajax":"");
+        info->ajax                           ? ", ajax":"",
+        info->compressed                     ? ", compressed":"");
     return str;
 }
 
@@ -279,6 +280,8 @@ static void http_serialize(struct proto_info const *info_, uint8_t **buf)
     if (info->set_values & HTTP_SERVER_SET) serialize_str(buf, info->strs+info->server);
     if (info->set_values & HTTP_URL_SET) serialize_str(buf, info->strs+info->url);
     serialize_1(buf, info->ajax);
+    serialize_1(buf, info->have_body);
+    serialize_1(buf, info->compressed);
 }
 
 // Deserialize a string in strs, setting the offset of the result in offset
@@ -308,6 +311,8 @@ static void http_deserialize(struct proto_info *info_, uint8_t const **buf)
     if (info->set_values & HTTP_SERVER_SET) deserialize_in_strs(buf, &info->server, info);
     if (info->set_values & HTTP_URL_SET) deserialize_in_strs(buf, &info->url, info);
     info->ajax = deserialize_1(buf);
+    info->have_body = deserialize_1(buf);
+    info->compressed = deserialize_1(buf);
 }
 
 static void http_proto_info_ctor(struct http_proto_info *http, struct timeval const *first, unsigned pkts)
@@ -317,6 +322,7 @@ static void http_proto_info_ctor(struct http_proto_info *http, struct timeval co
     http->pkts = pkts;
     http->first = *first;
     http->ajax = false; // until proven otherwise
+    http->compressed = false;
     // http->info initialized later
 }
 
@@ -461,6 +467,16 @@ static int http_extract_origin(unsigned unused_ field, struct liner unused_ *lin
     return 0;
 }
 
+static int http_extract_content_encoding(unsigned unused_ field, struct liner *liner, void *info_)
+{
+    struct http_proto_info *info = info_;
+    info->compressed =
+        0 == strncasecmp(liner->start, "gzip", 4) ||
+        0 == strncasecmp(liner->start, "compress", 8) ||
+        0 == strncasecmp(liner->start, "deflate", 7);
+    return 0;
+}
+
 static enum proto_parse_status http_parse_header(struct http_parser *http_parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     assert(http_parser->state[way].phase == HEAD);
@@ -490,6 +506,7 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
         { STRING_AND_LEN("x-requested-with"),  http_extract_requested_with },
         { STRING_AND_LEN("accept"),            http_extract_accept },
         { STRING_AND_LEN("origin"),            http_extract_origin },
+        { STRING_AND_LEN("content-encoding"),  http_extract_content_encoding },
     };
     static struct httper const httper = {
         .nb_commands = NB_ELEMS(commands),
