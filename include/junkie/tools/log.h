@@ -2,6 +2,7 @@
 // vim:sw=4 ts=4 sts=4 expandtab
 #ifndef LOG_H
 #define LOG_H
+#include <stdlib.h>
 #include <assert.h>
 #include <syslog.h>
 #include <stdarg.h>
@@ -56,9 +57,9 @@ void slog_hex(int priority, char const *filename, char const *funcname, unsigned
         exit(EXIT_FAILURE); \
     } while (0)
 
-#define FAIL(fmt, ...) do {                               \
-        char unused_ *str = tempstr_printf(fmt, ##__VA_ARGS__);   \
-        assert(!str);                                     \
+#define FAIL(fmt, ...) do { \
+        slog(LOG_EMERG, NULL, NULL, fmt, ##__VA_ARGS__); \
+        abort(); \
 } while (0)
 
 /*
