@@ -35,7 +35,9 @@ void port_muxer_list_ctor(struct port_muxer_list *muxers, char const *name)
 
 void port_muxer_list_dtor(struct port_muxer_list *muxers)
 {
-    assert(TAILQ_EMPTY(&muxers->muxers));
+    if (! TAILQ_EMPTY(&muxers->muxers)) {
+        SLOG(LOG_WARNING, "A protocol is still using destructed port muxer. We're going to crash if this user unsubscribe.");
+    }
     mutex_dtor(&muxers->mutex);
 }
 
