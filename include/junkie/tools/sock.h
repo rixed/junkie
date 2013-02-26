@@ -81,6 +81,8 @@ struct sock_buf {
     size_t out_sz, in_sz; // what's already there
     size_t in_rcvd; // what was already returned to reader
     uint8_t *out, *in; // buffers
+    struct ip_addr prev_sender; // we need to store the sender of the batch (set if have_prev_sender)
+    bool have_prev_sender;
 };
 
 /// Create a sock_buf with the attached sock.

@@ -928,14 +928,24 @@ badmsg:     s->in_rcvd = s->in_sz = 0;
         memcpy(buf, ser_buf, len);
         s->in_rcvd += LEN_BYTES + len;
         SLOG(LOG_DEBUG, "read %zd bytes out of %s", len, s->sock.name);
+        if (sender) {
+            assert(s->have_prev_sender);
+            *sender = s->prev_sender;
+        }
         return len;
     } else {
         // Receive buffer is empty
         s->in_rcvd = s->in_sz = 0;
         ssize_t ret = s->ll_sock->ops->recv(s->ll_sock, s->in, s->mtu, sender, clt);
         if (ret <= 0) return ret;
+        if (sender) {
+            s->prev_sender = *sender;
+            s->have_prev_sender = true;
+        } else {
+            s->have_prev_sender = false;
+        }
         s->in_sz = ret;
-        return sock_buf_recv(s_, buf, maxlen, sender, clt);
+        return sock_buf_recv(s_, buf, maxlen, NULL, clt);
     }
 }
 
@@ -993,6 +1003,7 @@ int sock_buf_ctor(struct sock_buf *s, size_t mtu, struct sock *ll_sock)
     s->mtu = mtu;
     s->ll_sock = ll_sock;
     s->out_sz = s->in_sz = s->in_rcvd = 0;
+    s->have_prev_sender = false;
 
     return 0;
 }
