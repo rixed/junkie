@@ -62,7 +62,7 @@ static int cnxtrack_ip_ctor(struct cnxtrack_ip *ct, unsigned ip_proto, struct ip
 
 struct cnxtrack_ip *cnxtrack_ip_new(unsigned ip_proto, struct ip_addr const *ip_a, uint16_t port_a, struct ip_addr const *ip_b, uint16_t port_b, bool reuse, struct proto *proto, struct timeval const *now, struct proto *requestor)
 {
-    struct cnxtrack_ip *ct = objalloc(sizeof(*ct), "cnxtrack_ip");
+    struct cnxtrack_ip *ct = objalloc_nice(sizeof(*ct), "cnxtrack_ip");
     if (! ct) return NULL;
     if (0 != cnxtrack_ip_ctor(ct, ip_proto, ip_a, port_a, ip_b, port_b, reuse, proto, now, requestor)) {
         objfree(ct);

@@ -59,7 +59,7 @@ static int pg_parser_ctor(struct pgsql_parser *pg_parser, struct proto *proto)
 
 static struct parser *pg_parser_new(struct proto *proto)
 {
-    struct pgsql_parser *pg_parser = objalloc(sizeof(*pg_parser), "Pg parsers");
+    struct pgsql_parser *pg_parser = objalloc_nice(sizeof(*pg_parser), "Pg parsers");
     if (! pg_parser) return NULL;
 
     if (-1 == pg_parser_ctor(pg_parser, proto)) {

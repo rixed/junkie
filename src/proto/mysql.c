@@ -61,7 +61,7 @@ static int mysql_parser_ctor(struct mysql_parser *mysql_parser, struct proto *pr
 
 static struct parser *mysql_parser_new(struct proto *proto)
 {
-    struct mysql_parser *mysql_parser = objalloc(sizeof(*mysql_parser), "MySQL parsers");
+    struct mysql_parser *mysql_parser = objalloc_nice(sizeof(*mysql_parser), "MySQL parsers");
     if (! mysql_parser) return NULL;
 
     if (-1 == mysql_parser_ctor(mysql_parser, proto)) {

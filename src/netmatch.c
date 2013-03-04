@@ -48,7 +48,7 @@ int netmatch_filter_ctor(struct netmatch_filter *netmatch, char const *libname)
 
     netmatch->nb_registers = *nb_regs_ptr;
     if (netmatch->nb_registers > 0) {
-        netmatch->regfile = objalloc(netmatch->nb_registers * sizeof(*netmatch->regfile), "netmatches");
+        netmatch->regfile = objalloc_nice(netmatch->nb_registers * sizeof(*netmatch->regfile), "netmatches");
         if (! netmatch->regfile) goto err3;
         memset(netmatch->regfile, 0, netmatch->nb_registers * sizeof(*netmatch->regfile));
     } else {

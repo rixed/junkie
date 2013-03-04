@@ -108,7 +108,7 @@ err1:
 
 static struct capfile *capfile_new(struct capfile_ops const *ops, char const *path, unsigned max_pkts, size_t max_size, unsigned max_secs, size_t cap_len, unsigned rotation, struct timeval const *now)
 {
-    struct capfile *capfile = objalloc(sizeof(*capfile), "capfiles");
+    struct capfile *capfile = objalloc_nice(sizeof(*capfile), "capfiles");
     if (! capfile) return NULL;
 
     if (0 != capfile_ctor(capfile, ops, path, max_pkts, max_size, max_secs, cap_len, rotation, now)) {

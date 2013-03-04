@@ -180,7 +180,7 @@ static int http_parser_ctor(struct http_parser *http_parser, struct proto *proto
 
 static struct parser *http_parser_new(struct proto *proto)
 {
-    struct http_parser *http_parser = objalloc(sizeof(*http_parser), "HTTP parsers");
+    struct http_parser *http_parser = objalloc_nice(sizeof(*http_parser), "HTTP parsers");
     if (! http_parser) return NULL;
 
     if (-1 == http_parser_ctor(http_parser, proto)) {

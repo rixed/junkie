@@ -196,7 +196,10 @@ void *objalloc(size_t entry_size, char const *requestor)
 
 void *objalloc_nice(size_t entry_size, char const *requestor)
 {
-    if (overweight) return NULL;
+    if (overweight) {
+        TIMED_SLOG(LOG_ERR, "Cannot allocate memory due to overweight");
+        return NULL;
+    }
     return objalloc(entry_size, requestor);
 }
 

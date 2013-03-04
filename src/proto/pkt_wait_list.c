@@ -128,7 +128,7 @@ static struct proto_info *copy_info_rec(struct proto_info *info)
 
     size_t size;
     void *start = (void *)info->parser->proto->ops->info_addr(info, &size);
-    void *copy = objalloc(size, "waiting infos");
+    void *copy = objalloc_nice(size, "waiting infos");
     if (! copy) {
         SLOG(LOG_WARNING, "Cannot alloc for pending info");
         if (parent) proto_info_del_rec(parent);
@@ -504,7 +504,7 @@ uint8_t *pkt_wait_list_reassemble(struct pkt_wait_list *pkt_wl, unsigned start_o
 
     SLOG(LOG_DEBUG, "Reassemble pkt_wl@%p from offset %u to %u", pkt_wl, start_offset, end_offset);
 
-    uint8_t *payload = objalloc(end_offset - start_offset, "waiting plds");
+    uint8_t *payload = objalloc_nice(end_offset - start_offset, "waiting plds");
     if (! payload) {
         SLOG(LOG_DEBUG, "Cannot alloc for packet reassembly of %zu bytes", pkt_wl->tot_payload);
         return NULL;

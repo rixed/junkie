@@ -30,6 +30,7 @@
 #include "junkie/tools/objalloc.h"
 #include "junkie/proto/serialize.h"
 #include "junkie/proto/proto.h"
+#include "junkie/tools/mallocer.h"  // for overweight
 #include "proto/fuzzing.h"
 #include "hook.h"
 
@@ -585,7 +586,7 @@ static unsigned mux_subparsers_timeout(struct mux_proto *mux_proto, struct per_m
     while (NULL != (subparser = TAILQ_FIRST(&to_list->timeout_queue))) {
         // As parsers are sorted by last_used time (least recently used first in the timeout_queue),
         // we can stop scanning as soon as we met a survivor.
-        if (likely_(last_used - subparser->last_used.tv_sec <= timeout_s)) break;
+        if (likely_(!overweight) && likely_(last_used - subparser->last_used.tv_sec <= timeout_s)) break;
 
         SLOG(LOG_DEBUG, "Timeouting subparser %s", mux_subparser_name(subparser));
         mux_subparser_deindex_locked(subparser);
