@@ -4,6 +4,10 @@ Here are only reported the most visible changes.
 NEW in 2.4.0 (since 2.3.0)
 --------------------------
 
+* More informations are extracted from HTTP
+
+* More robust handling of missing TCP segments
+
 
 NEW in 2.3.0 (since 2.2.0)
 --------------------------
