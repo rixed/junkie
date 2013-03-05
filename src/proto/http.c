@@ -107,16 +107,17 @@ char const *http_build_url(struct ip_addr const *server, char const *host, char 
 
 struct http_parser {
     struct parser parser;
-    unsigned c2s_way;   // The way when traffic is going from client to server (or UNSET)
+    unsigned c2s_way;       // The way when traffic is going from client to server (or UNSET)
     struct streambuf sbuf;
     struct http_state {
-        unsigned pkts;  // number of pkts in this message (so far)
+        unsigned pkts;      // number of pkts in this message (so far)
         enum http_phase {
-            HEAD,       // while waiting for/scanning header
-            BODY,       // while scanning body
-            CHUNK_HEAD, // while scanning a chunk header
-            CHUNK,      // while scanning a body chunk
-            CHUNK_CRLF, // while scanning the trailing CRLF of a body chunk
+            HEAD,           // while waiting for/scanning header
+            BODY,           // while scanning body
+            CHUNK_HEAD,     // while scanning a chunk header
+            CHUNK,          // while scanning a body chunk
+            CHUNK_CRLF,     // while scanning the trailing CRLF of a body chunk
+            CHUNK_TRAILER,  // while scanning the trailing header of a chunked body
         } phase;
         struct timeval first;   // first packet for this message
         struct timeval last;    // last packet we received (only set if first is set)
@@ -136,6 +137,7 @@ static char const *http_parser_phase_2_str(enum http_phase phase)
         case CHUNK: return "scanning chunk content";
         case CHUNK_HEAD: return "scanning chunk header";
         case CHUNK_CRLF: return "scanning chunk trailing CRLF";
+        case CHUNK_TRAILER: return "scanning chunked-body trailer";
     }
     assert(!"Unknown HTTP pase");
 }
@@ -710,8 +712,7 @@ static enum proto_parse_status http_parse_chunk_header(struct http_parser *http_
         http_parser->state[way].remaining_content = len;    // for the CR+LF following the chunk (the day we will pass the body to a subparser we will need to parse these in next http_parse_chunk_header() call instead).
         streambuf_set_restart(&http_parser->sbuf, way, (const uint8_t *)liner.start, false);
     } else {
-        // FIXME: skip chunk trailer, ie all lines up to a blank line.
-        http_parser_reset_phase(http_parser, way, HEAD);
+        http_parser_reset_phase(http_parser, way, CHUNK_TRAILER);
         streambuf_set_restart(&http_parser->sbuf, way, (const uint8_t *)liner.start, false);
     }
 
@@ -752,6 +753,34 @@ invalid:
     return PROTO_OK;
 }
 
+// Skip any lines up to an empty one (signaling end of trailer)
+static enum proto_parse_status http_parse_chunk_trailer(struct http_parser *http_parser, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len)
+{
+    assert(http_parser->state[way].phase == CHUNK_TRAILER);
+
+    SLOG(LOG_DEBUG, "Parsing chunk trailer");
+
+    // We won't be able to parse anything if we lack these bytes
+    if (cap_len < 2 && wire_len > cap_len) return PROTO_TOO_SHORT;   // nothing to report in this case
+
+    struct liner liner;
+    liner_init(&liner, &delim_lines, (char const *)packet, cap_len);
+    if (liner_eof(&liner)) {    // not a single char to read?
+        streambuf_set_restart(&http_parser->sbuf, way, packet, true);   // more luck later
+        return PROTO_OK;
+    }
+
+    liner_next(&liner);
+    streambuf_set_restart(&http_parser->sbuf, way, (const uint8_t *)liner.start, false);
+
+    SLOG(LOG_DEBUG, "Chunk trailer line of length %zu", liner_tok_length(&liner));
+    if (liner_tok_length(&liner) == 0) {    // hourra, get out of here!
+        http_parser_reset_phase(http_parser, way, HEAD);
+    }
+
+    return PROTO_OK;
+}
+
 /*
  * Proto API
  */
@@ -782,6 +811,8 @@ static enum proto_parse_status http_sbuf_parse(struct parser *parser, struct pro
         case BODY:
         case CHUNK:
            return http_parse_body(http_parser, parent, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
+        case CHUNK_TRAILER:
+           return http_parse_chunk_trailer(http_parser, way, payload, cap_len, wire_len);
     }
 
     assert(!"Invalid http parser phase");
