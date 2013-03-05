@@ -67,10 +67,11 @@ void proto_ctor(struct proto *proto, struct proto_ops const *ops, char const *na
     proto->nb_bytes = 0;
     proto->fuzzed_times = 0;
     proto->nb_parsers = 0;
-    LIST_INSERT_HEAD(&protos, proto, entry);
     LIST_INIT(&proto->subscribers);
-
     mutex_ctor_with_type(&proto->lock, name, PTHREAD_MUTEX_RECURSIVE);
+    bench_event_ctor(&proto->parsing, tempstr_printf("parsing %s", name));
+
+    LIST_INSERT_HEAD(&protos, proto, entry);
 }
 
 static void add_to_proto(struct parser *parser)
@@ -111,6 +112,8 @@ void proto_dtor(struct proto *proto)
     if (proto->nb_parsers != 0) {
         SLOG(LOG_NOTICE, "Some parsers are still in use for %s", proto->name);
     }
+
+    bench_event_dtor(&proto->parsing);
 
     LIST_REMOVE(proto, entry);
     mutex_dtor(&proto->lock);
@@ -179,7 +182,10 @@ enum proto_parse_status proto_parse(struct parser *parser, struct proto_info *pa
 
     if (unlikely_(nb_fuzzed_bits > 0)) fuzz(parser, packet, cap_len, nb_fuzzed_bits);
 
+    uint64_t start = bench_event_start();
     enum proto_parse_status const ret = parser->proto->ops->parse(parser, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
+    bench_event_stop(&parser->proto->parsing, start);
+
     switch (ret) {
         case PROTO_TOO_SHORT:
             SLOG(LOG_DEBUG, "Too short for parser %s", parser_name(parser));
