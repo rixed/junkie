@@ -56,6 +56,9 @@ void streambuf_set_restart(struct streambuf *, unsigned way, uint8_t const *, bo
 /// Add the new payload to the buffered payload, then call the parse callback
 enum proto_parse_status streambuf_add(struct streambuf *, struct parser *, struct proto_info *, unsigned, uint8_t const *, size_t, size_t, struct timeval const *, size_t tot_cap_len, uint8_t const *tot_packet);
 
+/// Small helper function
+char const *way_2_str(unsigned way);
+
 void streambuf_init(void);
 void streambuf_fini(void);
 

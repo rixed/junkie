@@ -51,6 +51,12 @@ int streambuf_ctor(struct streambuf *sbuf, parse_fun *parse, size_t max_size)
     return 0;
 }
 
+char const *way_2_str(unsigned way)
+{
+    if (way == 0) return "clt->srv";
+    return "srv->clt";
+}
+
 void streambuf_dtor(struct streambuf *sbuf)
 {
     SLOG(LOG_DEBUG, "Destructing the streambuf@%p", sbuf);
@@ -70,7 +76,7 @@ void streambuf_set_restart(struct streambuf *sbuf, unsigned way, uint8_t const *
     size_t offset = p - sbuf->dir[way].buffer;
     assert(offset <= sbuf->dir[way].buffer_size);
 
-    SLOG(LOG_DEBUG, "Setting restart offset of streambuf@%p to %zu", sbuf, offset);
+    SLOG(LOG_DEBUG, "Setting restart offset of streambuf@%p[%s] to %zu (while size=%zu)", sbuf, way_2_str(way), offset, sbuf->dir[way].buffer_size);
     sbuf->dir[way].restart_offset = offset;
     sbuf->dir[way].wait = wait;
 }
@@ -91,8 +97,8 @@ static void streambuf_empty(struct streambuf_unidir *dir)
 static enum proto_parse_status streambuf_append(struct streambuf *sbuf, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len)
 {
     assert(way < 2);
-    SLOG(LOG_DEBUG, "Append %zu bytes (%zu on wire) to streambuf@%p of size %zu (%zu kept)",
-        cap_len, wire_len, sbuf, sbuf->dir[way].buffer_size, sbuf->dir[way].buffer_size-sbuf->dir[way].restart_offset);
+    SLOG(LOG_DEBUG, "Append %zu bytes (%zu captured) to streambuf@%p[%s] of size %zu (%zu kept)",
+        wire_len, cap_len, sbuf, way_2_str(way), sbuf->dir[way].buffer_size, sbuf->dir[way].buffer_size-sbuf->dir[way].restart_offset);
     // Naive implementation : each time we add some bytes we realloc buffer
     // FIXME: use a redim_array ?
 
@@ -137,6 +143,7 @@ static int streambuf_keep(struct streambuf_unidir *dir)
     if (dir->buffer_is_malloced) return 0;  // we already own a copy, do not touch it.
 
     size_t const len = dir->buffer_size - dir->restart_offset;
+    SLOG(LOG_DEBUG, "Keeping only %zu bytes of streambuf_unidir@%p", len, dir);
     uint8_t *buf = objalloc_nice(len, "streambufs");
     if (! buf) {
         dir->buffer = NULL; // never escape from here with buffer referencing a non malloced packet
@@ -187,9 +194,11 @@ enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *par
                 goto quit;
             case PROTO_OK:
                 if (dir->restart_offset == dir->buffer_size) {
+                    SLOG(LOG_DEBUG, "streambuf@%p[%s] was totally and successfully parsed", sbuf, way_2_str(way));
                     streambuf_empty(dir);
                     goto quit;
                 } else {
+                    SLOG(LOG_DEBUG, "streambuf@%p[%s] was not totally parsed", sbuf, way_2_str(way));
                     if (0 != streambuf_keep(dir)) return PROTO_PARSE_ERR;
                     if (dir->wait) goto quit;
                 }

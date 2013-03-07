@@ -142,11 +142,6 @@ static char const *http_parser_phase_2_str(enum http_phase phase)
     assert(!"Unknown HTTP pase");
 }
 
-static char const *way_2_str(unsigned way)
-{
-    if (way == 0) return "clt->srv";
-    return "srv->clt";
-}
 
 static void http_parser_reset_phase(struct http_parser *http_parser, unsigned way, enum http_phase phase)
 {
@@ -652,6 +647,7 @@ static enum proto_parse_status http_parse_body(struct http_parser *http_parser, 
     if (http_parser->state[way].remaining_content != CONTENT_UP_TO_END) {
         assert(http_parser->state[way].remaining_content >= body_part);
         http_parser->state[way].remaining_content -= body_part;
+        SLOG(LOG_DEBUG, "%zu bytes of body left", http_parser->state[way].remaining_content);
     }
 
     /* FIXME: if remaining_content == CONTENT_UP_TO_END, we won't be able to advertize
