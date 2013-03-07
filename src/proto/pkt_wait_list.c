@@ -87,16 +87,21 @@ void pkt_wait_del(struct pkt_wait *pkt, struct pkt_wait_list *pkt_wl)
 static enum proto_parse_status pkt_wait_parse(struct pkt_wait *pkt, struct pkt_wait_list *pkt_wl)
 {
     if (
-        pkt_wl->next_offset >= pkt->next_offset ||  // the pkt content was completely covered,
-        pkt->offset > pkt_wl->next_offset           // or the pkt was supposed to come later,
+        pkt_wl->next_offset >= pkt->next_offset // the pkt content was completely covered
     ) {
-        // then do not parse it
+        // forget it
         return proto_parse(NULL, pkt->parent, pkt->way, NULL, 0, 0, &pkt->cap_tv, pkt->tot_cap_len, pkt->packet);
+    } else if (
+        pkt->offset > pkt_wl->next_offset       // the pkt was supposed to come later,
+    ) {
+        // advertise the gap
+        size_t const gap = pkt->offset - pkt_wl->next_offset;
+        return proto_parse(pkt_wl->parser, NULL, pkt->way, NULL, 0, gap, &pkt->cap_tv, 0, NULL);
     }
 
     // So we must parse from pkt_wl->next_offset to pkt->next_offset
     assert(pkt->offset <= pkt_wl->next_offset);
-    unsigned trim = pkt_wl->next_offset - pkt->offset;  // This assumes that offsets _are_ bytes. If not, then there is no reason to trim.
+    unsigned const trim = pkt_wl->next_offset - pkt->offset;  // This assumes that offsets _are_ bytes. If not, then there is no reason to trim.
     enum proto_parse_status const status =
         trim < pkt->cap_len ?
             proto_parse(pkt_wl->parser, pkt->parent, pkt->way, pkt->packet + pkt->start + trim, pkt->cap_len - trim, pkt->wire_len - trim, &pkt->cap_tv, pkt->tot_cap_len, pkt->packet) :

@@ -97,14 +97,14 @@ struct proto_subscriber;
 
 typedef enum proto_parse_status parse_fun(
     struct parser *parser,      ///< The parser to hand over the payload to, or NULL if no protocol suit the payload
-    struct proto_info *parent,  ///< It's parent proto_info
+    struct proto_info *parent,  ///< It's parent proto_info (NULL for gaps)
     unsigned way,               ///< Direction identifier (@see struct mux_proto)
-    uint8_t const *packet,      ///< Raw data to parse
-    size_t cap_len,             ///< How many bytes are present in packet
+    uint8_t const *packet,      ///< Raw data to parse (may be NULL)
+    size_t cap_len,             ///< How many bytes are present in packet (0 to report a gap in data)
     size_t wire_len,            ///< How many bytes were present on the wire
     struct timeval const *now,  ///< The current time
-    size_t tot_cap_len,         ///< The capture length of the total packet (to be passed to subscribers)
-    uint8_t const *tot_packet   ///< The total packet (to be passed to subscribers)
+    size_t tot_cap_len,         ///< The capture length of the total packet (to be passed to subscribers) (0 for gaps)
+    uint8_t const *tot_packet   ///< The total packet (to be passed to subscribers) (may be NULL)
 );
 
 /// The callback function for proto subscribers
@@ -270,11 +270,11 @@ void proto_info_serialize(struct proto_info const *, uint8_t **);
 void proto_info_deserialize(struct proto_info *, uint8_t const **);
 
 /// Helper for metric modules.
-/** @returns the last proto_info owned by the given proto.
+/** @returns the last proto_info owned by the given proto, or NULL if not found.
  */
 struct proto_info const *proto_info_get(
     struct proto const *proto,      ///< The proto to look for
-    struct proto_info const *last   ///< Where to start looking for
+    struct proto_info const *last   ///< Where to start looking for (may be NULL)
 );
 
 #define ASSIGN_INFO_OPT(proto, last) \
