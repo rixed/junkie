@@ -258,11 +258,12 @@ static struct mutex_pool tcp_locks;
 
 // We overload the mux_subparser in order to store cnx state.
 struct tcp_subparser {
-    bool fin[2], ack[2], syn[2];
+    bool fin[2], ack[2], syn[2], origin[2];    // TODO: bitfields?
     uint32_t fin_seqnum[2];     // indice = way
     uint32_t max_acknum[2];
-    uint32_t isn[2];
-    struct pkt_wait_list wl[2]; // for packets reordering. offsets will be relative to ISN
+    uint32_t isn[2];            // if syn, used to compute relative seqnum.
+    uint32_t wl_origin[2];      // if origin, the origin for our waiting list (ideally, wl_origin == isn).
+    struct pkt_wait_list wl[2]; // for packets reordering. offsets will be relative to wl_origin
     struct mutex *mutex;        // protects this structure
     struct mux_subparser mux_subparser;
 };
@@ -291,6 +292,7 @@ static int tcp_subparser_ctor(struct tcp_subparser *tcp_subparser, struct mux_pa
     tcp_subparser->fin[0] = tcp_subparser->fin[1] = false;
     tcp_subparser->ack[0] = tcp_subparser->ack[1] = false;
     tcp_subparser->syn[0] = tcp_subparser->syn[1] = false;
+    tcp_subparser->origin[0] = tcp_subparser->origin[1] = false;
 
     if (0 != pkt_wait_list_ctor(tcp_subparser->wl+0, 0 /* relative to the ISN */, &tcp_wl_config, child, now)) {
         return -1;
@@ -455,32 +457,36 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
         tcp_sub->syn[way] = true;
         tcp_sub->isn[way] = info.seq_num;
     }
+    if (!tcp_sub->origin[way]) {
+        tcp_sub->origin[way] = true;
+        tcp_sub->wl_origin[way] = info.seq_num;
+        if (! tcp_sub->syn[way]) SLOG(LOG_DEBUG, "Starting a WL while SYN is yet to be received!");
+    }
 
     // Set relative sequence number if we know it
     if (tcp_sub->syn[way]) info.rel_seq_num = info.seq_num - tcp_sub->isn[way];
 
-    SLOG(LOG_DEBUG, "This subparser state: >ISN:%"PRIu32" Fin:%"PRIu32" Ack:%"PRIu32" <ISN:%"PRIu32" Fin:%"PRIu32" Ack:%"PRIu32,
-        tcp_sub->syn[0] ? tcp_sub->isn[0] : 0,
+    SLOG(LOG_DEBUG, "This subparser state: >ISN:%"PRIu32"%s Fin:%"PRIu32" Ack:%"PRIu32" <ISN:%"PRIu32"%s Fin:%"PRIu32" Ack:%"PRIu32,
+        tcp_sub->syn[0] ? tcp_sub->isn[0] : tcp_sub->origin[0] ? tcp_sub->wl_origin[0] : 0,
+        tcp_sub->syn[0] ? "" : " (approx)",
         tcp_sub->fin[0] ? tcp_sub->fin_seqnum[0] : 0,
         tcp_sub->ack[0] ? tcp_sub->max_acknum[0] : 0,
-        tcp_sub->syn[1] ? tcp_sub->isn[1] : 0,
+        tcp_sub->syn[1] ? tcp_sub->isn[1] : tcp_sub->origin[1] ? tcp_sub->wl_origin[1] : 0,
+        tcp_sub->syn[1] ? "" : " (approx)",
         tcp_sub->fin[1] ? tcp_sub->fin_seqnum[1] : 0,
         tcp_sub->ack[1] ? tcp_sub->max_acknum[1] : 0);
 
     enum proto_parse_status err;
     /* Use the wait_list to parse this packet.
        Notice that we do queue empty packets because subparser (or subscriber) want to receive all packets in order, including empty ones. */
-    if (tcp_sub->syn[way]) {
-        size_t const packet_len = wire_len - tcphdr_len;
-        unsigned const offset = info.seq_num - tcp_sub->isn[way];
-        unsigned const next_offset = offset + packet_len + info.syn + info.fin;
-        // FIXME: Here the parser is chosen before we actually parse anything. If later the parser fails we cannot try another one.
-        //        Choice of parser should be delayed until we start actual parse.
-        err = pkt_wait_list_add(tcp_sub->wl+way, offset, next_offset, true, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, packet_len, now, tot_cap_len, tot_packet);
-        SLOG(LOG_DEBUG, "Waiting list returned %s", proto_parse_status_2_str(err));
-    } else {    // Without the ISN, the pkt_wait_list is unusable. FIXME: the pkt_wait_list should work nonetheless.
-        err = proto_parse(subparser->parser, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, wire_len - tcphdr_len, now, tot_cap_len, tot_packet);
-    }
+
+    size_t const packet_len = wire_len - tcphdr_len;
+    unsigned const offset = info.seq_num - tcp_sub->wl_origin[way];
+    unsigned const next_offset = offset + packet_len + info.syn + info.fin;
+    // FIXME: Here the parser is chosen before we actually parse anything. If later the parser fails we cannot try another one.
+    //        Choice of parser should be delayed until we start actual parse.
+    err = pkt_wait_list_add(tcp_sub->wl+way, offset, next_offset, true, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, packet_len, now, tot_cap_len, tot_packet);
+    SLOG(LOG_DEBUG, "Waiting list returned %s", proto_parse_status_2_str(err));
 
     bool const term = tcp_subparser_term(tcp_sub);
     mutex_unlock(tcp_sub->mutex);
