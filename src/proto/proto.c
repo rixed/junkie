@@ -63,6 +63,7 @@ void proto_ctor(struct proto *proto, struct proto_ops const *ops, char const *na
 
     proto->ops = ops;
     proto->name = name;
+    proto->enabled = true;
     proto->code = code;
     proto->nb_frames = 0;
     proto->nb_bytes = 0;
@@ -327,6 +328,7 @@ static void parser_del_as_ref(struct ref *ref)
 int parser_ctor(struct parser *parser, struct proto *proto)
 {
     assert(proto);
+    if (! proto->enabled) return -1;
     parser->proto = proto;
     SLOG(LOG_DEBUG, "Constructing parser %s", parser_name(parser));
     ref_ctor(&parser->ref, parser_del_as_ref);
@@ -1040,6 +1042,7 @@ static SCM g_mux_proto_stats(SCM name_)
     return alist;
 }
 
+static SCM enabled_sym;
 static SCM nb_frames_sym;
 static SCM nb_bytes_sym;
 static SCM nb_parsers_sym;
@@ -1051,7 +1054,8 @@ static SCM g_proto_stats(SCM name_)
     struct proto *proto = proto_of_scm_name(name_);
     if (! proto) return SCM_UNSPECIFIED;
 
-    return scm_list_4(
+    return scm_list_5(
+        scm_cons(enabled_sym,    scm_from_bool(proto->enabled)),
         scm_cons(nb_frames_sym,  scm_from_int64(proto->nb_frames)),
         scm_cons(nb_bytes_sym,   scm_from_int64(proto->nb_bytes)),
         scm_cons(nb_parsers_sym, scm_from_uint(proto->nb_parsers)),
@@ -1088,6 +1092,18 @@ static SCM g_mux_proto_set_hash_size(SCM name_, SCM hash_size_)
     return SCM_BOOL_T;
 }
 
+static struct ext_function sg_set_proto_enabled;
+static SCM g_set_proto_enabled(SCM name_, SCM flag_)
+{
+    struct proto *proto = proto_of_scm_name(name_);
+    if (! proto) return SCM_UNSPECIFIED;
+
+    proto->enabled = scm_to_bool(flag_);
+    SLOG(LOG_NOTICE, "%s proto %s", proto->enabled ? "Enabling":"Disabling", proto->name);
+
+    return SCM_BOOL_T;
+}
+
 void proto_init(void)
 {
     log_category_proto_init();
@@ -1111,6 +1127,7 @@ void proto_init(void)
     nb_collisions_sym   = scm_permanent_object(scm_from_latin1_symbol("nb-collisions"));
     nb_lookups_sym      = scm_permanent_object(scm_from_latin1_symbol("nb-lookups"));
     nb_timeouts_sym     = scm_permanent_object(scm_from_latin1_symbol("nb-timeouts"));
+    enabled_sym         = scm_permanent_object(scm_from_latin1_symbol("enabled"));
     nb_frames_sym       = scm_permanent_object(scm_from_latin1_symbol("nb-frames"));
     nb_bytes_sym        = scm_permanent_object(scm_from_latin1_symbol("nb-bytes"));
     nb_parsers_sym      = scm_permanent_object(scm_from_latin1_symbol("nb-parsers"));
@@ -1149,6 +1166,11 @@ void proto_init(void)
         "Beware of max allowed childrens whenever you change this value.\n"
         "See also (? 'set-max-children) for setting the max number of allowed child for newly created parsers of a protocol.\n"
         "         (? 'mux-names) for a list of protocol names that are multiplexers.\n");
+
+    ext_function_ctor(&sg_set_proto_enabled,
+        "set-proto-enabled", 2, 0, 0, g_set_proto_enabled,
+        "(set-proto-enabled \"TCP\" #f): disable TCP protocol.\n"
+        "See also (? 'proto-names) for a list of protocols.\n");
 
     dummy_init();
 }
