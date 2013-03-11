@@ -303,11 +303,11 @@ static int set_filter(pcap_t *pcap_handle, char const *filter)
     if (filter[0] == '\0') return 0;
 
     if (0 != pcap_compile(pcap_handle, &fp, filter, 1, 0)) {
-        SLOG(LOG_ERR, "Cannot parse filter %s: %s\n", filter, pcap_geterr(pcap_handle));
+        SLOG(LOG_ERR, "Cannot parse filter %s: %s", filter, pcap_geterr(pcap_handle));
         return -1;
     }
     if (0 != pcap_setfilter(pcap_handle, &fp)) {
-        SLOG(LOG_ERR, "Cannot install filter %s: %s\n", filter, pcap_geterr(pcap_handle));
+        SLOG(LOG_ERR, "Cannot install filter %s: %s", filter, pcap_geterr(pcap_handle));
         return -1;
     }
 
@@ -533,7 +533,7 @@ static void pkt_source_del(struct pkt_source *pkt_source)
     struct pcap_stat stats;
     bool const have_stats = 0 == pcap_stats(pkt_source->pcap_handle, &stats);
     if (! have_stats) {
-        SLOG(LOG_WARNING, "Cannot read stats for packet source %s: %s\n", pkt_source_name(pkt_source), pcap_geterr(pkt_source->pcap_handle));
+        SLOG(LOG_WARNING, "Cannot read stats for packet source %s: %s", pkt_source_name(pkt_source), pcap_geterr(pkt_source->pcap_handle));
     } else if (stats.ps_recv > 0) {
         tot_recved += stats.ps_recv;
         tot_dropped += stats.ps_drop;
@@ -682,7 +682,7 @@ static SCM g_iface_stats(SCM ifname_)
     struct pcap_stat stats;
     bool const have_stats = 0 == pcap_stats(pkt_source->pcap_handle, &stats);
     if (! have_stats) {
-        SLOG(LOG_WARNING, "Cannot read stats for packet source %s: %s\n", pkt_source_name(pkt_source), pcap_geterr(pkt_source->pcap_handle));
+        SLOG(LOG_WARNING, "Cannot read stats for packet source %s: %s", pkt_source_name(pkt_source), pcap_geterr(pkt_source->pcap_handle));
     }
 
     ret = scm_list_n(
