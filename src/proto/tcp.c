@@ -258,14 +258,17 @@ static struct mutex_pool tcp_locks;
 
 // We overload the mux_subparser in order to store cnx state.
 struct tcp_subparser {
-    bool fin[2], ack[2], syn[2], origin[2];    // TODO: bitfields?
     uint32_t fin_seqnum[2];     // indice = way
     uint32_t max_acknum[2];
     uint32_t isn[2];            // if syn, used to compute relative seqnum.
     uint32_t wl_origin[2];      // if origin, the origin for our waiting list (ideally, wl_origin == isn).
     struct pkt_wait_list wl[2]; // for packets reordering. offsets will be relative to wl_origin
     struct mutex *mutex;        // protects this structure
-    struct mux_subparser mux_subparser;
+#   define SET_FOR_WAY(way, field) (field |= (1U<<way))
+#   define RESET_FOR_WAY(way, field) (field &= ~(1U<<way))
+#   define IS_SET_FOR_WAY(way, field) (!!(field & (1U<<way)))
+    uint8_t fin:2, ack:2, syn:2, origin:2;
+    struct mux_subparser mux_subparser; // must be the last member of this struct since mux_subparser is variable in size
 };
 
 // Tells if a seqnum is after another
@@ -279,36 +282,36 @@ static bool seqnum_gt(uint32_t sa, uint32_t sb)
 static bool tcp_subparser_term(struct tcp_subparser const *tcp_sub)
 {
     return
-        (tcp_sub->fin[0] && tcp_sub->ack[1] && seqnum_gt(tcp_sub->max_acknum[1], tcp_sub->fin_seqnum[0])) &&
-        (tcp_sub->fin[1] && tcp_sub->ack[0] && seqnum_gt(tcp_sub->max_acknum[0], tcp_sub->fin_seqnum[1]));
+        (IS_SET_FOR_WAY(0, tcp_sub->fin) && IS_SET_FOR_WAY(1, tcp_sub->ack) && seqnum_gt(tcp_sub->max_acknum[1], tcp_sub->fin_seqnum[0])) &&
+        (IS_SET_FOR_WAY(1, tcp_sub->fin) && IS_SET_FOR_WAY(0, tcp_sub->ack) && seqnum_gt(tcp_sub->max_acknum[0], tcp_sub->fin_seqnum[1]));
 }
 
-static int tcp_subparser_ctor(struct tcp_subparser *tcp_subparser, struct mux_parser *mux_parser, struct parser *child, struct proto *requestor, void const *key, struct timeval const *now)
+static int tcp_subparser_ctor(struct tcp_subparser *tcp_sub, struct mux_parser *mux_parser, struct parser *child, struct proto *requestor, void const *key, struct timeval const *now)
 {
-    SLOG(LOG_DEBUG, "Constructing TCP subparser @%p", tcp_subparser);
+    SLOG(LOG_DEBUG, "Constructing TCP subparser @%p", tcp_sub);
 
     CHECK_LAST_FIELD(tcp_subparser, mux_subparser, struct mux_subparser);
 
-    tcp_subparser->fin[0] = tcp_subparser->fin[1] = false;
-    tcp_subparser->ack[0] = tcp_subparser->ack[1] = false;
-    tcp_subparser->syn[0] = tcp_subparser->syn[1] = false;
-    tcp_subparser->origin[0] = tcp_subparser->origin[1] = false;
+    tcp_sub->fin = 0;
+    tcp_sub->ack = 0;
+    tcp_sub->syn = 0;
+    tcp_sub->origin = 0;
 
-    if (0 != pkt_wait_list_ctor(tcp_subparser->wl+0, 0 /* relative to the ISN */, &tcp_wl_config, child, now)) {
+    if (0 != pkt_wait_list_ctor(tcp_sub->wl+0, 0 /* relative to the ISN */, &tcp_wl_config, child, now)) {
         return -1;
     }
 
-    if (0 != pkt_wait_list_ctor(tcp_subparser->wl+1, 0 /* relative to the ISN */, &tcp_wl_config, child, now)) {
-        pkt_wait_list_dtor(tcp_subparser->wl+0);
+    if (0 != pkt_wait_list_ctor(tcp_sub->wl+1, 0 /* relative to the ISN */, &tcp_wl_config, child, now)) {
+        pkt_wait_list_dtor(tcp_sub->wl+0);
         return -1;
     }
 
-    tcp_subparser->mutex = mutex_pool_anyone(&tcp_locks);
+    tcp_sub->mutex = mutex_pool_anyone(&tcp_locks);
 
     // Now that everything is ready, make this subparser public
-    if (0 != mux_subparser_ctor(&tcp_subparser->mux_subparser, mux_parser, child, requestor, key, now)) {
-        pkt_wait_list_dtor(tcp_subparser->wl+0);
-        pkt_wait_list_dtor(tcp_subparser->wl+1);
+    if (0 != mux_subparser_ctor(&tcp_sub->mux_subparser, mux_parser, child, requestor, key, now)) {
+        pkt_wait_list_dtor(tcp_sub->wl+0);
+        pkt_wait_list_dtor(tcp_sub->wl+1);
         return -1;
     }
 
@@ -444,37 +447,37 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
     mutex_lock(tcp_sub->mutex);
     if (
         info.ack &&
-        (!tcp_sub->ack[way] || seqnum_gt(info.ack_num, tcp_sub->max_acknum[way]))
+        (!IS_SET_FOR_WAY(way, tcp_sub->ack) || seqnum_gt(info.ack_num, tcp_sub->max_acknum[way]))
     ) {
-        tcp_sub->ack[way] = true;
+        SET_FOR_WAY(way, tcp_sub->ack);
         tcp_sub->max_acknum[way] = info.ack_num;
     }
     if (info.fin) {
-        tcp_sub->fin[way] = true;
+        SET_FOR_WAY(way, tcp_sub->fin);
         tcp_sub->fin_seqnum[way] = info.seq_num + info.info.payload;    // The FIN is acked after the payload
     }
-    if (info.syn && !tcp_sub->syn[way]) {
-        tcp_sub->syn[way] = true;
+    if (info.syn && !IS_SET_FOR_WAY(way, tcp_sub->syn)) {
+        SET_FOR_WAY(way, tcp_sub->syn);
         tcp_sub->isn[way] = info.seq_num;
     }
-    if (!tcp_sub->origin[way]) {
-        tcp_sub->origin[way] = true;
+    if (!IS_SET_FOR_WAY(way, tcp_sub->origin)) {
+        SET_FOR_WAY(way, tcp_sub->origin);
         tcp_sub->wl_origin[way] = info.seq_num;
-        if (! tcp_sub->syn[way]) SLOG(LOG_DEBUG, "Starting a WL while SYN is yet to be received!");
+        if (! IS_SET_FOR_WAY(way, tcp_sub->syn)) SLOG(LOG_DEBUG, "Starting a WL while SYN is yet to be received!");
     }
 
     // Set relative sequence number if we know it
-    if (tcp_sub->syn[way]) info.rel_seq_num = info.seq_num - tcp_sub->isn[way];
+    if (IS_SET_FOR_WAY(way, tcp_sub->syn)) info.rel_seq_num = info.seq_num - tcp_sub->isn[way];
 
     SLOG(LOG_DEBUG, "This subparser state: >ISN:%"PRIu32"%s Fin:%"PRIu32" Ack:%"PRIu32" <ISN:%"PRIu32"%s Fin:%"PRIu32" Ack:%"PRIu32,
-        tcp_sub->syn[0] ? tcp_sub->isn[0] : tcp_sub->origin[0] ? tcp_sub->wl_origin[0] : 0,
-        tcp_sub->syn[0] ? "" : " (approx)",
-        tcp_sub->fin[0] ? tcp_sub->fin_seqnum[0] : 0,
-        tcp_sub->ack[0] ? tcp_sub->max_acknum[0] : 0,
-        tcp_sub->syn[1] ? tcp_sub->isn[1] : tcp_sub->origin[1] ? tcp_sub->wl_origin[1] : 0,
-        tcp_sub->syn[1] ? "" : " (approx)",
-        tcp_sub->fin[1] ? tcp_sub->fin_seqnum[1] : 0,
-        tcp_sub->ack[1] ? tcp_sub->max_acknum[1] : 0);
+        IS_SET_FOR_WAY(0, tcp_sub->syn) ? tcp_sub->isn[0] : IS_SET_FOR_WAY(0, tcp_sub->origin) ? tcp_sub->wl_origin[0] : 0,
+        IS_SET_FOR_WAY(0, tcp_sub->syn) ? "" : " (approx)",
+        IS_SET_FOR_WAY(0, tcp_sub->fin) ? tcp_sub->fin_seqnum[0] : 0,
+        IS_SET_FOR_WAY(0, tcp_sub->ack) ? tcp_sub->max_acknum[0] : 0,
+        IS_SET_FOR_WAY(1, tcp_sub->syn) ? tcp_sub->isn[1] : IS_SET_FOR_WAY(1, tcp_sub->origin) ? tcp_sub->wl_origin[1] : 0,
+        IS_SET_FOR_WAY(1, tcp_sub->syn) ? "" : " (approx)",
+        IS_SET_FOR_WAY(1, tcp_sub->fin) ? tcp_sub->fin_seqnum[1] : 0,
+        IS_SET_FOR_WAY(1, tcp_sub->ack) ? tcp_sub->max_acknum[1] : 0);
 
     enum proto_parse_status err;
     /* Use the wait_list to parse this packet.
