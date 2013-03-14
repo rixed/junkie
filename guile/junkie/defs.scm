@@ -171,8 +171,8 @@
 (define-public (dropped-percentage)
   (let* ((tot-drop (fold (lambda (iface prevs)
                            (let* ((stats     (iface-stats iface))
-                                  (dropped   (assq-ref stats 'tot-dropped))
-                                  (received  (+ dropped (assq-ref stats 'tot-received))) ; on our Linux received does not include dropped
+                                  (dropped   (assq-ref stats 'new-dropped))
+                                  (received  (+ dropped (assq-ref stats 'new-received))) ; on our Linux received does not include dropped
                                   (prev-recv (car prevs))
                                   (prev-drop (cdr prevs)))
                              (catch 'wrong-type-arg

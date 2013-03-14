@@ -335,6 +335,8 @@ static int pkt_source_ctor(struct pkt_source *pkt_source, char const *name, pcap
     pkt_source->nb_duplicates = 0;
     pkt_source->nb_cap_bytes = 0;
     pkt_source->nb_wire_bytes = 0;
+    pkt_source->nb_acked_recvs = 0;
+    pkt_source->nb_acked_drops = 0;
     pkt_source->is_file = is_file;
     pkt_source->patch_ts = patch_ts;
     pkt_source->loop = loop;
@@ -665,6 +667,8 @@ static SCM nb_packets_sym;
 static SCM nb_duplicates_sym;
 static SCM tot_received_sym;
 static SCM tot_dropped_sym;
+static SCM new_received_sym;
+static SCM new_dropped_sym;
 static SCM nb_cap_bytes_sym;
 static SCM nb_wire_bytes_sym;
 static SCM filep_sym;
@@ -691,6 +695,8 @@ static SCM g_iface_stats(SCM ifname_)
         scm_cons(nb_duplicates_sym, scm_from_uint64(pkt_source->nb_duplicates)),
         scm_cons(tot_received_sym,  have_stats ? scm_from_uint(stats.ps_recv) : scm_from_uint64(pkt_source->nb_packets)),
         scm_cons(tot_dropped_sym,   have_stats ? scm_from_uint(stats.ps_drop) : scm_from_int(0)),
+        scm_cons(new_received_sym,  have_stats ? scm_from_uint(stats.ps_recv - pkt_source->nb_acked_recvs) : scm_from_uint64(pkt_source->nb_packets)),
+        scm_cons(new_dropped_sym,   have_stats ? scm_from_uint(stats.ps_drop - pkt_source->nb_acked_drops) : scm_from_int(0)),
         scm_cons(nb_cap_bytes_sym,  scm_from_uint64(pkt_source->nb_cap_bytes)),
         scm_cons(nb_wire_bytes_sym, scm_from_uint64(pkt_source->nb_wire_bytes)),
         scm_cons(filep_sym,         scm_from_bool(pkt_source->is_file)),
@@ -698,6 +704,9 @@ static SCM g_iface_stats(SCM ifname_)
             scm_cons(filter_sym,    scm_from_latin1_string(pkt_source->filter)) :
             SCM_UNDEFINED,
         SCM_UNDEFINED);
+
+    pkt_source->nb_acked_recvs = stats.ps_recv;
+    pkt_source->nb_acked_drops = stats.ps_drop;
 
 err:
     mutex_unlock(&pkt_sources_lock);
@@ -736,6 +745,8 @@ void pkt_source_init(void)
     nb_duplicates_sym     = scm_permanent_object(scm_from_latin1_symbol("nb-duplicates"));
     tot_received_sym      = scm_permanent_object(scm_from_latin1_symbol("tot-received"));
     tot_dropped_sym       = scm_permanent_object(scm_from_latin1_symbol("tot-dropped"));
+    new_received_sym      = scm_permanent_object(scm_from_latin1_symbol("new-received"));
+    new_dropped_sym       = scm_permanent_object(scm_from_latin1_symbol("new-dropped"));
     nb_cap_bytes_sym      = scm_permanent_object(scm_from_latin1_symbol("nb-cap-bytes"));
     nb_wire_bytes_sym     = scm_permanent_object(scm_from_latin1_symbol("nb-wire-bytes"));
     filep_sym             = scm_permanent_object(scm_from_latin1_symbol("file?"));
@@ -791,6 +802,7 @@ void pkt_source_init(void)
     ext_function_ctor(&sg_iface_stats,
         "iface-stats", 1, 0, 0, g_iface_stats,
         "(iface-stats \"iface-name\"): return detailed statistics about that packet source.\n"
+        "Note: all counters are reset after each read.\n"
         "See also (? 'get-ifaces).\n");
 }
 
