@@ -37,8 +37,8 @@ struct ip_proto_info {
         IP_DONTFRAG,            ///< If the received packet has the dont_frag flag set (and so was not fragmented)
         IP_FRAGMENT,            ///< If this is a fragment
         IP_REASSEMBLED,         ///< If this was reassembled
-    } fragmentation;
-    unsigned id;                ///< Identification field (usefull for OS detection)
+    } fragmentation;            ///< Only set if v4
+    unsigned id;                ///< Identification field (usefull for OS detection) (only set if v4)
     uint8_t traffic_class;      ///< aka. TOS for IPv4
 };
 

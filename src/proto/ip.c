@@ -144,7 +144,7 @@ char const *ip_fragmentation_2_str(enum ip_fragmentation frag)
         case IP_REASSEMBLED: return "Reassembled";
     }
 
-    return "INVALID!";
+    assert(!"INVALID fragmentation status");
 }
 
 static char const *ecn_2_str(unsigned ecn)
@@ -175,8 +175,8 @@ char const *ip_info_2_str(struct proto_info const *info_)
         info->way ? " (hashed the other way)":"",
         ip_proto_2_str(info->key.protocol),
         info->ttl,
-        ip_fragmentation_2_str(info->fragmentation),
-        info->id,
+        info->version == 4 ? ip_fragmentation_2_str(info->fragmentation) : "na",
+        info->version == 4 ? info->id : 0,
         traffic_class_2_str(info->traffic_class));
     return str;
 }
