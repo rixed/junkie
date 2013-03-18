@@ -108,14 +108,15 @@ static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, 
     SLOG(LOG_DEBUG, "Received a new packet from packet source %s, wire-len: %u", pkt_source_name(pkt_source), header->len);
 
     if (header->len == 0) return;   // should not happen, but does occur sometime
+    size_t const caplen = MIN(header->caplen, header->len); // caplen > len was seen in the wild - the correct behavior was to consider caplen was off by a few bytes.
 
     pkt_source->nb_packets ++;
-    pkt_source->nb_cap_bytes += header->caplen;
+    pkt_source->nb_cap_bytes += caplen;
     pkt_source->nb_wire_bytes += header->len;
 
     struct frame frame = {
         .tv = header->ts,
-        .cap_len = header->caplen,
+        .cap_len = caplen,
         .wire_len = header->len,
         .pkt_source = pkt_source,
         .data = (uint8_t *)packet,
@@ -126,9 +127,9 @@ static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, 
     // drop the frame if we previously saw it in the last 5ms.
     if (
         // Per iface dedup
-        (pkt_source->digests && digest_queue_find(pkt_source->digests, header->caplen, (uint8_t *)packet, &header->ts)) ||
+        (pkt_source->digests && digest_queue_find(pkt_source->digests, caplen, (uint8_t *)packet, &header->ts)) ||
         // Additional pass if we collapse ifaces
-        (collapse_ifaces && global_digests && digest_queue_find(global_digests, header->caplen, (uint8_t *)packet, &header->ts))
+        (collapse_ifaces && global_digests && digest_queue_find(global_digests, caplen, (uint8_t *)packet, &header->ts))
     ) {
         SLOG(LOG_DEBUG, "Drop duplicated packet");
         pkt_source->nb_duplicates ++;
