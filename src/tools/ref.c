@@ -34,7 +34,7 @@ LOG_CATEGORY_DEF(ref)
  * thread that takes it for write from time to time.
  */
 
-static pthread_rwlock_t rwlock;
+static struct rwlock rwlock;
 
 void enter_unsafe_region(void)
 {
@@ -120,7 +120,7 @@ void ref_init(void)
     mutex_ctor(&death_row_mutex, "death row");
     SLIST_INIT(&death_row);
     log_category_ref_init();
-    rwlock_ctor(&rwlock);
+    rwlock_ctor(&rwlock, "doomer");
 
     int err = pthread_create(&doomer_pth, NULL, doomer_thread, NULL);
 

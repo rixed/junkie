@@ -136,10 +136,10 @@ void mutex_ctor(struct mutex *mutex, char const *name)
 
 void mutex_dtor(struct mutex *mutex)
 {
+    SLOG(LOG_DEBUG, "Destruct mutex %s", mutex_name(mutex));
     assert(mutex->name);
     bench_atomic_event_dtor(&mutex->lock_for_free);
     bench_event_dtor(&mutex->aquiring_lock);
-    SLOG(LOG_DEBUG, "Destruct mutex %s", mutex_name(mutex));
     (void)pthread_mutex_destroy(&mutex->mutex);
     mutex->name = NULL;
 }
@@ -372,42 +372,54 @@ static SCM g_set_thread_name(SCM name_)
 
 /*
  * RW locks
- *
- * TODO: a wrapper to name and bench each rwlock
  */
 
-void rwlock_ctor(pthread_rwlock_t *lock)
+static char const *rwlock_name(struct rwlock const *lock)
 {
-    int err = pthread_rwlock_init(lock, NULL);
+    return tempstr_printf("%s@%p", lock->name, lock);
+}
+
+void rwlock_ctor(struct rwlock *lock, char const *name)
+{
+    assert(name);
+    lock->name = name;
+    SLOG(LOG_DEBUG, "Construct rwlock %s", rwlock_name(lock));
+    int err = pthread_rwlock_init(&lock->lock, NULL);
     if (err) {
         SLOG(LOG_ERR, "Cannot pthread_rwlock_init(): %s", strerror(err));
         // so be it
     }
+
+    bench_event_ctor(&lock->aquiring_lock, tempstr_printf("aquiring %s", name));
 }
 
-void rwlock_dtor(pthread_rwlock_t *lock)
+void rwlock_dtor(struct rwlock *lock)
 {
-    pthread_rwlock_destroy(lock);
+    SLOG(LOG_DEBUG, "Destruct rwlock %s", rwlock_name(lock));
+    pthread_rwlock_destroy(&lock->lock);
+    bench_event_dtor(&lock->aquiring_lock);
 }
 
-static void acquire(int (*f)(pthread_rwlock_t *), pthread_rwlock_t *lock)
+static void acquire(int (*f)(pthread_rwlock_t *), struct rwlock *lock)
 {
-    int err = f(lock);
+    uint64_t const start = bench_event_start();
+    int err = f(&lock->lock);
     if (err) {
         SLOG(LOG_ERR, "Cannot acquire RWLock: %s", strerror(err));
         // so be it
     }
+    bench_event_stop(&lock->aquiring_lock, start);
 }
 
-void rwlock_acquire(pthread_rwlock_t *lock, bool write)
+void rwlock_acquire(struct rwlock *lock, bool write)
 {
     if (write) acquire(pthread_rwlock_wrlock, lock);
     else acquire(pthread_rwlock_rdlock, lock);
 }
 
-void rwlock_release(pthread_rwlock_t *lock)
+void rwlock_release(struct rwlock *lock)
 {
-    int err = pthread_rwlock_unlock(lock);
+    int err = pthread_rwlock_unlock(&lock->lock);
     if (err) {
         SLOG(LOG_ERR, "Cannot release RWLock: %s", strerror(err));
         // so be it

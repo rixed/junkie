@@ -26,7 +26,7 @@ void hook_ctor(struct hook *hook, char const *name)
     SLOG(LOG_DEBUG, "Constructing hook %s", name);
     hook->name = name;
     LIST_INIT(&hook->subscribers);
-    mutex_ctor(&hook->lock, name);
+    rwlock_ctor(&hook->lock, name);
 }
 
 void hook_dtor(struct hook *hook)
@@ -35,14 +35,14 @@ void hook_dtor(struct hook *hook)
     if (! LIST_EMPTY(&hook->subscribers)) {
         SLOG(LOG_NOTICE, "Some subscribers of hook %s are still registered", hook->name);
     }
-    mutex_dtor(&hook->lock);
+    rwlock_dtor(&hook->lock);
 }
 
 int hook_subscriber_ctor(struct hook *hook, struct proto_subscriber *sub, proto_cb_t *cb)
 {
     SLOG(LOG_DEBUG, "Construct a new subscriber for %s @%p", hook->name, sub);
     sub->cb = cb;
-    WITH_LOCK(&hook->lock) {
+    WITH_WRITE_LOCK(&hook->lock) {
         LIST_INSERT_HEAD(&hook->subscribers, sub, entry);
     }
     return 0;
@@ -51,14 +51,14 @@ int hook_subscriber_ctor(struct hook *hook, struct proto_subscriber *sub, proto_
 void hook_subscriber_dtor(struct hook *hook, struct proto_subscriber *sub)
 {
     SLOG(LOG_DEBUG, "Destruct subscriber of %s @%p", hook->name, sub);
-    WITH_LOCK(&hook->lock) {
+    WITH_WRITE_LOCK(&hook->lock) {
         LIST_REMOVE(sub, entry);
     }
 }
 
 void hook_subscribers_call(struct hook *hook, struct proto_info *info, size_t tot_cap_len, uint8_t const *tot_packet, struct timeval const *now)
 {
-    WITH_LOCK(&hook->lock) {
+    WITH_READ_LOCK(&hook->lock) {
         struct proto_subscriber *sub;
         LIST_FOREACH(sub, &hook->subscribers, entry) {
             sub->cb(sub, info, tot_cap_len, tot_packet, now);

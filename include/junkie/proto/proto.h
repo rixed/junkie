@@ -124,7 +124,7 @@ struct proto_subscriber {
 struct hook {
     char const *name;
     LIST_HEAD(proto_subscribers, proto_subscriber) subscribers;
-    struct mutex lock;
+    struct rwlock lock;
 };
 
 void hook_ctor(struct hook *, char const *);

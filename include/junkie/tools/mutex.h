@@ -100,10 +100,24 @@ void supermutex_lock_maydeadlock(struct supermutex *);
 void supermutex_unlock(struct supermutex *);
 
 /// RWlock
-void rwlock_ctor(pthread_rwlock_t *);
-void rwlock_dtor(pthread_rwlock_t *);
-void rwlock_acquire(pthread_rwlock_t *, bool write);
-void rwlock_release(pthread_rwlock_t *);
+struct rwlock {
+    pthread_rwlock_t lock;
+    char const *name;
+    struct bench_event aquiring_lock;
+};
+
+void rwlock_ctor(struct rwlock *, char const *name);
+void rwlock_dtor(struct rwlock *);
+void rwlock_acquire(struct rwlock *, bool write);
+void rwlock_release(struct rwlock *);
 void rwlock_release_(void *);   ///< Same as rwlock_release but comply to scm_dynwind_unwind_handler signature
+
+#define WITH_READ_LOCK(lock) \
+    rwlock_acquire(lock, false); \
+    for (bool first__ = true ; first__ || (rwlock_release(lock), false) ; first__ = false)
+
+#define WITH_WRITE_LOCK(lock) \
+    rwlock_acquire(lock, true); \
+    for (bool first__ = true ; first__ || (rwlock_release(lock), false) ; first__ = false)
 
 #endif
