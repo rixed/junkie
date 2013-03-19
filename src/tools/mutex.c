@@ -48,6 +48,7 @@ void mutex_lock(struct mutex *mutex)
     assert(mutex->name);
     SLOG(LOG_DEBUG, "Locking %s", mutex_name(mutex));
     uint64_t start = bench_event_start();
+#   ifdef WITH_BENCH
     int err = pthread_mutex_trylock(&mutex->mutex);
     switch (err) {
         case 0:
@@ -60,6 +61,10 @@ void mutex_lock(struct mutex *mutex)
             // other errors (for lock and trylock) handled below
             break;
     }
+#   else
+    // This was found to be noticably faster (-1% cpu load)
+    int err = pthread_mutex_lock(&mutex->mutex);
+#   endif
     if (! err) {
         bench_event_stop(&mutex->aquiring_lock, start);
         SLOG(LOG_DEBUG, "Locked %s", mutex_name(mutex));
