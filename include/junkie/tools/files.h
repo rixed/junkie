@@ -28,6 +28,7 @@ int mkdir_all(char const *, bool is_filename);
 int chusergroup(const char * const path, const char * const user, const char * const group);
 
 /** Open a file, logging on error.
+ * @note if O_CREAT is set in flags the required directories will be created if missing.
  * @returns -1 on error.
  */
 int file_open(char const *file_name, int flags);

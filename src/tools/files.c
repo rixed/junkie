@@ -124,6 +124,11 @@ int file_open(char const *file_name, int flags)
     int fd = open(file_name, flags, 0644);
     SLOG(LOG_DEBUG, "Opening file %s into fd %d", file_name, fd);
     if (fd < 0) {
+        if (errno == ENOENT && flags & O_CREAT) {
+            SLOG(LOG_DEBUG, "Creating missing path for %s", file_name);
+            (void)mkdir_all(file_name, true);
+            return file_open(file_name, flags);
+        }
         SLOG(LOG_ERR, "Cannot open file '%s': %s", file_name, strerror(errno));
         return -errno;
     }
