@@ -24,7 +24,8 @@ libproto_la_SOURCES = \
 	serialize.c \
 	capfile.c \
 	os-detect.c \
-	discovery.c
+	discovery.c \
+	hook.c
 
 libproto_la_LIBADD = ../tools/libjunkietools.la
 libproto_la_LDFLAGS = -export-dynamic

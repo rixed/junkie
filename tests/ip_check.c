@@ -102,7 +102,7 @@ static void parse_check(size_t cap_len_, size_t padding)
     struct parser *ip6_parser = proto_ip6->ops->parser_new(proto_ip);
     assert(ip6_parser);
     struct proto_subscriber sub;
-    pkt_subscriber_ctor(&sub, ip_info_check);
+    hook_subscriber_ctor(&pkt_hook, &sub, ip_info_check);
 
     for (current_test = 0; current_test < NB_ELEMS(parse_tests); current_test++) {
         struct parse_test const *const test = parse_tests + current_test;
@@ -113,7 +113,7 @@ static void parse_check(size_t cap_len_, size_t padding)
         assert(0 == ret);
     }
 
-    pkt_subscriber_dtor(&sub);
+    hook_subscriber_dtor(&pkt_hook, &sub);
     parser_unref(&ip6_parser);
     parser_unref(&ip_parser);
 }

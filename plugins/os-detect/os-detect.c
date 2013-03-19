@@ -49,13 +49,13 @@ void on_load(void)
 {
     log_category_os_detect_init();
     SLOG(LOG_INFO, "Loading OS-detect plugin");
-    proto_subscriber_ctor(&subscription, proto_tcp, tcp_callback);
+    hook_subscriber_ctor(&proto_tcp->hook, &subscription, tcp_callback);
 }
 
 void on_unload(void)
 {
     SLOG(LOG_INFO, "Unloading OS-detect");
-    proto_subscriber_dtor(&subscription, proto_tcp);
+    hook_subscriber_dtor(&proto_tcp->hook, &subscription);
     log_category_os_detect_fini();
 }
 

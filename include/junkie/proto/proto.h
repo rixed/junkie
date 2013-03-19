@@ -113,21 +113,28 @@ typedef void proto_cb_t(struct proto_subscriber *, struct proto_info const *, si
 /// A subscriber is a plugin that want to be called for each proto_info of a given proto.
 /** Previous junkie 1.5 each plugin had a callback function that was called for every packet.
  * This is not the case anymore. Now if you are interrested in a particular proto_info then
- * you are required to register a callback with proto_subscriber_ctor().
+ * you are required to register a callback with hook_subscriber_ctor(&proto->hook, ...).
  * Notice that there are no lock in this structure, so the callback must be thread safe. */
 struct proto_subscriber {
     LIST_ENTRY(proto_subscriber) entry; ///< In the list of all proto subscribers
     proto_cb_t *cb;
 };
 
-/// Register a callback to receive all proto_info
-int proto_subscriber_ctor(struct proto_subscriber *, struct proto *, proto_cb_t *);
+/// A hook is composed of a list of subscribers and a mutex.
+struct hook {
+    char const *name;
+    LIST_HEAD(proto_subscribers, proto_subscriber) subscribers;
+    struct mutex lock;
+};
 
-/// Unregister a callback
-void proto_subscriber_dtor(struct proto_subscriber *, struct proto *);
+void hook_ctor(struct hook *, char const *);
+void hook_dtor(struct hook *);
+int hook_subscriber_ctor(struct hook *, struct proto_subscriber *, proto_cb_t *cb);
+void hook_subscriber_dtor(struct hook *, struct proto_subscriber *);
+void hook_subscribers_call(struct hook *, struct proto_info *, size_t, uint8_t const *, struct timeval const *);
 
-/// Call all subscribers of a given proto
-void proto_subscribers_call(struct proto *, struct proto_info *, size_t tot_cap_len, uint8_t const *tot_packet, struct timeval const *now);
+/// Call all subscribers of given proto (same as normal hook_subscribers_call but ensure we call it no more than once per packet)
+void proto_subscribers_call(struct proto *proto, struct proto_info *info, size_t tot_cap_len, uint8_t const *tot_packet, struct timeval const *now);
 
 /// Call all subscribers of per-packet hook
 void full_pkt_subscribers_call(struct proto_info *, size_t tot_cap_len, uint8_t const *tot_packet, struct timeval const *now);
@@ -141,10 +148,7 @@ void full_pkt_subscribers_call(struct proto_info *, size_t tot_cap_len, uint8_t 
  * subscribers have already been called (which is not perfect since the cap proto_info
  * is deep in the stack.
  * Again, notice the callback must be thread safe. */
-int pkt_subscriber_ctor(struct proto_subscriber *, proto_cb_t *);
-
-/// Unregister a packet callback
-void pkt_subscriber_dtor(struct proto_subscriber *);
+struct hook pkt_hook;
 
 /// A protocol implementation.
 /** Only one instance for each protocol ever exist (located in the protocol compilation unit).
@@ -194,8 +198,8 @@ struct proto {
     LIST_ENTRY(proto) entry;
     /// Fuzzing statistics: number of time this proto has been fuzzed.
     unsigned fuzzed_times;
-    /// List of all registrant
-    LIST_HEAD(proto_subscribers, proto_subscriber) subscribers;
+    /// Hook to be called back for each packet involving this proto
+    struct hook hook;
     /// Mutex to protect the mutable values of this proto (entry, parsers, nb_parsers, nb_frames, subscribers list)
     struct mutex lock;
     /// Some benchmark counters

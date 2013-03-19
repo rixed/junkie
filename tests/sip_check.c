@@ -124,7 +124,7 @@ static void parse_check(void)
     struct parser *sip_parser = proto_sip->ops->parser_new(proto_sip);
     assert(sip_parser);
     struct proto_subscriber sub;
-    pkt_subscriber_ctor(&sub, sip_info_check);
+    hook_subscriber_ctor(&pkt_hook, &sub, sip_info_check);
 
     for (cur_test = 0; cur_test < NB_ELEMS(parse_tests); cur_test++) {
         size_t const len = strlen((char *)parse_tests[cur_test].packet);
@@ -132,7 +132,7 @@ static void parse_check(void)
         assert(ret == parse_tests[cur_test].ret);
     }
 
-    pkt_subscriber_dtor(&sub);
+    hook_subscriber_dtor(&pkt_hook, &sub);
     parser_unref(&sip_parser);
 }
 

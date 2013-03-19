@@ -497,13 +497,13 @@ void on_load(void)
         "capture-stats", 1, 0, 0, g_capture_stats,
         "(capture-stats capture): return some infos & stats\n");
 
-    pkt_subscriber_ctor(&subscription, pkt_callback);
+    hook_subscriber_ctor(&pkt_hook, &subscription, pkt_callback);
 }
 
 void on_unload(void)
 {
     SLOG(LOG_INFO, "Unloading writer");
-    pkt_subscriber_dtor(&subscription);
+    hook_subscriber_dtor(&pkt_hook, &subscription);
     cli_unregister(writer_opts);
 
     capture_conf_dtor(&cli_conf);

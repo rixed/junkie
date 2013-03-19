@@ -37,7 +37,6 @@
 #include "junkie/proto/eth.h"   // for collapse_vlans
 #include "junkie/proto/deduplication.h"
 #include "junkie/cpp.h"
-#include "hook.h"
 
 // We use directly the MD4 as a hash key
 #undef HASH_FUNC
@@ -48,7 +47,7 @@ LOG_CATEGORY_DEF(digest);
 #define LOG_CAT digest_log_category
 
 // Hooks for each (non-)dup.
-HOOK(dup);
+struct hook dup_hook;
 
 unsigned max_dup_delay = 100000; // microseconds
 EXT_PARAM_RW(max_dup_delay, "max-dup-delay", uint, "Number of microseconds between two packets that can not be duplicates (set to 0 to disable deduplication altogether)")
@@ -334,7 +333,7 @@ bool digest_queue_find(struct digest_queue *dq, size_t cap_len, uint8_t *packet,
             incr_dup(dq);
             mutex_unlock(&q->mutex);
             objfree(qc_new);
-            dup_subscribers_call(&info.info, cap_len, packet, frame_tv);
+            hook_subscribers_call(&dup_hook, &info.info, cap_len, packet, frame_tv);
             return true;
         }
         count ++;
@@ -409,7 +408,7 @@ void digest_init(void)
 
     LIST_INIT(&digest_queues);
 
-    dup_hook_init();
+    hook_ctor(&dup_hook, "dup hook");
 
     ext_function_ctor(&sg_dedup_stats,
         "deduplication-stats", 1, 0, 0, g_dedup_stats,
@@ -430,7 +429,7 @@ void digest_fini(void)
 {
     if (--inited) return;
 
-    dup_hook_fini();
+    hook_dtor(&dup_hook);
 
     doomer_run();
     if (! LIST_EMPTY(&digest_queues)) {

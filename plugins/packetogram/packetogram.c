@@ -234,13 +234,13 @@ void on_load(void)
         SLOG(LOG_CRIT, "Cannot spawn display thread");
     }
 
-    pkt_subscriber_ctor(&subscription, pkt_callback);
+    hook_subscriber_ctor(&pkt_hook, &subscription, pkt_callback);
 }
 
 void on_unload(void)
 {
     SLOG(LOG_INFO, "Packetogram unloading");
-    pkt_subscriber_dtor(&subscription);
+    hook_subscriber_dtor(&pkt_hook, &subscription);
     cli_unregister(packetogram_opts);
 
     quit = 1;

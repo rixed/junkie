@@ -98,13 +98,13 @@ static void parse_check(void)
     struct parser *rtcp_parser = proto_rtcp->ops->parser_new(proto_rtcp);
     assert(rtcp_parser);
     struct proto_subscriber sub;
-    pkt_subscriber_ctor(&sub, rtcp_info_check);
+    hook_subscriber_ctor(&pkt_hook, &sub, rtcp_info_check);
 
     for (cur_test = 0; cur_test < NB_ELEMS(parse_tests); cur_test++) {
         (void)rtcp_parse(rtcp_parser, NULL, 0, parse_tests[cur_test].packet, parse_tests[cur_test].size, parse_tests[cur_test].size, &now, parse_tests[cur_test].size, parse_tests[cur_test].packet);
     }
 
-    pkt_subscriber_dtor(&sub);
+    hook_subscriber_dtor(&pkt_hook, &sub);
     parser_unref(&rtcp_parser);
 }
 

@@ -104,13 +104,13 @@ void on_load(void)
     capfile = NULL;
     opt_file = NULL;
     inited = false;
-    pkt_subscriber_ctor(&subscription, pkt_callback);
+    hook_subscriber_ctor(&pkt_hook, &subscription, pkt_callback);
 }
 
 void on_unload(void)
 {
     SLOG(LOG_INFO, "Unloading rater");
-    pkt_subscriber_dtor(&subscription);
+    hook_subscriber_dtor(&pkt_hook, &subscription);
     cli_unregister(rater_opts);
     if (capfile) {
         capfile->ops->del(capfile);

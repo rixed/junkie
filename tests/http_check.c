@@ -314,7 +314,7 @@ static void parse_check(void)
     struct parser *parser = proto_http->ops->parser_new(proto_http);
     assert(parser);
     struct proto_subscriber sub;
-    proto_subscriber_ctor(&sub, proto_http, http_info_check);   // receive all HTTP messages (including for payload)
+    hook_subscriber_ctor(&proto_http->hook, &sub, http_info_check);   // receive all HTTP messages (including for payload)
 
     for (current_test = 0; current_test < NB_ELEMS(parse_tests); current_test++) {
         current_rep = 0;
@@ -329,7 +329,7 @@ static void parse_check(void)
         printf("Ok\n");
     }
 
-    pkt_subscriber_dtor(&sub);
+    hook_subscriber_dtor(&proto_http->hook, &sub);
     parser_unref(&parser);
 }
 
@@ -379,7 +379,7 @@ static void caplen_check(void)
     struct parser *http_parser = proto_http->ops->parser_new(proto_http);
     assert(http_parser);
     struct proto_subscriber sub;
-    pkt_subscriber_ctor(&sub, caplen_info_check);
+    hook_subscriber_ctor(&pkt_hook, &sub, caplen_info_check);
 
     for (size_t cap_len = strlen(HEADERS); cap_len < strlen(msg); cap_len++) {
         caplen_reported = false;
@@ -389,7 +389,7 @@ static void caplen_check(void)
         assert(caplen_reported);
     }
 
-    pkt_subscriber_dtor(&sub);
+    hook_subscriber_dtor(&pkt_hook, &sub);
 }
 
 int main(void)

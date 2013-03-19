@@ -49,12 +49,12 @@ void on_load(void)
 {
     SLOG(LOG_INFO, "Dumper loaded");
     (void)cli_register("dumper", dumper_opts, NB_ELEMS(dumper_opts));
-    pkt_subscriber_ctor(&subscription, pkt_callback);
+    hook_subscriber_ctor(&pkt_hook, &subscription, pkt_callback);
 }
 
 void on_unload(void)
 {
     SLOG(LOG_INFO, "Dumper unloading");
-    pkt_subscriber_dtor(&subscription);
+    hook_subscriber_dtor(&pkt_hook, &subscription);
     (void)cli_unregister(dumper_opts);
 }

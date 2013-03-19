@@ -34,15 +34,14 @@
 #include "junkie/tools/log.h"
 #include "proto/httper.h"
 #include "proto/liner.h"
-#include "hook.h"
 
 #undef LOG_CAT
 #define LOG_CAT proto_http_log_category
 
 LOG_CATEGORY_DEF(proto_http);
 
-HOOK(http_head);    // at end of header
-HOOK(http_body);    // at every piece of body
+struct hook http_head_hook;    // at end of header
+struct hook http_body_hook;    // at every piece of body
 
 /*
  * Utilities
@@ -546,7 +545,7 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
             // No, the header was truncated. We want to report as much as we can.
             proto_info_ctor(&info.info, &http_parser->parser, parent, cap_len, 0);
             // call hooks on header (for tx hooks we'd rather have pointers on message than pointer to packet)
-            http_head_subscribers_call(&info.info, cap_len, packet, now);
+            hook_subscribers_call(&http_head_hook, &info.info, cap_len, packet, now);
             // continuation
             return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
             // We are going to look for another header at the start of the next packet, hoping for the best.
@@ -599,7 +598,7 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
     }
 
     // call hooks on header
-    http_head_subscribers_call(&info.info, httphdr_len, packet, now);
+    hook_subscribers_call(&http_head_hook, &info.info, httphdr_len, packet, now);
 
     // Restart from the end of this header
     streambuf_set_restart(&http_parser->sbuf, way, packet + httphdr_len, false);
@@ -636,7 +635,7 @@ static enum proto_parse_status http_parse_body(struct http_parser *http_parser, 
     http_proto_info_ctor(&info, &http_parser->state[way].first, http_parser->state[way].pkts);
     proto_info_ctor(&info.info, &http_parser->parser, parent, 0, body_part);
     // advertise this body part
-    http_body_subscribers_call(&info.info, MIN(cap_len, body_part), packet, now);
+    hook_subscribers_call(&http_body_hook, &info.info, MIN(cap_len, body_part), packet, now);
 
     if (body_part > 0) {    // Ack this body part
         // TODO: choose a subparser according to mime type ?
@@ -837,8 +836,8 @@ void http_init(void)
     objalloc_init();
     log_category_proto_http_init();
 
-    http_head_hook_init();
-    http_body_hook_init();
+    hook_ctor(&http_head_hook, "HTTP head");
+    hook_ctor(&http_body_hook, "HTTP body");
 
     static struct proto_ops const ops = {
         .parse       = http_parse,
@@ -856,8 +855,8 @@ void http_init(void)
 void http_fini(void)
 {
     port_muxer_dtor(&tcp_port_muxer, &tcp_port_muxers);
-    http_body_hook_fini();
-    http_head_hook_fini();
+    hook_dtor(&http_body_hook);
+    hook_dtor(&http_head_hook);
 
     proto_dtor(&proto_http_);
     log_category_proto_http_fini();

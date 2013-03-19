@@ -47,7 +47,7 @@ void mutex_lock(struct mutex *mutex)
 {
     assert(mutex->name);
     SLOG(LOG_DEBUG, "Locking %s", mutex_name(mutex));
-    uint64_t start = bench_event_start();
+    uint64_t const start = bench_event_start();
 #   ifdef WITH_BENCH
     int err = pthread_mutex_trylock(&mutex->mutex);
     switch (err) {

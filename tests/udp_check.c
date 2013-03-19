@@ -56,14 +56,14 @@ static void parse_check(void)
     struct parser *udp_parser = proto_udp->ops->parser_new(proto_udp);
     assert(udp_parser);
     struct proto_subscriber sub;
-    pkt_subscriber_ctor(&sub, udp_info_check);
+    hook_subscriber_ctor(&pkt_hook, &sub, udp_info_check);
 
     for (current_test = 0; current_test < NB_ELEMS(parse_tests); current_test++) {
         int ret = udp_parse(udp_parser, NULL, 0, parse_tests[current_test].packet, parse_tests[current_test].size, parse_tests[current_test].size, &now, parse_tests[current_test].size, parse_tests[current_test].packet);
         assert(0 == ret);
     }
 
-    pkt_subscriber_dtor(&sub);
+    hook_subscriber_dtor(&pkt_hook, &sub);
     parser_unref(&udp_parser);
 }
 

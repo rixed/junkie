@@ -58,13 +58,11 @@ struct http_proto_info {
 /// To subscribe to HTTP "completed header" event
 /** You will receive the same http_proto_info than you'd receive for each packet,
  * but in the future it may be simpler to have distinct messages. */
-int http_head_subscriber_ctor(struct proto_subscriber *, proto_cb_t *);
-void http_head_subscriber_dtor(struct proto_subscriber *);
+struct hook http_head_hook;    // at end of header
 
 /// To subscribe to HTTP "body chunk" event
 /** Same remark apply */
-int http_body_subscriber_ctor(struct proto_subscriber *, proto_cb_t *);
-void http_body_subscriber_dtor(struct proto_subscriber *);
+struct hook http_body_hook;    // at every piece of body
 
 /// @return the name of an HTTP method
 char const *http_method_2_str(enum http_method);

@@ -32,7 +32,6 @@
 #include "junkie/proto/proto.h"
 #include "junkie/tools/mallocer.h"  // for overweight
 #include "proto/fuzzing.h"
-#include "hook.h"
 
 static unsigned nb_fuzzed_bits = 0;
 EXT_PARAM_RW(nb_fuzzed_bits, "nb-fuzzed-bits", uint, "Max number of bits to fuzz by protocolar layer (0 to disable fuzzing).")
@@ -69,7 +68,7 @@ void proto_ctor(struct proto *proto, struct proto_ops const *ops, char const *na
     proto->nb_bytes = 0;
     proto->fuzzed_times = 0;
     proto->nb_parsers = 0;
-    LIST_INIT(&proto->subscribers);
+    hook_ctor(&proto->hook, name);
     mutex_ctor_with_type(&proto->lock, name, PTHREAD_MUTEX_RECURSIVE);
     bench_event_ctor(&proto->parsing, tempstr_printf("parsing %s", name));
 
@@ -108,9 +107,7 @@ void proto_dtor(struct proto *proto)
 #   if 0
     assert(proto->nb_parsers == 0);
 #   endif
-    if (! LIST_EMPTY(&proto->subscribers)) {
-        SLOG(LOG_NOTICE, "Some subscribers of %s are still registered", proto->name);
-    }
+    hook_dtor(&proto->hook);
     if (proto->nb_parsers != 0) {
         SLOG(LOG_NOTICE, "Some parsers are still in use for %s", proto->name);
     }
@@ -144,14 +141,6 @@ char const *proto_parse_status_2_str(enum proto_parse_status status)
     }
     assert(!"Unknown proto_parse_status");
     return "INVALID";
-}
-
-static void proto_subscribers_call_ll(struct proto_subscribers *list, struct proto_info const *info, size_t tot_cap_len, uint8_t const *tot_packet, struct timeval const *now)
-{
-    struct proto_subscriber *sub, *tmp;
-    LIST_FOREACH_SAFE(sub, list, entry, tmp) {
-        sub->cb(sub, info, tot_cap_len, tot_packet, now);
-    }
 }
 
 enum proto_parse_status proto_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
@@ -205,29 +194,9 @@ enum proto_parse_status proto_parse(struct parser *parser, struct proto_info *pa
  * Proto subscribers
  */
 
-HOOK(pkt);
+struct hook pkt_hook;
 
-int proto_subscriber_ctor(struct proto_subscriber *sub, struct proto *proto, proto_cb_t *cb)
-{
-    SLOG(LOG_DEBUG, "Construct a new subscriber@%p for proto %s", sub, proto->name);
-
-    sub->cb = cb;
-    mutex_lock(&proto->lock);
-    LIST_INSERT_HEAD(&proto->subscribers, sub, entry);
-    mutex_unlock(&proto->lock);
-
-    return 0;
-}
-
-void proto_subscriber_dtor(struct proto_subscriber *sub, struct proto *proto)
-{
-    SLOG(LOG_DEBUG, "Destruct a subscriber@%p for proto %s", sub, proto->name);
-
-    mutex_lock(&proto->lock);
-    LIST_REMOVE(sub, entry);
-    mutex_unlock(&proto->lock);
-}
-
+// same as normal hook_subscribers_call but ensure we call it no more than once per packet
 void proto_subscribers_call(struct proto *proto, struct proto_info *info, size_t tot_cap_len, uint8_t const *tot_packet, struct timeval const *now)
 {
     if (info->proto_sbc_called) {
@@ -236,14 +205,10 @@ void proto_subscribers_call(struct proto *proto, struct proto_info *info, size_t
     }
     info->proto_sbc_called = true;
 
-    // Call the callbacks for the completed proto_info
-    // FIXME: smaller lock?
-    mutex_lock(&proto->lock);
-    SLOG(LOG_DEBUG, "Calling subscribers for proto %s", proto->name);
-    proto_subscribers_call_ll(&proto->subscribers, info, tot_cap_len, tot_packet, now);
-    mutex_unlock(&proto->lock);
+    hook_subscribers_call(&proto->hook, info, tot_cap_len, tot_packet, now);
 }
 
+// same as normal hook_subscribers_call but ensure we call it no more than once per packet
 void full_pkt_subscribers_call(struct proto_info *info, size_t tot_cap_len, uint8_t const *tot_packet, struct timeval const *now)
 {
     // look for last proto_info with pkt_sbc_called, flaging all proto_infos along the way so that next lookups will be faster
@@ -253,11 +218,9 @@ void full_pkt_subscribers_call(struct proto_info *info, size_t tot_cap_len, uint
         info_ = info_->parent;
     }
     if (! info_->pkt_sbc_called) {
-        mutex_lock(&pkt_subscribers_lock);
         SLOG(LOG_DEBUG, "Calling per-packet subscribers");
-        proto_subscribers_call_ll(&pkt_subscribers, info, tot_cap_len, tot_packet, now);
+        hook_subscribers_call(&pkt_hook, info, tot_cap_len, tot_packet, now);
         info_->pkt_sbc_called = true;
-        mutex_unlock(&pkt_subscribers_lock);
     }
 }
 
@@ -1112,7 +1075,7 @@ void proto_init(void)
     ext_param_mux_timeout_init();
     ext_param_denied_parsers_init();
 
-    pkt_hook_init();
+    hook_ctor(&pkt_hook, "pkt hook");
 
     // A thread to timeout all mux_subparsers
     int err = pthread_create(&timeouter_pth, NULL, timeouter_thread, NULL);
@@ -1181,7 +1144,7 @@ void proto_fini(void)
     (void)pthread_cancel(timeouter_pth);
     (void)pthread_join(timeouter_pth, NULL);
 
-    pkt_hook_fini();
+    hook_dtor(&pkt_hook);
 
     dummy_fini();
     ext_param_denied_parsers_fini();

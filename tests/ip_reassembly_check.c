@@ -280,12 +280,12 @@ static void setup(void)
     nb_okfn_calls = 0;
     udp_num = ~0;
     for (unsigned p = 0; p < NB_ELEMS(pkt_num); p++) pkt_num[p] = ~0;
-    pkt_subscriber_ctor(&sub, okfn);
+    hook_subscriber_ctor(&pkt_hook, &sub, okfn);
 }
 
 static void teardown(void)
 {
-    pkt_subscriber_dtor(&sub);
+    hook_subscriber_dtor(&pkt_hook, &sub);
     parser_unref(&eth_parser);
 }
 

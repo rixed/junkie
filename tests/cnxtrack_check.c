@@ -165,7 +165,7 @@ static void cnxtrack_check(void)
     timeval_set_now(&now);
     struct parser *eth_parser = proto_eth->ops->parser_new(proto_eth);
     struct proto_subscriber sub;
-    pkt_subscriber_ctor(&sub, check_last_proto);
+    hook_subscriber_ctor(&pkt_hook, &sub, check_last_proto);
 
     for (current_test = 0; current_test < NB_ELEMS(tests); current_test ++) {
         struct test const *test = tests + current_test;
@@ -175,7 +175,7 @@ static void cnxtrack_check(void)
         printf("Ok\n");
     }
 
-    pkt_subscriber_dtor(&sub);
+    hook_subscriber_dtor(&pkt_hook, &sub);
     parser_unref(&eth_parser);
 }
 

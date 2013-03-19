@@ -352,10 +352,10 @@ static int nt_edge_ctor(struct nt_edge *edge, struct nt_graph *graph, struct nt_
     if (! graph->parser_hooks[hook].registered) {
         int res;
         if (per_packet) {
-            res = pkt_subscriber_ctor(&graph->parser_hooks[hook].subscriber, parser_hook);
+            res = hook_subscriber_ctor(&pkt_hook, &graph->parser_hooks[hook].subscriber, parser_hook);
             graph->parser_hooks[hook].on_proto = NULL;
         } else {
-            res = proto_subscriber_ctor(&graph->parser_hooks[hook].subscriber, inner_proto, parser_hook);
+            res = hook_subscriber_ctor(&inner_proto->hook, &graph->parser_hooks[hook].subscriber, parser_hook);
             graph->parser_hooks[hook].on_proto = inner_proto;
         }
         if (0 == res) graph->parser_hooks[hook].registered = true;
@@ -508,9 +508,9 @@ static void nt_graph_dtor(struct nt_graph *graph)
         if (graph->parser_hooks[h].registered) {
             graph->parser_hooks[h].registered = false;
             if (graph->parser_hooks[h].on_proto) {
-                proto_subscriber_dtor(&graph->parser_hooks[h].subscriber, graph->parser_hooks[h].on_proto);
+                hook_subscriber_dtor(&graph->parser_hooks[h].on_proto->hook, &graph->parser_hooks[h].subscriber);
             } else {
-                pkt_subscriber_dtor(&graph->parser_hooks[h].subscriber);
+                hook_subscriber_dtor(&pkt_hook, &graph->parser_hooks[h].subscriber);
             }
         }
     }
