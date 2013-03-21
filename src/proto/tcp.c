@@ -267,7 +267,8 @@ struct tcp_subparser {
 #   define SET_FOR_WAY(way, field) (field |= (1U<<way))
 #   define RESET_FOR_WAY(way, field) (field &= ~(1U<<way))
 #   define IS_SET_FOR_WAY(way, field) (!!(field & (1U<<way)))
-    uint8_t fin:2, ack:2, syn:2, origin:2;
+    uint8_t fin:2, ack:2, syn:2;
+    uint8_t origin:2;           // do we have wl_origin set yet?
     struct mux_subparser mux_subparser; // must be the last member of this struct since mux_subparser is variable in size
 };
 
@@ -297,11 +298,11 @@ static int tcp_subparser_ctor(struct tcp_subparser *tcp_sub, struct mux_parser *
     tcp_sub->syn = 0;
     tcp_sub->origin = 0;
 
-    if (0 != pkt_wait_list_ctor(tcp_sub->wl+0, 0 /* relative to the ISN */, &tcp_wl_config, child, now)) {
+    if (0 != pkt_wait_list_ctor(tcp_sub->wl+0, 0 /* relative to the ISN */, &tcp_wl_config, child, now, tcp_sub->wl+1)) {
         return -1;
     }
 
-    if (0 != pkt_wait_list_ctor(tcp_sub->wl+1, 0 /* relative to the ISN */, &tcp_wl_config, child, now)) {
+    if (0 != pkt_wait_list_ctor(tcp_sub->wl+1, 0 /* relative to the ISN */, &tcp_wl_config, child, now, tcp_sub->wl+0)) {
         pkt_wait_list_dtor(tcp_sub->wl+0);
         return -1;
     }
@@ -393,6 +394,7 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
 
     if (tcphdr_len > cap_len) return PROTO_TOO_SHORT;
 
+    // TODO: move this below call to tcp_proto_info_ctor() and use info instead of reading tcphdr directly
     uint16_t const sport = READ_U16N(&tcphdr->src);
     uint16_t const dport = READ_U16N(&tcphdr->dst);
     bool const syn = !!(READ_U8(&tcphdr->flags) & TCP_SYN_MASK);
@@ -484,12 +486,21 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
        Notice that we do queue empty packets because subparser (or subscriber) want to receive all packets in order, including empty ones. */
 
     size_t const packet_len = wire_len - tcphdr_len;
+    assert(IS_SET_FOR_WAY(way, tcp_sub->origin));
     unsigned const offset = info.seq_num - tcp_sub->wl_origin[way];
     unsigned const next_offset = offset + packet_len + info.syn + info.fin;
+    unsigned const sync_offset = info.ack_num - tcp_sub->wl_origin[!way];  // we must not parse this one before we parsed (or timeouted) this one from wl[!way]
     // FIXME: Here the parser is chosen before we actually parse anything. If later the parser fails we cannot try another one.
     //        Choice of parser should be delayed until we start actual parse.
-    err = pkt_wait_list_add(tcp_sub->wl+way, offset, next_offset, true, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, packet_len, now, tot_cap_len, tot_packet);
+    bool const do_sync = info.ack && IS_SET_FOR_WAY(!way, tcp_sub->origin);
+    err = pkt_wait_list_add(tcp_sub->wl+way, offset, next_offset, do_sync, sync_offset, true, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, packet_len, now, tot_cap_len, tot_packet);
     SLOG(LOG_DEBUG, "Waiting list returned %s", proto_parse_status_2_str(err));
+
+    // Try advancing each WL until we are stuck or met an error
+    bool retry = true;
+    while (err == PROTO_OK && retry) {
+        retry = pkt_wait_list_try(tcp_sub->wl+!way, &err) || pkt_wait_list_try(tcp_sub->wl+way, &err);
+    }
 
     bool const term = tcp_subparser_term(tcp_sub);
     mutex_unlock(tcp_sub->mutex);

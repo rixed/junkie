@@ -353,7 +353,7 @@ static int ip_reassembly_ctor(struct ip_reassembly *reassembly, struct parser *p
     SLOG(LOG_DEBUG, "Constructing ip_reassembly@%p for parser %s", reassembly, parser_name(parser));
     assert(! reassembly->constructed);
 
-    if (0 != pkt_wait_list_ctor(&reassembly->wl, 0, &ip_reassembly_config, parser, now)) return -1;
+    if (0 != pkt_wait_list_ctor(&reassembly->wl, 0, &ip_reassembly_config, parser, now, NULL)) return -1;
     reassembly->id = id;
     reassembly->got_last = 0;
     reassembly->constructed = 1;
@@ -511,7 +511,7 @@ static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info
             reassembly->end_offset = offset + payload;
             info.fragmentation = IP_REASSEMBLED;    // fix the info before it's copied by pkt_wait_list_add
         }
-        if (PROTO_OK != pkt_wait_list_add(&reassembly->wl, offset, offset + payload, false, &info.info, info.way, packet + iphdr_len, cap_payload, payload, now, tot_cap_len, tot_packet)) {
+        if (PROTO_OK != pkt_wait_list_add(&reassembly->wl, offset, offset + payload, false, 0, false, &info.info, info.way, packet + iphdr_len, cap_payload, payload, now, tot_cap_len, tot_packet)) {
             goto unlock_fallback;  // should not happen
         }
         if (reassembly->got_last && pkt_wait_list_is_complete(&reassembly->wl, 0, reassembly->end_offset)) {
