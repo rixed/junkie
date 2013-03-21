@@ -496,10 +496,9 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
     err = pkt_wait_list_add(tcp_sub->wl+way, offset, next_offset, do_sync, sync_offset, true, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, packet_len, now, tot_cap_len, tot_packet);
     SLOG(LOG_DEBUG, "Waiting list returned %s", proto_parse_status_2_str(err));
 
-    // Try advancing each WL until we are stuck or met an error
-    bool retry = true;
-    while (err == PROTO_OK && retry) {
-        retry = pkt_wait_list_try(tcp_sub->wl+!way, &err, now) || pkt_wait_list_try(tcp_sub->wl+way, &err, now);
+    if (err == PROTO_OK) {
+        // Try advancing each WL until we are stuck or met an error
+        pkt_wait_list_try_both(tcp_sub->wl+!way, &err, now, false);
     }
 
     bool const term = tcp_subparser_term(tcp_sub);

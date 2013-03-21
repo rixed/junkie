@@ -277,7 +277,10 @@ void pkt_wait_list_dtor(struct pkt_wait_list *pkt_wl)
 {
     SLOG(LOG_DEBUG, "Destruct pkt_wait_list @%p", pkt_wl);
 
-    // start by cleaning the parser so that the subparse method won't be called
+    enum proto_parse_status status;
+    pkt_wait_list_try_both(pkt_wl, &status, &timeval_unset, true);  // force parse of everything that can be
+
+    // Now we are done with the parser
     parser_unref(&pkt_wl->parser);
 
     struct supermutex *const mutex = &pkt_wl->list->mutex;
@@ -286,7 +289,7 @@ void pkt_wait_list_dtor(struct pkt_wait_list *pkt_wl)
     pkt_wl->list = NULL;
     supermutex_unlock(mutex);
 
-    // then call the callback for each pending packet
+    // In case there's something left we couldn't parse (for instance if the parser returned PROTO_PARSE_ERR) then call the callback for each pending packet
     pkt_wait_list_empty(pkt_wl);
 }
 
@@ -334,22 +337,56 @@ void pkt_wl_config_dtor(struct pkt_wl_config *config)
 #   endif
 }
 
+// caller must own list->mutex (obviously)
+static bool pkt_wait_list_try_locked(struct pkt_wait_list *pkt_wl, enum proto_parse_status *status, struct timeval const *now, bool force_timeout)
+{
+    unsigned const timeout = pkt_wl->config->timeout;
+    struct timeval oldest = *now;
+    if (timeout != 0 && timeval_is_set(&oldest)) timeval_sub_sec(&oldest, timeout);
+    bool ret = false;
+
+    while (1) {
+        struct pkt_wait *pkt = LIST_FIRST(&pkt_wl->pkts);
+        if (! pkt) break;
+
+        if (! force_timeout) {
+            if (pkt->offset > pkt_wl->next_offset) {
+                // Timeout maybe?
+                if (timeout == 0) break;
+                if (!timeval_is_set(&oldest)) break;
+                if (timeval_cmp(&pkt_wl->wait_since, &oldest) >= 0) break;
+                // Ok we are tired with this segment, consider we won't receive it
+            } else if (pkt_wl->sync_with && pkt->sync && pkt_wl->sync_with->next_offset < pkt->sync_offset) {
+                // Must wait for the other direction
+                break;
+            }
+        }
+        force_timeout = false;  // this works only once (so that caller has a chance to advance the reciprocal waiting_list)
+        // Advance this direction (gaps will be signaled)
+        *status = pkt_wait_finalize(pkt, pkt_wl, now);
+        ret = true;
+    }
+
+    return ret;
+}
+
 enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned offset, unsigned next_offset, bool sync, unsigned sync_offset, bool can_parse, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     enum proto_parse_status ret = PROTO_OK;
 
     if (! pkt_wl->list) return PROTO_PARSE_ERR;
 
+    // TODO: how much efficient if pkt_wl and pkt_wl->sync_with were on the same lock... in pkt_wait_list_ctor, add a parameter to force the list we are on?
     if (0 != supermutex_lock(&pkt_wl->list->mutex)) return PROTO_PARSE_ERR;
 
-    if (pkt_wl->config->nb_pkts_max && pkt_wl->nb_pkts >= pkt_wl->config->nb_pkts_max) {
-        SLOG(LOG_DEBUG, "Waiting list too long, disbanding");
-        // We don't need the parser anymore, and must not call its parse method
-        parser_unref(&pkt_wl->parser);
-    }
-    if (pkt_wl->config->payload_max && pkt_wl->tot_payload >= pkt_wl->config->payload_max) {
-        SLOG(LOG_DEBUG, "Waiting list too big, disbanding");
-        parser_unref(&pkt_wl->parser);
+    while (
+        (pkt_wl->config->nb_pkts_max && pkt_wl->nb_pkts >= pkt_wl->config->nb_pkts_max) ||
+        (pkt_wl->config->payload_max && pkt_wl->tot_payload >= pkt_wl->config->payload_max)
+    ) {
+        SLOG(LOG_DEBUG, "Waiting list too big (%u pkts, %zu bytes), force timeout", pkt_wl->nb_pkts, pkt_wl->tot_payload);
+        enum proto_parse_status status = PROTO_OK;
+        pkt_wait_list_try_locked(pkt_wl, &status, now, true);
+        if (status == PROTO_OK && pkt_wl->sync_with) pkt_wait_list_try(pkt_wl->sync_with, &status, now, false); // TODO: see above about mutex
     }
 
     SLOG(LOG_DEBUG, "Add a packet of %zu bytes at offset %u to waiting list @%p", wire_len, offset, pkt_wl);
@@ -424,37 +461,27 @@ quit:
     return ret;
 }
 
-bool pkt_wait_list_try(struct pkt_wait_list *pkt_wl, enum proto_parse_status *status, struct timeval const *now)
+bool pkt_wait_list_try(struct pkt_wait_list *pkt_wl, enum proto_parse_status *status, struct timeval const *now, bool force_timeout)
 {
     if (! pkt_wl->list) return false;
-
     if (0 != supermutex_lock(&pkt_wl->list->mutex)) return false;
 
-    unsigned const timeout = pkt_wl->config->timeout;
-    struct timeval oldest = *now;
-    timeval_sub_sec(&oldest, timeout);
-    bool ret = false;
-
-    while (1) {
-        struct pkt_wait *pkt = LIST_FIRST(&pkt_wl->pkts);
-        if (! pkt) break;
-
-        if (pkt->offset > pkt_wl->next_offset) {
-            // Timeout maybe?
-            if (timeout == 0) break;
-            if (timeval_cmp(&pkt_wl->wait_since, &oldest) >= 0) break;
-            // Ok we are tired with this segment, consider we won't receive it
-        } else if (pkt_wl->sync_with && pkt->sync && pkt_wl->sync_with->next_offset < pkt->sync_offset) {
-            // Must wait for the other direction
-            break;
-        }
-        // Advance this direction (gaps will be signaled)
-        *status = pkt_wait_finalize(pkt, pkt_wl, now);
-        ret = true;
-    }
+    bool ret = pkt_wait_list_try_locked(pkt_wl, status, now, force_timeout);
 
     supermutex_unlock(&pkt_wl->list->mutex);
     return ret;
+}
+
+void pkt_wait_list_try_both(struct pkt_wait_list *pkt_wl, enum proto_parse_status *status, struct timeval const *now, bool force_timeout)
+{
+    *status = PROTO_OK;
+    while (
+        *status == PROTO_OK &&
+        (
+            pkt_wait_list_try(pkt_wl, status, now, force_timeout) ||
+            (pkt_wl->sync_with && pkt_wait_list_try(pkt_wl->sync_with, status, now, force_timeout))
+        )
+    ) ;
 }
 
 bool pkt_wait_list_is_complete(struct pkt_wait_list *pkt_wl, unsigned start_offset, unsigned end_offset)
