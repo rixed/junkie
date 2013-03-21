@@ -101,8 +101,6 @@ struct pkt_wl_config {
     /// The following fields must be read/set atomicaly
     struct mutex atomic;
 #   endif
-    /// To prevent reentry
-    unsigned timeouting; // 1 or 0
     /// Acceptable gap between two successive packets
     unsigned acceptable_gap;
     /// Max number of pending packets
@@ -147,8 +145,8 @@ struct pkt_wait_list {
     size_t tot_payload;
     /// The offset we are currently waiting for to resume parsing
     unsigned next_offset;
-    /// Last time we added a packet to the list
-    struct timeval last_used;
+    /// Since when do we wait for next_offset?
+    struct timeval wait_since;
     /// A Ref to the parser this packet is intended to
     struct parser *parser;
     /// Optionally, the other pkt_wait_list we may wait.
@@ -198,8 +196,7 @@ enum proto_parse_status pkt_wait_list_add(
 bool pkt_wait_list_try(
     struct pkt_wait_list *pkt_wl,   ///< The packet list to try to advance
     enum proto_parse_status *,      ///< An output parameter which will be set to last result of parsing or unset if no parsing took place
-    struct timeval const *now,      ///< Current timestamp
-    bool force_timeout              ///< Force consuming the first waiting packet
+    struct timeval const *now
 );
 
 /// Tells if the wait list is complete between these two offsets.

@@ -499,7 +499,7 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
     // Try advancing each WL until we are stuck or met an error
     bool retry = true;
     while (err == PROTO_OK && retry) {
-        retry = pkt_wait_list_try(tcp_sub->wl+!way, &err) || pkt_wait_list_try(tcp_sub->wl+way, &err);
+        retry = pkt_wait_list_try(tcp_sub->wl+!way, &err, now) || pkt_wait_list_try(tcp_sub->wl+way, &err, now);
     }
 
     bool const term = tcp_subparser_term(tcp_sub);

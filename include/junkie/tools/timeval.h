@@ -25,6 +25,9 @@ static inline bool timeval_is_set(struct timeval const *tv)
     return tv->tv_sec != 0;
 }
 
+// this one is unset
+extern struct timeval const timeval_unset;
+
 static inline void timeval_reset(struct timeval *tv)
 {
     tv->tv_sec = 0;
