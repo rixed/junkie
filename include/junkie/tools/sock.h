@@ -33,12 +33,8 @@
  * For TCP and files, which are stream oriented, a header is prepended to each messages
  * to indicate their length.
  *
- * Along with these functions come guile wrappers to create named links between two hosts:
- *
- * (connect-udp "the.host.com" 4323)
- * (listen-udp 4324)
- * (connect-unix "/tmp/mysocket")
- * and so on, returning a struct object.
+ * Along with these functions come guile wrappers to create named links between two hosts
+ * (see (help "sock")).
  */
 
 /// Generic type for sockets
@@ -48,6 +44,7 @@ struct sock {
         ssize_t (*recv)(struct sock *, void *, size_t, struct ip_addr *sender, int);    // sender will be set to 127.0.0.1 for UNIX domain/files sockets
         int (*set_fd)(struct sock *, fd_set *);  ///< add all selectable fds in this set, return the max
         int (*is_set)(struct sock *, fd_set const *);  ///< tells if (one of) the fd on which we receive message is set. the returned value is passed to recv.
+        bool (*is_opened)(struct sock *);   ///< tells if a future send/recv is expected to work (useful to take any kind of action like reconnect)
         void (*del)(struct sock *);
     } const *ops;
     char name[64];

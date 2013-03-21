@@ -190,6 +190,11 @@ static void sock_inet_dtor(struct sock_inet *s)
     file_close(s->fd);
 }
 
+static bool sock_inet_is_opened(struct sock_inet *s)
+{
+    return s->fd != -1;
+}
+
 /*
  * UDP sockets
  */
@@ -256,6 +261,12 @@ static int sock_udp_is_set(struct sock *s_, fd_set const *set)
     return FD_ISSET(i_->fd, set);
 }
 
+static bool sock_udp_is_opened(struct sock *s_)
+{
+    struct sock_inet *i_ = DOWNCAST(s_, sock, sock_inet);
+    return sock_inet_is_opened(i_);
+}
+
 static void sock_udp_dtor(struct sock_udp *s)
 {
     sock_inet_dtor(&s->inet);
@@ -274,6 +285,7 @@ static struct sock_ops sock_udp_ops = {
     .recv = sock_udp_recv,
     .set_fd = sock_udp_set_fd,
     .is_set = sock_udp_is_set,
+    .is_opened = sock_udp_is_opened,
     .del = sock_udp_del,
 };
 
@@ -442,6 +454,12 @@ eoc:
     return 0;
 }
 
+static bool sock_tcp_is_opened(struct sock *s_)
+{
+    struct sock_inet *i_ = DOWNCAST(s_, sock, sock_inet);
+    return sock_inet_is_opened(i_);
+}
+
 static void sock_tcp_dtor(struct sock_tcp *s)
 {
     sock_inet_dtor(&s->inet);
@@ -466,6 +484,7 @@ static struct sock_ops sock_tcp_ops = {
     .recv = sock_tcp_recv,
     .set_fd = sock_tcp_set_fd,
     .is_set = sock_tcp_is_set,
+    .is_opened = sock_tcp_is_opened,
     .del = sock_tcp_del,
 };
 
@@ -569,6 +588,12 @@ static int sock_unix_is_set(struct sock *s_, fd_set const *set)
     return FD_ISSET(s->fd, set);
 }
 
+static bool sock_unix_is_opened(struct sock *s_)
+{
+    struct sock_unix *s = DOWNCAST(s_, sock, sock_unix);
+    return s->fd != -1;
+}
+
 static void sock_unix_dtor(struct sock_unix *s)
 {
     sock_dtor(&s->sock);
@@ -590,6 +615,7 @@ static struct sock_ops sock_unix_ops = {
     .recv = sock_unix_recv,
     .set_fd = sock_unix_set_fd,
     .is_set = sock_unix_is_set,
+    .is_opened = sock_unix_is_opened,
     .del = sock_unix_del,
 };
 
@@ -799,6 +825,11 @@ static int sock_file_is_set(struct sock *s_, fd_set const *set)
     return s->fd >= 0 && FD_ISSET(s->fd, set);
 }
 
+static bool sock_file_is_opened(struct sock unused_ *s_)
+{
+    return true;
+}
+
 static void sock_file_dtor(struct sock_file *s)
 {
     sock_dtor(&s->sock);
@@ -820,6 +851,7 @@ static struct sock_ops sock_file_ops = {
     .recv = sock_file_recv,
     .set_fd = sock_file_set_fd,
     .is_set = sock_file_is_set,
+    .is_opened = sock_file_is_opened,
     .del = sock_file_del,
 };
 
@@ -963,6 +995,12 @@ static int sock_buf_is_set(struct sock *s_, fd_set const *set)
            (s->in_sz > s->in_rcvd);
 }
 
+static bool sock_buf_is_opened(struct sock *s_)
+{
+    struct sock_buf *s = DOWNCAST(s_, sock, sock_buf);
+    return s->ll_sock->ops->is_opened(s->ll_sock);
+}
+
 void sock_buf_dtor(struct sock_buf *s)
 {
     sock_buf_flush(s);
@@ -983,6 +1021,7 @@ static struct sock_ops sock_buf_ops = {
     .recv = sock_buf_recv,
     .set_fd = sock_buf_set_fd,
     .is_set = sock_buf_is_set,
+    .is_opened = sock_buf_is_opened,
     .del = sock_buf_del,
 };
 
@@ -1305,6 +1344,15 @@ static SCM g_make_sock(SCM type, SCM p1, SCM p2, SCM p3, SCM p4)
     return smob;
 }
 
+static struct ext_function sg_sock_is_opened;
+static SCM g_sock_is_opened(SCM sock_)
+{
+    scm_assert_smob_type(sock_smob_tag, sock_);
+    struct sock *sock = (struct sock *)SCM_SMOB_DATA(sock_);
+
+    return scm_from_bool(sock->ops->is_opened(sock));
+}
+
 static struct ext_function sg_sock_send;
 static SCM g_sock_send(SCM sock_, SCM str_)
 {
@@ -1364,6 +1412,11 @@ void sock_init(void)
         "(make-sock 'file 'client \"/tmp/msg_dir\" [max-file-size]): to convey messages through files\n"
         "(make-sock 'buffered 1024 other-sock)\n"
         "See also: sock-send, sock-recv");
+
+    ext_function_ctor(&sg_sock_is_opened,
+        "sock-opened?", 1, 0, 0, g_sock_is_opened,
+        "(sock-opened? some-sock): Returns #t/#f depending on the state of the socket\n"
+        "See also: make-sock");
 
     // these are intended for testing
     ext_function_ctor(&sg_sock_send,
