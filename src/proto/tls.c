@@ -18,6 +18,7 @@
  * along with Junkie.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "junkie/tools/objalloc.h"
+#include "junkie/tools/miscmacs.h"
 #include "junkie/proto/streambuf.h"
 #include "junkie/proto/port_muxer.h"
 #include "junkie/proto/tcp.h"
@@ -86,12 +87,29 @@ static void const *tls_info_addr(struct proto_info const *info_, size_t *size)
     return info;
 }
 
+static char const *tls_content_type_2_str(enum tls_content_type ct)
+{
+    switch (ct) {
+        case tls_change_cipher_spec:
+            return "change_cipher_spec";
+        case tls_alert:
+            return "alert";
+        case tls_handshake:
+            return "handshake";
+        case tls_application_data:
+            return "data";
+    }
+    assert(!"Unknown TLS content type");
+}
+
 static char const *tls_info_2_str(struct proto_info const *info_)
 {
     struct tls_proto_info const *info = DOWNCAST(info_, info, tls_proto_info);
     char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s",
-        proto_info_2_str(&info->info));
+    snprintf(str, TEMPSTR_SIZE, "%s, version=%"PRIu8".%"PRIu8", content-type=%s",
+        proto_info_2_str(&info->info),
+        info->version.maj, info->version.min,
+        tls_content_type_2_str(info->content_type));
     return str;
 }
 
@@ -125,10 +143,28 @@ static enum proto_parse_status tls_sbuf_parse(struct parser *parser, struct prot
         SLOG(LOG_DEBUG, "First packet, init c2s_way to %u", tls_parser->c2s_way);
     }
 
+    // Wait for a full record before proceeding
+#   define TLS_RECORD_HEAD 5
+    if (wire_len < TLS_RECORD_HEAD) {
+restart_record:
+        streambuf_set_restart(&tls_parser->sbuf, way, payload, true);
+        return PROTO_OK;
+    }
+    if (cap_len < TLS_RECORD_HEAD) return PROTO_TOO_SHORT;
+    enum tls_content_type content_type = READ_U8(payload);
+    unsigned proto_version_maj = READ_U8(payload+1);
+    unsigned proto_version_min = READ_U8(payload+2);
+    unsigned length = READ_U16N(payload+3);
+    if (wire_len < TLS_RECORD_HEAD + length) goto restart_record;
+
     // Now build the proto_info
     struct tls_proto_info info;
     proto_info_ctor(&info.info, parser, parent, wire_len, 0);
+    info.version.maj = proto_version_maj;
+    info.version.min = proto_version_min;
+    info.content_type = content_type;
 
+    streambuf_set_restart(&tls_parser->sbuf, way, payload + TLS_RECORD_HEAD + length, false);
     return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
 
