@@ -37,6 +37,10 @@
  * this is strictly required (or equivalently, the enqueue function will first
  * check if the offset of the packet to be pushed match next_offset, and if so
  * will directly call the subparser).
+ *
+ * Additionally, a queued packet can be set to wait for another waiting list
+ * reaching a given offset. This is useful for TCP since we do not want to parse
+ * in a direction ahead in time of the other direction.
  */
 
 /// A Waiting Packet.
@@ -55,6 +59,9 @@ struct pkt_wait {
     /// Next expected offset following this packet
     /// (this in not necessarily offset+wire_len for instance if we have message sequence numbers instead of bytes sequence numbers)
     unsigned next_offset;
+    /// Optionally, wait for another waiting list to reach some offset
+    bool sync;              ///< Do way for wl->sync_wl to catch up with sync_offset
+    unsigned sync_offset;   ///< Only set if wl->sync_wl != NULL && sync
     /// How many bytes were captured on original packet (ie size of the packet field)
     size_t tot_cap_len;
     /// How many bytes of the saved total packet were already parsed
@@ -94,8 +101,6 @@ struct pkt_wl_config {
     /// The following fields must be read/set atomicaly
     struct mutex atomic;
 #   endif
-    /// To prevent reentry
-    unsigned timeouting; // 1 or 0
     /// Acceptable gap between two successive packets
     unsigned acceptable_gap;
     /// Max number of pending packets
@@ -140,10 +145,12 @@ struct pkt_wait_list {
     size_t tot_payload;
     /// The offset we are currently waiting for to resume parsing
     unsigned next_offset;
-    /// Last time we added a packet to the list
-    struct timeval last_used;
+    /// Since when do we wait for next_offset?
+    struct timeval wait_since;
     /// A Ref to the parser this packet is intended to
     struct parser *parser;
+    /// Optionally, the other pkt_wait_list we may wait.
+    struct pkt_wait_list *sync_with;
 };
 
 /// Construct a pkt_wait_list
@@ -152,7 +159,9 @@ int pkt_wait_list_ctor(
     unsigned next_offset,           ///< The initial offset we are waiting for
     struct pkt_wl_config *config,   ///< Where we store the pkt_wait_list created with these parameters (useful for timeouting) as well as global conf
     struct parser *parser,          ///< The parser that's supposed to parse this packet whenever possible
-    struct timeval const *now       ///< To set the last used time
+    struct timeval const *now,      ///< To set the last used time
+    /// If <> NULL, synchronize this pkt_wait_list with another one (ie. packets from this one may wait for the other waiting list to advance)
+    struct pkt_wait_list *restrict sync_with
 );
 
 /// Destruct a pkt_wait_list, calling the subscribers for every pending packets.
@@ -169,6 +178,8 @@ enum proto_parse_status pkt_wait_list_add(
     struct pkt_wait_list *pkt_wl,   ///< The packet list where to insert this packet
     unsigned offset,                ///< Offset in the stream of this packet
     unsigned next_offset,           ///< Offset in the stream of the following packet
+    bool sync,                      ///< Set to false to disable syncing (even when wl->sync_with is set)
+    unsigned sync_offset,           ///< If sync, do not parse until the other WL we sync with reach at least this point
     bool can_parse,                 ///< True if we are allowed to parse this packet (and others that were pending) if possible
     struct proto_info *parent,      ///< The proto_info of its parent (likely the caller of this function)
     unsigned way,                   ///< Direction identifier (see proto_parse())
@@ -179,6 +190,18 @@ enum proto_parse_status pkt_wait_list_add(
     size_t tot_cap_len,             ///< The capture length of the whole packet
     uint8_t const *tot_packet       ///< The whole packet (as given to subscribers)
 );
+
+/// Try to parse (or timeout) the head of the list.
+/** @return true if some parsing was done. */
+bool pkt_wait_list_try(
+    struct pkt_wait_list *pkt_wl,   ///< The packet list to try to advance
+    enum proto_parse_status *,      ///< An output parameter wihch will be set to last result of parsing or unset if no parsing took place
+    struct timeval const *now,      ///< Current timestamp
+    bool force_timeout              ///< Force consuming the first waiting packet
+);
+
+/// Same as above, but will consume the reciprocal waiting_list as well
+void pkt_wait_list_try_both(struct pkt_wait_list *pkt_wl, enum proto_parse_status *, struct timeval const *now, bool force_timeout);
 
 /// Tells if the wait list is complete between these two offsets.
 /** @note this checks weither all packets were received, not if enough bytes

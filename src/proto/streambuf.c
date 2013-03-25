@@ -72,7 +72,17 @@ void streambuf_dtor(struct streambuf *sbuf)
 void streambuf_set_restart(struct streambuf *sbuf, unsigned way, uint8_t const *p, bool wait)
 {
     assert(way < 2);
-    assert(sbuf->dir[way].buffer);
+
+    /* If we ask to restart at some offset, then obviously we must have a buffer.
+     * The only exception is when we want to restart at NULL - this is useful because
+     * parsers receive NULL instead of packet data when we want to signal a gap
+     * (see commit ffbcb909200c62861f38ff8516dcad2bf5693bfb), and we do not want
+     * to force them to check whether packet is set or not to restart it from the
+     * start (note: restarting at a gap will force the parse to be terminated by
+     * streambuf if not the parser itself).
+     */
+    assert(sbuf->dir[way].buffer || NULL == p);
+
     size_t offset = p - sbuf->dir[way].buffer;
     assert(offset <= sbuf->dir[way].buffer_size);
 

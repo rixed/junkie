@@ -28,7 +28,7 @@ static void ctor_dtor_check(void)
     assert(dummy);
     struct pkt_wait_list wl;
 
-    assert(0 == pkt_wait_list_ctor(&wl, 10, &config, dummy, &now));
+    assert(0 == pkt_wait_list_ctor(&wl, 10, &config, dummy, &now, NULL));
     pkt_wait_list_dtor(&wl);
 
     parser_unref(&dummy);
@@ -75,7 +75,7 @@ static void wl_check_setup(void)
     test_parser = test_proto.proto.ops->parser_new(&test_proto.proto);
     assert(test_parser);
 
-    assert(0 == pkt_wait_list_ctor(&wl, 0, &config, test_parser, &now));
+    assert(0 == pkt_wait_list_ctor(&wl, 0, &config, test_parser, &now, NULL));
 
     next_msg = 0;
 
@@ -103,7 +103,7 @@ static void simple_check(void)
     for (unsigned p = 0; p < NB_ELEMS(packets); p++) {
         assert(wl.next_offset == offset);
         int len = strlen(packets[p]) + 1;
-        assert(PROTO_OK == pkt_wait_list_add(&wl, offset, offset+len, true, NULL, 0, (uint8_t *)packets[p], len, len, &now, len, (uint8_t *)packets[p]));
+        assert(PROTO_OK == pkt_wait_list_add(&wl, offset, offset+len, false, 0, true, NULL, 0, (uint8_t *)packets[p], len, len, &now, len, (uint8_t *)packets[p]));
         offset += len;
         assert(LIST_EMPTY(&wl.pkts));
     }
@@ -130,7 +130,7 @@ static void reorder_check(void)
         unsigned offset = 0;
         for (unsigned pp = 0; pp < p; pp++) offset += strlen(packets[pp]) + 1;
         int len = strlen(packets[p]) + 1;
-        assert(PROTO_OK == pkt_wait_list_add(&wl, offset, offset+len, true, NULL, 0, (uint8_t *)packets[p], len, len, &now, len, (uint8_t *)packets[p]));
+        assert(PROTO_OK == pkt_wait_list_add(&wl, offset, offset+len, false, 0, true, NULL, 0, (uint8_t *)packets[p], len, len, &now, len, (uint8_t *)packets[p]));
     }
 
     // Check we parsed everything
@@ -145,11 +145,11 @@ static void gap_check(void)
 {
     wl_check_setup();
 
-    assert(PROTO_OK == pkt_wait_list_add(&wl, 999998, 999999, true, NULL, 0, (uint8_t *)"X", 1, 1, &now, 1, (uint8_t *)"X"));
-    assert(PROTO_OK == pkt_wait_list_add(&wl, 999997, 999998, true, NULL, 0, (uint8_t *)"X", 1, 1, &now, 1, (uint8_t *)"X"));
+    assert(PROTO_OK == pkt_wait_list_add(&wl, 999998, 999999, false, 0, true, NULL, 0, (uint8_t *)"X", 1, 1, &now, 1, (uint8_t *)"X"));
+    assert(PROTO_OK == pkt_wait_list_add(&wl, 999997, 999998, false, 0, true, NULL, 0, (uint8_t *)"X", 1, 1, &now, 1, (uint8_t *)"X"));
     char packet[] = "0. Maitre corbeau sur un arbre perche tenait en son bec un fromage";
     int const len = strlen(packet) + 1;
-    assert(PROTO_OK == pkt_wait_list_add(&wl, 0, 0+len, true, NULL, 0, (uint8_t *)packet, len, len, &now, len, (uint8_t *)packet));
+    assert(PROTO_OK == pkt_wait_list_add(&wl, 0, 0+len, false, 0, true, NULL, 0, (uint8_t *)packet, len, len, &now, len, (uint8_t *)packet));
     assert(LIST_EMPTY(&wl.pkts));
     assert(next_msg == 1);
 
@@ -219,11 +219,11 @@ static void reassembly_check(void)
             len = NB_ELEMS(msg);
         }
         unsigned const len_ = MIN(len, NB_ELEMS(msg)-start);
-        assert(PROTO_OK == pkt_wait_list_add(&wl, start, start+len_, false, NULL, 0, (uint8_t *)msg+start, len_, len_, &now, len_, (uint8_t *)msg+start));
+        assert(PROTO_OK == pkt_wait_list_add(&wl, start, start+len_, false, 0, false, NULL, 0, (uint8_t *)msg+start, len_, len_, &now, len_, (uint8_t *)msg+start));
         mark_sent(start, len_);
         if (len != len_) {
             len -= len_;
-            assert(PROTO_OK == pkt_wait_list_add(&wl, 0, len, false, NULL, 0, (uint8_t *)msg, len, len, &now, len, (uint8_t *)msg));
+            assert(PROTO_OK == pkt_wait_list_add(&wl, 0, len, false, 0, false, NULL, 0, (uint8_t *)msg, len, len, &now, len, (uint8_t *)msg));
             mark_sent(0, len);
         }
 

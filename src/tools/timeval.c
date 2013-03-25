@@ -25,6 +25,8 @@
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/serialization.h"
 
+struct timeval const timeval_unset = TIMEVAL_INITIALIZER;
+
 extern inline bool timeval_is_set(struct timeval const *);
 
 extern inline void timeval_reset(struct timeval *);
