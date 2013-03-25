@@ -17,6 +17,7 @@ libproto_la_SOURCES = \
 	mysql.c \
 	tns.c \
 	gre.c \
+	tls.c \
 	pkt_wait_list.c \
 	streambuf.c \
 	cursor.c \

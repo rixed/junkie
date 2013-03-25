@@ -837,7 +837,6 @@ static struct port_muxer tcp_port_muxer;
 
 void http_init(void)
 {
-    objalloc_init();
     log_category_proto_http_init();
 
     hook_ctor(&http_head_hook, "HTTP head");
@@ -864,5 +863,4 @@ void http_fini(void)
 
     proto_dtor(&proto_http_);
     log_category_proto_http_fini();
-    objalloc_fini();
 }
