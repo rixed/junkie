@@ -33,6 +33,9 @@ uint_least64_t cursor_read_u64(struct cursor *);
  * @param str will be set to the tempstr.  */
 enum proto_parse_status cursor_read_string(struct cursor *, char **str, size_t max_len);
 
+/// Copy from cursor into a buffer
+void cursor_copy(void *, struct cursor *, size_t n);
+
 void cursor_drop(struct cursor *, size_t);
 
 bool cursor_is_empty(struct cursor const *);

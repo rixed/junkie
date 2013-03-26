@@ -18,6 +18,7 @@
  * along with Junkie.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <stdlib.h>
+#include <string.h>
 #include "junkie/tools/log.h"
 #include "junkie/proto/cursor.h"
 
@@ -107,6 +108,13 @@ enum proto_parse_status cursor_read_string(struct cursor *cursor, char **str_, s
 
     if (str_) *str_ = str;
     return PROTO_OK;
+}
+
+void cursor_copy(void *dst, struct cursor *cursor, size_t n)
+{
+    assert(cursor->cap_len >= n);
+    memcpy(dst, cursor->head, n);
+    cursor->head += n;
 }
 
 void cursor_drop(struct cursor *cursor, size_t n)

@@ -19,6 +19,15 @@ struct tls_proto_info {
     enum tls_content_type {
         tls_change_cipher_spec = 20, tls_alert, tls_handshake, tls_application_data,
     } content_type;
+    // depending on the content_type:
+    unsigned set_values;
+    union {
+        struct tls_info_handshake {
+#           define CIPHER_SUITE_SET  0x1
+            unsigned cipher_suite;
+            unsigned compress_algorithm;    // set whenever CIPHER_SUITE_SET is set
+        } handshake;
+    } u;
 };
 
 void tls_init(void);
