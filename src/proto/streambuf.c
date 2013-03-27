@@ -209,7 +209,7 @@ enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *par
                     goto quit;
                 } else {
                     SLOG(LOG_DEBUG, "streambuf@%p[%s] was not totally parsed", sbuf, way_2_str(way));
-                    if (0 != streambuf_keep(dir)) return PROTO_PARSE_ERR;
+                    if (0 != streambuf_keep(dir)) goto quit;
                     if (dir->wait) goto quit;
                 }
                 break;
