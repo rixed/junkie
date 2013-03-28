@@ -165,6 +165,7 @@ int cli_parse(unsigned nb_args, char **args)
             break;
         case CLI_DUP_STR:
             assert(opt->arg_name);
+            // We do not know if previous value was on heap or dataseg, so better forget it.
             *opt->u.str = strdup(args[1]);
             err = *opt->u.str == NULL ? -1:0;
             break;
