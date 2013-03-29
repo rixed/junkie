@@ -235,8 +235,7 @@ static void const *http_info_addr(struct proto_info const *info_, size_t *size)
 static char const *http_info_2_str(struct proto_info const *info_)
 {
     struct http_proto_info const *info = DOWNCAST(info_, info, http_proto_info);
-    char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, method=%s, code=%s, content_length=%s, transfert_encoding=%s, mime_type=%s, host=%s, user_agent=%s, referrer=%s, server=%s, url=%s, pkts=%u%s%s",
+    return tempstr_printf("%s, method=%s, code=%s, content_length=%s, transfert_encoding=%s, mime_type=%s, host=%s, user_agent=%s, referrer=%s, server=%s, url=%s, pkts=%u%s%s",
         proto_info_2_str(info_),
         HTTP_IS_QUERY(info)                  ? http_method_2_str(info->method)            : "unset",
         info->set_values & HTTP_CODE_SET     ? tempstr_printf("%u", info->code)           : "unset",
@@ -253,7 +252,6 @@ static char const *http_info_2_str(struct proto_info const *info_)
         info->pkts,
         info->ajax                           ? ", ajax":"",
         info->compressed                     ? ", compressed":"");
-    return str;
 }
 
 static void http_serialize(struct proto_info const *info_, uint8_t **buf)

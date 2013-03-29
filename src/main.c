@@ -25,6 +25,10 @@
 #include <signal.h>
 #include <sys/types.h>
 #include "junkie/config.h"
+#ifdef HAVE_LIBSSL
+#   include <openssl/ssl.h>
+#   include <openssl/err.h>
+#endif
 #include "junkie/tools/log.h"
 #include "junkie/tools/ext.h"
 #include "junkie/tools/cli.h"
@@ -106,6 +110,13 @@ static void all_init(void)
     redim_array_init(); // if there are no users then some ext functions used by the www interface won't be defined
     os_detect_init();   // dummy function just to include os_detect in junkie (that does not use it, but plugins may want to)
 
+#   ifdef HAVE_LIBSSL
+    // Openssl don't like to be inited several times so let's do it once and for all
+    SSL_load_error_strings();
+    SSL_library_init();
+    OpenSSL_add_all_algorithms();
+#   endif
+
     for (unsigned i = 0; i < NB_ELEMS(initers); i++) {
         initers[i].init();
     }
@@ -121,6 +132,10 @@ static void all_fini(void)
     for (unsigned i = NB_ELEMS(initers); i > 0; ) {
         initers[--i].fini();
     }
+
+#   if HAVE_LIBSSL
+    ERR_free_strings();
+#   endif
 
     redim_array_fini();
     hash_fini();

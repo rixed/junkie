@@ -56,6 +56,14 @@ uint_least16_t cursor_read_u16(struct cursor *cursor)
     return a | (b << 8);
 }
 
+uint_least32_t cursor_read_u24n(struct cursor *cursor)
+{
+    uint_least32_t a = cursor_read_u8(cursor);
+    uint_least32_t b = cursor_read_u8(cursor);
+    uint_least32_t c = cursor_read_u8(cursor);
+    return (a << 16) | (b << 8) | c;
+}
+
 uint_least32_t cursor_read_u24(struct cursor *cursor)
 {
     uint_least32_t a = cursor_read_u8(cursor);

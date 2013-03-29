@@ -15,3 +15,8 @@ The complete text of the Modified BSD licence can be found in LICENSE.BSD
 The complete text of the GNU LGPL can be found in LICENSE.LGPL
 The complete text of the SSL license can be found in LICENSE.OpenSSL
 
+The TLS parser was made possible due to the work of Eric Rescorla, whom
+book and ssldump program were followed closely.
+
+The complete text of the ssldump license can be found in LICENSE.ssldump,
+despite no code from ssldump is included in Junkie.

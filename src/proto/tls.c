@@ -17,6 +17,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with Junkie.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include "junkie/config.h"
+#ifdef HAVE_LIBSSL
+#   include <openssl/ssl.h>
+#   include <openssl/x509v3.h>
+#endif
 #include "junkie/tools/objalloc.h"
 #include "junkie/tools/miscmacs.h"
 #include "junkie/proto/streambuf.h"
@@ -28,38 +33,12 @@
 #undef LOG_CAT
 #define LOG_CAT proto_tls_log_category
 
-LOG_CATEGORY_DEF(proto_tls);
+#ifdef HAVE_LIBSSL
+static SSL_CTX *ssl_ctx;
+static SSL *ssl;
+#endif
 
-enum tls_cipher_suite {
-    TLS_NULL_WITH_NULL_NULL,
-    TLS_RSA_WITH_NULL_MD5,
-    TLS_RSA_WITH_NULL_SHA,
-    TLS_RSA_EXPORT_WITH_RC4_40_MD5,
-    TLS_RSA_WITH_RC4_128_MD5,
-    TLS_RSA_WITH_RC4_128_SHA,
-    TLS_RSA_EXPORT_WITH_RC2_CBC_40_MD5,
-    TLS_RSA_WITH_IDEA_CBC_SHA,
-    TLS_RSA_EXPORT_WITH_DES40_CBC_SHA,
-    TLS_RSA_WITH_DES_CBC_SHA,
-    TLS_RSA_WITH_3DES_EDE_CBC_SHA,
-    TLS_DH_DSS_EXPORT_WITH_DES40_CBC_SHA,
-    TLS_DH_DSS_WITH_DES_CBC_SHA,
-    TLS_DH_DSS_WITH_3DES_EDE_CBC_SHA,
-    TLS_DH_RSA_EXPORT_WITH_DES40_CBC_SHA,
-    TLS_DH_RSA_WITH_DES_CBC_SHA,
-    TLS_DH_RSA_WITH_3DES_EDE_CBC_SHA,
-    TLS_DHE_DSS_EXPORT_WITH_DES40_CBC_SHA,
-    TLS_DHE_DSS_WITH_DES_CBC_SHA,
-    TLS_DHE_DSS_WITH_3DES_EDE_CBC_SHA,
-    TLS_DHE_RSA_EXPORT_WITH_DES40_CBC_SHA,
-    TLS_DHE_RSA_WITH_DES_CBC_SHA,
-    TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA,
-    TLS_DH_anon_EXPORT_WITH_RC4_40_MD5,
-    TLS_DH_anon_WITH_RC4_128_MD5,
-    TLS_DH_anon_EXPORT_WITH_DES40_CBC_SHA,
-    TLS_DH_anon_WITH_DES_CBC_SHA,
-    TLS_DH_anon_WITH_3DES_EDE_CBC_SHA,
-};
+LOG_CATEGORY_DEF(proto_tls);
 
 static bool cipher_uses_rsa(enum tls_cipher_suite cipher)
 {
@@ -74,31 +53,139 @@ static bool cipher_uses_rsa(enum tls_cipher_suite cipher)
         case TLS_RSA_EXPORT_WITH_DES40_CBC_SHA:
         case TLS_RSA_WITH_DES_CBC_SHA:
         case TLS_RSA_WITH_3DES_EDE_CBC_SHA:
+        case TLS_RSA_WITH_AES_128_CBC_SHA:
+        case TLS_RSA_WITH_AES_256_CBC_SHA:
+        case TLS_RSA_WITH_NULL_SHA256:
+        case TLS_RSA_WITH_AES_128_CBC_SHA256:
+        case TLS_RSA_WITH_AES_256_CBC_SHA256:
             return true;
         default:
             return false;
     }
 }
 
-enum tls_compress_algo {
-    TLS_COMPRESS_NULL,
+static bool rsa_cipher_is_ephemeral(enum tls_cipher_suite cipher)
+{
+    switch (cipher) {
+        case TLS_RSA_EXPORT_WITH_RC4_40_MD5:
+        case TLS_RSA_EXPORT_WITH_RC2_CBC_40_MD5:
+        case TLS_RSA_EXPORT_WITH_DES40_CBC_SHA:
+            return true;
+        default:
+            return false;
+    }
+}
+
+static struct tls_cipher_info {
+#define KEX_RSA     0x10
+#define KEX_DH      0x11
+#define SIG_RSA     0x20
+#define SIG_DSS     0x21
+#define SIG_NONE    0x22
+#define ENC_DES     0x30
+#define ENC_3DES    0x31
+#define ENC_RC4     0x32
+#define ENC_RC2     0x33
+#define ENC_IDEA    0x34
+#define ENC_AES128  0x35
+#define ENC_AES256  0x36
+#define ENC_NULL    0x37
+#define DIG_MD5     0x40
+#define DIG_SHA     0x41
+    bool defined;
+    EVP_CIPHER const *ciph;
+    int kex;
+    int sig;
+    int enc;
+    int block;
+    int bits;
+    int eff_bits;
+    int dig;
+    int dig_len;
+    int export;
+} tls_cipher_infos[] = {
+    [1] = { true, NULL, KEX_RSA,SIG_RSA,ENC_NULL,0,0,0,DIG_MD5,16,0 },
+    [2] = { true, NULL, KEX_RSA,SIG_RSA,ENC_NULL,0,0,0,DIG_SHA,20,0 },
+    [3] = { true, NULL, KEX_RSA,SIG_RSA,ENC_RC4,1,128,40,DIG_MD5,16,1 },
+    [4] = { true, NULL, KEX_RSA,SIG_RSA,ENC_RC4,1,128,128,DIG_MD5,16,0 },
+    [5] = { true, NULL, KEX_RSA,SIG_RSA,ENC_RC4,1,128,128,DIG_SHA,20,0 },
+    [6] = { true, NULL, KEX_RSA,SIG_RSA,ENC_RC2,8,128,40,DIG_SHA,20,1 },
+    [7] = { true, NULL, KEX_RSA,SIG_RSA,ENC_IDEA,8,128,128,DIG_SHA,20,0 },
+    [8] = { true, NULL, KEX_RSA,SIG_RSA,ENC_DES,8,64,40,DIG_SHA,20,1 },
+    [9] = { true, NULL, KEX_RSA,SIG_RSA,ENC_DES,8,64,64,DIG_SHA,20,0 },
+    [10] = { true, NULL, KEX_RSA,SIG_RSA,ENC_3DES,8,192,192,DIG_SHA,20,0 },
+    [11] = { true, NULL, KEX_DH,SIG_DSS,ENC_DES,8,64,40,DIG_SHA,20,1 },
+    [12] = { true, NULL, KEX_DH,SIG_DSS,ENC_DES,8,64,64,DIG_SHA,20,0 },
+    [13] = { true, NULL, KEX_DH,SIG_DSS,ENC_3DES,8,192,192,DIG_SHA,20,0 },
+    [14] = { true, NULL, KEX_DH,SIG_RSA,ENC_DES,8,64,40,DIG_SHA,20,1 },
+    [15] = { true, NULL, KEX_DH,SIG_RSA,ENC_DES,8,64,64,DIG_SHA,20,0 },
+    [16] = { true, NULL, KEX_DH,SIG_RSA,ENC_3DES,8,192,192,DIG_SHA,20,0 },
+    [17] = { true, NULL, KEX_DH,SIG_DSS,ENC_DES,8,64,40,DIG_SHA,20,1 },
+    [18] = { true, NULL, KEX_DH,SIG_DSS,ENC_DES,8,64,64,DIG_SHA,20,0 },
+    [19] = { true, NULL, KEX_DH,SIG_DSS,ENC_3DES,8,192,192,DIG_SHA,20,0 },
+    [20] = { true, NULL, KEX_DH,SIG_RSA,ENC_DES,8,64,40,DIG_SHA,20,1 },
+    [21] = { true, NULL, KEX_DH,SIG_RSA,ENC_DES,8,64,64,DIG_SHA,20,0 },
+    [22] = { true, NULL, KEX_DH,SIG_RSA,ENC_3DES,8,192,192,DIG_SHA,20,0 },
+    [23] = { true, NULL, KEX_DH,SIG_NONE,ENC_RC4,1,128,40,DIG_MD5,16,1 },
+    [24] = { true, NULL, KEX_DH,SIG_NONE,ENC_RC4,1,128,128,DIG_MD5,16,0 },
+    [25] = { true, NULL, KEX_DH,SIG_NONE,ENC_DES,8,64,40,DIG_MD5,16,1 },
+    [26] = { true, NULL, KEX_DH,SIG_NONE,ENC_DES,8,64,64,DIG_MD5,16,0 },
+    [27] = { true, NULL, KEX_DH,SIG_NONE,ENC_3DES,8,192,192,DIG_MD5,16,0 },
+    [47] = { true, NULL, KEX_RSA,SIG_RSA,ENC_AES128,16,128,128,DIG_SHA,20,0 },
+    [48] = { true, NULL, KEX_DH,SIG_DSS,ENC_AES128,16,128,128,DIG_SHA,20,0 },
+    [49] = { true, NULL, KEX_DH,SIG_RSA,ENC_AES128,16,128,128,DIG_SHA,20,0 },
+    [50] = { true, NULL, KEX_DH,SIG_DSS,ENC_AES128,16,128,128,DIG_SHA,20,0 },
+    [51] = { true, NULL, KEX_DH,SIG_RSA,ENC_AES128,16,128,128,DIG_SHA,20,0 },
+    [52] = { true, NULL, KEX_DH,SIG_NONE,ENC_AES128,16,128,128,DIG_SHA,20,0 },
+    [53] = { true, NULL, KEX_RSA,SIG_RSA,ENC_AES256,16,256,256,DIG_SHA,20,0 },
+    [54] = { true, NULL, KEX_DH,SIG_DSS,ENC_AES256,16,256,256,DIG_SHA,20,0 },
+    [55] = { true, NULL, KEX_DH,SIG_RSA,ENC_AES256,16,256,256,DIG_SHA,20,0 },
+    [56] = { true, NULL, KEX_DH,SIG_DSS,ENC_AES256,16,256,256,DIG_SHA,20,0 },
+    [57] = { true, NULL, KEX_DH,SIG_RSA,ENC_AES256,16,256,256,DIG_SHA,20,0 },
+    [58] = { true, NULL, KEX_DH,SIG_NONE,ENC_AES256,16,256,256,DIG_SHA,20,0 },
+    [96] = { true, NULL, KEX_RSA,SIG_RSA,ENC_RC4,1,128,56,DIG_MD5,16,1 },
+    [97] = { true, NULL, KEX_RSA,SIG_RSA,ENC_RC2,1,128,56,DIG_MD5,16,1 },
+    [98] = { true, NULL, KEX_RSA,SIG_RSA,ENC_DES,8,64,64,DIG_SHA,20,1 },
+    [99] = { true, NULL, KEX_DH,SIG_DSS,ENC_DES,8,64,64,DIG_SHA,20,1 },
+    [100] = { true, NULL, KEX_RSA,SIG_RSA,ENC_RC4,1,128,56,DIG_SHA,20,1 },
+    [101] = { true, NULL, KEX_DH,SIG_DSS,ENC_RC4,1,128,56,DIG_SHA,20,1 },
+    [102] = { true, NULL, KEX_DH,SIG_DSS,ENC_RC4,1,128,128,DIG_SHA,20,0 },
 };
+
+static char const *cipher_name_of_enc(unsigned enc)
+{
+    switch (enc) {
+        case ENC_DES: return "DES";
+        case ENC_3DES: return "DES3";
+        case ENC_RC4: return "RC4";
+        case ENC_RC2: return "RC2";
+        case ENC_IDEA: return "IDEA";
+        case ENC_AES128: return "AES128";
+        case ENC_AES256: return "AES256";
+    }
+    assert(!"Invalid encoder");
+}
 
 struct tls_parser {
     struct parser parser;
     unsigned c2s_way;       // The way when traffic is going from client to server (UNSET for unset)
     struct streambuf sbuf;
     // Cryptographic material (handle with care!)
-#   define FROM_CLIENT 0
-#   define FROM_SERVER 1
-    struct tls_next_ciph {  // used for the establishment of next crypto keys
-#       define RANDOM_LENGTH 32
-        uint8_t random[2][RANDOM_LENGTH];
+    unsigned current[2];   // One for each direction. 0 or 1 (never UNSET since we use !current)
+    struct tls_cipher_spec {
         enum tls_cipher_suite cipher;
         enum tls_compress_algo compress;
-        unsigned rsa_pre_master_len;
-        uint8_t rsa_pre_master[2][256];
-    } next_ciph;
+        struct tls_version version;
+        uint8_t key_block[136];     // max required size
+        bool set;                   // if true then decoders are inited
+        struct tls_decoder {  // used for the establishment of next crypto keys
+#           define RANDOM_LEN 32
+            uint8_t random[RANDOM_LEN];
+            // pointers into key_block
+            uint8_t *mac_key, *write_key, *init_vector; // points into key_block
+            EVP_CIPHER_CTX evp;
+        } decoder[2];   // one for each direction
+    } spec[2];   // current and next
 };
 
 
@@ -109,6 +196,8 @@ static int tls_parser_ctor(struct tls_parser *tls_parser, struct proto *proto)
     assert(proto == proto_tls);
     if (0 != parser_ctor(&tls_parser->parser, proto)) return -1;
     tls_parser->c2s_way = UNSET;
+    tls_parser->current[0] = tls_parser->current[1] = 0;
+    tls_parser->spec[0].set = tls_parser->spec[1].set = false;
 #   define MAX_TLS_BUFFER (16383 + 5)
     if (0 != streambuf_ctor(&tls_parser->sbuf, tls_sbuf_parse, MAX_TLS_BUFFER)) return -1;
 
@@ -133,6 +222,12 @@ static void tls_parser_dtor(struct tls_parser *tls_parser)
     SLOG(LOG_DEBUG, "Destructing tls_parser@%p", tls_parser);
     parser_dtor(&tls_parser->parser);
     streambuf_dtor(&tls_parser->sbuf);
+    for (unsigned way = 0; way < 2; way++) {
+        for (unsigned current = 0; current < 2; current ++) {
+            if (! tls_parser->spec[way].set) continue;
+            EVP_CIPHER_CTX_cleanup(&tls_parser->spec[way].decoder[current].evp);
+        }
+    }
 }
 
 static void tls_parser_del(struct parser *parser)
@@ -168,15 +263,97 @@ static char const *tls_content_type_2_str(enum tls_content_type ct)
     assert(!"Unknown TLS content type");
 }
 
+static char const *tls_cipher_suite_2_str(enum tls_cipher_suite c)
+{
+    switch (c) {
+        case TLS_NULL_WITH_NULL_NULL: return "NULL_WITH_NULL_NULL";
+        case TLS_RSA_WITH_NULL_MD5: return "RSA_WITH_NULL_MD5";
+        case TLS_RSA_WITH_NULL_SHA: return "RSA_WITH_NULL_SHA";
+        case TLS_RSA_EXPORT_WITH_RC4_40_MD5: return "RSA_EXPORT_WITH_RC4_40_MD5";
+        case TLS_RSA_WITH_RC4_128_MD5: return "RSA_WITH_RC4_128_MD5";
+        case TLS_RSA_WITH_RC4_128_SHA: return "RSA_WITH_RC4_128_SHA";
+        case TLS_RSA_EXPORT_WITH_RC2_CBC_40_MD5: return "RSA_EXPORT_WITH_RC2_CBC_40_MD5";
+        case TLS_RSA_WITH_IDEA_CBC_SHA: return "RSA_WITH_IDEA_CBC_SHA";
+        case TLS_RSA_EXPORT_WITH_DES40_CBC_SHA: return "RSA_EXPORT_WITH_DES40_CBC_SHA";
+        case TLS_RSA_WITH_DES_CBC_SHA: return "RSA_WITH_DES_CBC_SHA";
+        case TLS_RSA_WITH_3DES_EDE_CBC_SHA: return "RSA_WITH_3DES_EDE_CBC_SHA";
+        case TLS_DH_DSS_EXPORT_WITH_DES40_CBC_SHA: return "DH_DSS_EXPORT_WITH_DES40_CBC_SHA";
+        case TLS_DH_DSS_WITH_DES_CBC_SHA: return "DH_DSS_WITH_DES_CBC_SHA";
+        case TLS_DH_DSS_WITH_3DES_EDE_CBC_SHA: return "DH_DSS_WITH_3DES_EDE_CBC_SHA";
+        case TLS_DH_RSA_EXPORT_WITH_DES40_CBC_SHA: return "DH_RSA_EXPORT_WITH_DES40_CBC_SHA";
+        case TLS_DH_RSA_WITH_DES_CBC_SHA: return "DH_RSA_WITH_DES_CBC_SHA";
+        case TLS_DH_RSA_WITH_3DES_EDE_CBC_SHA: return "DH_RSA_WITH_3DES_EDE_CBC_SHA";
+        case TLS_DHE_DSS_EXPORT_WITH_DES40_CBC_SHA: return "DHE_DSS_EXPORT_WITH_DES40_CBC_SHA";
+        case TLS_DHE_DSS_WITH_DES_CBC_SHA: return "DHE_DSS_WITH_DES_CBC_SHA";
+        case TLS_DHE_DSS_WITH_3DES_EDE_CBC_SHA: return "DHE_DSS_WITH_3DES_EDE_CBC_SHA";
+        case TLS_DHE_RSA_EXPORT_WITH_DES40_CBC_SHA: return "DHE_RSA_EXPORT_WITH_DES40_CBC_SHA";
+        case TLS_DHE_RSA_WITH_DES_CBC_SHA: return "DHE_RSA_WITH_DES_CBC_SHA";
+        case TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA: return "DHE_RSA_WITH_3DES_EDE_CBC_SHA";
+        case TLS_DH_anon_EXPORT_WITH_RC4_40_MD5: return "DH_anon_EXPORT_WITH_RC4_40_MD5";
+        case TLS_DH_anon_WITH_RC4_128_MD5: return "DH_anon_WITH_RC4_128_MD5";
+        case TLS_DH_anon_EXPORT_WITH_DES40_CBC_SHA: return "DH_anon_EXPORT_WITH_DES40_CBC_SHA";
+        case TLS_DH_anon_WITH_DES_CBC_SHA: return "DH_anon_WITH_DES_CBC_SHA";
+        case TLS_DH_anon_WITH_3DES_EDE_CBC_SHA: return "DH_anon_WITH_3DES_EDE_CBC_SHA";
+        case TLS_RSA_WITH_AES_128_CBC_SHA: return "RSA_WITH_AES_128_CBC_SHA";
+        case TLS_DH_DSS_WITH_AES_128_CBC_SHA: return "DH_DSS_WITH_AES_128_CBC_SHA";
+        case TLS_DH_RSA_WITH_AES_128_CBC_SHA: return "DH_RSA_WITH_AES_128_CBC_SHA";
+        case TLS_DHE_DSS_WITH_AES_128_CBC_SHA: return "DHE_DSS_WITH_AES_128_CBC_SHA";
+        case TLS_DHE_RSA_WITH_AES_128_CBC_SHA: return "DHE_RSA_WITH_AES_128_CBC_SHA";
+        case TLS_DH_anon_WITH_AES_128_CBC_SHA: return "DH_anon_WITH_AES_128_CBC_SHA";
+        case TLS_RSA_WITH_AES_256_CBC_SHA: return "RSA_WITH_AES_256_CBC_SHA";
+        case TLS_DH_DSS_WITH_AES_256_CBC_SHA: return "DH_DSS_WITH_AES_256_CBC_SHA";
+        case TLS_DH_RSA_WITH_AES_256_CBC_SHA: return "DH_RSA_WITH_AES_256_CBC_SHA";
+        case TLS_DHE_DSS_WITH_AES_256_CBC_SHA: return "DHE_DSS_WITH_AES_256_CBC_SHA";
+        case TLS_DHE_RSA_WITH_AES_256_CBC_SHA: return "DHE_RSA_WITH_AES_256_CBC_SHA";
+        case TLS_DH_anon_WITH_AES_256_CBC_SHA: return "DH_anon_WITH_AES_256_CBC_SHA";
+        case TLS_RSA_WITH_NULL_SHA256: return "RSA_WITH_NULL_SHA256";
+        case TLS_RSA_WITH_AES_128_CBC_SHA256: return "RSA_WITH_AES_128_CBC_SHA256";
+        case TLS_RSA_WITH_AES_256_CBC_SHA256: return "RSA_WITH_AES_256_CBC_SHA256";
+        case TLS_DH_DSS_WITH_AES_128_CBC_SHA256: return "DH_DSS_WITH_AES_128_CBC_SHA256";
+        case TLS_DH_RSA_WITH_AES_128_CBC_SHA256: return "DH_RSA_WITH_AES_128_CBC_SHA256";
+        case TLS_DHE_DSS_WITH_AES_128_CBC_SHA256: return "DHE_DSS_WITH_AES_128_CBC_SHA256";
+        case TLS_DHE_RSA_WITH_AES_128_CBC_SHA256: return "DHE_RSA_WITH_AES_128_CBC_SHA256";
+        case TLS_DH_DSS_WITH_AES_256_CBC_SHA256: return "DH_DSS_WITH_AES_256_CBC_SHA256";
+        case TLS_DH_RSA_WITH_AES_256_CBC_SHA256: return "DH_RSA_WITH_AES_256_CBC_SHA256";
+        case TLS_DHE_DSS_WITH_AES_256_CBC_SHA256: return "DHE_DSS_WITH_AES_256_CBC_SHA256";
+        case TLS_DHE_RSA_WITH_AES_256_CBC_SHA256: return "DHE_RSA_WITH_AES_256_CBC_SHA256";
+        case TLS_DH_anon_WITH_AES_128_CBC_SHA256: return "DH_anon_WITH_AES_128_CBC_SHA256";
+        case TLS_DH_anon_WITH_AES_256_CBC_SHA256: return "DH_anon_WITH_AES_256_CBC_SHA256";
+    }
+    return tempstr_printf("Unknown cipher suite 0x%x", c);
+}
+
+static char const *tls_compress_algo_2_str(enum tls_compress_algo c)
+{
+    switch (c) {
+        case TLS_COMPRESS_NULL: return "none";
+        case TLS_COMPRESS_DEFLATE: return "deflate";
+    }
+    return tempstr_printf("Unknown compression algorithm 0x%x", c);
+}
+
+static char const *tls_info_spec_2_str(struct tls_proto_info const *info)
+{
+    switch (info->content_type) {
+        case tls_handshake:
+            return tempstr_printf("%s%s%s%s",
+                info->set_values & CIPHER_SUITE_SET ? ", cipher_suite=":"",
+                info->set_values & CIPHER_SUITE_SET ? tls_cipher_suite_2_str(info->u.handshake.cipher_suite) : "",
+                info->set_values & CIPHER_SUITE_SET ? ", compression_algo=":"",
+                info->set_values & CIPHER_SUITE_SET ? tls_compress_algo_2_str(info->u.handshake.compress_algorithm) : "");
+        default:
+            return "";
+    }
+}
+
 static char const *tls_info_2_str(struct proto_info const *info_)
 {
     struct tls_proto_info const *info = DOWNCAST(info_, info, tls_proto_info);
-    char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, version=%"PRIu8".%"PRIu8", content-type=%s",
+    return tempstr_printf("%s, version=%"PRIu8".%"PRIu8", content-type=%s%s",
         proto_info_2_str(&info->info),
         info->version.maj, info->version.min,
-        tls_content_type_2_str(info->content_type));
-    return str;
+        tls_content_type_2_str(info->content_type),
+        tls_info_spec_2_str(info));
 }
 
 static void tls_serialize(struct proto_info const *info_, uint8_t **buf)
@@ -196,11 +373,16 @@ static void tls_deserialize(struct proto_info *info_, uint8_t const **buf)
  * Parsing
  */
 
+static bool check_version(uint8_t maj, uint8_t min)
+{
+    return maj <= 3 && min <= 10;   // TODO
+}
+
 static enum proto_parse_status skip_version(struct cursor *cur)
 {
     uint8_t maj = cursor_read_u8(cur);
     uint8_t min = cursor_read_u8(cur);
-    return maj <= 3 && min <= 10 ? PROTO_OK : PROTO_PARSE_ERR;
+    return check_version(maj, min) ? PROTO_OK : PROTO_PARSE_ERR;
 }
 
 static enum proto_parse_status skip_session(struct cursor *cur)
@@ -212,7 +394,78 @@ static enum proto_parse_status skip_session(struct cursor *cur)
     return PROTO_OK;
 }
 
-static enum proto_parse_status tls_parse_handshake(struct tls_parser *parser, struct tls_proto_info *info, struct cursor *cur, size_t unused_ wire_len)
+#define SECRET_LEN 48
+
+static int tls_P_hash(SSL unused_ *ssl, uint8_t const *restrict secret, size_t seed_len, uint8_t const *restrict seed, const EVP_MD *md, size_t out_len, uint8_t *restrict out)
+{
+    HMAC_CTX hm;
+
+    unsigned char A[MAX(EVP_MAX_MD_SIZE, seed_len)];
+    // A0 is the seed
+    memcpy(A, seed, seed_len);
+    unsigned A_len = seed_len;
+
+    while (out_len) {
+        // Compute A(n)
+        HMAC_Init(&hm, secret, SECRET_LEN, md);
+        HMAC_Update(&hm, A, A_len);
+        HMAC_Final(&hm, A, &A_len);
+
+        // Compute P_hash = HMAC(secret, A(n) + seed)
+        HMAC_Init(&hm, secret, SECRET_LEN, md);
+        HMAC_Update(&hm, A, A_len);
+        HMAC_Update(&hm, seed, seed_len);
+        unsigned char tmp[EVP_MAX_MD_SIZE]; // FIXME: apart for the last run we could write in out directly
+        unsigned tmp_len = sizeof(tmp);
+        HMAC_Final(&hm, tmp, &tmp_len);
+
+        size_t const to_copy = MIN(out_len, tmp_len);
+        memcpy(out, tmp, to_copy);
+        out += to_copy;
+        out_len -= to_copy;
+    }
+
+    HMAC_cleanup(&hm);
+
+    return 0;
+}
+
+static int tls_prf(SSL *ssl, uint8_t *secret, char const *label, uint8_t const *restrict r1, uint8_t const *restrict r2, size_t out_len, uint8_t *restrict out)
+{
+    int const label_len = strlen(label);
+    uint8_t seed[label_len + RANDOM_LEN + RANDOM_LEN];
+    memcpy(seed, label, label_len);
+    memcpy(seed + label_len, r1, RANDOM_LEN);
+    memcpy(seed + label_len + RANDOM_LEN, r2, RANDOM_LEN);
+
+    uint8_t md5_out[MAX(out_len, 16)];
+    uint8_t sha_out[MAX(out_len, 20)];
+
+    if (0 != tls_P_hash(ssl, secret,                sizeof(seed), seed, EVP_get_digestbyname("MD5"),  sizeof(md5_out), md5_out)) return -1;
+    if (0 != tls_P_hash(ssl, secret + SECRET_LEN/2, sizeof(seed), seed, EVP_get_digestbyname("SHA1"), sizeof(sha_out), sha_out)) return -1;
+
+    for (unsigned i=0; i < out_len; i++) out[i] = md5_out[i] ^ sha_out[i];
+
+    return 0;
+}
+
+static int ssl3_prf(SSL unused_ *ssl, uint8_t *secret, char const *label, uint8_t const *restrict r1, uint8_t const *restrict r2, size_t out_len, uint8_t *restrict out)
+{
+    (void)secret; (void)label; (void)r1; (void)r2; (void)out_len; (void)out;
+    return -1;
+}
+
+static bool is_tls(struct tls_version version)
+{
+    return version.maj == 3 && version.min >= 1;
+}
+
+static int prf(struct tls_version version, SSL *ssl, uint8_t *secret, char const *label, uint8_t const *restrict r1, uint8_t const *restrict r2, size_t out_len, uint8_t *restrict out)
+{
+    return (is_tls(version) ? tls_prf : ssl3_prf)(ssl, secret, label, r1, r2, out_len, out);
+}
+
+static enum proto_parse_status tls_parse_handshake(struct tls_parser *parser, unsigned way, struct tls_proto_info *info, struct cursor *cur, size_t wire_len)
 {
     enum tls_handshake_type {
         tls_hello_request = 0, tls_client_hello, tls_server_hello,
@@ -221,86 +474,194 @@ static enum proto_parse_status tls_parse_handshake(struct tls_parser *parser, st
         tls_finished = 20,
     };
 
-    if (cur->cap_len < 3) return PROTO_TOO_SHORT;
+    if (cur->cap_len < 4) {
+        if (wire_len >= 4) return PROTO_TOO_SHORT;
+        return PROTO_PARSE_ERR;
+    }
     enum tls_handshake_type type = cursor_read_u8(cur);
-    unsigned unused_ length = cursor_read_u16n(cur);
-    enum proto_parse_status err;
+    unsigned unused_ length = cursor_read_u24n(cur);
+    assert(wire_len >= 4);
+    wire_len -= 4;
+    if (wire_len < length) return PROTO_PARSE_ERR;
+
+    // Use a transient cursor to save the starting position so we can skip the whole message once we are done
+    struct cursor tcur = *cur;
+    struct tls_cipher_spec *next_spec = &parser->spec[!parser->current[way]];
+    struct tls_decoder *next_decoder = &next_spec->decoder[way];
 
     switch (type) {
+        enum proto_parse_status err;
 #       define VERSION_LENGTH 2
         case tls_client_hello:
+            // fix c2s_way
+            parser->c2s_way = way;
             // Save random
-            if (cur->cap_len < VERSION_LENGTH+RANDOM_LENGTH) return PROTO_TOO_SHORT;
-            if ((err = skip_version(cur)) != PROTO_OK) return err;
-            ASSERT_COMPILE(sizeof(parser->next_ciph.random[FROM_CLIENT]) == RANDOM_LENGTH);
-            cursor_copy(&parser->next_ciph.random[FROM_CLIENT], cur, RANDOM_LENGTH);
+            if (tcur.cap_len < VERSION_LENGTH+RANDOM_LEN) return PROTO_TOO_SHORT;
+            if ((err = skip_version(&tcur)) != PROTO_OK) return err;
+            ASSERT_COMPILE(sizeof(next_decoder->random) == RANDOM_LEN);
+            cursor_copy(&next_decoder->random, &tcur, RANDOM_LEN);
             break;    // done with this record
         case tls_server_hello:
+            // fix c2s_way
+            parser->c2s_way = !way;
             // Save random, selected cipher suite and compression algorithm
-            if (cur->cap_len < VERSION_LENGTH+RANDOM_LENGTH) return PROTO_TOO_SHORT;
-            if ((err = skip_version(cur)) != PROTO_OK) return err;
-            ASSERT_COMPILE(sizeof(parser->next_ciph.random[FROM_SERVER]) == RANDOM_LENGTH);
-            cursor_copy(&parser->next_ciph.random[FROM_SERVER], cur, RANDOM_LENGTH);
-            if ((err = skip_session(cur)) != PROTO_OK) return err;
-            if (cur->cap_len < 3) return PROTO_TOO_SHORT;
-            parser->next_ciph.cipher = cursor_read_u16n(cur);
-            parser->next_ciph.compress = cursor_read_u8(cur);
+            if (tcur.cap_len < VERSION_LENGTH+RANDOM_LEN) return PROTO_TOO_SHORT;
+            next_spec->version.maj = cursor_read_u8(&tcur);
+            next_spec->version.min = cursor_read_u8(&tcur);
+            if (! check_version(next_spec->version.maj, next_spec->version.min)) return PROTO_PARSE_ERR;
+            ASSERT_COMPILE(sizeof(next_decoder->random) == RANDOM_LEN);
+            cursor_copy(&next_decoder->random, &tcur, RANDOM_LEN);
+            if ((err = skip_session(&tcur)) != PROTO_OK) return err;
+            if (tcur.cap_len < 3) return PROTO_TOO_SHORT;
+            next_spec->cipher = cursor_read_u16n(&tcur);
+            next_spec->compress = cursor_read_u8(&tcur);
             // the user might want to know
-            info->set_values &= CIPHER_SUITE_SET;
-            info->u.handshake.cipher_suite = parser->next_ciph.cipher;
-            info->u.handshake.compress_algorithm = parser->next_ciph.compress;
+            info->set_values |= CIPHER_SUITE_SET;
+            info->u.handshake.cipher_suite = next_spec->cipher;
+            info->u.handshake.compress_algorithm = next_spec->compress;
             break;
-        case tls_client_key_exchange:
-            if (cipher_uses_rsa(info->u.handshake.cipher_suite)) {
-                if (cur->cap_len < 2) return PROTO_TOO_SHORT;
-                unsigned len = cursor_read_u16(cur);
-                if (cur->cap_len < len) return PROTO_TOO_SHORT;
-                // save cryptographic material
-                if (len > sizeof(parser->next_ciph.rsa_pre_master[FROM_CLIENT])) {
-                    SLOG(LOG_WARNING, "Cannot save RSA pre master key from client: len was %u bytes", len);
-                } else {
-                    parser->next_ciph.rsa_pre_master_len = len; // FIXME: set to 0 at start
-                    cursor_copy(&parser->next_ciph.rsa_pre_master[FROM_CLIENT], cur, len);
+        case tls_certificate:   // where the server shows us his public key (we don't need it, though)
+            // fix c2s_way
+            parser->c2s_way = !way;
+            break;
+        case tls_client_key_exchange:   // where the client sends us the pre master secret, niam niam!
+            // fix c2s_way
+            parser->c2s_way = way;
+#           ifdef HAVE_LIBSSL
+            if (cipher_uses_rsa(next_spec->cipher) && !rsa_cipher_is_ephemeral(next_spec->cipher)) {  // cipher should be set by now (FIXME: check this)
+                if (tcur.cap_len < 2) return PROTO_TOO_SHORT;
+                unsigned len = cursor_read_u16n(&tcur);
+                if (tcur.cap_len < len) return PROTO_TOO_SHORT;
+                // decrypt the pre_master_secret using server's private key
+                // Note: we follow ssldump footpath from there!
+                EVP_PKEY *pk = SSL_get_privatekey(ssl);
+                if (! pk) DIE("Cannot get private key from SSL object!");
+                if (pk->type != EVP_PKEY_RSA) {
+                    SLOG(LOG_ERR, "Private key is not a RSA key.");
+                    // oh, well
                 }
+                uint8_t pre_master_secret[SECRET_LEN];  //RSA_size(pk->pkey.rsa)];
+                int const pms_len = RSA_private_decrypt(len, tcur.head, pre_master_secret, pk->pkey.rsa, RSA_PKCS1_PADDING);
+                if (pms_len != sizeof(pre_master_secret)) DIE("Cannot decode pre_master_secret!");
+                // check version
+                uint8_t const pms_ver_maj = pre_master_secret[0];
+                uint8_t const pms_ver_min = pre_master_secret[1];
+                SLOG(LOG_INFO, "pre_shared_secret: version=%d.%d", pms_ver_maj, pms_ver_min);
+                if (! check_version(pms_ver_maj, pms_ver_min)) return PROTO_PARSE_ERR;
+                SLOG_HEX(LOG_INFO, pre_master_secret+2, sizeof(pre_master_secret)-2);
+                // derive the master_secret (FIXME: wait to be sure we have both random + this pre_shared_secret)
+                uint8_t master_secret[SECRET_LEN];
+                if (0 != prf(next_spec->version, ssl,
+                    pre_master_secret, "master secret",
+                    next_spec->decoder[ way].random,
+                    next_spec->decoder[!way].random,
+                    sizeof(master_secret), master_secret)) return PROTO_PARSE_ERR;
+
+                if (next_spec->cipher >= NB_ELEMS(tls_cipher_infos)) {
+unknown_cipher:
+                    SLOG(LOG_DEBUG, "Don't know the caracteristics of cipher %s", tls_cipher_suite_2_str(next_spec->cipher));
+                    break;
+                }
+                struct tls_cipher_info const *cipher_info = tls_cipher_infos+next_spec->cipher;
+                if (! cipher_info->defined) goto unknown_cipher;
+                unsigned const needed =
+                    cipher_info->dig_len*2 +
+                    cipher_info->bits/4 +
+                    (cipher_info->block > 1 ? cipher_info->block*2 : 0);
+                assert(needed <= sizeof(next_spec->key_block));
+
+                if (0 != prf(next_spec->version, ssl,
+                    master_secret, "key expansion",
+                    next_spec->decoder[!way].random,
+                    next_spec->decoder[ way].random,
+                    needed, next_spec->key_block)) return PROTO_PARSE_ERR;
+                SLOG(LOG_INFO, "key_block:");
+                SLOG_HEX(LOG_INFO, next_spec->key_block, needed);
+
+                // Save cryptographic material from the key_block
+                uint8_t *ptr = next_spec->key_block;
+                next_spec->decoder[ way].mac_key = ptr; ptr += cipher_info->dig_len;
+                next_spec->decoder[!way].mac_key = ptr; ptr += cipher_info->dig_len;
+                next_spec->decoder[ way].write_key = ptr; ptr += cipher_info->eff_bits/8;
+                next_spec->decoder[!way].write_key = ptr; ptr += cipher_info->eff_bits/8;
+                if (cipher_info->block > 1) {
+                    next_spec->decoder[ way].init_vector = ptr; ptr += cipher_info->block;
+                    next_spec->decoder[!way].init_vector = ptr; ptr += cipher_info->block;
+                }
+
+                // prepare a cipher for both directions
+                for (unsigned dir = 0; dir < 2; dir ++) {
+                    if (next_spec->set) {
+                        EVP_CIPHER_CTX_cleanup(&next_spec->decoder[dir].evp);
+                    }
+                    EVP_CIPHER_CTX_init(&next_spec->decoder[dir].evp);
+                    EVP_CipherInit(&next_spec->decoder[dir].evp, cipher_info->ciph, next_spec->decoder[dir].write_key, next_spec->decoder[dir].init_vector, 0);
+                }
+                next_spec->set = true;
             }
+#           endif
             break;
+        case tls_server_key_exchange:
+            // fix c2s_way
+            parser->c2s_way = !way;
+            break;
+        // TODO: other cases to fix c2s way as well
         default:
             SLOG(LOG_DEBUG, "Skipping handshake message of type %u", type);
             break;
     }
 
-    return PROTO_OK;
+    // Go to next message in this record
+    if (wire_len == length) return PROTO_OK;    // we are done
+    assert(wire_len > length);
+    wire_len -= length;
+    if (cur->cap_len < length) return PROTO_TOO_SHORT;
+    cursor_drop(cur, length);
+
+    return tls_parse_handshake(parser, way, info, cur, wire_len);
 }
 
-static enum proto_parse_status tls_parse_change_cipher_spec(struct tls_parser *parser, struct tls_proto_info *info, struct cursor *cur, size_t wire_len)
+static enum proto_parse_status tls_parse_change_cipher_spec(struct tls_parser *parser, unsigned way, struct tls_proto_info unused_ *info, struct cursor *cur, size_t wire_len)
 {
-    (void)parser; (void)info; (void)cur; (void)wire_len;
+    // there can be only one message in this record, and its length must be 1
+    if (wire_len != 1) {
+invalid:
+        SLOG(LOG_DEBUG, "Invalid ChangeCipherSpec msg");
+        return PROTO_PARSE_ERR;
+    }
+    // it's value is supposed to be 1
+    if (cur->cap_len >= 1 && cur->head[0] != 1) goto invalid;
+
+    // put next crypto material into production
+    parser->current[way] ^= 1;
+    SLOG(LOG_DEBUG, "Put in production new decoder (%sset)", parser->spec[parser->current[way]].set ? "":"un");
+
     return PROTO_OK;
 }
 
-static enum proto_parse_status tls_parse_alert(struct tls_parser *parser, struct tls_proto_info *info, struct cursor *cur, size_t wire_len)
+static enum proto_parse_status tls_parse_alert(struct tls_parser *parser, unsigned way, struct tls_proto_info *info, struct cursor *cur, size_t wire_len)
 {
-    (void)parser; (void)info; (void)cur; (void)wire_len;
+    (void)parser; (void)info; (void)cur; (void)wire_len; (void)way;
     return PROTO_OK;
 }
 
-static enum proto_parse_status tls_parse_application_data(struct tls_parser *parser, struct tls_proto_info *info, struct cursor *cur, size_t wire_len)
+static enum proto_parse_status tls_parse_application_data(struct tls_parser *parser, unsigned way, struct tls_proto_info *info, struct cursor *cur, size_t wire_len)
 {
-    (void)parser; (void)info; (void)cur; (void)wire_len;
+    (void)parser; (void)info; (void)cur; (void)wire_len; (void)way;
     return PROTO_OK;
 }
 
-static enum proto_parse_status tls_parse_record(struct tls_parser *parser, struct tls_proto_info *info, struct cursor *cur, size_t wire_len)
+static enum proto_parse_status tls_parse_record(struct tls_parser *parser, unsigned way, struct tls_proto_info *info, struct cursor *cur, size_t wire_len)
 {
     switch (info->content_type) {
         case tls_handshake:
-            return tls_parse_handshake(parser, info, cur, wire_len);
+            return tls_parse_handshake(parser, way, info, cur, wire_len);
         case tls_change_cipher_spec:
-            return tls_parse_change_cipher_spec(parser, info, cur, wire_len);
+            return tls_parse_change_cipher_spec(parser, way, info, cur, wire_len);
         case tls_alert:
-            return tls_parse_alert(parser, info, cur, wire_len);
+            return tls_parse_alert(parser, way, info, cur, wire_len);
         case tls_application_data:
-            return tls_parse_application_data(parser, info, cur, wire_len);
+            return tls_parse_application_data(parser, way, info, cur, wire_len);
     }
     SLOG(LOG_DEBUG, "Unknown content_type");
     return PROTO_PARSE_ERR;
@@ -351,7 +712,7 @@ restart_record:
     // Parse the rest of the record according to the content_type
     streambuf_set_restart(&tls_parser->sbuf, way, payload + TLS_RECORD_HEAD + length, false);
 
-    enum proto_parse_status status = tls_parse_record(tls_parser, &info, &cur, wire_len - TLS_RECORD_HEAD /* what we have read so far */);
+    enum proto_parse_status status = tls_parse_record(tls_parser, way, &info, &cur, length);
 
     if (status != PROTO_OK) return PROTO_PARSE_ERR;
 
@@ -380,6 +741,36 @@ void tls_init(void)
 {
     log_category_proto_tls_init();
 
+#   ifdef HAVE_LIBSSL
+    // Initialize our only SSL_CTX, with a single private key, that we will use for everything
+    ssl_ctx = SSL_CTX_new(SSLv23_server_method());
+    assert(ssl_ctx);
+    // Load private key file
+    /* if we had a password:
+     * SSL_CTX_set_default_passwd_cb(ssl_ctx, password_cb);
+     * but having a password would be absurd.
+     */
+#   define keyfile "/home/rixed/pcap/mycorp.key"
+    if (1 != SSL_CTX_use_PrivateKey_file(ssl_ctx, keyfile, SSL_FILETYPE_PEM)) {
+        if (1 != SSL_CTX_use_PrivateKey_file(ssl_ctx, keyfile, SSL_FILETYPE_ASN1)) {
+            DIE("Cannot load keyfile %s", keyfile);
+        }
+    }
+    ssl = SSL_new(ssl_ctx);
+    if (! ssl) {
+        DIE("Cannot create SSL from SSL_CTX");
+    }
+    X509V3_add_standard_extensions();   // ssldump does this
+
+    // Initialize all ciphers
+    for (unsigned c = 0; c < NB_ELEMS(tls_cipher_infos); c++) {
+        struct tls_cipher_info *info = tls_cipher_infos+c;
+        if (! info->defined) continue;
+        info->ciph = info->enc == ENC_NULL ?
+            EVP_enc_null() : EVP_get_cipherbyname(cipher_name_of_enc(info->enc));
+    }
+#   endif
+
     static struct proto_ops const ops = {
         .parse       = tls_parse,
         .parser_new  = tls_parser_new,
@@ -398,5 +789,10 @@ void tls_fini(void)
     port_muxer_dtor(&tcp_port_muxer, &tcp_port_muxers);
 
     proto_dtor(&proto_tls_);
+
+#   ifdef HAVE_LIBSSL
+    SSL_CTX_free(ssl_ctx);
+#   endif
+
     log_category_proto_tls_fini();
 }
