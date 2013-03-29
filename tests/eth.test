@@ -7,4 +7,4 @@ filter() {
 }
 OUTPUT="eth.out"
 
-. ./dump_test
+. "$srcdir/dump_test"

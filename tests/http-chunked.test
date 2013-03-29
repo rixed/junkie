@@ -10,4 +10,4 @@ filter() {
 }
 OUTPUT="http-chunked.out"
 
-. ./dump_test
+. "$srcdir/dump_test"

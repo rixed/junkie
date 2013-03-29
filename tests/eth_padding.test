@@ -8,4 +8,4 @@ filter() {
 }
 OUTPUT="eth_padding.out"
 
-. ./dump_test
+. "$srcdir/dump_test"

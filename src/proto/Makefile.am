@@ -30,6 +30,7 @@ libproto_la_SOURCES = \
 libproto_la_LIBADD = ../tools/libjunkietools.la
 libproto_la_LDFLAGS = -export-dynamic
 
+.INTERMEDIATE: $(srcdir)/p0f.fp $(srcdir)/fp_2_c.py
 $(srcdir)/os-detect.c: $(srcdir)/p0f.fp $(srcdir)/fp_2_c.py
 	$(srcdir)/fp_2_c.py < $< > $@
 

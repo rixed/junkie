@@ -7,4 +7,4 @@ filter() {
 }
 OUTPUT="gre.out"
 
-. ./dump_test
+. "$srcdir/dump_test"

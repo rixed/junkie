@@ -137,4 +137,6 @@ EXTRA_DIST = \
 	postgres.out \
 	sip.out \
 	tcp.out \
-	netmatch_check_lib.scm
+	http.out \
+	netmatch_check_lib.scm \
+	pcap

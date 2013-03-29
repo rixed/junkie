@@ -9,4 +9,4 @@ filter() {
 CMDLINE="(set-collapse-vlans #f)"
 OUTPUT="dedup_conf2.out"
 
-. ./dump_test
+. "$srcdir/dump_test"

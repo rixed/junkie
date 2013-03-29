@@ -11,4 +11,4 @@ filter() {
 }
 OUTPUT="os-detect.out"
 
-. ./dump_test
+. "$srcdir/dump_test"

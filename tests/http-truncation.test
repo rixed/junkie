@@ -7,4 +7,4 @@ filter() {
 }
 OUTPUT="http-truncation.out"
 
-. ./dump_test
+. "$srcdir/dump_test"

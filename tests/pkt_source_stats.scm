@@ -14,7 +14,7 @@
 ; So we trick this by reading in realtime a special pcap with a final
 ; packet very far in the future so we have time to read the stats counters.
 (define pcap-file "long_and_truncated.pcap")
-(open-pcap (string-append "pcap/misc/" pcap-file) #t)
+(open-pcap (string-append (getenv "srcdir") "/pcap/misc/" pcap-file) #t)
 
 (define (wait-packets n)
   (let ((packets (assoc-ref (iface-stats pcap-file) 'nb-packets)))

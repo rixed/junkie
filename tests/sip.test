@@ -7,4 +7,4 @@ filter() {
 }
 OUTPUT="sip.out"
 
-. ./dump_test
+. "$srcdir/dump_test"

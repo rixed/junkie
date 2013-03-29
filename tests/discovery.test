@@ -14,7 +14,7 @@ PCAPS="$PCAPS pcap/http/not-http.pcap"
 filter() {
 	grep -E '^(PIPI|RTP|HTTP|FTP|SIP)'
 }
-CMDLINE='(load "../guile/junkie/signatures.scm")'
+CMDLINE='(load "'"$srcdir"'/../guile/junkie/signatures.scm")'
 OUTPUT="discovery.out"
 
-. ./dump_test
+. "$srcdir/dump_test"

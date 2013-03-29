@@ -26,7 +26,7 @@
 ; Same trick used as for pkt_source_stats.scm.
 ; We open the same pcap several times and expect to have different ids
 (define pcap-file "long_and_truncated.pcap")
-(let ((pcap (string-append "pcap/misc/" pcap-file)))
+(let ((pcap (string-append (getenv "srcdir") "/pcap/misc/" pcap-file)))
   (open-pcap pcap #t)
   (open-pcap pcap #t)
   (open-pcap pcap #t))

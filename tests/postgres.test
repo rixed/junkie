@@ -7,4 +7,4 @@ filter() {
 }
 OUTPUT="postgres.out"
 
-. ./dump_test
+. "$srcdir/dump_test"

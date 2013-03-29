@@ -32,7 +32,7 @@
 (define (nb-pkts)
   (assq-ref (proto-stats "Capture") 'nb-frames))
 
-(play "pcap/voip/sip_via.pcap")
+(play (string-append (getenv "srcdir") "/pcap/voip/sip_via.pcap"))
 (define nb-pkts1 (nb-pkts))
 (simple-format #t "We had ~a packets~%" nb-pkts1)
 

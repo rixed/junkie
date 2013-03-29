@@ -11,7 +11,7 @@ check_set()
 check_set "NAME"
 check_set "PCAPS"
 check_set "OUTPUT"
-if ! test -r "$OUTPUT" ; then
+if ! test -r "$srcdir/$OUTPUT" ; then
 	echo "Cannot read test output file ($OUTPUT)"
 	exit 1
 fi
@@ -24,10 +24,10 @@ output=`mktemp tmp.XXXXXXXXXX`
 
 for pcap in $PCAPS ; do
 	echo "-- $pcap --" | tee -a "$output"
-	../src/junkie -p "$PLUGIN" -l "$output.log" -e "$CMDLINE" -r "$pcap" | filter >> "$output"
+	../src/junkie -p "$PLUGIN" -l "$output.log" -e "$CMDLINE" -r "$srcdir/$pcap" | filter >> "$output"
 done
 
-if ! diff "$OUTPUT" "$output"; then
+if ! diff "$srcdir/$OUTPUT" "$output"; then
 	echo "Output differ from $OUTPUT ! (see actual output in $output)"
 	exit 1
 else

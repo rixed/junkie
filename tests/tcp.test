@@ -9,4 +9,4 @@ filter() {
 OUTPUT="tcp.out"
 CMDLINE='(set-log-level log-debug)'
 
-. ./dump_test
+. "$srcdir/dump_test"

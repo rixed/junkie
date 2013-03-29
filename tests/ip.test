@@ -8,4 +8,4 @@ filter() {
 }
 OUTPUT="ip.out"
 
-. ./dump_test
+. "$srcdir/dump_test"

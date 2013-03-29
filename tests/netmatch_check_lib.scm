@@ -19,7 +19,7 @@
 
 ;; Run some traffic
 (define (play)
-  (let ((file "pcap/http/http_multiline.pcap"))
+  (let ((file (string-append (getenv "srcdir") "/pcap/http/http_multiline.pcap")))
     ; reset dedup
     (reset-digests)
     ; play

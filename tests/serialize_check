@@ -30,7 +30,7 @@ $junkie > $serlog \
         -p ../plugins/dumper/.libs/dumper.so \
         -p ../plugins/serializer/.libs/serializer.so \
         -e '(set-quit-when-done #f)' \
-        -e '(for-each-file-in "pcap" (lambda (sub) (for-each-file-in sub open-pcap)))' \
+        -e '(for-each-file-in "'"$srcdir"'/pcap" (lambda (sub) (for-each-file-in sub open-pcap)))' \
         -e '(sleep 1)' \
         -e '(exit)' || true
 

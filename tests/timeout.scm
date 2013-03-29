@@ -16,9 +16,10 @@
          (nb-muxers (map (lambda (s) (assq-ref s 'nb-parsers)) stats)))
     (apply + nb-muxers)))
 
-(for-each-file-in "pcap/" (lambda (dir)
-                            (simple-format #t "Playing all pcap from ~a~%" dir)
-                            (for-each-file-in dir open-pcap)))
+(let ((pcap-dir (string-append (getenv "srcdir") "/pcap/")))
+  (for-each-file-in pcap-dir (lambda (dir)
+                               (simple-format #t "Playing all pcap from ~a~%" dir)
+                               (for-each-file-in dir open-pcap))))
 
 (set-mux-timeout 1)
 
