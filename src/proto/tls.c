@@ -101,7 +101,7 @@ static struct tls_cipher_info {
     int bits;
     int eff_bits;
     int dig;
-    int dig_len;
+    unsigned dig_len;
     int export;
 } tls_cipher_infos[] = {
     [1] = { true, NULL, KEX_RSA,SIG_RSA,ENC_NULL,0,0,0,DIG_MD5,16,0 },
@@ -171,13 +171,13 @@ struct tls_parser {
     unsigned c2s_way;       // The way when traffic is going from client to server (UNSET for unset)
     struct streambuf sbuf;
     // Cryptographic material (handle with care!)
-    unsigned current[2];   // One for each direction. 0 or 1 (never UNSET since we use !current)
+    unsigned current[2];   // Tells which spec is in order for this direction. Never UNSET.
     struct tls_cipher_spec {
         enum tls_cipher_suite cipher;
         enum tls_compress_algo compress;
         struct tls_version version;
         uint8_t key_block[136];     // max required size
-        bool set;                   // if true then decoders are inited
+        bool decoder_ready;         // if true then decoders are inited
         struct tls_decoder {  // used for the establishment of next crypto keys
 #           define RANDOM_LEN 32
             uint8_t random[RANDOM_LEN];
@@ -185,7 +185,7 @@ struct tls_parser {
             uint8_t *mac_key, *write_key, *init_vector; // points into key_block
             EVP_CIPHER_CTX evp;
         } decoder[2];   // one for each direction
-    } spec[2];   // current and next
+    } spec[2];   // current or next
 };
 
 
@@ -197,7 +197,8 @@ static int tls_parser_ctor(struct tls_parser *tls_parser, struct proto *proto)
     if (0 != parser_ctor(&tls_parser->parser, proto)) return -1;
     tls_parser->c2s_way = UNSET;
     tls_parser->current[0] = tls_parser->current[1] = 0;
-    tls_parser->spec[0].set = tls_parser->spec[1].set = false;
+    tls_parser->spec[0].decoder_ready = tls_parser->spec[1].decoder_ready = false;
+    tls_parser->spec[0].cipher = tls_parser->spec[1].cipher = TLS_NULL_WITH_NULL_NULL;
 #   define MAX_TLS_BUFFER (16383 + 5)
     if (0 != streambuf_ctor(&tls_parser->sbuf, tls_sbuf_parse, MAX_TLS_BUFFER)) return -1;
 
@@ -224,7 +225,7 @@ static void tls_parser_dtor(struct tls_parser *tls_parser)
     streambuf_dtor(&tls_parser->sbuf);
     for (unsigned way = 0; way < 2; way++) {
         for (unsigned current = 0; current < 2; current ++) {
-            if (! tls_parser->spec[way].set) continue;
+            if (! tls_parser->spec[way].decoder_ready) continue;
             EVP_CIPHER_CTX_cleanup(&tls_parser->spec[way].decoder[current].evp);
         }
     }
@@ -407,12 +408,12 @@ static int tls_P_hash(SSL unused_ *ssl, uint8_t const *restrict secret, size_t s
 
     while (out_len) {
         // Compute A(n)
-        HMAC_Init(&hm, secret, SECRET_LEN, md);
+        HMAC_Init(&hm, secret, SECRET_LEN/2, md);
         HMAC_Update(&hm, A, A_len);
         HMAC_Final(&hm, A, &A_len);
 
         // Compute P_hash = HMAC(secret, A(n) + seed)
-        HMAC_Init(&hm, secret, SECRET_LEN, md);
+        HMAC_Init(&hm, secret, SECRET_LEN/2, md);
         HMAC_Update(&hm, A, A_len);
         HMAC_Update(&hm, seed, seed_len);
         unsigned char tmp[EVP_MAX_MD_SIZE]; // FIXME: apart for the last run we could write in out directly
@@ -438,11 +439,13 @@ static int tls_prf(SSL *ssl, uint8_t *secret, char const *label, uint8_t const *
     memcpy(seed + label_len, r1, RANDOM_LEN);
     memcpy(seed + label_len + RANDOM_LEN, r2, RANDOM_LEN);
 
-    uint8_t md5_out[MAX(out_len, 16)];
-    uint8_t sha_out[MAX(out_len, 20)];
+    size_t const md5_out_len = MAX(out_len, 16);
+    uint8_t md5_out[md5_out_len];
+    size_t const sha_out_len = MAX(out_len, 20);
+    uint8_t sha_out[sha_out_len];
 
-    if (0 != tls_P_hash(ssl, secret,                sizeof(seed), seed, EVP_get_digestbyname("MD5"),  sizeof(md5_out), md5_out)) return -1;
-    if (0 != tls_P_hash(ssl, secret + SECRET_LEN/2, sizeof(seed), seed, EVP_get_digestbyname("SHA1"), sizeof(sha_out), sha_out)) return -1;
+    if (0 != tls_P_hash(ssl, secret,                sizeof(seed), seed, EVP_get_digestbyname("MD5"),  md5_out_len, md5_out)) return -1;
+    if (0 != tls_P_hash(ssl, secret + SECRET_LEN/2, sizeof(seed), seed, EVP_get_digestbyname("SHA1"), sha_out_len, sha_out)) return -1;
 
     for (unsigned i=0; i < out_len; i++) out[i] = md5_out[i] ^ sha_out[i];
 
@@ -452,6 +455,7 @@ static int tls_prf(SSL *ssl, uint8_t *secret, char const *label, uint8_t const *
 static int ssl3_prf(SSL unused_ *ssl, uint8_t *secret, char const *label, uint8_t const *restrict r1, uint8_t const *restrict r2, size_t out_len, uint8_t *restrict out)
 {
     (void)secret; (void)label; (void)r1; (void)r2; (void)out_len; (void)out;
+    // TODO
     return -1;
 }
 
@@ -550,11 +554,12 @@ static enum proto_parse_status tls_parse_handshake(struct tls_parser *parser, un
                 if (! check_version(pms_ver_maj, pms_ver_min)) return PROTO_PARSE_ERR;
                 SLOG_HEX(LOG_INFO, pre_master_secret+2, sizeof(pre_master_secret)-2);
                 // derive the master_secret (FIXME: wait to be sure we have both random + this pre_shared_secret)
+                struct tls_decoder *srv_next_decoder = &parser->spec[!parser->current[!way]].decoder[!way];
                 uint8_t master_secret[SECRET_LEN];
                 if (0 != prf(next_spec->version, ssl,
                     pre_master_secret, "master secret",
-                    next_spec->decoder[ way].random,
-                    next_spec->decoder[!way].random,
+                    next_decoder->random,
+                    srv_next_decoder->random,
                     sizeof(master_secret), master_secret)) return PROTO_PARSE_ERR;
 
                 if (next_spec->cipher >= NB_ELEMS(tls_cipher_infos)) {
@@ -572,32 +577,33 @@ unknown_cipher:
 
                 if (0 != prf(next_spec->version, ssl,
                     master_secret, "key expansion",
-                    next_spec->decoder[!way].random,
-                    next_spec->decoder[ way].random,
+                    srv_next_decoder->random,
+                    next_decoder->random,
                     needed, next_spec->key_block)) return PROTO_PARSE_ERR;
                 SLOG(LOG_INFO, "key_block:");
                 SLOG_HEX(LOG_INFO, next_spec->key_block, needed);
 
                 // Save cryptographic material from the key_block
+                // TODO: handle export ciphers?
                 uint8_t *ptr = next_spec->key_block;
-                next_spec->decoder[ way].mac_key = ptr; ptr += cipher_info->dig_len;
-                next_spec->decoder[!way].mac_key = ptr; ptr += cipher_info->dig_len;
-                next_spec->decoder[ way].write_key = ptr; ptr += cipher_info->eff_bits/8;
-                next_spec->decoder[!way].write_key = ptr; ptr += cipher_info->eff_bits/8;
+                next_decoder->mac_key = ptr; ptr += cipher_info->dig_len;
+                srv_next_decoder->mac_key = ptr; ptr += cipher_info->dig_len;
+                next_decoder->write_key = ptr; ptr += cipher_info->eff_bits/8;
+                srv_next_decoder->write_key = ptr; ptr += cipher_info->eff_bits/8;
                 if (cipher_info->block > 1) {
-                    next_spec->decoder[ way].init_vector = ptr; ptr += cipher_info->block;
-                    next_spec->decoder[!way].init_vector = ptr; ptr += cipher_info->block;
+                    next_decoder->init_vector = ptr; ptr += cipher_info->block;
+                    srv_next_decoder->init_vector = ptr; ptr += cipher_info->block;
                 }
 
                 // prepare a cipher for both directions
                 for (unsigned dir = 0; dir < 2; dir ++) {
-                    if (next_spec->set) {
+                    if (next_spec->decoder_ready) {
                         EVP_CIPHER_CTX_cleanup(&next_spec->decoder[dir].evp);
                     }
                     EVP_CIPHER_CTX_init(&next_spec->decoder[dir].evp);
                     EVP_CipherInit(&next_spec->decoder[dir].evp, cipher_info->ciph, next_spec->decoder[dir].write_key, next_spec->decoder[dir].init_vector, 0);
                 }
-                next_spec->set = true;
+                next_spec->decoder_ready = true;
             }
 #           endif
             break;
@@ -634,7 +640,7 @@ invalid:
 
     // put next crypto material into production
     parser->current[way] ^= 1;
-    SLOG(LOG_DEBUG, "Put in production new decoder (%sset)", parser->spec[parser->current[way]].set ? "":"un");
+    SLOG(LOG_DEBUG, "Put in production new decoder (%sset)", parser->spec[parser->current[way]].decoder_ready ? "":"un");
 
     return PROTO_OK;
 }
@@ -651,17 +657,85 @@ static enum proto_parse_status tls_parse_application_data(struct tls_parser *par
     return PROTO_OK;
 }
 
-static enum proto_parse_status tls_parse_record(struct tls_parser *parser, unsigned way, struct tls_proto_info *info, struct cursor *cur, size_t wire_len)
+// Decrypt a whole record in one go
+static int tls_decrypt(struct tls_cipher_spec *spec, unsigned way, size_t cap_len, size_t wire_len, unsigned char const *payload, size_t *out_sz, unsigned char *out)
 {
+    if (! spec->decoder_ready) {
+        SLOG(LOG_DEBUG, "Cannot decrypt: decoder not ready");
+        return -1;
+    }
+
+    struct tls_cipher_info const *cipher_info = tls_cipher_infos + spec->cipher;
+    if (! cipher_info->defined) {
+        SLOG(LOG_DEBUG, "Don't know this cipher (%s)", tls_cipher_suite_2_str(spec->cipher));
+        return -1;
+    }
+
+    if (1 != EVP_Cipher(&spec->decoder[way].evp, out, payload, cap_len)) {
+        if (cap_len == wire_len) {
+            SLOG(LOG_DEBUG, "Failed to decrypt record");
+            return -1;
+        }
+        // Otherwise this is understandable. Let's proceed then.
+    }
+
+    *out_sz = cap_len;
+
+    if (cap_len != wire_len) {
+        // We do not strip anything then, so that our subparser has a chance to read the beginning.
+        return 0;
+    }
+
+    // Strip off the padding
+    if (cipher_info->block > 1) {
+        assert(cap_len > 0);
+        uint8_t pad_len = out[cap_len - 1];
+        if (pad_len > cap_len) {
+            SLOG(LOG_DEBUG, "Invalid padding length (%"PRIu8" > %zu)", pad_len, cap_len);
+            return -1;
+        }
+        *out_sz -= pad_len + 1;
+    }
+
+    // Strip off the MAC
+    if (cipher_info->dig_len > *out_sz) {
+        SLOG(LOG_DEBUG, "Cannot decrypt: no space for a MAC?");
+        return -1;
+    }
+    *out_sz -= cipher_info->dig_len;
+
+    SLOG(LOG_INFO, "Successfuly decrypted %zu bytes!", *out_sz);
+    SLOG_HEX(LOG_INFO, out, *out_sz);
+
+    return 0;
+}
+
+static enum proto_parse_status tls_parse_record(struct tls_parser *parser, unsigned way, struct tls_proto_info *info, size_t cap_len, size_t wire_len, uint8_t const *payload)
+{
+    struct tls_cipher_spec *spec = &parser->spec[parser->current[way]];
+    bool const is_crypted = spec->cipher != TLS_NULL_WITH_NULL_NULL;
+    struct cursor cur;
+
+    if (is_crypted) {
+        unsigned char decrypted[wire_len];  // at max
+        size_t size_out = sizeof(decrypted);
+        if (0 != tls_decrypt(spec, way, cap_len, wire_len, payload, &size_out, decrypted)) return PROTO_OK;    // more luck next record?
+        assert(size_out < sizeof(decrypted));
+        wire_len = size_out;
+        cursor_ctor(&cur, decrypted, size_out);
+    } else {
+        cursor_ctor(&cur, payload, cap_len);
+    }
+
     switch (info->content_type) {
         case tls_handshake:
-            return tls_parse_handshake(parser, way, info, cur, wire_len);
+            return tls_parse_handshake(parser, way, info, &cur, wire_len);
         case tls_change_cipher_spec:
-            return tls_parse_change_cipher_spec(parser, way, info, cur, wire_len);
+            return tls_parse_change_cipher_spec(parser, way, info, &cur, wire_len);
         case tls_alert:
-            return tls_parse_alert(parser, way, info, cur, wire_len);
+            return tls_parse_alert(parser, way, info, &cur, wire_len);
         case tls_application_data:
-            return tls_parse_application_data(parser, way, info, cur, wire_len);
+            return tls_parse_application_data(parser, way, info, &cur, wire_len);
     }
     SLOG(LOG_DEBUG, "Unknown content_type");
     return PROTO_PARSE_ERR;
@@ -686,12 +760,10 @@ restart_record:
     }
     if (cap_len < TLS_RECORD_HEAD) return PROTO_TOO_SHORT;
 
-    struct cursor cur;
-    cursor_ctor(&cur, payload, cap_len);
-    enum tls_content_type content_type = cursor_read_u8(&cur);
-    unsigned proto_version_maj = cursor_read_u8(&cur);
-    unsigned proto_version_min = cursor_read_u8(&cur);
-    unsigned length = cursor_read_u16n(&cur);
+    enum tls_content_type content_type = READ_U8(payload);
+    unsigned proto_version_maj = READ_U8(payload+1);
+    unsigned proto_version_min = READ_U8(payload+2);
+    unsigned length = READ_U16N(payload+3);
 
     // Sanity checks
     if (proto_version_maj > 3 || content_type < tls_change_cipher_spec || content_type > tls_application_data) {
@@ -712,7 +784,7 @@ restart_record:
     // Parse the rest of the record according to the content_type
     streambuf_set_restart(&tls_parser->sbuf, way, payload + TLS_RECORD_HEAD + length, false);
 
-    enum proto_parse_status status = tls_parse_record(tls_parser, way, &info, &cur, length);
+    enum proto_parse_status status = tls_parse_record(tls_parser, way, &info, MIN(cap_len - TLS_RECORD_HEAD, length), length, payload + TLS_RECORD_HEAD);
 
     if (status != PROTO_OK) return PROTO_PARSE_ERR;
 
