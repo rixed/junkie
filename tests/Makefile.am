@@ -1,6 +1,7 @@
 ##AUTOMAKE_OPTIONS = color-tests
 AM_CFLAGS = -std=c99 -Wall -W
-AM_CPPFLAGS = -I $(top_srcdir)/include -I $(top_srcdir)/src -I $(top_srcdir)/src/proto -D_GNU_SOURCE -DSRCDIR=$(top_srcdir)/tests
+AM_CPPFLAGS = -I $(top_srcdir)/include -I $(top_srcdir)/src -I $(top_srcdir)/src/proto \
+              -D_GNU_SOURCE -DSRCDIR=$(top_srcdir)/tests
 
 check_PROGRAMS = \
 	digest_queue_check timeval_check files_check \
@@ -39,7 +40,7 @@ TESTS_ENVIRONMENT = \
 	GUILE_LOAD_COMPILED_PATH=$(top_srcdir)/guile \
 	GUILE_AUTO_COMPILE=0 \
 	GUILE_WARN_DEPRECATED=no \
-	NETMATCH_CPPFLAGS="$(AM_CPPFLAGS) -I$(top_srcdir)/include"
+	NETMATCH_CPPFLAGS="$(AM_CPPFLAGS) @GUILE_CFLAGS@ -I$(top_srcdir)/include"
 
 #LDFLAGS += -lefence
 

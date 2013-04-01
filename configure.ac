@@ -25,10 +25,11 @@ AC_PROG_MAKE_SET
 AC_PROG_LIBTOOL
 
 # Checks for libraries.
-AC_CHECK_LIB(ssl, SHA1, , AC_CHECK_LIB(crypto, SHA1, , [exit 1]))
+PKG_CHECK_MODULES([OPENSSL], openssl)
+PKG_CHECK_MODULES([GUILE], guile-2.0)
+CPPFLAGS="$GUILE_CFLAGS $OPENSSL_CFLAGS $CPPFLAGS"
+LDFLAGS="$GUILE_LIBS $OPENSSL_LIBS $LDFLAGS"
 AC_CHECK_LIB(pcap, pcap_activate, , [exit 1])
-CFLAGS="$(guile-config compile) $CFLAGS"
-LDFLAGS="$(guile-config link) $LDFLAGS"
 AC_CHECK_LIB(pthread, pthread_mutex_init, , [exit 1])
 AC_CHECK_LIB(ltdl, lt_dlopen, , [exit 1])
 
