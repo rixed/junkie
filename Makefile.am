@@ -26,7 +26,7 @@ EXTRA_DIST = .tarball-version
 	echo "$(VERSION)" > $@
 
 cscope:
-	cd $(top_srcdir) && cscope -Rb $(CPPFLAGS)
+	cd $(top_srcdir) && cscope -Rb $(filter -I%, $(CPPFLAGS))
 
 distclean-local:
 	rm -f cscope.out .tarball-version module-deps.dot
