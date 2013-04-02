@@ -31,6 +31,7 @@
 #include "junkie/proto/port_muxer.h"
 #include "junkie/proto/cursor.h"
 #include "junkie/proto/tcp.h"
+#include "junkie/proto/ip.h"
 #include "junkie/proto/tls.h"
 
 #undef LOG_CAT
@@ -38,15 +39,13 @@
 
 LOG_CATEGORY_DEF(proto_tls);
 
-static SSL_CTX *ssl_ctx;
-static SSL *ssl;
-
 /*
  * Keyfiles Management
  */
 
 struct tls_keyfile {
     LIST_ENTRY(tls_keyfile) entry;
+    SSL_CTX *ssl_ctx;
     char path[PATH_MAX];
     char pwd[1024];
     struct ip_addr net, mask;
@@ -55,9 +54,27 @@ struct tls_keyfile {
 static LIST_HEAD(tls_keyfiles, tls_keyfile) tls_keyfiles;
 static struct mutex tls_keyfiles_lock;
 
-static void tls_keyfile_ctor(struct tls_keyfile *keyfile, char const *path, char const *pwd, struct ip_addr const *net, struct ip_addr const *mask)
+static int tls_keyfile_ctor(struct tls_keyfile *keyfile, char const *path, char const *pwd, struct ip_addr const *net, struct ip_addr const *mask)
 {
     SLOG(LOG_DEBUG, "Construct keyfile@%p '%s' for '%s'", keyfile, path, ip_addr_2_str(net));
+
+    // Initialize our only SSL_CTX, with a single private key, that we will use for everything
+    keyfile->ssl_ctx = SSL_CTX_new(SSLv23_server_method());
+    if (! keyfile->ssl_ctx) {
+        SLOG(LOG_ERR, "SSL error while initializing keyfile %s: %s", path, ERR_error_string(ERR_get_error(), NULL));
+        goto err0;
+    }
+    // Load private key file TODO
+    /* if we have a password:
+     * SSL_CTX_set_default_passwd_cb(keyfile->ssl_ctx, password_cb);
+     * but having a password would be absurd.
+     */
+    if (1 != SSL_CTX_use_PrivateKey_file(keyfile->ssl_ctx, path, SSL_FILETYPE_PEM)) {
+        if (1 != SSL_CTX_use_PrivateKey_file(keyfile->ssl_ctx, path, SSL_FILETYPE_ASN1)) {
+            SLOG(LOG_ERR, "Cannot load keyfile %s", path);
+            goto err1;
+        }
+    }
 
     snprintf(keyfile->path, sizeof(keyfile->path), "%s", path);
     snprintf(keyfile->pwd, sizeof(keyfile->pwd), "%s", pwd ? pwd:"");
@@ -66,13 +83,22 @@ static void tls_keyfile_ctor(struct tls_keyfile *keyfile, char const *path, char
     WITH_LOCK(&tls_keyfiles_lock) {
         LIST_INSERT_HEAD(&tls_keyfiles, keyfile, entry);
     }
+
+    return 0;
+err1:
+    SSL_CTX_free(keyfile->ssl_ctx);
+err0:
+    return -1;
 }
 
 static struct tls_keyfile *tls_keyfile_new(char const *path, char const *pwd, struct ip_addr const *net, struct ip_addr const *mask)
 {
     struct tls_keyfile *keyfile = objalloc(sizeof(*keyfile), "keyfiles");
     if (! keyfile) return NULL;
-    tls_keyfile_ctor(keyfile, path, pwd, net, mask);
+    if (0 != tls_keyfile_ctor(keyfile, path, pwd, net, mask)) {
+        objfree(keyfile);
+        return NULL;
+    }
     return keyfile;
 }
 
@@ -94,7 +120,18 @@ static void tls_keyfile_del(struct tls_keyfile *keyfile)
 static struct tls_keyfile *tls_keyfile_of_name(char const *name)
 {
     struct tls_keyfile *keyfile;
-    LIST_LOOKUP(keyfile, &tls_keyfiles, entry, 0 == strcmp(keyfile->path, name));
+    WITH_LOCK(&tls_keyfiles_lock) {
+        LIST_LOOKUP(keyfile, &tls_keyfiles, entry, 0 == strcmp(keyfile->path, name));
+    }
+    return keyfile;
+}
+
+static struct tls_keyfile *tls_keyfile_lookup(struct ip_addr const *ip, uint16_t unused_ port)
+{
+    struct tls_keyfile *keyfile;
+    WITH_LOCK(&tls_keyfiles_lock) {
+        LIST_LOOKUP(keyfile, &tls_keyfiles, entry, ip_addr_match_mask(ip, &keyfile->net, &keyfile->mask));
+    }
     return keyfile;
 }
 
@@ -109,7 +146,16 @@ static SCM g_tls_keys(void)
 {
     SCM ret = SCM_EOL;
     struct tls_keyfile *keyfile;
-    LIST_FOREACH(keyfile, &tls_keyfiles, entry) ret = scm_cons(scm_from_latin1_string(keyfile->path), ret);
+
+    scm_dynwind_begin(0);
+    mutex_lock(&tls_keyfiles_lock);
+    scm_dynwind_unwind_handler(pthread_mutex_unlock_, &tls_keyfiles_lock.mutex, SCM_F_WIND_EXPLICITLY);
+
+    LIST_FOREACH(keyfile, &tls_keyfiles, entry) {
+        ret = scm_cons(scm_from_latin1_string(keyfile->path), ret);
+    }
+    scm_dynwind_end();
+
     return ret;
 }
 
@@ -572,6 +618,108 @@ static int prf(struct tls_version version, SSL *ssl, uint8_t *secret, char const
     return (is_tls(version) ? tls_prf : ssl3_prf)(ssl, secret, label, r1, r2, out_len, out);
 }
 
+// decrypt the pre_master_secret using server's private key
+// Note: we follow ssldump footpath from there!
+static int decrypt_master_secret(struct tls_parser *parser, unsigned way, struct tls_keyfile *keyfile, size_t data_len, uint8_t const *data)
+{
+    int err = -1;
+
+    SLOG(LOG_DEBUG, "Will decrypt MS using keyfile %s", keyfile->path);
+
+    SSL *ssl = SSL_new(keyfile->ssl_ctx);
+    if (! ssl) {
+        SLOG(LOG_ERR, "Cannot create SSL from SSL_CTX: %s", ERR_error_string(ERR_get_error(), NULL));
+        goto quit0;
+    }
+    EVP_PKEY *pk = SSL_get_privatekey(ssl);
+    if (! pk) {
+        SLOG(LOG_ERR, "Cannot get private key from SSL object: %s", ERR_error_string(ERR_get_error(), NULL));
+        goto quit1;
+    }
+    if (pk->type != EVP_PKEY_RSA) {
+        SLOG(LOG_ERR, "Private key is not a RSA key.");
+        // oh, well
+    }
+
+    uint8_t pre_master_secret[SECRET_LEN];  //RSA_size(pk->pkey.rsa)];
+    int const pms_len = RSA_private_decrypt(data_len, data, pre_master_secret, pk->pkey.rsa, RSA_PKCS1_PADDING);
+    if (pms_len != sizeof(pre_master_secret)) {
+        SLOG(LOG_ERR, "Cannot decode pre_master_secret!");
+        goto quit1;
+    }
+
+    // check version
+    uint8_t const pms_ver_maj = pre_master_secret[0];
+    uint8_t const pms_ver_min = pre_master_secret[1];
+    SLOG(LOG_DEBUG, "pre_shared_secret: version=%d.%d", pms_ver_maj, pms_ver_min);
+    if (! check_version(pms_ver_maj, pms_ver_min)) goto quit1;
+    SLOG_HEX(LOG_DEBUG, pre_master_secret+2, sizeof(pre_master_secret)-2);
+
+    // derive the master_secret (FIXME: wait to be sure we have both random + this pre_shared_secret)
+    struct tls_cipher_spec *next_spec = &parser->spec[!parser->current[way]];
+    struct tls_decoder *next_decoder = &next_spec->decoder[way];
+    struct tls_decoder *srv_next_decoder = &parser->spec[!parser->current[!way]].decoder[!way];
+
+    uint8_t master_secret[SECRET_LEN];
+    if (0 != prf(next_spec->version, ssl,
+                 pre_master_secret, "master secret",
+                 next_decoder->random,
+                 srv_next_decoder->random,
+                 sizeof(master_secret), master_secret))
+        goto quit1;
+
+    if (next_spec->cipher >= NB_ELEMS(tls_cipher_infos)) {
+unknown_cipher:
+        SLOG(LOG_DEBUG, "Don't know the caracteristics of cipher %s", tls_cipher_suite_2_str(next_spec->cipher));
+        goto quit1;
+    }
+    struct tls_cipher_info const *cipher_info = tls_cipher_infos + next_spec->cipher;
+    if (! cipher_info->defined) goto unknown_cipher;
+
+    unsigned const needed =
+        cipher_info->dig_len*2 +
+        cipher_info->bits/4 +
+        (cipher_info->block > 1 ? cipher_info->block*2 : 0);
+    assert(needed <= sizeof(next_spec->key_block));
+
+    if (0 != prf(next_spec->version, ssl,
+                 master_secret, "key expansion",
+                 srv_next_decoder->random,
+                 next_decoder->random,
+                 needed, next_spec->key_block))
+        goto quit1;
+    SLOG(LOG_DEBUG, "key_block:");
+    SLOG_HEX(LOG_DEBUG, next_spec->key_block, needed);
+
+    // Save cryptographic material from the key_block
+    // TODO: handle export ciphers?
+    uint8_t *ptr = next_spec->key_block;
+    next_decoder->mac_key = ptr; ptr += cipher_info->dig_len;
+    srv_next_decoder->mac_key = ptr; ptr += cipher_info->dig_len;
+    next_decoder->write_key = ptr; ptr += cipher_info->eff_bits/8;
+    srv_next_decoder->write_key = ptr; ptr += cipher_info->eff_bits/8;
+    if (cipher_info->block > 1) {
+        next_decoder->init_vector = ptr; ptr += cipher_info->block;
+        srv_next_decoder->init_vector = ptr; ptr += cipher_info->block;
+    }
+
+    // prepare a cipher for both directions
+    for (unsigned dir = 0; dir < 2; dir ++) {
+        if (next_spec->decoder_ready) {
+            EVP_CIPHER_CTX_cleanup(&next_spec->decoder[dir].evp);
+        }
+        EVP_CIPHER_CTX_init(&next_spec->decoder[dir].evp);
+        EVP_CipherInit(&next_spec->decoder[dir].evp, cipher_info->ciph, next_spec->decoder[dir].write_key, next_spec->decoder[dir].init_vector, 0);
+    }
+    next_spec->decoder_ready = true;
+
+    err = 0;
+quit1:
+    SSL_free(ssl);
+quit0:
+    return err;
+}
+
 static enum proto_parse_status tls_parse_handshake(struct tls_parser *parser, unsigned way, struct tls_proto_info *info, struct cursor *cur, size_t wire_len)
 {
     enum tls_handshake_type {
@@ -634,78 +782,23 @@ static enum proto_parse_status tls_parse_handshake(struct tls_parser *parser, un
         case tls_client_key_exchange:   // where the client sends us the pre master secret, niam niam!
             // fix c2s_way
             parser->c2s_way = way;
-            if (cipher_uses_rsa(next_spec->cipher) && !rsa_cipher_is_ephemeral(next_spec->cipher)) {  // cipher should be set by now (FIXME: check this)
+            while (cipher_uses_rsa(next_spec->cipher) && !rsa_cipher_is_ephemeral(next_spec->cipher)) {  // cipher should be set by now (FIXME: check this)
+                // find the relevant keyfile
+                ASSIGN_INFO_OPT(tcp, &info->info);
+                if (! tcp) break;
+                ASSIGN_INFO_OPT(ip, &tcp->info);
+                if (! ip) break;
+                struct tls_keyfile *keyfile = tls_keyfile_lookup(&ip->key.addr[1], tcp->key.port[1]);
+                if (! keyfile) break;
+
                 if (tcur.cap_len < 2) return PROTO_TOO_SHORT;
                 unsigned len = cursor_read_u16n(&tcur);
                 if (tcur.cap_len < len) return PROTO_TOO_SHORT;
-                // decrypt the pre_master_secret using server's private key
-                // Note: we follow ssldump footpath from there!
-                EVP_PKEY *pk = SSL_get_privatekey(ssl);
-                if (! pk) DIE("Cannot get private key from SSL object!");
-                if (pk->type != EVP_PKEY_RSA) {
-                    SLOG(LOG_ERR, "Private key is not a RSA key.");
-                    // oh, well
-                }
-                uint8_t pre_master_secret[SECRET_LEN];  //RSA_size(pk->pkey.rsa)];
-                int const pms_len = RSA_private_decrypt(len, tcur.head, pre_master_secret, pk->pkey.rsa, RSA_PKCS1_PADDING);
-                if (pms_len != sizeof(pre_master_secret)) DIE("Cannot decode pre_master_secret!");
-                // check version
-                uint8_t const pms_ver_maj = pre_master_secret[0];
-                uint8_t const pms_ver_min = pre_master_secret[1];
-                SLOG(LOG_INFO, "pre_shared_secret: version=%d.%d", pms_ver_maj, pms_ver_min);
-                if (! check_version(pms_ver_maj, pms_ver_min)) return PROTO_PARSE_ERR;
-                SLOG_HEX(LOG_INFO, pre_master_secret+2, sizeof(pre_master_secret)-2);
-                // derive the master_secret (FIXME: wait to be sure we have both random + this pre_shared_secret)
-                struct tls_decoder *srv_next_decoder = &parser->spec[!parser->current[!way]].decoder[!way];
-                uint8_t master_secret[SECRET_LEN];
-                if (0 != prf(next_spec->version, ssl,
-                    pre_master_secret, "master secret",
-                    next_decoder->random,
-                    srv_next_decoder->random,
-                    sizeof(master_secret), master_secret)) return PROTO_PARSE_ERR;
 
-                if (next_spec->cipher >= NB_ELEMS(tls_cipher_infos)) {
-unknown_cipher:
-                    SLOG(LOG_DEBUG, "Don't know the caracteristics of cipher %s", tls_cipher_suite_2_str(next_spec->cipher));
-                    break;
+                if (0 != decrypt_master_secret(parser, way, keyfile, len, tcur.head)) {
+                    // too bad.
                 }
-                struct tls_cipher_info const *cipher_info = tls_cipher_infos+next_spec->cipher;
-                if (! cipher_info->defined) goto unknown_cipher;
-                unsigned const needed =
-                    cipher_info->dig_len*2 +
-                    cipher_info->bits/4 +
-                    (cipher_info->block > 1 ? cipher_info->block*2 : 0);
-                assert(needed <= sizeof(next_spec->key_block));
-
-                if (0 != prf(next_spec->version, ssl,
-                    master_secret, "key expansion",
-                    srv_next_decoder->random,
-                    next_decoder->random,
-                    needed, next_spec->key_block)) return PROTO_PARSE_ERR;
-                SLOG(LOG_INFO, "key_block:");
-                SLOG_HEX(LOG_INFO, next_spec->key_block, needed);
-
-                // Save cryptographic material from the key_block
-                // TODO: handle export ciphers?
-                uint8_t *ptr = next_spec->key_block;
-                next_decoder->mac_key = ptr; ptr += cipher_info->dig_len;
-                srv_next_decoder->mac_key = ptr; ptr += cipher_info->dig_len;
-                next_decoder->write_key = ptr; ptr += cipher_info->eff_bits/8;
-                srv_next_decoder->write_key = ptr; ptr += cipher_info->eff_bits/8;
-                if (cipher_info->block > 1) {
-                    next_decoder->init_vector = ptr; ptr += cipher_info->block;
-                    srv_next_decoder->init_vector = ptr; ptr += cipher_info->block;
-                }
-
-                // prepare a cipher for both directions
-                for (unsigned dir = 0; dir < 2; dir ++) {
-                    if (next_spec->decoder_ready) {
-                        EVP_CIPHER_CTX_cleanup(&next_spec->decoder[dir].evp);
-                    }
-                    EVP_CIPHER_CTX_init(&next_spec->decoder[dir].evp);
-                    EVP_CipherInit(&next_spec->decoder[dir].evp, cipher_info->ciph, next_spec->decoder[dir].write_key, next_spec->decoder[dir].init_vector, 0);
-                }
-                next_spec->decoder_ready = true;
+                break;
             }
             break;
         case tls_server_key_exchange:
@@ -917,26 +1010,6 @@ void tls_init(void)
     LIST_INIT(&tls_keyfiles);
     mutex_ctor(&tls_keyfiles_lock, "TLS keyfiles");
 
-    // Initialize our only SSL_CTX, with a single private key, that we will use for everything
-    ssl_ctx = SSL_CTX_new(SSLv23_server_method());
-    if (! ssl_ctx) {
-        DIE("SSL error: %s", ERR_error_string(ERR_get_error(), NULL));
-    }
-    // Load private key file
-    /* if we had a password:
-     * SSL_CTX_set_default_passwd_cb(ssl_ctx, password_cb);
-     * but having a password would be absurd.
-     */
-#   define test_keyfile "/home/rixed/pcap/mycorp.key"
-    if (1 != SSL_CTX_use_PrivateKey_file(ssl_ctx, test_keyfile, SSL_FILETYPE_PEM)) {
-        if (1 != SSL_CTX_use_PrivateKey_file(ssl_ctx, test_keyfile, SSL_FILETYPE_ASN1)) {
-            DIE("Cannot load keyfile %s", test_keyfile);
-        }
-    }
-    ssl = SSL_new(ssl_ctx);
-    if (! ssl) {
-        DIE("Cannot create SSL from SSL_CTX");
-    }
     X509V3_add_standard_extensions();   // ssldump does this
 
     // Initialize all ciphers
@@ -987,8 +1060,6 @@ void tls_fini(void)
         tls_keyfile_del(keyfile);
     }
     mutex_dtor(&tls_keyfiles_lock);
-
-    SSL_CTX_free(ssl_ctx);
 
     log_category_proto_tls_fini();
 }
