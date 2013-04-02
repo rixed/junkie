@@ -43,7 +43,6 @@
                      (min-dups-nz   #f) ; min for non-zero, positive values
                      (logarithmic   #f)
                      (pts           (get-duplicogram))
-                     (add-space-x   0) ; will set later
                      (add-space-y   0) ; will set later
                      (axis-x-y      margin-bottom) ; will set later to a better value, if possible (ie. there are dots)
                      (axis-y-x      (* 10 font-width)) ; TODO: dynamic X scale as well

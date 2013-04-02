@@ -38,7 +38,7 @@
          (serve-socket (lambda (client-cnx)
                          (let* ((client-fd   (car client-cnx))
                                 (client-addr (cdr client-cnx))
-                                (client-name (hostent:name (gethostbyaddr (sockaddr:addr client-addr)))))
+                                #;(client-name (hostent:name (gethostbyaddr (sockaddr:addr client-addr)))))
                            (set-current-input-port client-fd)
                            (set-current-output-port client-fd)
                            ; Now spawn a thread for serving client-fd
