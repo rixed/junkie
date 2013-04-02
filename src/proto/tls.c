@@ -17,13 +17,16 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with Junkie.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <stdlib.h>
+#include <stdio.h>
+#include <limits.h>
 #include "junkie/config.h"
-#ifdef HAVE_LIBSSL
-#   include <openssl/ssl.h>
-#   include <openssl/x509v3.h>
-#endif
+#include <openssl/ssl.h>
+#include <openssl/x509v3.h>
+#include <openssl/err.h>
 #include "junkie/tools/objalloc.h"
 #include "junkie/tools/miscmacs.h"
+#include "junkie/tools/ip_addr.h"
 #include "junkie/proto/streambuf.h"
 #include "junkie/proto/port_muxer.h"
 #include "junkie/proto/cursor.h"
@@ -33,12 +36,112 @@
 #undef LOG_CAT
 #define LOG_CAT proto_tls_log_category
 
-#ifdef HAVE_LIBSSL
+LOG_CATEGORY_DEF(proto_tls);
+
 static SSL_CTX *ssl_ctx;
 static SSL *ssl;
-#endif
 
-LOG_CATEGORY_DEF(proto_tls);
+/*
+ * Keyfiles Management
+ */
+
+struct tls_keyfile {
+    LIST_ENTRY(tls_keyfile) entry;
+    char path[PATH_MAX];
+    char pwd[1024];
+    struct ip_addr net, mask;
+};
+
+static LIST_HEAD(tls_keyfiles, tls_keyfile) tls_keyfiles;
+static struct mutex tls_keyfiles_lock;
+
+static void tls_keyfile_ctor(struct tls_keyfile *keyfile, char const *path, char const *pwd, struct ip_addr const *net, struct ip_addr const *mask)
+{
+    SLOG(LOG_DEBUG, "Construct keyfile@%p '%s' for '%s'", keyfile, path, ip_addr_2_str(net));
+
+    snprintf(keyfile->path, sizeof(keyfile->path), "%s", path);
+    snprintf(keyfile->pwd, sizeof(keyfile->pwd), "%s", pwd ? pwd:"");
+    keyfile->net = *net;
+    keyfile->mask = *mask;
+    WITH_LOCK(&tls_keyfiles_lock) {
+        LIST_INSERT_HEAD(&tls_keyfiles, keyfile, entry);
+    }
+}
+
+static struct tls_keyfile *tls_keyfile_new(char const *path, char const *pwd, struct ip_addr const *net, struct ip_addr const *mask)
+{
+    struct tls_keyfile *keyfile = objalloc(sizeof(*keyfile), "keyfiles");
+    if (! keyfile) return NULL;
+    tls_keyfile_ctor(keyfile, path, pwd, net, mask);
+    return keyfile;
+}
+
+static void tls_keyfile_dtor(struct tls_keyfile *keyfile)
+{
+    SLOG(LOG_DEBUG, "Destruct keyfile@%p '%s' for '%s'", keyfile, keyfile->path, ip_addr_2_str(&keyfile->net));
+
+    WITH_LOCK(&tls_keyfiles_lock) {
+        LIST_REMOVE(keyfile, entry);
+    }
+}
+
+static void tls_keyfile_del(struct tls_keyfile *keyfile)
+{
+    tls_keyfile_dtor(keyfile);
+    objfree(keyfile);
+}
+
+static struct tls_keyfile *tls_keyfile_of_name(char const *name)
+{
+    struct tls_keyfile *keyfile;
+    LIST_LOOKUP(keyfile, &tls_keyfiles, entry, 0 == strcmp(keyfile->path, name));
+    return keyfile;
+}
+
+static struct tls_keyfile *tls_keyfile_of_scm_name(SCM name_)
+{
+    char *name = scm_to_tempstr(name_);
+    return tls_keyfile_of_name(name);
+}
+
+static struct ext_function sg_tls_keys;
+static SCM g_tls_keys(void)
+{
+    SCM ret = SCM_EOL;
+    struct tls_keyfile *keyfile;
+    LIST_FOREACH(keyfile, &tls_keyfiles, entry) ret = scm_cons(scm_from_latin1_string(keyfile->path), ret);
+    return ret;
+}
+
+static struct ext_function sg_tls_add_key;
+static SCM g_tls_add_key(SCM file_, SCM net_, SCM mask_, SCM proto_, SCM pwd_)
+{
+    (void)pwd_; // TODO
+
+    char const *file = scm_to_tempstr(file_);
+    struct ip_addr net, mask;
+    if (0 != scm_netmask_2_ip_addr2(&net, &mask, net_, mask_)) return SCM_BOOL_F;
+    struct proto *proto = proto_of_scm_name(proto_);
+    if (! proto) return SCM_BOOL_F;
+
+    struct tls_keyfile *keyfile = tls_keyfile_new(file, NULL, &net, &mask);
+    return keyfile ? SCM_BOOL_T : SCM_BOOL_F;
+}
+
+static struct ext_function sg_tls_del_key;
+static SCM g_tls_del_key(SCM file_)
+{
+    struct tls_keyfile *keyfile = tls_keyfile_of_scm_name(file_);
+    if (! keyfile) return SCM_BOOL_F;
+
+    tls_keyfile_del(keyfile);
+    return SCM_BOOL_T;
+}
+
+
+/*
+ * TLS Protocol Parser
+ */
 
 static bool cipher_uses_rsa(enum tls_cipher_suite cipher)
 {
@@ -531,7 +634,6 @@ static enum proto_parse_status tls_parse_handshake(struct tls_parser *parser, un
         case tls_client_key_exchange:   // where the client sends us the pre master secret, niam niam!
             // fix c2s_way
             parser->c2s_way = way;
-#           ifdef HAVE_LIBSSL
             if (cipher_uses_rsa(next_spec->cipher) && !rsa_cipher_is_ephemeral(next_spec->cipher)) {  // cipher should be set by now (FIXME: check this)
                 if (tcur.cap_len < 2) return PROTO_TOO_SHORT;
                 unsigned len = cursor_read_u16n(&tcur);
@@ -605,7 +707,6 @@ unknown_cipher:
                 }
                 next_spec->decoder_ready = true;
             }
-#           endif
             break;
         case tls_server_key_exchange:
             // fix c2s_way
@@ -813,19 +914,23 @@ void tls_init(void)
 {
     log_category_proto_tls_init();
 
-#   ifdef HAVE_LIBSSL
+    LIST_INIT(&tls_keyfiles);
+    mutex_ctor(&tls_keyfiles_lock, "TLS keyfiles");
+
     // Initialize our only SSL_CTX, with a single private key, that we will use for everything
     ssl_ctx = SSL_CTX_new(SSLv23_server_method());
-    assert(ssl_ctx);
+    if (! ssl_ctx) {
+        DIE("SSL error: %s", ERR_error_string(ERR_get_error(), NULL));
+    }
     // Load private key file
     /* if we had a password:
      * SSL_CTX_set_default_passwd_cb(ssl_ctx, password_cb);
      * but having a password would be absurd.
      */
-#   define keyfile "/home/rixed/pcap/mycorp.key"
-    if (1 != SSL_CTX_use_PrivateKey_file(ssl_ctx, keyfile, SSL_FILETYPE_PEM)) {
-        if (1 != SSL_CTX_use_PrivateKey_file(ssl_ctx, keyfile, SSL_FILETYPE_ASN1)) {
-            DIE("Cannot load keyfile %s", keyfile);
+#   define test_keyfile "/home/rixed/pcap/mycorp.key"
+    if (1 != SSL_CTX_use_PrivateKey_file(ssl_ctx, test_keyfile, SSL_FILETYPE_PEM)) {
+        if (1 != SSL_CTX_use_PrivateKey_file(ssl_ctx, test_keyfile, SSL_FILETYPE_ASN1)) {
+            DIE("Cannot load keyfile %s", test_keyfile);
         }
     }
     ssl = SSL_new(ssl_ctx);
@@ -841,7 +946,6 @@ void tls_init(void)
         info->ciph = info->enc == ENC_NULL ?
             EVP_enc_null() : EVP_get_cipherbyname(cipher_name_of_enc(info->enc));
     }
-#   endif
 
     static struct proto_ops const ops = {
         .parse       = tls_parse,
@@ -854,6 +958,22 @@ void tls_init(void)
     };
     proto_ctor(&proto_tls_, &ops, "TLS", PROTO_CODE_TLS);
     port_muxer_ctor(&tcp_port_muxer, &tcp_port_muxers, 443, 443, proto_tls);
+
+    // Extension functions to add keyfiles
+    ext_function_ctor(&sg_tls_keys,
+        "tls-keys", 0, 0, 0, g_tls_keys,
+        "(tls-keys): returns a list of all known private keys.\n");
+
+    ext_function_ctor(&sg_tls_add_key,
+        "tls-add-key", 4, 1, 0, g_tls_add_key,
+        "(tls-add-key \"/var/keys/secret.pem\" \"192.168.1.42\" \"255.255.255.255\" \"http\"): use this key to decrypt HTTP traffic to this IP.\n"
+        "Optionally, you can pass a password (used to decrypt the file) as another argument.\n"
+        "See also (? 'tls-del-key)\n");
+
+    ext_function_ctor(&sg_tls_del_key,
+        "tls-del-key", 1, 0, 0, g_tls_del_key,
+        "(tls-del-key \"/var/keys/secret.pem\"): forget about this key.\n"
+        "See also (? 'tls-add-key)\n");
 }
 
 void tls_fini(void)
@@ -862,9 +982,13 @@ void tls_fini(void)
 
     proto_dtor(&proto_tls_);
 
-#   ifdef HAVE_LIBSSL
+    struct tls_keyfile *keyfile;
+    while (NULL != (keyfile = LIST_FIRST(&tls_keyfiles))) {
+        tls_keyfile_del(keyfile);
+    }
+    mutex_dtor(&tls_keyfiles_lock);
+
     SSL_CTX_free(ssl_ctx);
-#   endif
 
     log_category_proto_tls_fini();
 }
