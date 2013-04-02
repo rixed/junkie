@@ -1,0 +1,9 @@
+-- pcap/https/mycorp.pcap --
+TLS: head_len=176, payload=0, version=3.1, content-type=handshake
+TLS: head_len=891, payload=0, version=3.1, content-type=handshake, cipher_suite=RSA_WITH_AES_256_CBC_SHA, compression_algo=none
+TLS: head_len=198, payload=0, version=3.1, content-type=handshake
+TLS: head_len=266, payload=0, version=3.1, content-type=handshake
+TLS: head_len=474, payload=0, version=3.1, content-type=data
+TLS: head_len=245, payload=0, version=3.1, content-type=data
+TLS: head_len=37, payload=0, version=3.1, content-type=alert
+TLS: head_len=37, payload=0, version=3.1, content-type=alert
