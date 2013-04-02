@@ -49,12 +49,13 @@ struct tls_keyfile {
     char path[PATH_MAX];
     char pwd[1024];
     struct ip_addr net, mask;
+    struct proto *proto;
 };
 
 static LIST_HEAD(tls_keyfiles, tls_keyfile) tls_keyfiles;
 static struct mutex tls_keyfiles_lock;
 
-static int tls_keyfile_ctor(struct tls_keyfile *keyfile, char const *path, char const *pwd, struct ip_addr const *net, struct ip_addr const *mask)
+static int tls_keyfile_ctor(struct tls_keyfile *keyfile, char const *path, char const *pwd, struct ip_addr const *net, struct ip_addr const *mask, struct proto *proto)
 {
     SLOG(LOG_DEBUG, "Construct keyfile@%p '%s' for '%s'", keyfile, path, ip_addr_2_str(net));
 
@@ -80,6 +81,7 @@ static int tls_keyfile_ctor(struct tls_keyfile *keyfile, char const *path, char 
     snprintf(keyfile->pwd, sizeof(keyfile->pwd), "%s", pwd ? pwd:"");
     keyfile->net = *net;
     keyfile->mask = *mask;
+    keyfile->proto = proto;
     WITH_LOCK(&tls_keyfiles_lock) {
         LIST_INSERT_HEAD(&tls_keyfiles, keyfile, entry);
     }
@@ -91,11 +93,11 @@ err0:
     return -1;
 }
 
-static struct tls_keyfile *tls_keyfile_new(char const *path, char const *pwd, struct ip_addr const *net, struct ip_addr const *mask)
+static struct tls_keyfile *tls_keyfile_new(char const *path, char const *pwd, struct ip_addr const *net, struct ip_addr const *mask, struct proto *proto)
 {
     struct tls_keyfile *keyfile = objalloc(sizeof(*keyfile), "keyfiles");
     if (! keyfile) return NULL;
-    if (0 != tls_keyfile_ctor(keyfile, path, pwd, net, mask)) {
+    if (0 != tls_keyfile_ctor(keyfile, path, pwd, net, mask, proto)) {
         objfree(keyfile);
         return NULL;
     }
@@ -170,7 +172,7 @@ static SCM g_tls_add_key(SCM file_, SCM net_, SCM mask_, SCM proto_, SCM pwd_)
     struct proto *proto = proto_of_scm_name(proto_);
     if (! proto) return SCM_BOOL_F;
 
-    struct tls_keyfile *keyfile = tls_keyfile_new(file, NULL, &net, &mask);
+    struct tls_keyfile *keyfile = tls_keyfile_new(file, NULL, &net, &mask, proto);
     return keyfile ? SCM_BOOL_T : SCM_BOOL_F;
 }
 
@@ -335,6 +337,8 @@ struct tls_parser {
             EVP_CIPHER_CTX evp;
         } decoder[2];   // one for each direction
     } spec[2];   // current or next
+    // If we manage to decrypt, then we handle content to this parser
+    struct parser *subparser;
 };
 
 
@@ -348,6 +352,7 @@ static int tls_parser_ctor(struct tls_parser *tls_parser, struct proto *proto)
     tls_parser->current[0] = tls_parser->current[1] = 0;
     tls_parser->spec[0].decoder_ready = tls_parser->spec[1].decoder_ready = false;
     tls_parser->spec[0].cipher = tls_parser->spec[1].cipher = TLS_NULL_WITH_NULL_NULL;
+    tls_parser->subparser = NULL;
 #   define MAX_TLS_BUFFER (16383 + 5)
     if (0 != streambuf_ctor(&tls_parser->sbuf, tls_sbuf_parse, MAX_TLS_BUFFER)) return -1;
 
@@ -370,6 +375,11 @@ static struct parser *tls_parser_new(struct proto *proto)
 static void tls_parser_dtor(struct tls_parser *tls_parser)
 {
     SLOG(LOG_DEBUG, "Destructing tls_parser@%p", tls_parser);
+
+    if (tls_parser->subparser) {
+        parser_unref(&tls_parser->subparser);
+    }
+
     parser_dtor(&tls_parser->parser);
     streambuf_dtor(&tls_parser->sbuf);
     for (unsigned way = 0; way < 2; way++) {
@@ -620,10 +630,20 @@ static int prf(struct tls_version version, SSL *ssl, uint8_t *secret, char const
 
 // decrypt the pre_master_secret using server's private key
 // Note: we follow ssldump footpath from there!
-static int decrypt_master_secret(struct tls_parser *parser, unsigned way, struct tls_keyfile *keyfile, size_t data_len, uint8_t const *data)
+static int decrypt_master_secret(struct tls_parser *parser, unsigned way, struct tls_proto_info const *info, size_t data_len, uint8_t const *data)
 {
     int err = -1;
 
+    // find the relevant keyfile
+    ASSIGN_INFO_OPT(tcp, &info->info);
+    if (! tcp) goto quit0;
+    ASSIGN_INFO_OPT(ip, &tcp->info);
+    if (! ip) goto quit0;
+    struct tls_keyfile *keyfile = tls_keyfile_lookup(&ip->key.addr[1], tcp->key.port[1]);
+    if (! keyfile) {
+        SLOG(LOG_DEBUG, "No keyfile found for %s:%"PRIu16, ip_addr_2_str(&ip->key.addr[1]), tcp->key.port[1]);
+        goto quit0;
+    }
     SLOG(LOG_DEBUG, "Will decrypt MS using keyfile %s", keyfile->path);
 
     SSL *ssl = SSL_new(keyfile->ssl_ctx);
@@ -713,6 +733,15 @@ unknown_cipher:
     }
     next_spec->decoder_ready = true;
 
+    // Prepare a subparser (if we haven't one yet)
+    if (! parser->subparser && keyfile->proto) {
+        parser->subparser = keyfile->proto->ops->parser_new(keyfile->proto);
+        if (! parser->subparser) {
+            SLOG(LOG_DEBUG, "Cannot create TLS subparser for proto %s", keyfile->proto->name);
+            goto quit1;
+        }
+    }
+
     err = 0;
 quit1:
     SSL_free(ssl);
@@ -783,19 +812,11 @@ static enum proto_parse_status tls_parse_handshake(struct tls_parser *parser, un
             // fix c2s_way
             parser->c2s_way = way;
             while (cipher_uses_rsa(next_spec->cipher) && !rsa_cipher_is_ephemeral(next_spec->cipher)) {  // cipher should be set by now (FIXME: check this)
-                // find the relevant keyfile
-                ASSIGN_INFO_OPT(tcp, &info->info);
-                if (! tcp) break;
-                ASSIGN_INFO_OPT(ip, &tcp->info);
-                if (! ip) break;
-                struct tls_keyfile *keyfile = tls_keyfile_lookup(&ip->key.addr[1], tcp->key.port[1]);
-                if (! keyfile) break;
-
                 if (tcur.cap_len < 2) return PROTO_TOO_SHORT;
                 unsigned len = cursor_read_u16n(&tcur);
                 if (tcur.cap_len < len) return PROTO_TOO_SHORT;
 
-                if (0 != decrypt_master_secret(parser, way, keyfile, len, tcur.head)) {
+                if (0 != decrypt_master_secret(parser, way, info, len, tcur.head)) {
                     // too bad.
                 }
                 break;
@@ -845,9 +866,20 @@ static enum proto_parse_status tls_parse_alert(struct tls_parser *parser, unsign
     return PROTO_OK;
 }
 
-static enum proto_parse_status tls_parse_application_data(struct tls_parser *parser, unsigned way, struct tls_proto_info *info, struct cursor *cur, size_t wire_len)
+static enum proto_parse_status tls_parse_application_data(struct tls_parser *parser, unsigned way, struct tls_proto_info *info, struct cursor *cur, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
-    (void)parser; (void)info; (void)cur; (void)wire_len; (void)way;
+    // move this into payload
+    assert(info->info.head_len > wire_len); // since we wait until a full record is there
+    info->info.head_len -= wire_len;
+    info->info.payload += wire_len;
+
+    if (! parser->subparser) return PROTO_OK;
+
+    enum proto_parse_status err = proto_parse(parser->subparser, &info->info, way, cur->head, cur->cap_len, wire_len, now, tot_cap_len, tot_packet);
+    if (err != PROTO_OK) {
+        parser_unref(&parser->subparser);
+    }
+
     return PROTO_OK;
 }
 
@@ -904,17 +936,17 @@ static int tls_decrypt(struct tls_cipher_spec *spec, unsigned way, size_t cap_le
     return 0;
 }
 
-static enum proto_parse_status tls_parse_record(struct tls_parser *parser, unsigned way, struct tls_proto_info *info, size_t cap_len, size_t wire_len, uint8_t const *payload)
+static enum proto_parse_status tls_parse_record(struct tls_parser *parser, unsigned way, struct tls_proto_info *info, size_t cap_len, size_t wire_len, uint8_t const *payload, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct tls_cipher_spec *spec = &parser->spec[parser->current[way]];
     bool const is_crypted = spec->cipher != TLS_NULL_WITH_NULL_NULL;
     struct cursor cur;
 
     if (is_crypted) {
-        unsigned char decrypted[wire_len];  // at max
-        size_t size_out = sizeof(decrypted);
+        unsigned char *decrypted = alloca(wire_len);
+        size_t size_out = wire_len;
         if (0 != tls_decrypt(spec, way, cap_len, wire_len, payload, &size_out, decrypted)) return PROTO_OK;    // more luck next record?
-        assert(size_out < sizeof(decrypted));
+        assert(size_out < wire_len);
         wire_len = size_out;
         cursor_ctor(&cur, decrypted, size_out);
     } else {
@@ -929,7 +961,7 @@ static enum proto_parse_status tls_parse_record(struct tls_parser *parser, unsig
         case tls_alert:
             return tls_parse_alert(parser, way, info, &cur, wire_len);
         case tls_application_data:
-            return tls_parse_application_data(parser, way, info, &cur, wire_len);
+            return tls_parse_application_data(parser, way, info, &cur, wire_len, now, tot_cap_len, tot_packet);
     }
     SLOG(LOG_DEBUG, "Unknown content_type");
     return PROTO_PARSE_ERR;
@@ -969,7 +1001,9 @@ restart_record:
 
     // Now build the proto_info
     struct tls_proto_info info;
-    proto_info_ctor(&info.info, parser, parent, wire_len, 0);
+    /* application_data parser will remove bytes from headers into payload, so that
+     * only application data is counted as payload. */
+    proto_info_ctor(&info.info, parser, parent, TLS_RECORD_HEAD + length, 0);
     info.version.maj = proto_version_maj;
     info.version.min = proto_version_min;
     info.content_type = content_type;
@@ -978,7 +1012,7 @@ restart_record:
     // Parse the rest of the record according to the content_type
     streambuf_set_restart(&tls_parser->sbuf, way, payload + TLS_RECORD_HEAD + length, false);
 
-    enum proto_parse_status status = tls_parse_record(tls_parser, way, &info, MIN(cap_len - TLS_RECORD_HEAD, length), length, payload + TLS_RECORD_HEAD);
+    enum proto_parse_status status = tls_parse_record(tls_parser, way, &info, MIN(cap_len - TLS_RECORD_HEAD, length), length, payload + TLS_RECORD_HEAD, now, tot_cap_len, tot_packet);
 
     if (status != PROTO_OK) return PROTO_PARSE_ERR;
 
