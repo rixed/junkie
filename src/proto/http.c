@@ -514,20 +514,6 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
     enum proto_parse_status status = httper_parse(&httper, &httphdr_len, packet, cap_len, &info);
     if (status == PROTO_PARSE_ERR) return PROTO_PARSE_ERR;
 
-    // Save some values into our http_parser
-    http_parser->state[way].last_method =
-        HTTP_IS_QUERY(&info) ? info.method : UNSET;
-
-    // Ajax can also be guessed from URL
-    if (!info.ajax && info.set_values & HTTP_URL_SET) {
-        // Detects JSONP (cf. http://en.wikipedia.org/wiki/JSONP)
-        info.ajax = strcasestr(info.strs+info.url, "?jsonp=") ||
-                    strcasestr(info.strs+info.url, "&jsonp=") ||
-                    strcasestr(info.strs+info.url, "?callback=") ||
-                    strcasestr(info.strs+info.url, "&callback=");
-        if (info.ajax) SLOG(LOG_DEBUG, "URL looks like AJAX");
-    }
-
     // Handle short capture
     if (status == PROTO_TOO_SHORT) {
         // Are we going to receive the end eventually?
@@ -547,6 +533,20 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
             // continuation
             return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
         }
+    }
+
+    // Save some values into our http_parser
+    http_parser->state[way].last_method =
+        HTTP_IS_QUERY(&info) ? info.method : UNSET;
+
+    // Ajax can also be guessed from URL
+    if (!info.ajax && info.set_values & HTTP_URL_SET) {
+        // Detects JSONP (cf. http://en.wikipedia.org/wiki/JSONP)
+        info.ajax = strcasestr(info.strs+info.url, "?jsonp=") ||
+                    strcasestr(info.strs+info.url, "&jsonp=") ||
+                    strcasestr(info.strs+info.url, "?callback=") ||
+                    strcasestr(info.strs+info.url, "&callback=");
+        if (info.ajax) SLOG(LOG_DEBUG, "URL looks like AJAX");
     }
 
     /* What payload should we set? the one advertised? Or the payload of this header (ie 0),

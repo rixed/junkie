@@ -48,8 +48,8 @@ enum proto_parse_status httper_parse(struct httper const *httper, size_t *head_s
         struct httper_command const *const cmd = httper->commands + c;
 
         // Start by looking for the command before tokenizing (tokenizing takes too much time on random traffic)
-        if (packet_len < cmd->len) continue;
-        if (0 != strncmp(cmd->name, (char const *)packet, cmd->len)) continue;
+        if (0 != strncmp(cmd->name, (char const *)packet, MIN(packet_len, cmd->len))) continue;
+        if (packet_len < cmd->len) return PROTO_TOO_SHORT;
 
         liner_init(&liner, &delim_lines, (char const *)packet, packet_len);
         liner_init(&tokenizer, &delim_blanks, liner.start, liner_tok_length(&liner));
