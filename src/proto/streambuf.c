@@ -156,35 +156,26 @@ static enum proto_parse_status streambuf_append(struct streambuf *sbuf, unsigned
 }
 
 // Copy the packet into a buffer for later use
-static int streambuf_keep(struct streambuf_unidir *dir, size_t uncap_len)
+static int streambuf_keep(struct streambuf_unidir *dir)
 {
     assert(dir->buffer);
     if (dir->buffer_is_malloced) return 0;  // we already own a copy, do not touch it.
 
-    if (dir->restart_offset >= dir->buffer_size) {
-        ssize_t new_restart_offset = dir->restart_offset - (dir->buffer_size + uncap_len);
-        if (new_restart_offset < 0) {
-            SLOG(LOG_DEBUG, "Asked to restart in uncaptured portion!");
-            return -1;
-        }
-        dir->restart_offset = new_restart_offset;
-        SLOG(LOG_DEBUG, "Freeing buffer since we want to restart after it");
-        streambuf_empty(dir);
-    } else {
-        ssize_t const len = dir->buffer_size - dir->restart_offset;
-        SLOG(LOG_DEBUG, "Keeping only %zu bytes of streambuf_unidir@%p", len, dir);
+    assert(dir->restart_offset < dir->buffer_size);
 
-        uint8_t *buf = objalloc_nice(len, "streambufs");
-        if (! buf) {
-            dir->buffer = NULL; // never escape from here with buffer referencing a non malloced packet
-            return -1;
-        }
-        memcpy(buf, dir->buffer + dir->restart_offset, len);
-        dir->buffer = buf;
-        dir->buffer_is_malloced = true;
-        dir->buffer_size = len;
-        dir->restart_offset = 0;
+    ssize_t const len = dir->buffer_size - dir->restart_offset;
+    SLOG(LOG_DEBUG, "Keeping only %zu bytes of streambuf_unidir@%p", len, dir);
+
+    uint8_t *buf = objalloc_nice(len, "streambufs");
+    if (! buf) {
+        dir->buffer = NULL; // never escape from here with buffer referencing a non malloced packet
+        return -1;
     }
+    memcpy(buf, dir->buffer + dir->restart_offset, len);
+    dir->buffer = buf;
+    dir->buffer_is_malloced = true;
+    dir->buffer_size = len;
+    dir->restart_offset = 0;
 
     return 0;
 }
@@ -222,22 +213,28 @@ enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *par
          * - either the parser failed,
          * - or it succeeded and parsed everything, and we can dispose of the buffer,
          * - or restart_offset was set somewhere because the parser expect more data (that may already been there). */
-        switch (status) {
+loop:   switch (status) {
             case PROTO_PARSE_ERR:
                 goto quit;
             case PROTO_OK:
-                if (dir->restart_offset == dir->buffer_size + uncap_len) {
+                if (dir->restart_offset >= dir->buffer_size + uncap_len) {
                     SLOG(LOG_DEBUG, "streambuf@%p[%u] was totally and successfully parsed", sbuf, way);
+                    dir->restart_offset -= dir->buffer_size + uncap_len;
                     streambuf_empty(dir);
-                    dir->restart_offset = 0;
                     goto quit;
+                } else if (dir->restart_offset >= dir->buffer_size) {
+                    SLOG(LOG_DEBUG, "streambuf@%p[%s] was parsed but restart is set within uncaptured bytes", sbuf, way_2_str(way));
+                    // try to 'parse' the gap
+                    size_t wire_len = dir->buffer_size + uncap_len - dir->restart_offset;
+                    dir->restart_offset = dir->buffer_size + uncap_len;
+                    status = sbuf->parse(parser, parent, way, NULL, 0, wire_len, now, tot_cap_len, tot_packet);
+                    goto loop;
                 } else {
-                    SLOG(LOG_DEBUG, "streambuf@%p[%u] was not totally parsed", sbuf, way);
-                    if (0 != streambuf_keep(dir, uncap_len)) {
-                        status = PROTO_PARSE_ERR;
+                    SLOG(LOG_DEBUG, "streambuf@%p[%u] was not totally parsed but we can restart", sbuf, way);
+                    if (dir->wait) {
+                        if (0 != streambuf_keep(dir)) status = PROTO_PARSE_ERR;
                         goto quit;
                     }
-                    if (dir->wait) goto quit;
                 }
                 break;
             case PROTO_TOO_SHORT:
