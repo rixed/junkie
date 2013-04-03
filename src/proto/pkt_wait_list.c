@@ -370,6 +370,7 @@ static bool pkt_wait_list_try_locked(struct pkt_wait_list *pkt_wl, enum proto_pa
                 if (!timeval_is_set(&oldest)) break;
                 if (timeval_cmp(&pkt_wl->wait_since, &oldest) >= 0) break;
                 // Ok we are tired with this segment, consider we won't receive it
+                SLOG(LOG_DEBUG, "Timeouting segment on waiting_list@%p (we're waiting since %s)", pkt_wl, timeval_2_str(&pkt_wl->wait_since));
             } else if (pkt_wl->sync_with && pkt->sync && pkt_wl->sync_with->next_offset < pkt->sync_offset) {
                 // Must wait for the other direction
                 break;
