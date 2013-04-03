@@ -39,7 +39,9 @@ struct streambuf {
     struct streambuf_unidir {
         uint8_t const *buffer;      ///< The buffer itself.
         size_t buffer_size;         ///< The size of the buffer. must be 0 if !buffer.
-        size_t restart_offset;      ///< The offset where to start parsing from (don't store a pointer to buffer since buffer will be reallocated).
+        /** The offset where to start parsing from (don't store a pointer to buffer since buffer will be reallocated).
+         * Note that restart_offset is allowed to be outside of the buffer (in case you intend to skip a portion of payload). */
+        size_t restart_offset;
         bool buffer_is_malloced;    ///< True if the buffer was malloced, false if it references the original packet. unset if !buffer.
         bool wait;                  ///< Wait for more data before restarting.
     } dir[2];
