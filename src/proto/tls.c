@@ -55,6 +55,16 @@ struct tls_keyfile {
 static LIST_HEAD(tls_keyfiles, tls_keyfile) tls_keyfiles;
 static struct mutex tls_keyfiles_lock;
 
+static int tls_password_cb(char *buf, int bufsz, int rwflag, void *keyfile_)
+{
+    struct tls_keyfile *keyfile = keyfile_;
+
+    assert(0 == rwflag);
+    int len = snprintf(buf, bufsz, "%s", keyfile->pwd);
+    if (bufsz <= len) return 0;
+    return len;
+}
+
 static int tls_keyfile_ctor(struct tls_keyfile *keyfile, char const *path, char const *pwd, struct ip_addr const *net, struct ip_addr const *mask, struct proto *proto)
 {
     SLOG(LOG_DEBUG, "Construct keyfile@%p '%s' for '%s'", keyfile, path, ip_addr_2_str(net));
@@ -66,10 +76,6 @@ static int tls_keyfile_ctor(struct tls_keyfile *keyfile, char const *path, char 
         goto err0;
     }
     // Load private key file TODO
-    /* if we have a password:
-     * SSL_CTX_set_default_passwd_cb(keyfile->ssl_ctx, password_cb);
-     * but having a password would be absurd.
-     */
     if (1 != SSL_CTX_use_PrivateKey_file(keyfile->ssl_ctx, path, SSL_FILETYPE_PEM)) {
         if (1 != SSL_CTX_use_PrivateKey_file(keyfile->ssl_ctx, path, SSL_FILETYPE_ASN1)) {
             SLOG(LOG_ERR, "Cannot load keyfile %s", path);
@@ -79,6 +85,11 @@ static int tls_keyfile_ctor(struct tls_keyfile *keyfile, char const *path, char 
 
     snprintf(keyfile->path, sizeof(keyfile->path), "%s", path);
     snprintf(keyfile->pwd, sizeof(keyfile->pwd), "%s", pwd ? pwd:"");
+    // if we have a password:
+    if (pwd) {
+        SSL_CTX_set_default_passwd_cb(keyfile->ssl_ctx, tls_password_cb);
+        SSL_CTX_set_default_passwd_cb_userdata(keyfile->ssl_ctx, keyfile);
+    }
     keyfile->net = *net;
     keyfile->mask = *mask;
     keyfile->proto = proto;
