@@ -1,6 +1,6 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
-AC_PREREQ([2.65])
+AC_PREREQ([2.61])
 
 # These git commands will disapear from the generated configure script
 AC_INIT([junkie],
