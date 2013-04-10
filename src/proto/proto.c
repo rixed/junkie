@@ -933,7 +933,7 @@ struct parser *uniq_parser_new(struct proto *proto)
     }
     mutex_unlock(&proto->lock);
 
-    SLOG(LOG_DEBUG, "New user for uniq parser %s", parser_name(uniq_proto->parser));
+    if (uniq_proto->parser) SLOG(LOG_DEBUG, "New user for uniq parser %s", parser_name(uniq_proto->parser));
 
     return parser_ref(uniq_proto->parser);
 }
