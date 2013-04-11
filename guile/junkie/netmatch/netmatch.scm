@@ -503,7 +503,7 @@
                  (type:make-stub
                    (string-append
                      (type:stub-code cond-stub)
-                     "    uintptr_t " tmp ";\n"
+                     "    uintptr_t unused_ " tmp ";\n" ; unused since we are not always going to use the if expression value (if we use the if for choosing between two side effects
                      "    if (" (type:stub-result cond-stub) ") {\n"
                      (type:indent-more (type:stub-code then-stub))
                      "        " tmp " = " (type:stub-result then-stub) ";\n"
