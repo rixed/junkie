@@ -475,13 +475,38 @@ bool pkt_wait_list_try(struct pkt_wait_list *pkt_wl, enum proto_parse_status *st
 void pkt_wait_list_try_both(struct pkt_wait_list *pkt_wl, enum proto_parse_status *status, struct timeval const *now, bool force_timeout)
 {
     *status = PROTO_OK;
-    while (
-        *status == PROTO_OK &&
-        (
-            pkt_wait_list_try(pkt_wl, status, now, force_timeout) ||
-            (pkt_wl->sync_with && pkt_wait_list_try(pkt_wl->sync_with, status, now, force_timeout))
-        )
-    ) ;
+
+    if (pkt_wl->sync_with) {
+        /* Synchronize two waiting lists, ie do not advance one before what the other acked.
+         * Notice that even if we ultimately want to timeout each packet we still want to parse
+         * them in correct order. */
+        while (*status == PROTO_OK) {
+            // try first without timeout *
+            if (
+                ! pkt_wait_list_try(pkt_wl, status, now, false) &&
+                ! pkt_wait_list_try(pkt_wl->sync_with, status, now, false)
+            ) { // ok so we need to timeout one of these
+                if (! force_timeout) break;
+                /* If pkt_wl ack_num is beyond pkt_wl->sync_with seq_num then we must start by pkt_wl->sync_with.
+                 * In the other way araound we must start by pkt_wl. If no ack_num comes after any seq_num then
+                 * we don't care. */
+                struct pkt_wait *const pkt = LIST_FIRST(&pkt_wl->pkts);
+                struct pkt_wait *const sync_with_pkt = LIST_FIRST(&pkt_wl->sync_with->pkts);
+                if (! sync_with_pkt) return;    // why were we here in the first place?
+                if (pkt && pkt->sync_offset > sync_with_pkt->offset) {
+                    if (! pkt_wait_list_try(pkt_wl->sync_with, status, now, true)) assert(!"Low battery");
+                } else {
+                    if (! pkt_wait_list_try(pkt_wl, status, now, true)) break;
+                }
+            }
+        }
+    } else {
+        /* Nothing to synchronize with */
+        while (
+            *status == PROTO_OK &&
+            pkt_wait_list_try(pkt_wl, status, now, force_timeout)
+        ) ;
+    }
 }
 
 bool pkt_wait_list_is_complete(struct pkt_wait_list *pkt_wl, unsigned start_offset, unsigned end_offset)
