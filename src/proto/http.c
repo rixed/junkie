@@ -546,9 +546,10 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
             proto_info_ctor(&info.info, &http_parser->parser, parent, cap_len, 0);
             // call hooks on header (for tx hooks we'd rather have pointers on message than pointer to packet)
             hook_subscribers_call(&http_head_hook, &info.info, cap_len, packet, now);
+            // We are going to look for another header at the start of the next packet, hoping for the best.
+            http_parser_reset_phase(http_parser, way, HEAD);
             // continuation
             return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
-            // We are going to look for another header at the start of the next packet, hoping for the best.
         }
     }
 
