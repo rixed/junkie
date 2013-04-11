@@ -577,6 +577,12 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
             (info.code < 100 || (info.code > 199 && info.code != 204 && info.code != 304))
         );
 
+    if (info.set_values & HTTP_LENGTH_SET && 0 == info.content_length) {
+        /* If we restart then the update_body callback won't be called untill there are more data to parse.
+         * Better let the users know that there won't be any body this time. */
+        info.have_body = false;
+    }
+
     if (info.have_body) {
         if (info.set_values & HTTP_LENGTH_SET) {
             http_parser_reset_phase(http_parser, way, BODY);
