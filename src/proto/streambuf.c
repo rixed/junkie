@@ -51,12 +51,6 @@ int streambuf_ctor(struct streambuf *sbuf, parse_fun *parse, size_t max_size)
     return 0;
 }
 
-char const *way_2_str(unsigned way)
-{
-    if (way == 0) return "clt->srv";
-    return "srv->clt";
-}
-
 void streambuf_dtor(struct streambuf *sbuf)
 {
     SLOG(LOG_DEBUG, "Destructing the streambuf@%p", sbuf);
@@ -86,7 +80,7 @@ void streambuf_set_restart(struct streambuf *sbuf, unsigned way, uint8_t const *
     size_t offset = p - sbuf->dir[way].buffer;
     assert(offset <= sbuf->dir[way].buffer_size);
 
-    SLOG(LOG_DEBUG, "Setting restart offset of streambuf@%p[%s] to %zu (while size=%zu)", sbuf, way_2_str(way), offset, sbuf->dir[way].buffer_size);
+    SLOG(LOG_DEBUG, "Setting restart offset of streambuf@%p[%u] to %zu (while size=%zu)", sbuf, way, offset, sbuf->dir[way].buffer_size);
     sbuf->dir[way].restart_offset = offset;
     sbuf->dir[way].wait = wait;
 }
@@ -107,8 +101,8 @@ static void streambuf_empty(struct streambuf_unidir *dir)
 static enum proto_parse_status streambuf_append(struct streambuf *sbuf, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len)
 {
     assert(way < 2);
-    SLOG(LOG_DEBUG, "Append %zu bytes (%zu captured) to streambuf@%p[%s] of size %zu (%zu kept)",
-        wire_len, cap_len, sbuf, way_2_str(way), sbuf->dir[way].buffer_size, sbuf->dir[way].buffer_size-sbuf->dir[way].restart_offset);
+    SLOG(LOG_DEBUG, "Append %zu bytes (%zu captured) to streambuf@%p[%u] of size %zu (%zu kept)",
+        wire_len, cap_len, sbuf, way, sbuf->dir[way].buffer_size, sbuf->dir[way].buffer_size-sbuf->dir[way].restart_offset);
     // Naive implementation : each time we add some bytes we realloc buffer
     // FIXME: use a redim_array ?
 
@@ -204,11 +198,11 @@ enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *par
                 goto quit;
             case PROTO_OK:
                 if (dir->restart_offset == dir->buffer_size) {
-                    SLOG(LOG_DEBUG, "streambuf@%p[%s] was totally and successfully parsed", sbuf, way_2_str(way));
+                    SLOG(LOG_DEBUG, "streambuf@%p[%u] was totally and successfully parsed", sbuf, way);
                     streambuf_empty(dir);
                     goto quit;
                 } else {
-                    SLOG(LOG_DEBUG, "streambuf@%p[%s] was not totally parsed", sbuf, way_2_str(way));
+                    SLOG(LOG_DEBUG, "streambuf@%p[%u] was not totally parsed", sbuf, way);
                     if (0 != streambuf_keep(dir)) goto quit;
                     if (dir->wait) goto quit;
                 }
