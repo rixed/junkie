@@ -304,7 +304,6 @@ static void http_parser_reset(struct parser *parser)
     struct http_parser *http_parser = DOWNCAST(parser, parser, http_parser);
     http_parser->state[0].phase = http_parser->state[1].phase = HEAD;
     http_parser->state[0].last_method = http_parser->state[1].last_method = ~0U;
-    http_parser->c2s_way = ~0U;
 }
 
 static void parse_check(void)

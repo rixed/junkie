@@ -106,7 +106,6 @@ char const *http_build_url(struct ip_addr const *server, char const *host, char 
 
 struct http_parser {
     struct parser parser;
-    unsigned c2s_way;       // The way when traffic is going from client to server (or UNSET)
     struct streambuf sbuf;
     struct http_state {
         unsigned pkts;      // number of pkts in this message (so far)
@@ -144,7 +143,7 @@ static char const *http_parser_phase_2_str(enum http_phase phase)
 
 static void http_parser_reset_phase(struct http_parser *http_parser, unsigned way, enum http_phase phase)
 {
-    SLOG(LOG_DEBUG, "Reset phase for direction %s to %s", way_2_str(way), http_parser_phase_2_str(phase));
+    SLOG(LOG_DEBUG, "Reset phase for direction %u to %s", way, http_parser_phase_2_str(phase));
 
     http_parser->state[way].phase = phase;
     /* Note that we do not init first to now because we can create the parser
@@ -167,7 +166,6 @@ static int http_parser_ctor(struct http_parser *http_parser, struct proto *proto
         http_parser_reset_phase(http_parser, way, HEAD);
         http_parser->state[way].last_method = UNSET;
     }
-    http_parser->c2s_way = UNSET;
 #   define HTTP_MAX_HDR_SIZE 10000   // in bytes
     if (0 != streambuf_ctor(&http_parser->sbuf, http_sbuf_parse, HTTP_MAX_HDR_SIZE)) return -1;
 
@@ -785,18 +783,12 @@ static enum proto_parse_status http_sbuf_parse(struct parser *parser, struct pro
 {
     struct http_parser *http_parser = DOWNCAST(parser, parser, http_parser);
 
-    // If this is the first time we are called, init c2s_way
-    if (http_parser->c2s_way == UNSET) {
-        http_parser->c2s_way = way;
-        SLOG(LOG_DEBUG, "First packet, init c2s_way to %u", http_parser->c2s_way);
-    }
-
     if (! timeval_is_set(&http_parser->state[way].first)) http_parser->state[way].first = *now;
     http_parser->state[way].last = *now;
     http_parser->state[way].pkts ++;
 
     // Now are we waiting the header, or scanning through body ?
-    SLOG(LOG_DEBUG, "Http parser@%p is %s in direction %s", http_parser, http_parser_phase_2_str(http_parser->state[way].phase), way_2_str(way));
+    SLOG(LOG_DEBUG, "Http parser@%p is %s in direction %u", http_parser, http_parser_phase_2_str(http_parser->state[way].phase), way);
     switch (http_parser->state[way].phase) {
         case HEAD:  // In this mode we retry until we manage to parse a header
            return http_parse_header(http_parser, parent, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
