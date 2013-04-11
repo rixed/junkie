@@ -461,6 +461,7 @@ quit:
     return ret;
 }
 
+// returns true if we processed some packet
 bool pkt_wait_list_try(struct pkt_wait_list *pkt_wl, enum proto_parse_status *status, struct timeval const *now, bool force_timeout)
 {
     if (! pkt_wl->list) return false;

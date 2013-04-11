@@ -60,7 +60,7 @@ struct pkt_wait {
     /// (this in not necessarily offset+wire_len for instance if we have message sequence numbers instead of bytes sequence numbers)
     unsigned next_offset;
     /// Optionally, wait for another waiting list to reach some offset
-    bool sync;              ///< Do way for wl->sync_wl to catch up with sync_offset
+    bool sync;              ///< Do way for wl->sync_wl to catch up with sync_offset (because even if wl->sync_wl != NULL we may not want to sync (for instance until we know seqnums in wl->sync_wl)
     unsigned sync_offset;   ///< Only set if wl->sync_wl != NULL && sync
     /// How many bytes were captured on original packet (ie size of the packet field)
     size_t tot_cap_len;
