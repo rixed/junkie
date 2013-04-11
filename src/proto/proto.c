@@ -145,13 +145,15 @@ char const *proto_parse_status_2_str(enum proto_parse_status status)
 
 enum proto_parse_status proto_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
+    SLOG(LOG_DEBUG, "proto_parse(parser=%p, parent=%p, way=%u, packet=%p, cap_len=%zu, wire_len=%zu)", parser, parent, way, packet, cap_len, wire_len);
     assert(cap_len <= wire_len);
 
     bool const go_deeper = parser && wire_len > 0;  // Don't we want to call subparsers on empty payload?
 
-    if (parent /*&& !parent->proto_sbc_called*/) {
+    // Call per packet subsribers (not for gaps)
+    if (parent && tot_cap_len > 0) {
         proto_subscribers_call(parent->parser->proto, parent, tot_cap_len, tot_packet, now);
-        if (! go_deeper) {
+        if (! go_deeper && tot_packet) {
             full_pkt_subscribers_call(parent, tot_cap_len, tot_packet, now);
         }
     }

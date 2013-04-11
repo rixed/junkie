@@ -96,9 +96,13 @@ static enum proto_parse_status pkt_wait_parse(struct pkt_wait *pkt, struct pkt_w
     ) {
         // advertise the gap
         size_t const gap = pkt->offset - pkt_wl->next_offset;
-        pkt_wl->next_offset = pkt->next_offset;
+        SLOG(LOG_DEBUG, "Advertise a gap of %zu before next packet", gap);
+        // FIXME: the problem is: we will call the pkt subscribers for the gap and not for the following pkt. We should not call pkt subscribers when packet is NULL
+        enum proto_parse_status err =  proto_parse(pkt_wl->parser, pkt->parent /* borrow next pkt parent */, pkt->way, NULL, 0, gap, &pkt->cap_tv, 0, NULL);
+        pkt_wl->next_offset = pkt->offset;
         pkt_wl->wait_since = *now;
-        return proto_parse(pkt_wl->parser, NULL, pkt->way, NULL, 0, gap, &pkt->cap_tv, 0, NULL);
+        if (err != PROTO_OK) return err;
+        SLOG(LOG_DEBUG, "Now parse next packet @(%u:%u)", pkt->offset, pkt->next_offset);
     }
 
     // So we must parse from pkt_wl->next_offset to pkt->next_offset

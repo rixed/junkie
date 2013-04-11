@@ -105,6 +105,7 @@ static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, 
     if (want_exit) return;
 
     struct pkt_source *pkt_source = (struct pkt_source *)pkt_source_;
+    SLOG(LOG_DEBUG, "------------------------------------------------------------------------------------------");
     SLOG(LOG_DEBUG, "Received a new packet from packet source %s, wire-len: %u", pkt_source_name(pkt_source), header->len);
 
     if (header->len == 0) return;   // should not happen, but does occur sometime
