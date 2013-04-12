@@ -82,29 +82,30 @@ void pkt_wait_del(struct pkt_wait *pkt, struct pkt_wait_list *pkt_wl)
     supermutex_unlock(&pkt_wl->list->mutex);
 }
 
-// Call proto_parse for the given packet, with a subparser if possible
+// Call proto_parse for the given packet and delete him, or proto_parse the gap before it
 // caller must own list->mutex
-static enum proto_parse_status pkt_wait_parse(struct pkt_wait *pkt, struct pkt_wait_list *pkt_wl, struct timeval const *now)
+static enum proto_parse_status pkt_wait_finalize(struct pkt_wait *pkt, struct pkt_wait_list *pkt_wl, struct timeval const *now)
 {
     if (
         pkt_wl->next_offset >= pkt->next_offset // the pkt content was completely covered
     ) {
         // forget it
-        return proto_parse(NULL, pkt->parent, pkt->way, NULL, 0, 0, &pkt->cap_tv, pkt->tot_cap_len, pkt->packet);
+        SLOG(LOG_DEBUG, "Advertize a covered packet @(%u:%u)", pkt->offset, pkt->next_offset);
+        enum proto_parse_status status = proto_parse(NULL, pkt->parent, pkt->way, NULL, 0, 0, &pkt->cap_tv, pkt->tot_cap_len, pkt->packet);
+        pkt_wait_del_nolock(pkt, pkt_wl);
+        return status;
     } else if (
         pkt->offset > pkt_wl->next_offset       // the pkt was supposed to come later,
     ) {
-        // advertise the gap
+        // advertise the gap instead of the packet
         size_t const gap = pkt->offset - pkt_wl->next_offset;
-        SLOG(LOG_DEBUG, "Advertise a gap of %zu before next packet", gap);
-        // FIXME: the problem is: we will call the pkt subscribers for the gap and not for the following pkt. We should not call pkt subscribers when packet is NULL
-        enum proto_parse_status err =  proto_parse(pkt_wl->parser, pkt->parent /* borrow next pkt parent */, pkt->way, NULL, 0, gap, &pkt->cap_tv, 0, NULL);
+        SLOG(LOG_DEBUG, "Advertise a gap of %zu bytes", gap);
         pkt_wl->next_offset = pkt->offset;
         pkt_wl->wait_since = *now;
-        if (err != PROTO_OK) return err;
-        SLOG(LOG_DEBUG, "Now parse next packet @(%u:%u)", pkt->offset, pkt->next_offset);
+        return proto_parse(pkt_wl->parser, pkt->parent /* borrow next pkt parent */, pkt->way, NULL, 0, gap, &pkt->cap_tv, 0, NULL);
     }
 
+    SLOG(LOG_DEBUG, "Finalizing parse of next packet @(%u:%u)", pkt->offset, pkt->next_offset);
     // So we must parse from pkt_wl->next_offset to pkt->next_offset
     assert(pkt->offset <= pkt_wl->next_offset);
     unsigned const trim = pkt_wl->next_offset - pkt->offset;  // This assumes that offsets _are_ bytes. If not, then there is no reason to trim.
@@ -115,15 +116,6 @@ static enum proto_parse_status pkt_wait_parse(struct pkt_wait *pkt, struct pkt_w
             proto_parse(pkt_wl->parser, pkt->parent, pkt->way, NULL, 0, trim < pkt->wire_len ? pkt->wire_len - trim : 0, &pkt->cap_tv, pkt->tot_cap_len, pkt->packet);
     pkt_wl->next_offset = pkt->next_offset;
     if (timeval_is_set(now)) pkt_wl->wait_since = *now;
-    return status;
-}
-
-// Delete the packet after having called proto_parse on it
-// caller must own list->mutex
-static enum proto_parse_status pkt_wait_finalize(struct pkt_wait *pkt, struct pkt_wait_list *pkt_wl, struct timeval const *now)
-{
-    SLOG(LOG_DEBUG, "Finalizing parse of next packet @(%u:%u)", pkt->offset, pkt->next_offset);
-    enum proto_parse_status status = pkt_wait_parse(pkt, pkt_wl, now);
     pkt_wait_del_nolock(pkt, pkt_wl);
     return status;
 }
@@ -393,8 +385,8 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
         if (status == PROTO_OK && pkt_wl->sync_with) pkt_wait_list_try(pkt_wl->sync_with, &status, now, false); // TODO: see above about mutex
     }
 
-    SLOG(LOG_DEBUG, "Add a packet of %zu bytes at offset %u to waiting list @%p", wire_len, offset, pkt_wl);
-    if (sync) SLOG(LOG_DEBUG, "  ...waiting for reciprocal waiting list to reach offset %u (currently at %u)", sync_offset, pkt_wl->sync_with->next_offset);
+    SLOG(LOG_DEBUG, "Add a packet of %zu bytes at offset %u to waiting list @%p (currently at %u)", wire_len, offset, pkt_wl, pkt_wl->next_offset);
+    if (sync) SLOG(LOG_DEBUG, "  ...waiting for reciprocal waiting list @%p to reach offset %u (currently at %u)", pkt_wl->sync_with, sync_offset, pkt_wl->sync_with->next_offset);
 
     // Find its location and the previous pkt
     struct pkt_wait *prev = NULL;

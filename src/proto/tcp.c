@@ -427,7 +427,7 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
     struct port_key key;
     port_key_init(&key, sport, dport, way);
     struct mux_subparser *subparser = mux_subparser_lookup(mux_parser, NULL, NULL, &key, now);
-    if (subparser) SLOG(LOG_DEBUG, "Found subparser for this cnx, for proto %s", subparser->parser->proto->name);
+    if (subparser) SLOG(LOG_DEBUG, "Found subparser@%p for this cnx, for proto %s", subparser->parser, subparser->parser->proto->name);
 
     if (! subparser) {
         struct proto *requestor = NULL;
@@ -471,7 +471,8 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
     // Set relative sequence number if we know it
     if (IS_SET_FOR_WAY(way, tcp_sub->syn)) info.rel_seq_num = info.seq_num - tcp_sub->isn[way];
 
-    SLOG(LOG_DEBUG, "This subparser state: >ISN:%"PRIu32"%s Fin:%"PRIu32" Ack:%"PRIu32" <ISN:%"PRIu32"%s Fin:%"PRIu32" Ack:%"PRIu32,
+    SLOG(LOG_DEBUG, "Subparser@%p state: >ISN:%"PRIu32"%s Fin:%"PRIu32" Ack:%"PRIu32" <ISN:%"PRIu32"%s Fin:%"PRIu32" Ack:%"PRIu32,
+        subparser->parser,
         IS_SET_FOR_WAY(0, tcp_sub->syn) ? tcp_sub->isn[0] : IS_SET_FOR_WAY(0, tcp_sub->origin) ? tcp_sub->wl_origin[0] : 0,
         IS_SET_FOR_WAY(0, tcp_sub->syn) ? "" : " (approx)",
         IS_SET_FOR_WAY(0, tcp_sub->fin) ? tcp_sub->fin_seqnum[0] : 0,
