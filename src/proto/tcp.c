@@ -272,11 +272,18 @@ struct tcp_subparser {
     struct mux_subparser mux_subparser; // must be the last member of this struct since mux_subparser is variable in size
 };
 
+int tcp_seqnum_cmp(uint32_t sa, uint32_t sb)
+{
+    uint32_t diff = sa - sb;
+    if (0 == diff) return 0;
+    else if (diff < 0x80000000U) return 1;
+    else return -1;
+}
+
 // Tells if a seqnum is after another
 static bool seqnum_gt(uint32_t sa, uint32_t sb)
 {
-    uint32_t diff = sa - sb;
-    return diff < 0x80000000U && diff != 0;
+    return tcp_seqnum_cmp(sa, sb) > 0;
 }
 
 // caller must own tcp_sub->mux_subparser.ref.mutex (ouf)

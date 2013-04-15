@@ -42,6 +42,8 @@ struct mux_subparser *tcp_subparser_lookup(struct parser *parser, struct proto *
 
 extern struct port_muxer_list tcp_port_muxers;
 
+int tcp_seqnum_cmp(uint32_t, uint32_t);
+
 void tcp_init(void);
 void tcp_fini(void);
 
