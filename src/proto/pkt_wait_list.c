@@ -453,6 +453,12 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
     }   // else just wait
 
 quit:
+    if (ret == PROTO_PARSE_ERR) {
+        parser_unref(&pkt_wl->parser);
+        if (pkt_wl->sync_with) {
+            parser_unref(&pkt_wl->sync_with->parser);
+        }
+    }
     supermutex_unlock(&pkt_wl->list->mutex);
     return ret;
 }
