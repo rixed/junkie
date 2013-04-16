@@ -789,7 +789,12 @@ static enum proto_parse_status http_sbuf_parse(struct parser *parser, struct pro
 {
     struct http_parser *http_parser = DOWNCAST(parser, parser, http_parser);
 
-    if (! timeval_is_set(&http_parser->state[way].first)) http_parser->state[way].first = *now;
+    if (! timeval_is_set(&http_parser->state[way].first)) {
+        if (tot_packet) {   // a gap does not count as the start of a message
+            SLOG(LOG_DEBUG, "Setting first TS of HTTP@%p to %s", parser, timeval_2_str(now));
+            http_parser->state[way].first = *now;
+        }
+    }
     http_parser->state[way].last = *now;
     http_parser->state[way].pkts ++;
 
