@@ -198,12 +198,12 @@ enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *par
         dir->wait = false;
         if (offset < dir->buffer_size) {    // simple case: we restart from the buffer
         } else if (offset < dir->buffer_size + uncap_len) { // restart from the uncaptured zone: signal the gap (up to the end of uncaptured zone)
-            SLOG(LOG_DEBUG, "streambuf@%p[%s] restart is set within uncaptured bytes", sbuf, way_2_str(way));
+            SLOG(LOG_DEBUG, "streambuf@%p[%u] restart is set within uncaptured bytes", sbuf, way);
             uncap_len -= offset - dir->buffer_size;
             streambuf_empty(dir);
             offset = 0;
         } else {    // restart from after wire_len: just be patient
-            SLOG(LOG_DEBUG, "streambuf@%p[%s] was totally parsed", sbuf, way_2_str(way));
+            SLOG(LOG_DEBUG, "streambuf@%p[%u] was totally parsed", sbuf, way);
             dir->restart_offset -= dir->buffer_size + uncap_len;
             streambuf_empty(dir);
             goto quit;
