@@ -129,7 +129,8 @@ int file_open(char const *file_name, int flags)
             (void)mkdir_all(file_name, true);
             return file_open(file_name, flags);
         }
-        SLOG(LOG_ERR, "Cannot open file '%s': %s", file_name, strerror(errno));
+        SLOG(errno == EEXIST && flags & O_EXCL ? LOG_DEBUG : LOG_ERR,
+             "Cannot open file '%s': %s", file_name, strerror(errno));
         return -errno;
     }
 
