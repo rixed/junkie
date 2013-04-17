@@ -24,6 +24,7 @@
 #include <openssl/ssl.h>
 #include <openssl/x509v3.h>
 #include <openssl/err.h>
+#include <openssl/hmac.h>
 #include "junkie/tools/objalloc.h"
 #include "junkie/tools/miscmacs.h"
 #include "junkie/tools/ip_addr.h"
