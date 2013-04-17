@@ -251,6 +251,22 @@ SCM scm_from_ip_addr(struct ip_addr const *ip)
     }
 }
 
+int scm_string_2_ip_addr(struct ip_addr *ip, SCM ip_)
+{
+    char *ip_str = scm_to_tempstr(ip_);
+    if (0 != ip_addr_ctor_from_str_any(ip, ip_str)) return -1;
+    return 0;
+}
+
+int scm_netmask_2_ip_addr2(struct ip_addr *net, struct ip_addr *mask, SCM net_, SCM mask_)
+{
+    if (0 != scm_string_2_ip_addr(net, net_)) return -1;
+    if (0 != scm_string_2_ip_addr(mask, mask_)) return -1;
+    if (net->family != mask->family) return -1;
+    return 0;
+}
+
+
 // While we are at it, convert from eth addr to SCM (as a uint64!)
 SCM scm_from_eth_addr(unsigned char const addr[ETH_ADDR_LEN])
 {

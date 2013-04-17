@@ -25,6 +25,8 @@
 #include <signal.h>
 #include <sys/types.h>
 #include "junkie/config.h"
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 #include "junkie/tools/log.h"
 #include "junkie/tools/ext.h"
 #include "junkie/tools/cli.h"
@@ -58,6 +60,7 @@
 #include "junkie/proto/mgcp.h"
 #include "junkie/proto/sdp.h"
 #include "junkie/proto/sql.h"
+#include "junkie/proto/tls.h"
 #include "junkie/proto/port_muxer.h"
 #include "junkie/proto/cnxtrack.h"
 #include "junkie/proto/serialize.h"
@@ -88,7 +91,7 @@ static struct {
     I(dns),           I(rtcp),
     I(dns_tcp),       I(ftp),         I(mgcp),
     I(sdp),           I(pgsql),       I(mysql),
-    I(tns),           I(discovery),
+    I(tns),           I(tls),         I(discovery),
     I(pkt_source),    I(capfile),     I(serialize)
 #   undef I
 };
@@ -105,6 +108,11 @@ static void all_init(void)
     redim_array_init(); // if there are no users then some ext functions used by the www interface won't be defined
     os_detect_init();   // dummy function just to include os_detect in junkie (that does not use it, but plugins may want to)
 
+    // Openssl don't like to be inited several times so let's do it once and for all
+    SSL_load_error_strings();
+    SSL_library_init();
+    OpenSSL_add_all_algorithms();
+
     for (unsigned i = 0; i < NB_ELEMS(initers); i++) {
         initers[i].init();
     }
@@ -120,6 +128,8 @@ static void all_fini(void)
     for (unsigned i = NB_ELEMS(initers); i > 0; ) {
         initers[--i].fini();
     }
+
+    ERR_free_strings();
 
     redim_array_fini();
     hash_fini();

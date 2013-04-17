@@ -1,0 +1,10 @@
+-- pcap/https/mycorp.pcap --
+TLS: head_len=176, payload=0, version=3.1, content-type=handshake
+TLS: head_len=58, payload=0, version=3.1, content-type=handshake, cipher_suite=RSA_WITH_AES_256_CBC_SHA, compression_algo=none
+TLS: head_len=139, payload=0, version=3.1, content-type=handshake
+TLS: head_len=207, payload=0, version=3.1, content-type=handshake
+TLS: head_len=36, payload=1, version=3.1, content-type=data
+TLS: head_len=35, payload=210, version=3.1, content-type=data
+HTTP: head_len=210, payload=0, method=unset, code=304, content_length=unset, transfert_encoding=unset, mime_type=unset, host=unset, user_agent=unset, referrer=unset, server=Apache/2.2.16 (Debian), url=unset, pkts=1
+TLS: head_len=37, payload=0, version=3.1, content-type=alert
+TLS: head_len=37, payload=0, version=3.1, content-type=alert

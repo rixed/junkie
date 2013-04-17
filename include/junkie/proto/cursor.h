@@ -21,6 +21,7 @@ void cursor_rollback(struct cursor *, size_t n);
 uint_least8_t cursor_read_u8(struct cursor *);
 uint_least16_t cursor_read_u16n(struct cursor *);
 uint_least16_t cursor_read_u16(struct cursor *);
+uint_least32_t cursor_read_u24n(struct cursor *);
 uint_least32_t cursor_read_u24(struct cursor *);
 uint_least32_t cursor_read_u32n(struct cursor *);
 uint_least32_t cursor_read_u32(struct cursor *);
@@ -32,6 +33,9 @@ uint_least64_t cursor_read_u64(struct cursor *);
  *                PROTO_TOO_SHORT is returned (and the cursor is rollbacked).
  * @param str will be set to the tempstr.  */
 enum proto_parse_status cursor_read_string(struct cursor *, char **str, size_t max_len);
+
+/// Copy from cursor into a buffer
+void cursor_copy(void *, struct cursor *, size_t n);
 
 void cursor_drop(struct cursor *, size_t);
 

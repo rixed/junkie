@@ -12,9 +12,9 @@ PCAPS="$PCAPS pcap/http/on-alt-port.pcap pcap/ftp/on-alt-port.pcap pcap/sip/on-a
 PCAPS="$PCAPS pcap/http/not-http.pcap"
 
 filter() {
-	grep -E '^(PIPI|RTP|HTTP|FTP|SIP)'
+	grep -E '^(PIPI|TLS|RTP|HTTP|FTP|SIP)'
 }
-CMDLINE='(load "'"$srcdir"'/../guile/junkie/signatures.scm")'
+CMDLINE='(load "'"$srcdir"'/../guile/junkie/signatures.scm")(tcp-del-port "tls" 443)'
 OUTPUT="discovery.out"
 
 . "$srcdir/dump_test"

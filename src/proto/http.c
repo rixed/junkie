@@ -235,8 +235,7 @@ static void const *http_info_addr(struct proto_info const *info_, size_t *size)
 static char const *http_info_2_str(struct proto_info const *info_)
 {
     struct http_proto_info const *info = DOWNCAST(info_, info, http_proto_info);
-    char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, method=%s, code=%s, content_length=%s, transfert_encoding=%s, mime_type=%s, host=%s, user_agent=%s, referrer=%s, server=%s, url=%s, pkts=%u%s%s",
+    return tempstr_printf("%s, method=%s, code=%s, content_length=%s, transfert_encoding=%s, mime_type=%s, host=%s, user_agent=%s, referrer=%s, server=%s, url=%s, pkts=%u%s%s",
         proto_info_2_str(info_),
         HTTP_IS_QUERY(info)                  ? http_method_2_str(info->method)            : "unset",
         info->set_values & HTTP_CODE_SET     ? tempstr_printf("%u", info->code)           : "unset",
@@ -253,7 +252,6 @@ static char const *http_info_2_str(struct proto_info const *info_)
         info->pkts,
         info->ajax                           ? ", ajax":"",
         info->compressed                     ? ", compressed":"");
-    return str;
 }
 
 static void http_serialize(struct proto_info const *info_, uint8_t **buf)
@@ -516,20 +514,6 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
     enum proto_parse_status status = httper_parse(&httper, &httphdr_len, packet, cap_len, &info);
     if (status == PROTO_PARSE_ERR) return PROTO_PARSE_ERR;
 
-    // Save some values into our http_parser
-    http_parser->state[way].last_method =
-        HTTP_IS_QUERY(&info) ? info.method : UNSET;
-
-    // Ajax can also be guessed from URL
-    if (!info.ajax && info.set_values & HTTP_URL_SET) {
-        // Detects JSONP (cf. http://en.wikipedia.org/wiki/JSONP)
-        info.ajax = strcasestr(info.strs+info.url, "?jsonp=") ||
-                    strcasestr(info.strs+info.url, "&jsonp=") ||
-                    strcasestr(info.strs+info.url, "?callback=") ||
-                    strcasestr(info.strs+info.url, "&callback=");
-        if (info.ajax) SLOG(LOG_DEBUG, "URL looks like AJAX");
-    }
-
     // Handle short capture
     if (status == PROTO_TOO_SHORT) {
         // Are we going to receive the end eventually?
@@ -549,6 +533,20 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
             // continuation
             return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
         }
+    }
+
+    // Save some values into our http_parser
+    http_parser->state[way].last_method =
+        HTTP_IS_QUERY(&info) ? info.method : UNSET;
+
+    // Ajax can also be guessed from URL
+    if (!info.ajax && info.set_values & HTTP_URL_SET) {
+        // Detects JSONP (cf. http://en.wikipedia.org/wiki/JSONP)
+        info.ajax = strcasestr(info.strs+info.url, "?jsonp=") ||
+                    strcasestr(info.strs+info.url, "&jsonp=") ||
+                    strcasestr(info.strs+info.url, "?callback=") ||
+                    strcasestr(info.strs+info.url, "&callback=");
+        if (info.ajax) SLOG(LOG_DEBUG, "URL looks like AJAX");
     }
 
     /* What payload should we set? the one advertised? Or the payload of this header (ie 0),
@@ -837,7 +835,6 @@ static struct port_muxer tcp_port_muxer;
 
 void http_init(void)
 {
-    objalloc_init();
     log_category_proto_http_init();
 
     hook_ctor(&http_head_hook, "HTTP head");
@@ -864,5 +861,4 @@ void http_fini(void)
 
     proto_dtor(&proto_http_);
     log_category_proto_http_fini();
-    objalloc_fini();
 }

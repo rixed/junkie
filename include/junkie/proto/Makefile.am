@@ -21,6 +21,7 @@ thisinclude_HEADERS = \
 	rtcp.h \
 	sip.h \
 	sql.h \
+	tls.h \
 	port_muxer.h \
 	pkt_wait_list.h \
 	streambuf.h \

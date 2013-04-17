@@ -49,7 +49,13 @@ bool ip_addr_is_broadcast(struct ip_addr const *);
 bool ip_addr_match_mask(struct ip_addr const *host, struct ip_addr const *net, struct ip_addr const *mask);
 
 /// convert an IP addr into a SCM number
-SCM scm_from_ip_addr(struct ip_addr const *ip);
+SCM scm_from_ip_addr(struct ip_addr const *);
+
+/// and the other way around
+int scm_string_2_ip_addr(struct ip_addr *, SCM);
+
+/// more often than not you'll have a netmask with your ip
+int scm_netmask_2_ip_addr2(struct ip_addr *net, struct ip_addr *mask, SCM net_, SCM mask_);
 
 /// Convert an eth addr into a SCM number
 SCM scm_from_eth_addr(unsigned char const addr[ETH_ADDR_LEN]);

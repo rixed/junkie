@@ -52,7 +52,7 @@ static int mysql_parser_ctor(struct mysql_parser *mysql_parser, struct proto *pr
     assert(proto == proto_mysql);
     if (0 != parser_ctor(&mysql_parser->parser, proto)) return -1;
     mysql_parser->phase = NONE;
-    mysql_parser->c2s_way = UNSET;    // unset
+    mysql_parser->c2s_way = UNSET;
     if (0 != streambuf_ctor(&mysql_parser->sbuf, mysql_sbuf_parse, 30000)) return -1;
     mysql_parser->nb_eof = 0;
 
