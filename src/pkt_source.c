@@ -537,7 +537,7 @@ static void pkt_source_del(struct pkt_source *pkt_source)
     struct pcap_stat stats;
     bool const have_stats = 0 == pcap_stats(pkt_source->pcap_handle, &stats);
     if (! have_stats) {
-        SLOG(LOG_WARNING, "Cannot read stats for packet source %s: %s", pkt_source_name(pkt_source), pcap_geterr(pkt_source->pcap_handle));
+        SLOG(pkt_source->is_file ? LOG_DEBUG:LOG_WARNING, "Cannot read stats for packet source %s: %s", pkt_source_name(pkt_source), pcap_geterr(pkt_source->pcap_handle));
     } else if (stats.ps_recv > 0) {
         tot_recved += stats.ps_recv;
         tot_dropped += stats.ps_drop;
