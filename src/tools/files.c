@@ -126,7 +126,7 @@ int file_open(char const *file_name, int flags)
     if (fd < 0) {
         if (errno == ENOENT && flags & O_CREAT) {
             SLOG(LOG_DEBUG, "Creating missing path for %s", file_name);
-            (void)mkdir_all(file_name, true);
+            if (0 != mkdir_all(file_name, true)) return -1;
             return file_open(file_name, flags);
         }
         SLOG(errno == EEXIST && flags & O_EXCL ? LOG_DEBUG : LOG_ERR,
