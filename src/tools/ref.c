@@ -64,6 +64,7 @@ static void delete_doomed(void)
     struct ref *r;
     while (NULL != (r = SLIST_FIRST(&death_row))) {
         // Beware that r->del() may doom further objects, which will be added at the beginning of the list.
+        SLOG(LOG_DEBUG, "Delete next object on doom list: %p", r);
         SLIST_REMOVE_HEAD(&death_row, entry);
         r->entry.sle_next = NOT_IN_DEATH_ROW;
         if (r->count == 0) {
