@@ -114,9 +114,12 @@ static void all_init(void)
 
 static void all_fini(void)
 {
+    doomer_stop();  // doomer_thread must not awake while we destroy parsers, plugins, and so on
+    // help plugins by cleaning as most as possible first
+    doomer_run();
+
     plugin_del_all();
 
-    doomer_stop();  // doomer_thread must not awake while we destroy parsers
     for (unsigned i = NB_ELEMS(initers); i > 0; ) {
         initers[--i].fini();
     }

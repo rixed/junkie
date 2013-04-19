@@ -49,10 +49,11 @@ static inline void ref_ctor(struct ref *ref, void (*del)(struct ref *))
 #   endif
 }
 
+// Only called from the doomer thread
 static inline void ref_dtor(struct ref *ref)
 {
     assert(ref->count == 0);
-    // We do not remove it from the death_row since the whole list is trashed after the deletions
+    // We do not remove it from the death_row since delete_doomed does it
 #   ifndef __GNUC__
     mutex_dtor(&ref->mutex);
 #   endif
@@ -87,8 +88,8 @@ static inline void unref(struct ref *ref)
 #   else
     mutex_lock(&ref->mutex);
     assert(ref->count > 0);
+    bool const unreachable = ref->count == 1;
     ref->count --;
-    bool const unreachable = ref->count == 0;
     mutex_unlock(&ref->mutex);
 #   endif
 
@@ -101,6 +102,7 @@ static inline void unref(struct ref *ref)
          * To handle this we merely check for NOT_IN_DEATH_ROW. */
         mutex_lock(&death_row_mutex);
         if (ref->entry.sle_next == NOT_IN_DEATH_ROW) SLIST_INSERT_HEAD(&death_row, ref, entry);
+        assert(ref->entry.sle_next != NOT_IN_DEATH_ROW);
         mutex_unlock(&death_row_mutex);
     }
 }
