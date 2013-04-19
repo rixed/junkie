@@ -668,7 +668,7 @@ struct mux_subparser *mux_subparser_lookup(struct mux_parser *mux_parser, struct
     struct mux_subparser *subparser;
     STAILQ_FOREACH(subparser, &h_list->list, h_entry) {
         if (
-            // FIXME: various kind of subparsers might have the same key so we should include proto in any case,
+            // Various kind of subparsers might have the same key so we should include proto in any case,
             // whether or not we intend to create the child if not found (ie. use another flag for that).
             // But we cannot do that actually, because in case of contracking we want to find whatever the proto
             // registered the ports.
@@ -681,7 +681,8 @@ struct mux_subparser *mux_subparser_lookup(struct mux_parser *mux_parser, struct
     }
 
     if (subparser && now) {
-        // Promote this children both to the head of the h_list and the tail of the timeout_queue since it is used
+        /* Promote this children both to the head of the h_list (for performance)
+         * and the tail of the timeout_queue (since it is used). */
         subparser->last_used = *now;
         struct per_mutex *const to_list = to_list_of_subparser(subparser);
         TAILQ_REMOVE(&to_list->timeout_queue, subparser, to_entry);
