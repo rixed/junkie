@@ -556,6 +556,7 @@ static void pkt_source_del(struct pkt_source *pkt_source)
 static void pkt_source_terminate(struct pkt_source *pkt_source)
 {
     SLOG(LOG_DEBUG, "Terminating packet source '%s' after %"PRIu64" packets (%"PRIu64" dups)", pkt_source_name(pkt_source), pkt_source->nb_packets, pkt_source->nb_duplicates);
+    pkt_source->loop = false;
     pcap_breakloop(pkt_source->pcap_handle);
 }
 
