@@ -51,6 +51,8 @@ struct protos protos;
 
 char const *parser_name(struct parser const *parser)
 {
+    if (! parser) return "None";
+
     char *str = tempstr();
     snprintf(str, TEMPSTR_SIZE, "%s@%p", parser->proto->name, parser);
     return str;
@@ -150,10 +152,10 @@ enum proto_parse_status proto_parse(struct parser *parser, struct proto_info *pa
 
     bool const go_deeper = parser && wire_len > 0;  // Don't we want to call subparsers on empty payload?
 
-    // Call per packet subsribers (not for gaps)
-    if (parent && tot_cap_len > 0) {
+    // Call per packet subsribers (also for gaps)
+    if (parent) {
         proto_subscribers_call(parent->parser->proto, parent, tot_cap_len, tot_packet, now);
-        if (! go_deeper && tot_packet) {
+        if (! go_deeper) {
             full_pkt_subscribers_call(parent, tot_cap_len, tot_packet, now);
         }
     }
@@ -579,7 +581,6 @@ static void mux_subparser_del_as_ref(struct ref *ref)
 
 int mux_subparser_ctor(struct mux_subparser *subparser, struct mux_parser *mux_parser, struct parser *child, struct proto *requestor, void const *key, struct timeval const *now)
 {
-    assert(child);
     struct mux_proto *mux_proto = DOWNCAST(mux_parser->parser.proto, proto, mux_proto);
     SLOG(LOG_DEBUG, "Construct mux_subparser@%p for parser %s requested by %s", subparser, parser_name(child), requestor ? requestor->name : "nobody");
 

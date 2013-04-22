@@ -446,7 +446,12 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
         if (! sub_proto) { // Then try predefined ports
             sub_proto = port_muxer_find(&tcp_port_muxers, info.key.port[0], info.key.port[1]);
         }
-        if (sub_proto) subparser = mux_subparser_and_parser_new(mux_parser, sub_proto, requestor, &key, now);
+        if (sub_proto) {
+            subparser = mux_subparser_and_parser_new(mux_parser, sub_proto, requestor, &key, now);
+        } else {
+            // Even if we have no child parser to send payload to, we want to submit payload in stream order to our plugins
+            subparser = tcp_subparser_new(mux_parser, NULL, NULL, &key, now);
+        }
     }
 
     if (! subparser) goto fallback;

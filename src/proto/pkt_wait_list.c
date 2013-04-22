@@ -51,6 +51,29 @@ static void proto_info_del_rec(struct proto_info *info)
     objfree(start);
 }
 
+static struct proto_info *copy_info_rec(struct proto_info *info)
+{
+    if (! info) return NULL;
+
+    struct proto_info *parent = copy_info_rec(info->parent);
+
+    size_t size;
+    void *start = (void *)info->parser->proto->ops->info_addr(info, &size);
+    void *copy = objalloc_nice(size, "waiting infos");
+    if (! copy) {
+        SLOG(LOG_WARNING, "Cannot alloc for pending info");
+        if (parent) proto_info_del_rec(parent);
+        return NULL;
+    }
+    memcpy(copy, start, size);
+
+    struct proto_info *copy_info = (struct proto_info *)(((char *)copy) + ((char *)info - (char *)start));
+    copy_info->parent = parent;
+    copy_info->parser = parser_ref(info->parser);
+
+    return copy_info;
+}
+
 // caller must own list->mutex
 static void pkt_wait_dtor(struct pkt_wait *pkt, struct pkt_wait_list *pkt_wl)
 {
@@ -119,7 +142,11 @@ static enum proto_parse_status pkt_wait_finalize(struct pkt_wait *pkt, struct pk
         SLOG(LOG_DEBUG, "Advertise a gap of %zu bytes", gap);
         pkt_wl->next_offset = pkt->offset;
         pkt_wl->wait_since = *now;
-        return proto_parse_or_die(&pkt_wl->parser, pkt->parent /* borrow next pkt parent */, pkt->way, NULL, 0, gap, &pkt->cap_tv, 0, NULL);
+        // We can't merely borrow pkt parent since proto_parse is going to flag it when calling subscribers (which would prevent callback of subscribers for actual packet)
+        struct proto_info *copy = copy_info_rec(pkt->parent);
+        enum proto_parse_status status = proto_parse_or_die(&pkt_wl->parser, copy, pkt->way, NULL, 0, gap, &pkt->cap_tv, 0, NULL);
+        proto_info_del_rec(copy);
+        return status;
     }
 
     SLOG(LOG_DEBUG, "Finalizing parse of next packet @(%u:%u)", pkt->offset, pkt->next_offset);
@@ -140,29 +167,6 @@ static enum proto_parse_status pkt_wait_finalize(struct pkt_wait *pkt, struct pk
 /*
  * Construction of a waiting packet
  */
-
-static struct proto_info *copy_info_rec(struct proto_info *info)
-{
-    if (! info) return NULL;
-
-    struct proto_info *parent = copy_info_rec(info->parent);
-
-    size_t size;
-    void *start = (void *)info->parser->proto->ops->info_addr(info, &size);
-    void *copy = objalloc_nice(size, "waiting infos");
-    if (! copy) {
-        SLOG(LOG_WARNING, "Cannot alloc for pending info");
-        if (parent) proto_info_del_rec(parent);
-        return NULL;
-    }
-    memcpy(copy, start, size);
-
-    struct proto_info *copy_info = (struct proto_info *)(((char *)copy) + ((char *)info - (char *)start));
-    copy_info->parent = parent;
-    copy_info->parser = parser_ref(info->parser);
-
-    return copy_info;
-}
 
 // Construct it but does not insert it into the pkt_wait list yet
 static int pkt_wait_ctor(struct pkt_wait *pkt, unsigned offset, unsigned next_offset, bool sync, unsigned sync_offset, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, size_t tot_cap_len, uint8_t const *tot_packet, struct timeval const *now)
