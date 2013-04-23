@@ -84,7 +84,7 @@ static struct {
     I(cnxtrack),      I(proto),       I(fuzzing),
     I(pkt_wait_list), I(port_muxer),  I(streambuf),
     I(cap),           I(eth),         I(arp),
-    I(ip6),           I(ip),          I(gre),
+    I(ip),            I(ip6),         I(gre),
     I(udp),           I(icmpv6),      I(tcp),
     I(icmp),          I(sip),
     I(http),          I(rtp),         I(netbios),

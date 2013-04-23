@@ -153,6 +153,7 @@ fallback:
 static struct mux_proto mux_proto_ip6;
 struct proto *proto_ip6 = &mux_proto_ip6.proto;
 static struct eth_subproto ip6_eth_subproto;
+static struct ip_subproto ip6_ip_subproto;
 
 void ip6_init(void)
 {
@@ -169,11 +170,13 @@ void ip6_init(void)
     };
     mux_proto_ctor(&mux_proto_ip6, &ops, &mux_proto_ops, "IPv6", PROTO_CODE_IP6, sizeof(struct ip_key), IP6_HASH_SIZE);
     eth_subproto_ctor(&ip6_eth_subproto, ETH_PROTO_IPv6, proto_ip6);
+    ip_subproto_ctor(&ip6_ip_subproto, IPPROTO_IPV6, proto_ip6);
 }
 
 void ip6_fini(void)
 {
     assert(LIST_EMPTY(&ip6_subprotos));
+    ip_subproto_dtor(&ip6_ip_subproto);
     eth_subproto_dtor(&ip6_eth_subproto);
     mutex_dtor(&ip6_subprotos_mutex);
     mux_proto_dtor(&mux_proto_ip6);

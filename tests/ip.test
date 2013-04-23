@@ -1,7 +1,7 @@
 #!/bin/sh
 
 NAME="IP"
-PCAPS="pcap/gre/fragmented.pcap"
+PCAPS="pcap/gre/fragmented.pcap pcap/ip6/v6inv4.pcap"
 filter() {
 	# filter out capture lines since capture payload sizes depends on word size
 	grep -v '^Capture' | sed -e 's/^\([^@]\+\)@[0-9a-fx]\+\(.*\)$/\1\2/'
