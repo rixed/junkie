@@ -11,7 +11,6 @@
 #define MSG_MAX_SIZE 5000
 #define MSG_PROTO_INFO 1
 #define MSG_PROTO_STATS 2
-#define DATAGRAM_MAX_SIZE 65535
 #define SERIALIZER_DEFAULT_SERVICE "28999"
 
 void serialize_proto_stack(uint8_t **buf, struct proto_info const *last, struct timeval const *now);

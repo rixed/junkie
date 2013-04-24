@@ -87,7 +87,7 @@
   (set! clt-sock (make-sock 'unix 'client file))
   (slog log-debug "UNIX domain client: ~s" clt-sock)
   (assert (sock-send clt-sock test-msg))
-  (assert (string=? (sock-recv srv-sock) test-msg))
+  (assert (string=? (car (sock-recv srv-sock)) test-msg))
   ; Now let's test garbage collecting of srv-sock
   (slog log-debug "GCing sock objects")
   (set! srv-sock #f)
@@ -110,7 +110,7 @@
     ; test the connection with enough messages to trigger several file changes
     (let loop ((n 20))
       (assert (sock-send clt-sock test-msg))
-      (assert (string=? (sock-recv srv-sock) test-msg))
+      (assert (string=? (car (sock-recv srv-sock)) test-msg))
       (if (> n 0) (loop (- n 1))))))
 (test-file 0)  ; all msgs in one big file
 (test-file 60) ; a few msgs per file
@@ -136,18 +136,20 @@
     (slog log-debug "client: ~s" clt-sock)
     (let ((thread (make-thread (lambda ()
                                  (set-thread-name "buf reader")
-                                 (let loop ()
-                                   (let ((msg (sock-recv srv-sock)))
-                                     (slog log-debug "received: ~s" msg)
-                                     (cond
-                                       [(string=? "END" msg)
-                                        (slog log-debug "Read END")]
-                                       [(string=? test-msg msg)
-                                        (slog log-debug "Read 1 message")
-                                        (set! nb-rcvd (1+ nb-rcvd))
-                                        (loop)]
-                                       [else
-                                         (assert #f)])))))))
+                                 (let loop ((done #f))
+                                   (for-each (lambda (msg)
+                                               (slog log-debug "received: ~s" msg)
+                                               (cond
+                                                 [(string=? "END" msg)
+                                                  (slog log-debug "Read END")
+                                                  (set! done #t)]
+                                                 [(string=? test-msg msg)
+                                                  (slog log-debug "Read 1 message")
+                                                  (set! nb-rcvd (1+ nb-rcvd))]
+                                                 [else
+                                                   (assert #f)]))
+                                             (sock-recv srv-sock))
+                                   (if (not done) (loop #f)))))))
       (let loop ((n 20))
         (assert (sock-send clt-sock test-msg))
         (slog log-debug "Write 1 message")
@@ -163,6 +165,7 @@
       (set! ll-srv-sock #f)
       (set! ll-clt-sock #f)
       (gc)
+      (slog log-debug "We've sent ~a msgs and read ~a" nb-sent nb-rcvd)
       (assert (= nb-sent nb-rcvd)))))
 (test-buf 32) ; small buffer
 (test-buf 100) ; a few msgs per PDU

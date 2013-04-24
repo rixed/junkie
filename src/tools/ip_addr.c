@@ -153,6 +153,8 @@ bool ip_addr_is_v6(struct ip_addr const *addr)
 
 char const *ip_addr_2_str(struct ip_addr const *addr)
 {
+    if (! addr) return "null";
+
     char *str = tempstr();
     if (NULL == inet_ntop(addr->family, &addr->u, str, TEMPSTR_SIZE)) {
         SLOG(LOG_ERR, "Cannot inet_ntop(): %s", strerror(errno));

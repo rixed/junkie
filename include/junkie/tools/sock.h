@@ -37,14 +37,23 @@
  * (see (help "sock")).
  */
 
+#define SOCK_MAX_MSG_SIZE 20000
+
+struct sock;
+
+/// The callback function on reception
+typedef int sock_receiver(struct sock *, size_t, uint8_t const *, struct ip_addr const *sender, void *user_data);
+
 /// Generic type for sockets
 struct sock {
     struct sock_ops {
         int (*send)(struct sock *, void const *, size_t);
-        ssize_t (*recv)(struct sock *, void *, size_t, struct ip_addr *sender, int);    // sender will be set to 127.0.0.1 for UNIX domain/files sockets
-        int (*set_fd)(struct sock *, fd_set *);  ///< add all selectable fds in this set, return the max
-        int (*is_set)(struct sock *, fd_set const *);  ///< tells if (one of) the fd on which we receive message is set. the returned value is passed to recv.
-        bool (*is_opened)(struct sock *);   ///< tells if a future send/recv is expected to work (useful to take any kind of action like reconnect)
+        /// sender will be set to 127.0.0.1 for UNIX domain/files sockets.
+        int (*recv)(struct sock *, fd_set *, sock_receiver *, void *user_data);
+        /// add all selectable fds in this set, return the max
+        int (*set_fd)(struct sock *, fd_set *);
+        /// tells if a future send/recv is expected to work (useful to take any kind of action like reconnect)
+        bool (*is_opened)(struct sock *);
         void (*del)(struct sock *);
     } const *ops;
     char name[64];
@@ -75,11 +84,8 @@ struct sock_buf {
     struct sock sock;   // a sock_buf is a sock
     struct sock *ll_sock;   // using this one
     size_t mtu; // max size of each msg
-    size_t out_sz, in_sz; // what's already there
-    size_t in_rcvd; // what was already returned to reader
-    uint8_t *out, *in; // buffers
-    struct ip_addr prev_sender; // we need to store the sender of the batch (set if have_prev_sender)
-    bool have_prev_sender;
+    size_t out_sz; // what's already there waiting to be sent
+    uint8_t *out; // buffer
 };
 
 /// Create a sock_buf with the attached sock.
@@ -88,6 +94,9 @@ int sock_buf_ctor(struct sock_buf *, size_t mtu, struct sock *);
 /** Deletes the sock_buf (but *not* the attached sock).
  * Also, the buffer will be flushed before its lost. */
 void sock_buf_dtor(struct sock_buf *);
+
+/// Simple select for single sock. the fd_set is an output parameter
+int sock_select_single(struct sock *, fd_set *);
 
 // Init
 
