@@ -94,6 +94,18 @@
 
 (export string->eth)
 
+(define (ip->string i)
+  (or (false-if-exception (inet-ntop AF_INET6 i))
+      (inet-ntop AF_INET i)))
+
+(export ip->string)
+
+(define (string->ip s)
+  (or (false-if-exception (inet-pton AF_INET6 s))
+      (inet-pton AF_INET s)))
+
+(export string->ip)
+
 ; Some tools mainly usefull for tests
 
 (define-syntax assert
