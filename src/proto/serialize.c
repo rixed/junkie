@@ -246,49 +246,53 @@ static struct deserializer_source *deserializer_source_lookup(struct deserialize
     return source;
 }
 
+static int deserializer_receiver(struct sock unused_ *sock, size_t len, uint8_t const *buf, struct ip_addr const unused_ *sender, void *deser_)
+{
+    struct deserializer *deser = deser_;
+    uint8_t const *ptr = buf;
+    uint32_t src_id;
+    struct deserializer_source *source;
+
+    while (ptr < buf + len) {
+        switch (*ptr++) {
+            case MSG_PROTO_INFO:;
+                src_id = deserialize_4(&ptr);
+                source = deserializer_source_lookup(deser, src_id);
+                if (! source) break;
+                (void)deserialize_proto_stack(&ptr);
+                source->nb_rcvd_msgs ++;
+                break;
+            case MSG_PROTO_STATS:;
+                src_id = deserialize_4(&ptr);
+                uint64_t nb_sent_msgs = deserialize_4(&ptr);
+                source = deserializer_source_lookup(deser, src_id);
+                if (! source) break;
+                uint64_t new_lost = nb_sent_msgs - source->nb_rcvd_msgs;   // 2-complement rules!
+                if (source->nb_lost_msgs != new_lost) {
+                    source->nb_lost_msgs = new_lost;
+                    fprintf(stderr, "deserializer: lost %"PRIu64" msgs from source %"PRIu32"\n", source->nb_lost_msgs, src_id);
+                }
+                break;
+            default:
+                SLOG(LOG_ERR, "Unknown message of type %"PRIu8, ptr[-1]);
+                break;
+        }
+    }
+
+    return 0;
+}
+
 // The thread serving the deserializer port
 static void *deserializer_thread(void *deser_)
 {
     struct deserializer *deser = deser_;
 
-    static uint8_t buf[DATAGRAM_MAX_SIZE];
-
     deser->running = true;
 
     while (deser->sock) {
-        uint32_t src_id;
-        struct deserializer_source *source;
-        ssize_t s = deser->sock->ops->recv(deser->sock, buf, sizeof(buf), NULL, 0 /* Use first available client */);
-        uint8_t const *ptr = buf;
-        if (s > 0) {
-            while (ptr < buf+s) {
-                switch (*ptr++) {
-                    case MSG_PROTO_INFO:;
-                        src_id = deserialize_4(&ptr);
-                        source = deserializer_source_lookup(deser, src_id);
-                        if (! source) break;
-                        (void)deserialize_proto_stack(&ptr);
-                        source->nb_rcvd_msgs ++;
-                        break;
-                    case MSG_PROTO_STATS:;
-                        src_id = deserialize_4(&ptr);
-                        uint64_t nb_sent_msgs = deserialize_4(&ptr);
-                        source = deserializer_source_lookup(deser, src_id);
-                        if (! source) break;
-                        uint64_t new_lost = nb_sent_msgs - source->nb_rcvd_msgs;   // 2-complement rules!
-                        if (source->nb_lost_msgs != new_lost) {
-                            source->nb_lost_msgs = new_lost;
-                            fprintf(stderr, "deserializer: lost %"PRIu64" msgs from source %"PRIu32"\n", source->nb_lost_msgs, src_id);
-                        }
-                        break;
-                    default:
-                        SLOG(LOG_ERR, "Unknown message of type %"PRIu8, ptr[-1]);
-                        break;
-                }
-            }
-        } else {
-            break;  // exit the thread on error
-        }
+        fd_set set;
+        if (0 != sock_select_single(deser->sock, &set)) break;
+        if (0 != deser->sock->ops->recv(deser->sock, &set, deserializer_receiver, deser)) break;
     }
 
     deser->running = false;

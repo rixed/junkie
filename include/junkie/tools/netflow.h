@@ -41,9 +41,11 @@ struct nf_msg {
 // @return number of bytes read, of -1 on error.
 ssize_t netflow_decode_msg(struct nf_msg *, void const *src, size_t size);
 
+typedef int netflow_callback(struct ip_addr const *, struct nf_msg const *, struct nf_flow const *);
+
 /** Start a listener on this port and call the given function for each flow */
 // @note stops as soon as the callback returns any negative value.
-int netflow_listen(char const *service, int (*cb)(struct ip_addr const *, struct nf_msg const *, struct nf_flow const *));
+int netflow_listen(char const *service, netflow_callback *cb);
 
 void netflow_init(void);
 void netflow_fini(void);

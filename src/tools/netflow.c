@@ -151,7 +151,29 @@ ssize_t netflow_decode_msg(struct nf_msg *msg, void const *src, size_t size)
 
 #define MAX_NETFLOW_PDU 8096
 
-int netflow_listen(char const *service, int (*cb)(struct ip_addr const *, struct nf_msg const *, struct nf_flow const *))
+static int netflow_receive(struct sock unused_ *sock, size_t len, uint8_t const *buf, struct ip_addr const *sender, void *cb_)
+{
+    netflow_callback *cb = cb_;
+
+    if (len == sizeof(buf)) {
+        SLOG(LOG_ERR, "Received a PDU that's bigger than expected. Bailing out!");
+        return -1;
+    }
+
+    struct nf_msg msg;
+    if (netflow_decode_msg(&msg, buf, len) < 0) {
+        SLOG(LOG_DEBUG, "Skipping netflow msg");
+        return 0;
+    }
+
+    for (unsigned f = 0; f < msg.nb_flows; f++) {
+        if (0 > cb(sender, &msg, msg.flows+f)) return -1;
+    }
+
+    return 0;
+}
+
+int netflow_listen(char const *service, netflow_callback *cb)
 {
     int err = -1;
 
@@ -159,25 +181,9 @@ int netflow_listen(char const *service, int (*cb)(struct ip_addr const *, struct
     if (! sock) return -1;
 
     while (sock) {
-        uint8_t buf[MAX_NETFLOW_PDU];
-        struct ip_addr sender;
-        ssize_t sz = sock->ops->recv(sock, buf, sizeof(buf), &sender, 0 /* Use first available client */);
-        if (sz < 0) goto quit;
-        if (sz == sizeof(buf)) {
-            SLOG(LOG_ERR, "Received a PDU that's bigger than expected. Bailing out!");
-            goto quit;
-        }
-
-        struct nf_msg msg;
-        if (netflow_decode_msg(&msg, buf, sz) < 0) {
-            SLOG(LOG_DEBUG, "Skipping netflow msg");
-            continue;
-        }
-
-        for (unsigned f = 0; f < msg.nb_flows; f++) {
-            err = cb(&sender, &msg, msg.flows+f);
-            if (err < 0) goto quit;
-        }
+        fd_set set;
+        if (0 != sock_select_single(sock, &set)) goto quit;
+        if (0 != sock->ops->recv(sock, &set, netflow_receive, cb)) goto quit;
     }
 
     err = 0;
