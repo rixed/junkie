@@ -94,6 +94,23 @@
 
 (export string->eth)
 
+; for these function to work, ip should be under the form (FAMILY, number)
+(define (ip->string i)
+  (inet-ntop (car i) (cdr i)))
+
+(export ip->string)
+
+(define (string->ip s)
+  (or (false-if-exception (cons AF_INET6 (inet-pton AF_INET6 s)))
+      (cons AF_INET (inet-pton AF_INET s))))
+
+(export string->ip)
+
+(define (timestamp->string t)
+  (string-append (number->string (car t)) "s " (number->string (cdr t)) "us"))
+
+(export timestamp->string)
+
 ; Some tools mainly usefull for tests
 
 (define-syntax assert

@@ -376,7 +376,7 @@
           (string-append
             "    SCM " res " = scm_cons(\n"
             "        scm_from_uint64(((struct timeval const *)" (stub-result stub) ")->tv_sec),\n"
-            "        scm_from_uint64(((struct timeval const *)" (stub-result stub) ")->tv_usec)"
+            "        scm_from_uint64(((struct timeval const *)" (stub-result stub) ")->tv_usec)\n"
             "    );\n")
           res
           (stub-regnames stub))))))
@@ -405,8 +405,16 @@
           '())))
     (boxed-ref "struct ip_addr")
     boxed-bind
-    (lambda (regname) ; to-scm
-      (empty-stub)))) ; TODO
+    (lambda (stub) ; to-scm (as a (FAMILY, number))
+      (let ((res (gensymC "to_scm_res")))
+        (make-stub
+          (string-append
+            "    SCM " res " = scm_cons(\n"
+            "        scm_from_int(" (stub-result stub) "->family),\n"
+            "        scm_from_ip_addr(" (stub-result stub) ")\n"
+            "    );\n")
+          res
+          (stub-regnames stub))))))
 
 (export ip)
 
@@ -440,8 +448,17 @@
       (throw 'cannot-fetch-a-subnet))
     (boxed-ref "(struct ip_addr[2])")
     boxed-bind
-    (lambda (regname) ; export to SCM (as a cons of numbers)
-      (empty-stub)))) ; TODO
+    (lambda (stub) ; to-scm (as a list of family, number1, number2)
+      (let ((res (gensymC "to_scm_res")))
+        (make-stub
+          (string-append
+            "    SCM " res " = scm_list_3(\n"
+            "        scm_from_int((struct ip_addr const *)" (stub-result stub) "->family)\n"
+            "        scm_from_ip_addr((struct ip_addr const *)" (stub-result stub) "+0),\n"
+            "        scm_from_ip_addr((struct ip_addr const *)" (stub-result stub) "+1)\n"
+            "    );\n")
+          res
+          (stub-regnames stub))))))
 
 (export subnet)
 
@@ -478,8 +495,7 @@
           '())))
     (boxed-ref "unsigned char")
     boxed-bind
-    (lambda (regname) ; export to SCM (as a number)
-      (empty-stub)))) ; TODO
+    (simple-to-scm "eth_addr" "unsigned char *"))) ; to-scm (as a number)
 
 (export mac)
 
