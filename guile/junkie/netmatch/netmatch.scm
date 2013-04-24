@@ -456,6 +456,7 @@
                                             ((type:type-to-scm (fluid-ref expected-type)) s))) ; so whatever the returned type we use the proper to-scm method (TODO: type the stubs?)
                                         params))
                       (procname    (type:gensymC "proc_"))
+                      (paramsname  (type:gensymC "params_"))
                       (resname     (type:gensymC "apply_res_")))
                  (type:make-stub
                    (string-append
@@ -472,12 +473,11 @@
                            "        SCM var = scm_c_lookup(" (type:symbol->C-string fname) ");\n"))
                      "        " procname " = scm_variable_ref(var);\n"
                      "    }\n"
-                     ; then the actual guile function call
-                     "    SCM " resname " = scm_call_" (number->string (length stubs)) "(" procname
-                     (fold (lambda (s prev)
-                             (string-append prev ", " (type:stub-result s)))
-                           "" stubs)
-                     ");\n")
+                     ; then the actual guile function call (using an array of parameters)
+                     "    SCM " paramsname "[] = {\n"
+                     "    " (string-join (map type:stub-result stubs) ", ") "\n"
+                     "    };\n"
+                     "    SCM " resname " = scm_call_n(" procname ", " paramsname ", NB_ELEMS(" paramsname "));\n")
                    resname
                    (apply append (map type:stub-regnames stubs)))))
               (('if condition then . elses)
