@@ -452,9 +452,14 @@
                       (fname       (if have-module (car params) fname))
                       (params      (if have-module (cdr params) params))
                       (stubs       (map (lambda (p)
-                                          (let ((s (with-expected-type type:any (lambda () (expr->stub p))))) ; set expected-type to actual type (magic!)
-                                            ((type:type-to-scm (fluid-ref expected-type)) s))) ; so whatever the returned type we use the proper to-scm method (TODO: type the stubs?)
-                                        params))
+                                          (with-expected-type
+                                            type:any
+                                            (lambda ()
+                                              ; we go from any to any type -> the type set by (expr->stub p) will be kept.
+                                              (let ((s (with-expected-type type:any (lambda () (expr->stub p))))) ; set expected-type to actual type
+                                                (slog log-debug "  param ~s is of type ~a" p (type:type-name (fluid-ref expected-type)))
+                                                ((type:type-to-scm (fluid-ref expected-type)) s))))) ; so whatever the returned type we use the proper to-scm method (TODO: type the stubs?))
+                                   params))
                       (procname    (type:gensymC "proc_"))
                       (paramsname  (type:gensymC "params_"))
                       (resname     (type:gensymC "apply_res_")))
@@ -475,7 +480,7 @@
                      "    }\n"
                      ; then the actual guile function call (using an array of parameters)
                      "    SCM " paramsname "[] = {\n"
-                     "    " (string-join (map type:stub-result stubs) ", ") "\n"
+                     "        " (string-join (map type:stub-result stubs) ", ") "\n"
                      "    };\n"
                      "    SCM " resname " = scm_call_n(" procname ", " paramsname ", NB_ELEMS(" paramsname "));\n")
                    resname
