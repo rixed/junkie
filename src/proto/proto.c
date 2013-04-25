@@ -240,6 +240,18 @@ struct proto_info const *proto_info_get(struct proto const *proto, struct proto_
     return NULL;
 }
 
+struct proto_info const *proto_info_get_any(unsigned nb_protos, struct proto const **protos, struct proto_info const *last)
+{
+    while (last) {
+        for (unsigned p = nb_protos; p-- ; ) {
+            if (last->parser->proto == protos[p]) return last;
+        }
+        last = last->parent;
+    }
+
+    return NULL;
+}
+
 void proto_info_ctor(struct proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload)
 {
     info->parent = parent;
