@@ -282,18 +282,28 @@ struct proto_info const *proto_info_get(
     struct proto_info const *last   ///< Where to start looking for (may be NULL)
 );
 
+/** @returns the last proto_info owned by any of the given protos, or NULL.
+ * Useful for ipv4/ipv6 for instance */
+struct proto_info const *proto_info_get_any(
+    unsigned nb_protos,             ///< Length of following array
+    struct proto const **protos,    ///< The protos to look for
+    struct proto_info const *last   ///< Where to start looking for (may be NULL)
+);
+
 #define ASSIGN_INFO_OPT(proto, last) \
     struct proto_info const *proto##_proto__ = proto_info_get(proto_##proto, last); \
     struct proto##_proto_info const *proto = proto##_proto__ ? DOWNCAST(proto##_proto__, info, proto##_proto_info) : NULL;
 
 /// Used if both TCP and UDP can handle a upper protocol (say... DNS or SIP)
-#define ASSIGN_INFO_OPT2(proto, proto_alt, last) \
-    ASSIGN_INFO_OPT(proto, last); \
-    struct proto_info const *proto_alt##_proto__ = NULL; \
-    struct proto_alt##_proto_info const *proto_alt = NULL; \
-    if (! proto) { \
-        proto_alt##_proto__ = proto_info_get(proto_##proto_alt, last); \
-        proto_alt = proto_alt##_proto__ ? DOWNCAST(proto_alt##_proto__, info, proto_alt##_proto_info) : NULL; \
+#define ASSIGN_INFO_OPT2(proto1, proto2, last) \
+    struct proto1##_proto_info const *proto1 = NULL; \
+    struct proto2##_proto_info const *proto2 = NULL; \
+    { \
+        struct proto_info const *proto_info__ = proto_info_get_any(2, (struct proto const *[]){ proto_##proto1, proto_##proto2 }, last); \
+        if (proto_info__) { \
+            if (proto_info__->parser->proto == proto_##proto1) proto1 = DOWNCAST(proto_info__, info, proto1##_proto_info); \
+            else proto2 = DOWNCAST(proto_info__, info, proto2##_proto_info); \
+        } \
     }
 
 #define ASSIGN_INFO_CHK(proto, last, err) \
