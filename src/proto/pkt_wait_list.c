@@ -20,10 +20,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include "junkie/proto/pkt_wait_list.h"
 #include "junkie/tools/log.h"
 #include "junkie/tools/ext.h"
 #include "junkie/tools/objalloc.h"
+#include "junkie/tools/mallocer.h"  // for overweight
+#include "junkie/tools/bench.h"
+#include "junkie/proto/pkt_wait_list.h"
 
 #undef LOG_CAT
 #define LOG_CAT pkt_wait_list_log_category
@@ -124,7 +126,7 @@ static enum proto_parse_status proto_parse_or_die(struct parser **parser, struct
 
 // Call proto_parse for the given packet and delete him, or proto_parse the gap before it
 // caller must own list->mutex
-static enum proto_parse_status pkt_wait_finalize(struct pkt_wait *pkt, struct pkt_wait_list *pkt_wl, struct timeval const *now)
+static enum proto_parse_status pkt_wait_finalize(struct pkt_wait *pkt, struct pkt_wait_list *pkt_wl)
 {
     if (
         pkt_wl->next_offset >= pkt->next_offset // the pkt content was completely covered
@@ -141,7 +143,6 @@ static enum proto_parse_status pkt_wait_finalize(struct pkt_wait *pkt, struct pk
         size_t const gap = pkt->offset - pkt_wl->next_offset;
         SLOG(LOG_DEBUG, "Advertise a gap of %zu bytes", gap);
         pkt_wl->next_offset = pkt->offset;
-        pkt_wl->wait_since = *now;
         // We can't merely borrow pkt parent since proto_parse is going to flag it when calling subscribers (which would prevent callback of subscribers for actual packet)
         struct proto_info *copy = copy_info_rec(pkt->parent);
         enum proto_parse_status status = proto_parse_or_die(&pkt_wl->parser, copy, pkt->way, NULL, 0, gap, &pkt->cap_tv, 0, NULL);
@@ -159,7 +160,6 @@ static enum proto_parse_status pkt_wait_finalize(struct pkt_wait *pkt, struct pk
             // The parser may be able to parse this (if he just skip, for instance HTTP skipping a body)
             proto_parse_or_die(&pkt_wl->parser, pkt->parent, pkt->way, NULL, 0, trim < pkt->wire_len ? pkt->wire_len - trim : 0, &pkt->cap_tv, pkt->tot_cap_len, pkt->packet);
     pkt_wl->next_offset = pkt->next_offset;
-    if (timeval_is_set(now)) pkt_wl->wait_since = *now;
     pkt_wait_del_nolock(pkt, pkt_wl);
     return status;
 }
@@ -225,13 +225,52 @@ static struct pkt_wait *pkt_wait_new(unsigned offset, unsigned next_offset, bool
 static SLIST_HEAD(pkt_wl_configs, pkt_wl_config) pkt_wl_configs = SLIST_HEAD_INITIALIZER(pkt_wls_configs);
 static struct mutex pkt_wl_configs_mutex;
 
+// Timeouter thread (one per wl_config)
+static void *pkt_wl_config_timeouter_thread(void *config_)
+{
+    struct pkt_wl_config *config = config_;
+
+    set_thread_name(tempstr_printf("J-TO-%s", config->name));
+    int dummy_oldstate;
+    (void)pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &dummy_oldstate);
+
+    while (1) {
+        enter_unsafe_region();
+        static struct bench_event timeouting_wl = BENCH("timeout waiting lists");
+        uint64_t start = bench_event_start();
+        for (unsigned h = 0; h < NB_ELEMS(config->lists); h++) {
+            struct pkt_wl_config_list *list = config->lists + h;
+            if (! timeval_is_set(&list->last_used)) break;
+            if (0 == supermutex_lock(&list->mutex)) {
+                struct pkt_wait_list *wl;
+                // Timeout only next_to
+                LIST_FOREACH(wl, &list->list[config->next_to], entry) {
+                    enum proto_parse_status status;
+                    (void)pkt_wait_list_try_both(wl, &status, &list->last_used, overweight);
+                }
+                supermutex_unlock(&list->mutex);
+            }
+        }
+        config->next_to = (config->next_to + 1) % NB_ELEMS(config->lists[0].list);
+        bench_event_stop(&timeouting_wl, start);
+        enter_safe_region();
+
+        // Wait
+        (void)pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &dummy_oldstate);
+        pthread_testcancel();
+        sleep(1);
+        (void)pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &dummy_oldstate);
+    }
+    return NULL;
+}
+
 // caller must own list->mutex
 static enum proto_parse_status pkt_wait_list_empty(struct pkt_wait_list *pkt_wl)
 {
     enum proto_parse_status last_status = PROTO_OK;
     struct pkt_wait *pkt;
     while (NULL != (pkt = LIST_FIRST(&pkt_wl->pkts))) {
-        last_status = pkt_wait_finalize(pkt, pkt_wl, &timeval_unset);
+        last_status = pkt_wait_finalize(pkt, pkt_wl);
     }
     assert(pkt_wl->nb_pkts == 0);
     assert(pkt_wl->tot_payload == 0);
@@ -257,7 +296,7 @@ enum proto_parse_status pkt_wait_list_flush(struct pkt_wait_list *pkt_wl, uint8_
                 last_status = proto_parse(parser, pkt->parent, pkt->way, payload, cap_len, wire_len, &pkt->cap_tv, pkt->tot_cap_len, pkt->packet);   // FIXME: once again, payload not within pkt->packet !
                 pkt_wait_del_nolock(pkt, pkt_wl);
             } else {
-                last_status = pkt_wait_finalize(pkt, pkt_wl, &timeval_unset);  // may deadlock
+                last_status = pkt_wait_finalize(pkt, pkt_wl);  // may deadlock
             }
         }
         parser_unref(&parser);
@@ -269,7 +308,7 @@ enum proto_parse_status pkt_wait_list_flush(struct pkt_wait_list *pkt_wl, uint8_
     return last_status;
 }
 
-int pkt_wait_list_ctor(struct pkt_wait_list *pkt_wl, unsigned next_offset, struct pkt_wl_config *config, struct parser *parser, struct timeval const *now, struct pkt_wait_list *restrict sync_with)
+int pkt_wait_list_ctor(struct pkt_wait_list *pkt_wl, unsigned next_offset, struct pkt_wl_config *config, struct parser *parser, struct pkt_wait_list *restrict sync_with)
 {
     SLOG(LOG_DEBUG, "Construct pkt_wait_list @%p", pkt_wl);
 
@@ -277,14 +316,13 @@ int pkt_wait_list_ctor(struct pkt_wait_list *pkt_wl, unsigned next_offset, struc
     pkt_wl->nb_pkts = 0;
     pkt_wl->tot_payload = 0;
     pkt_wl->next_offset = next_offset;
-    pkt_wl->wait_since = *now;
     pkt_wl->parser = parser_ref(parser);
     pkt_wl->config = config;
     pkt_wl->sync_with = sync_with;
     pkt_wl->list = config->lists + (config->list_seqnum % NB_ELEMS(config->lists));
     config->list_seqnum ++; // No need for atomicity for this usage
     if (0 != supermutex_lock(&pkt_wl->list->mutex)) return -1;
-    TAILQ_INSERT_TAIL(&pkt_wl->list->list, pkt_wl, entry);
+    LIST_INSERT_HEAD(&pkt_wl->list->list[config->next_to], pkt_wl, entry); // construct on the next to timeout list
     supermutex_unlock(&pkt_wl->list->mutex);
 
     return 0;
@@ -299,16 +337,16 @@ void pkt_wait_list_dtor(struct pkt_wait_list *pkt_wl)
     if (pkt_wl->sync_with) parser_unref(&pkt_wl->sync_with->parser);
 
     enum proto_parse_status status;
-    pkt_wait_list_try_both(pkt_wl, &status, &timeval_unset, true);  // force parse of everything that can be
+    (void)pkt_wait_list_try_both(pkt_wl, &status, &timeval_unset, true);  // force parse of everything that can be
 
     struct supermutex *const mutex = &pkt_wl->list->mutex;
     supermutex_lock_maydeadlock(mutex);
-    TAILQ_REMOVE(&pkt_wl->list->list, pkt_wl, entry);
-    pkt_wl->list = NULL;
-    supermutex_unlock(mutex);
-
     // In case there's something left we couldn't parse (for instance if the parser returned PROTO_PARSE_ERR) then call the callback for each pending packet
     pkt_wait_list_empty(pkt_wl);
+
+    LIST_REMOVE(pkt_wl, entry);
+    pkt_wl->list = NULL;
+    supermutex_unlock(mutex);
 }
 
 void pkt_wl_config_ctor(struct pkt_wl_config *config, char const *name, unsigned acceptable_gap, unsigned nb_pkts_max, size_t payload_max, unsigned timeout)
@@ -324,8 +362,21 @@ void pkt_wl_config_ctor(struct pkt_wl_config *config, char const *name, unsigned
 #   endif
 
     for (unsigned l = 0; l < NB_ELEMS(config->lists); l++) {
-        TAILQ_INIT(&config->lists[l].list);
+        for (unsigned i = 0; i < NB_ELEMS(config->lists[0].list); i++) {
+            LIST_INIT(&config->lists[l].list[i]);
+        }
         supermutex_ctor(&config->lists[l].mutex, "pkt wl config");
+    }
+    config->next_to = 0;
+
+    config->has_timeouter = false;
+    if (config->timeout > 0) {
+        int err = pthread_create(&config->timeouter_pth, NULL, pkt_wl_config_timeouter_thread, config);
+        if (! err) {
+            config->has_timeouter = true;
+        } else {
+            SLOG(LOG_ERR, "Cannot pthread_create(): %s", strerror(err));
+        }
     }
 
     mutex_lock(&pkt_wl_configs_mutex);
@@ -339,13 +390,22 @@ void pkt_wl_config_dtor(struct pkt_wl_config *config)
     SLIST_REMOVE(&pkt_wl_configs, config, pkt_wl_config, entry);
     mutex_unlock(&pkt_wl_configs_mutex);
 
+    // Kill timeouter thread
+    if (config->has_timeouter) {
+        SLOG(LOG_DEBUG, "Terminating timeouter thread for %s waiting lists...", config->name);
+        (void)pthread_cancel(config->timeouter_pth);
+        (void)pthread_join(config->timeouter_pth, NULL);
+    }
+
     for (unsigned l = 0; l < NB_ELEMS(config->lists); l++) {
-        if (! TAILQ_EMPTY(&config->lists[l].list)) {
-            /* We cannot destruct the pkt_wait_lists since this may trigger the deletion of the parser
-             * still owning it, which would then certainly also destruct the list.
-             * Emptying the list would have the same result, ie deleting this list (and
-             * probably others as well) while we are scanning the list. So be it. */
-            SLOG(LOG_INFO, "Packet waiting list config@%p is not empty!", config);
+        for (unsigned i = 0; i < NB_ELEMS(config->lists[l].list); i++) {
+            if (! LIST_EMPTY(&config->lists[l].list[i])) {
+                /* We cannot destruct the pkt_wait_lists since this may trigger the deletion of the parser
+                 * still owning it, which would then certainly also destruct the list.
+                 * Emptying the list would have the same result, ie deleting this list (and
+                 * probably others as well) while we are scanning the list. So be it. */
+                SLOG(LOG_INFO, "Packet waiting list config@%p is not empty!", config);
+            }
         }
         supermutex_dtor(&config->lists[l].mutex);
     }
@@ -358,31 +418,31 @@ void pkt_wl_config_dtor(struct pkt_wl_config *config)
 // caller must own list->mutex (obviously)
 static bool pkt_wait_list_try_locked(struct pkt_wait_list *pkt_wl, enum proto_parse_status *status, struct timeval const *now, bool force_timeout)
 {
-    unsigned const timeout = pkt_wl->config->timeout;
-    struct timeval oldest = *now;
-    if (timeout != 0 && timeval_is_set(&oldest)) timeval_sub_sec(&oldest, timeout);
+    uint_least64_t const timeout = pkt_wl->config->timeout * 1000000ULL;
     bool ret = false;
 
-    while (1) {
-        struct pkt_wait *pkt = LIST_FIRST(&pkt_wl->pkts);
-        if (! pkt) break;
+    struct pkt_wait *pkt;
+    while (NULL != (pkt = LIST_FIRST(&pkt_wl->pkts))) {
+        SLOG(LOG_DEBUG, "pkt_wait_list_try_locked pkt=%p, force_timeout=%s", pkt, force_timeout?"yes":"no");
 
-        if (! force_timeout) {
-            if (pkt->offset > pkt_wl->next_offset) {
-                // Timeout maybe?
-                if (timeout == 0) break;
-                if (!timeval_is_set(&oldest)) break;
-                if (timeval_cmp(&pkt_wl->wait_since, &oldest) >= 0) break;
-                // Ok we are tired with this segment, consider we won't receive it
-                SLOG(LOG_DEBUG, "Timeouting segment on waiting_list@%p (we're waiting since %s)", pkt_wl, timeval_2_str(&pkt_wl->wait_since));
-            } else if (pkt_wl->sync_with && pkt->sync && pkt_wl->sync_with->next_offset < pkt->sync_offset) {
-                // Must wait for the other direction
-                break;
-            }
-        }
+        bool const wait_same_dir = pkt->offset > pkt_wl->next_offset;
+        bool const wait_other_dir = pkt_wl->sync_with && pkt->sync && pkt_wl->sync_with->next_offset < pkt->sync_offset;
+        /* In theory we should wait for the other direction to advance somehow.
+         * But if the other direction is empty and does not receive anything it will not timeout
+         * (since that's the packets which timeout, not the lists).
+         * So in case we should wait for the other direction, we merely wait longer. */
+        int_least64_t const t = wait_other_dir ? timeout*2 : timeout;
+
+        // Should we wait before parsing this pkt?
+        if (
+            (wait_other_dir || wait_same_dir) &&
+            !force_timeout &&
+            (!timeval_is_set(now) || timeval_sub(now, &pkt->cap_tv) < t)
+        ) break;
+        
         force_timeout = false;  // this works only once (so that caller has a chance to advance the reciprocal waiting_list)
         // Advance this direction (gaps will be signaled)
-        *status = pkt_wait_finalize(pkt, pkt_wl, now);
+        *status = pkt_wait_finalize(pkt, pkt_wl);
         ret = true;
     }
 
@@ -398,6 +458,8 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
     // TODO: how much efficient if pkt_wl and pkt_wl->sync_with were on the same lock... in pkt_wait_list_ctor, add a parameter to force the list we are on?
     if (0 != supermutex_lock(&pkt_wl->list->mutex)) return PROTO_PARSE_ERR;
 
+    timeval_set_max(&pkt_wl->list->last_used, now);
+
     while (
         (pkt_wl->config->nb_pkts_max && pkt_wl->nb_pkts >= pkt_wl->config->nb_pkts_max) ||
         (pkt_wl->config->payload_max && pkt_wl->tot_payload >= pkt_wl->config->payload_max)
@@ -412,6 +474,8 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
     if (sync) SLOG(LOG_DEBUG, "  ...waiting for reciprocal waiting list @%p to reach offset %u (currently at %u)", pkt_wl->sync_with, sync_offset, pkt_wl->sync_with->next_offset);
 
     // Find its location and the previous pkt
+    /* Note that in case of equal seqnums we want the older packet first,
+     * so that age of this WL, estimated from the cap_tv of its first packet, is more accurate. */
     struct pkt_wait *prev = NULL;
     struct pkt_wait *next;
     LIST_FOREACH(next, &pkt_wl->pkts, entry) {
@@ -435,13 +499,12 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
 
         // Now parse as much as we can while advancing next_offset, returning the first error we obtain
         pkt_wl->next_offset = next_offset;
-        pkt_wl->wait_since = *now;
         while (ret == PROTO_OK) {
             struct pkt_wait *pkt = LIST_FIRST(&pkt_wl->pkts);
             if (! pkt) break;
             if (pkt->offset > pkt_wl->next_offset) break;
             if (pkt_wl->sync_with && sync && pkt_wl->sync_with->next_offset < pkt->sync_offset) break;
-            ret = pkt_wait_finalize(pkt, pkt_wl, &timeval_unset);   // no need to touch wait_since since we've just set it
+            ret = pkt_wait_finalize(pkt, pkt_wl);
         }
         goto quit;
     }
@@ -472,7 +535,7 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
 
     // Maybe this packet content is enough to allow parsing (we end here in case its content overlap what's already there)
     if (can_parse && pkt->offset <= pkt_wl->next_offset && (! pkt_wl->sync_with || !sync || pkt_wl->sync_with->next_offset >= pkt->sync_offset)) {
-        ret = pkt_wait_finalize(pkt, pkt_wl, now);  // may deadlock
+        ret = pkt_wait_finalize(pkt, pkt_wl);  // may deadlock
     }   // else just wait
 
 quit:
@@ -498,32 +561,36 @@ bool pkt_wait_list_try(struct pkt_wait_list *pkt_wl, enum proto_parse_status *st
     return ret;
 }
 
-void pkt_wait_list_try_both(struct pkt_wait_list *pkt_wl, enum proto_parse_status *status, struct timeval const *now, bool force_timeout)
+bool pkt_wait_list_try_both(struct pkt_wait_list *pkt_wl, enum proto_parse_status *status, struct timeval const *now, bool force_timeout)
 {
     *status = PROTO_OK;
+    bool ret = false;
 
     if (pkt_wl->sync_with) {
         /* Synchronize two waiting lists, ie do not advance one before what the other acked.
          * Notice that even if we ultimately want to timeout each packet we still want to parse
          * them in correct order. */
         while (*status == PROTO_OK) {
-            // try first without timeout *
+            // try first without timeout
             if (
-                ! pkt_wait_list_try(pkt_wl, status, now, false) &&
-                ! pkt_wait_list_try(pkt_wl->sync_with, status, now, false)
-            ) { // ok so we need to timeout one of these
+                pkt_wait_list_try(pkt_wl, status, now, false) ||
+                pkt_wait_list_try(pkt_wl->sync_with, status, now, false)
+            ) {
+                ret = true;
+            } else { // ok so we need to timeout one of these
                 if (! force_timeout) break;
                 /* If pkt_wl ack_num is beyond pkt_wl->sync_with seq_num then we must start by pkt_wl->sync_with.
-                 * In the other way araound we must start by pkt_wl. If no ack_num comes after any seq_num then
+                 * In the other way around we must start by pkt_wl. If no ack_num comes after any seq_num then
                  * we don't care. */
                 struct pkt_wait *const pkt = LIST_FIRST(&pkt_wl->pkts);
                 struct pkt_wait *const sync_with_pkt = LIST_FIRST(&pkt_wl->sync_with->pkts);
-                if (! sync_with_pkt) return;    // why were we here in the first place?
-                if (pkt && pkt->sync_offset > sync_with_pkt->offset) {
+                if (pkt && sync_with_pkt && pkt->sync_offset > sync_with_pkt->offset) {
+                    // We must start with the other direction
                     if (! pkt_wait_list_try(pkt_wl->sync_with, status, now, true)) assert(!"Low battery");
                 } else {
                     if (! pkt_wait_list_try(pkt_wl, status, now, true)) break;
                 }
+                ret = true;
             }
         }
     } else {
@@ -531,8 +598,10 @@ void pkt_wait_list_try_both(struct pkt_wait_list *pkt_wl, enum proto_parse_statu
         while (
             *status == PROTO_OK &&
             pkt_wait_list_try(pkt_wl, status, now, force_timeout)
-        ) ;
+        ) ret = true;
     }
+
+    return ret;
 }
 
 bool pkt_wait_list_is_complete(struct pkt_wait_list *pkt_wl, unsigned start_offset, unsigned end_offset)

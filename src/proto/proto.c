@@ -1095,7 +1095,6 @@ void proto_init(void)
 
     // A thread to timeout all mux_subparsers
     int err = pthread_create(&timeouter_pth, NULL, timeouter_thread, NULL);
-
     if (err) {
         SLOG(LOG_ERR, "Cannot pthread_create(): %s", strerror(err));
     }

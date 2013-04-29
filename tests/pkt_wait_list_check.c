@@ -22,13 +22,11 @@ static void ctor_dtor_check(void)
     struct pkt_wl_config config;
     pkt_wl_config_ctor(&config, "test1", 0, 0, 0, 0);
 
-    struct timeval now;
-    timeval_set_now(&now);
     struct parser *dummy = proto_dummy->ops->parser_new(proto_dummy);
     assert(dummy);
     struct pkt_wait_list wl;
 
-    assert(0 == pkt_wait_list_ctor(&wl, 10, &config, dummy, &now, NULL));
+    assert(0 == pkt_wait_list_ctor(&wl, 10, &config, dummy, NULL));
     pkt_wait_list_dtor(&wl);
 
     parser_unref(&dummy);
@@ -70,12 +68,10 @@ static void wl_check_setup(void)
     };
     uniq_proto_ctor(&test_proto, &ops, "Test", PROTO_CODE_DUMMY);
 
-    timeval_set_now(&now);
-
     test_parser = test_proto.proto.ops->parser_new(&test_proto.proto);
     assert(test_parser);
 
-    assert(0 == pkt_wait_list_ctor(&wl, 0, &config, test_parser, &now, NULL));
+    assert(0 == pkt_wait_list_ctor(&wl, 0, &config, test_parser, NULL));
 
     next_msg = 0;
 

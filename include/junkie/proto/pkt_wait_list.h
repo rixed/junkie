@@ -86,11 +86,15 @@ struct pkt_wait {
 
 struct pkt_wl_config {
     struct pkt_wl_config_list {
-        /// The list of struct pkt_wait_list, in LRU-first order.
-        TAILQ_HEAD(pkt_wait_list_list, pkt_wait_list) list;
+        /// The list of struct pkt_wait_list in no particular order (but on 10 different lists, considered for timeout at 1s interval - a low tech way to timeout incrementaly)
+        LIST_HEAD(pkt_wait_list_list, pkt_wait_list) list[10];
         /// The mutex that protects the above list
         struct supermutex mutex;
+        /// the max timestamp of packet addition in any of these waiting lists (used to give current time to timeouter thread)
+        struct timeval last_used;
     } lists[CPU_MAX];
+    /// Index of next list to be timeouted (1s interval between these lists)
+    unsigned next_to;
     /// Entry in the list of all pkt_wl_configs
     SLIST_ENTRY(pkt_wl_config) entry;
     /// A sequence to choose a lists at random
@@ -109,6 +113,9 @@ struct pkt_wl_config {
     size_t payload_max;
     /// Timeout (s)
     unsigned timeout;
+    /// A thread to timeout WLs more aggressively (otherwise pending packets on a WL which receive no more traffic would have to wait until its parent destruction)
+    bool has_timeouter;             ///< Flag used for thread destruction
+    pthread_t timeouter_pth;        ///< Only set if has_timeouter
 };
 
 void pkt_wl_config_ctor(
@@ -138,16 +145,14 @@ struct pkt_wait_list {
     /// The list into this config where this pkt_list is queued
     struct pkt_wl_config_list *list;
     /// And the entry in this list
-    TAILQ_ENTRY(pkt_wait_list) entry;
+    LIST_ENTRY(pkt_wait_list) entry;
     /// Current number of pending packets
     unsigned nb_pkts;
     /// Current pending payload
     size_t tot_payload;
     /// The offset we are currently waiting for to resume parsing
     unsigned next_offset;
-    /// Since when do we wait for next_offset?
-    struct timeval wait_since;
-    /// A Ref to the parser this packet is intended to
+    /// A ref to the parser this packet is intended to
     struct parser *parser;
     /// Optionally, the other pkt_wait_list we may wait.
     struct pkt_wait_list *sync_with;
@@ -159,7 +164,6 @@ int pkt_wait_list_ctor(
     unsigned next_offset,           ///< The initial offset we are waiting for
     struct pkt_wl_config *config,   ///< Where we store the pkt_wait_list created with these parameters (useful for timeouting) as well as global conf
     struct parser *parser,          ///< The parser that's supposed to parse this packet whenever possible
-    struct timeval const *now,      ///< To set the last used time
     /// If <> NULL, synchronize this pkt_wait_list with another one (ie. packets from this one may wait for the other waiting list to advance)
     struct pkt_wait_list *restrict sync_with
 );
@@ -201,7 +205,7 @@ bool pkt_wait_list_try(
 );
 
 /// Same as above, but will consume the reciprocal waiting_list as well
-void pkt_wait_list_try_both(struct pkt_wait_list *pkt_wl, enum proto_parse_status *, struct timeval const *now, bool force_timeout);
+bool pkt_wait_list_try_both(struct pkt_wait_list *pkt_wl, enum proto_parse_status *, struct timeval const *now, bool force_timeout);
 
 /// Tells if the wait list is complete between these two offsets.
 /** @note this checks weither all packets were received, not if enough bytes

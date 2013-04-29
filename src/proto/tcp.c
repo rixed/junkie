@@ -305,11 +305,11 @@ static int tcp_subparser_ctor(struct tcp_subparser *tcp_sub, struct mux_parser *
     tcp_sub->syn = 0;
     tcp_sub->origin = 0;
 
-    if (0 != pkt_wait_list_ctor(tcp_sub->wl+0, 0 /* relative to the ISN */, &tcp_wl_config, child, now, tcp_sub->wl+1)) {
+    if (0 != pkt_wait_list_ctor(tcp_sub->wl+0, 0 /* relative to the ISN */, &tcp_wl_config, child, tcp_sub->wl+1)) {
         return -1;
     }
 
-    if (0 != pkt_wait_list_ctor(tcp_sub->wl+1, 0 /* relative to the ISN */, &tcp_wl_config, child, now, tcp_sub->wl+0)) {
+    if (0 != pkt_wait_list_ctor(tcp_sub->wl+1, 0 /* relative to the ISN */, &tcp_wl_config, child, tcp_sub->wl+0)) {
         pkt_wait_list_dtor(tcp_sub->wl+0);
         return -1;
     }

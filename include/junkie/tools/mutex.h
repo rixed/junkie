@@ -68,7 +68,7 @@ void mutex_fini(void);
     for (bool first__ = true ; first__ || (pthread_mutex_unlock(lock), false) ; first__ = false)
 
 /*
- * Supermutexes
+ * Supermutexes - recursive, deadlock protected locks.
  */
 
 struct supermutex_user_lock {
