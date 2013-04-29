@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <libguile.h>
 #include "junkie/tools/log.h"
 #include "junkie/tools/ref.h"
 #include "junkie/tools/mutex.h"
@@ -87,7 +88,7 @@ void doomer_run(void)
     rwlock_release(&rwlock);
 }
 
-static void *doomer_thread(void unused_ *dummy)
+static void *doomer_thread_(void unused_ *dummy)
 {
     set_thread_name("J-doomer");
 
@@ -96,6 +97,11 @@ static void *doomer_thread(void unused_ *dummy)
         sleep(1);
     }
     return NULL;
+}
+
+static void *doomer_thread(void *data)
+{
+    return scm_with_guile(doomer_thread_, data);
 }
 
 extern inline void ref_ctor(struct ref *, void (*del)(struct ref *));
