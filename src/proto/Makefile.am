@@ -26,7 +26,8 @@ libproto_la_SOURCES = \
 	capfile.c \
 	os-detect.c \
 	discovery.c \
-	hook.c
+	hook.c \
+	erspan.c
 
 libproto_la_LIBADD = ../tools/libjunkietools.la
 libproto_la_LDFLAGS = -export-dynamic

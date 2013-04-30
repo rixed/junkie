@@ -4,7 +4,6 @@
 #define GRE_H_100402
 #include <inttypes.h>
 #include <junkie/proto/proto.h>
-#include <junkie/tools/queue.h>
 
 /** @file
  * @brief GRE informations

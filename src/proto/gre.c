@@ -43,11 +43,11 @@ LOG_CATEGORY_DEF(proto_gre);
 // Description of a GRE header
 struct gre_hdr {
     uint8_t flags;
-#   define GRE_CHECKSUM_MASK    0x01
-#   define GRE_ROUTING_MASK     0x02
-#   define GRE_KEY_MASK         0x04
-#   define GRE_SEQNUM_MASK      0x08
-#   define GRE_STRICTROUTE_MASK 0x10
+#   define GRE_CHECKSUM_MASK    0x80
+#   define GRE_ROUTING_MASK     0x40
+#   define GRE_KEY_MASK         0x20
+#   define GRE_SEQNUM_MASK      0x10
+#   define GRE_STRICTROUTE_MASK 0x08
     uint8_t version_flags;
 #   define GRE_VERSION_MASK     0xe0
     uint16_t protocol;
@@ -68,7 +68,7 @@ static char const *gre_info_2_str(struct proto_info const *info_)
 {
     struct gre_proto_info const *info = DOWNCAST(info_, info, gre_proto_info);
     char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, version=%"PRIu8", protocol=%"PRIu16", key=%s",
+    snprintf(str, TEMPSTR_SIZE, "%s, version=%"PRIu8", protocol=0x%"PRIx16", key=%s",
         proto_info_2_str(info_),
         info->version,
         info->protocol,
@@ -181,6 +181,7 @@ static enum proto_parse_status gre_parse(struct parser *parser, struct proto_inf
         (flags & GRE_KEY_MASK ? 4 : 0) +
         (flags & GRE_SEQNUM_MASK ? 4 : 0);
         // TODO: support for older GRE with source routing ?
+    SLOG(LOG_DEBUG, "GRE header of length: %zu bytes", h_len);
 
     if (wire_len < h_len) {
         SLOG(LOG_DEBUG, "Bogus GRE packet: too short (%zu < %zu)", wire_len, h_len);

@@ -1,9 +1,9 @@
 #!/bin/sh
 
 NAME="GRE"
-PCAPS="pcap/gre/sample.pcap pcap/gre/fragmented.pcap"
+PCAPS="pcap/gre/sample.pcap pcap/gre/fragmented.pcap pcap/gre/erspan.pcap"
 filter() {
-	grep '^GRE' | cut -d' ' -f 2-
+	grep -E '^(GRE|ERSPAN)' | cut -d' ' -f 2-
 }
 OUTPUT="gre.out"
 

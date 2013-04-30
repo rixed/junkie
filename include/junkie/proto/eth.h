@@ -17,10 +17,11 @@ extern struct proto *proto_eth;
 #define ETH_ADDR_LEN 6
 
 /// Values for protocol
-#define ETH_PROTO_IPv4  0x0800
-#define ETH_PROTO_IPv6  0x86DD
-#define ETH_PROTO_ARP   0x0806
-#define ETH_PROTO_8021Q 0x8100
+#define ETH_PROTO_IPv4   0x0800
+#define ETH_PROTO_IPv6   0x86DD
+#define ETH_PROTO_ARP    0x0806
+#define ETH_PROTO_8021Q  0x8100
+#define ETH_PROTO_ERSPAN 0x88BE
 
 /// Ethernet frame
 struct eth_proto_info {

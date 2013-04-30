@@ -31,5 +31,5 @@ thisinclude_HEADERS = \
 	capfile.h \
 	os-detect.h \
 	discovery.h \
-	deduplication.h
-
+	deduplication.h \
+	erspan.h
