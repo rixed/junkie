@@ -391,12 +391,12 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
 
     if (tcphdr_len < sizeof(*tcphdr)) {
         SLOG(LOG_DEBUG, "Bogus TCP packet: header size too smal (%zu < %zu)", tcphdr_len, sizeof(*tcphdr));
-        return -1;
+        return PROTO_PARSE_ERR;
     }
 
     if (tcphdr_len > wire_len) {
         SLOG(LOG_DEBUG, "Bogus TCP packet: wrong length %zu > %zu", tcphdr_len, wire_len);
-        return -1;
+        return PROTO_PARSE_ERR;
     }
 
     if (tcphdr_len > cap_len) return PROTO_TOO_SHORT;
@@ -425,7 +425,7 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
     assert(tcphdr_len >= sizeof(*tcphdr));
     for (size_t rem_len = tcphdr_len - sizeof(*tcphdr); rem_len > 0; ) {
         ssize_t const len = parse_next_option(&info, options, rem_len);
-        if (len < 0) return -1;
+        if (len < 0) return PROTO_PARSE_ERR;
         rem_len -= len;
         options += len;
     }
