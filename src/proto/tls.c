@@ -33,6 +33,7 @@
 #include "junkie/proto/cursor.h"
 #include "junkie/proto/tcp.h"
 #include "junkie/proto/ip.h"
+#include "junkie/proto/ber.h"
 #include "junkie/proto/tls.h"
 
 #undef LOG_CAT
@@ -484,11 +485,13 @@ static char const *tls_info_spec_2_str(struct tls_proto_info const *info)
 {
     switch (info->content_type) {
         case tls_handshake:
-            return tempstr_printf("%s%s%s%s",
+            return tempstr_printf("%s%s%s%s%s%s",
                 info->set_values & CIPHER_SUITE_SET ? ", cipher_suite=":"",
                 info->set_values & CIPHER_SUITE_SET ? tls_cipher_suite_2_str(info->u.handshake.cipher_suite) : "",
                 info->set_values & CIPHER_SUITE_SET ? ", compression_algo=":"",
-                info->set_values & CIPHER_SUITE_SET ? tls_compress_algo_2_str(info->u.handshake.compress_algorithm) : "");
+                info->set_values & CIPHER_SUITE_SET ? tls_compress_algo_2_str(info->u.handshake.compress_algorithm) : "",
+                info->set_values & SERVER_COMMON_NAME_SET ? ", CN=":"",
+                info->set_values & SERVER_COMMON_NAME_SET ? info->u.handshake.server_common_name:"");
         default:
             return "";
     }
@@ -737,6 +740,45 @@ quit0:
     return err;
 }
 
+static enum proto_parse_status look_for_cname(struct cursor *cur, void *info_)
+{
+    struct tls_proto_info *info = info_;
+    enum proto_parse_status status;
+    if (PROTO_OK != (status = ber_enter(cur))) return status;  // enter the RelativeDistinguishedName
+    if (PROTO_OK != (status = ber_enter(cur))) return status;  // enter the AttributeValueAssertion
+    // Look for commonName (in DER)
+    if (cur->cap_len < 5) return PROTO_TOO_SHORT;
+    if (
+        cur->head[0] == 0x6 && cur->head[1] == 0x3 && cur->head[2] == 0x55 &&
+        cur->head[3] == 0x4 && cur->head[4] == 0x3
+    ) {
+        SLOG(LOG_DEBUG, "Found commonName!!");
+        cursor_drop(cur, 5);
+        if (PROTO_OK != (status = ber_decode_string(cur, sizeof(info->u.handshake.server_common_name), info->u.handshake.server_common_name))) return status;
+        info->set_values |= SERVER_COMMON_NAME_SET;
+    } else {
+        // Not commonName
+        if (PROTO_OK != (status = ber_skip(cur))) return status;
+        if (PROTO_OK != (status = ber_skip(cur))) return status;
+    }
+
+    return PROTO_OK;
+}
+
+static enum proto_parse_status tls_parse_certificate(struct tls_proto_info *info, struct cursor *cur)
+{
+    enum proto_parse_status status;
+    if (PROTO_OK != (status = ber_enter(cur))) return status; // enter the Certificate
+    if (PROTO_OK != (status = ber_enter(cur))) return status; // enter the TBSCertificate
+    if (PROTO_OK != (status = ber_skip_optional(cur, 0))) return status;  // skip the optional Version (tag 0)
+    if (PROTO_OK != (status = ber_skip(cur))) return status;  // skip the serial number
+    if (PROTO_OK != (status = ber_skip(cur))) return status;  // skip the signature
+    if (PROTO_OK != (status = ber_skip(cur))) return status;  // skip the issuer
+    if (PROTO_OK != (status = ber_skip(cur))) return status;  // skip the validity
+    if (PROTO_OK != (status = ber_foreach(cur, look_for_cname, info))) return status; // iter over all RelativeDistinguishedName and look for the common name
+    return PROTO_OK;
+}
+
 static enum proto_parse_status tls_parse_handshake(struct tls_parser *parser, unsigned way, struct tls_proto_info *info, struct cursor *cur, size_t wire_len)
 {
     enum tls_handshake_type {
@@ -751,7 +793,7 @@ static enum proto_parse_status tls_parse_handshake(struct tls_parser *parser, un
         return PROTO_PARSE_ERR;
     }
     enum tls_handshake_type type = cursor_read_u8(cur);
-    unsigned unused_ length = cursor_read_u24n(cur);
+    unsigned length = cursor_read_u24n(cur);
     assert(wire_len >= 4);
     wire_len -= 4;
     if (wire_len < length) return PROTO_PARSE_ERR;
@@ -795,7 +837,16 @@ static enum proto_parse_status tls_parse_handshake(struct tls_parser *parser, un
         case tls_certificate:   // where the server shows us his public key (we don't need it, though)
             // fix c2s_way
             parser->c2s_way = !way;
-            break;
+            // We are going to read the first certificate
+            if (tcur.cap_len < 3) return PROTO_TOO_SHORT;
+            unsigned cert_len = cursor_read_u24n(&tcur);    // length of all certificates
+            if (cert_len > wire_len) return PROTO_PARSE_ERR;
+            if (tcur.cap_len < 3) return PROTO_TOO_SHORT;
+            cert_len = cursor_read_u24n(&tcur);    // length of the first certificate
+            if (cert_len > wire_len) return PROTO_PARSE_ERR;
+            struct cursor cert = tcur;
+            cert.cap_len = MIN(cert.cap_len, cert_len);
+            return tls_parse_certificate(info, &cert);    // parse only the first
         case tls_client_key_exchange:   // where the client sends us the pre master secret, niam niam!
             // fix c2s_way
             parser->c2s_way = way;

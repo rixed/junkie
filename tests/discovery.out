@@ -1,7 +1,7 @@
 -- pcap/https/tlsv1.pcap --
 TLS: head_len=167, payload=0, version=3.1, content-type=handshake
 TLS: head_len=70, payload=0, version=3.1, content-type=handshake, cipher_suite=Unknown cipher suite 0xc011, compression_algo=none
-TLS: head_len=1630, payload=0, version=3.1, content-type=handshake
+TLS: head_len=1630, payload=0, version=3.1, content-type=handshake, CN=www.google.com
 TLS: head_len=75, payload=0, version=3.1, content-type=handshake
 TLS: head_len=179, payload=0, version=3.1, content-type=handshake
 TLS: head_len=1138, payload=0, version=3.1, content-type=data

@@ -8,3 +8,19 @@ TLS: head_len=35, payload=210, version=3.1, content-type=data
 HTTP: head_len=210, payload=0, method=unset, code=304, content_length=unset, transfert_encoding=unset, mime_type=unset, host=unset, user_agent=unset, referrer=unset, server=Apache/2.2.16 (Debian), url=unset, pkts=1
 TLS: head_len=37, payload=0, version=3.1, content-type=alert
 TLS: head_len=37, payload=0, version=3.1, content-type=alert
+-- pcap/https/certificate.pcap --
+TLS: head_len=163, payload=0, version=3.1, content-type=handshake
+TLS: head_len=58, payload=0, version=3.1, content-type=handshake, cipher_suite=RSA_WITH_RC4_128_SHA, compression_algo=none
+TLS: head_len=3623, payload=0, version=3.1, content-type=handshake, CN=github.com
+TLS: head_len=267, payload=0, version=3.1, content-type=handshake
+TLS: head_len=191, payload=0, version=3.1, content-type=handshake
+TLS: head_len=1251, payload=0, version=3.1, content-type=data
+TLS: head_len=11270, payload=0, version=3.1, content-type=data
+-- pcap/https/tlsv1.pcap --
+TLS: head_len=167, payload=0, version=3.1, content-type=handshake
+TLS: head_len=70, payload=0, version=3.1, content-type=handshake, cipher_suite=Unknown cipher suite 0xc011, compression_algo=none
+TLS: head_len=1630, payload=0, version=3.1, content-type=handshake, CN=www.google.com
+TLS: head_len=75, payload=0, version=3.1, content-type=handshake
+TLS: head_len=179, payload=0, version=3.1, content-type=handshake
+TLS: head_len=1138, payload=0, version=3.1, content-type=data
+TLS: head_len=936, payload=0, version=3.1, content-type=data

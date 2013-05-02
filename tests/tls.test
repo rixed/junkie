@@ -1,7 +1,7 @@
 #!/bin/sh
 
 NAME="TLS"
-PCAPS="pcap/https/mycorp.pcap"
+PCAPS="pcap/https/mycorp.pcap pcap/https/certificate.pcap pcap/https/tlsv1.pcap"
 filter() {
 	grep -e '^\(TLS\|HTTP\)'
 }

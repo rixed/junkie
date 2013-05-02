@@ -32,4 +32,5 @@ thisinclude_HEADERS = \
 	os-detect.h \
 	discovery.h \
 	deduplication.h \
-	erspan.h
+	erspan.h \
+	ber.h

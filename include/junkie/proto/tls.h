@@ -85,6 +85,8 @@ struct tls_proto_info {
                 TLS_COMPRESS_NULL,
                 TLS_COMPRESS_DEFLATE,
             } compress_algorithm;    // set whenever CIPHER_SUITE_SET is set
+#           define SERVER_COMMON_NAME_SET  0x2
+            char server_common_name[256];      // From the server certificate's subject field
         } handshake;
     } u;
 };
