@@ -199,7 +199,7 @@ enum proto_parse_status pkt_wait_list_add(
 /** @return true if some parsing was done. */
 bool pkt_wait_list_try(
     struct pkt_wait_list *pkt_wl,   ///< The packet list to try to advance
-    enum proto_parse_status *,      ///< An output parameter wihch will be set to last result of parsing or unset if no parsing took place
+    enum proto_parse_status *status,///< An output parameter wihch will be set to last result of parsing or unset if no parsing took place
     struct timeval const *now,      ///< Current timestamp
     bool force_timeout              ///< Force consuming the first waiting packet
 );
