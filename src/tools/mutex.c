@@ -267,7 +267,7 @@ int supermutex_lock(struct supermutex *super)
 
     // From this lock (supposed I go for it), look for a circular dependancy
     if (supermutex_is_cycling(my_supermutex_user, super, my_supermutex_user)) {
-        SLOG(LOG_NOTICE, "Locking supermutex %s may deadlock!", supermutex_name(super));
+        SLOG(LOG_INFO, "Locking supermutex %s may deadlock!", supermutex_name(super));
         mutex_unlock(&supermutex_meta_lock);
         return MUTEX_DEADLOCK;
     }
