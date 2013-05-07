@@ -92,7 +92,7 @@ struct pkt_wl_config {
         struct supermutex mutex;
         /// the max timestamp of packet addition in any of these waiting lists (used to give current time to timeouter thread)
         struct timeval last_used;
-    } lists[CPU_MAX];
+    } lists[CPU_MAX*11];
     /// Index of next list to be timeouted (1s interval between these lists)
     unsigned next_to;
     /// Entry in the list of all pkt_wl_configs

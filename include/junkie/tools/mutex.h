@@ -31,7 +31,7 @@ void mutex_ctor_with_type(struct mutex *, char const *, int);
 void mutex_dtor(struct mutex *);
 
 struct mutex_pool {
-    struct mutex locks[CPU_MAX*2];
+    struct mutex locks[CPU_MAX*11];
 };
 
 void mutex_pool_ctor(struct mutex_pool *, char const *name);
