@@ -66,7 +66,7 @@ void mutex_lock(struct mutex *mutex)
     int err = pthread_mutex_lock(&mutex->mutex);
 #   endif
     if (! err) {
-        bench_event_stop(&mutex->aquiring_lock, start);
+        bench_event_stop(&mutex->acquiring_lock, start);
         SLOG(LOG_DEBUG, "Locked %s", mutex_name(mutex));
     } else {
         SLOG(LOG_ERR, "Cannot lock %s: %s", mutex_name(mutex), strerror(err));
@@ -116,7 +116,7 @@ void mutex_ctor_with_type(struct mutex *mutex, char const *name, int type)
 
     mutex->name = name;
     bench_atomic_event_ctor(&mutex->lock_for_free, tempstr_printf("%s locked for free", name));
-    bench_event_ctor(&mutex->aquiring_lock, tempstr_printf("aquiring %s", name));
+    bench_event_ctor(&mutex->acquiring_lock, tempstr_printf("acquiring %s", name));
 
     pthread_mutexattr_t attr;
     err = pthread_mutexattr_init(&attr);
@@ -139,7 +139,7 @@ void mutex_dtor(struct mutex *mutex)
     SLOG(LOG_DEBUG, "Destruct mutex %s", mutex_name(mutex));
     assert(mutex->name);
     bench_atomic_event_dtor(&mutex->lock_for_free);
-    bench_event_dtor(&mutex->aquiring_lock);
+    bench_event_dtor(&mutex->acquiring_lock);
     (void)pthread_mutex_destroy(&mutex->mutex);
     mutex->name = NULL;
 }
@@ -390,31 +390,37 @@ void rwlock_ctor(struct rwlock *lock, char const *name)
         // so be it
     }
 
-    bench_event_ctor(&lock->aquiring_lock, tempstr_printf("aquiring %s", name));
+    bench_event_ctor(&lock->acquiring_read_lock, tempstr_printf("acquiring %s (read)", name));
+    bench_event_ctor(&lock->acquiring_write_lock, tempstr_printf("acquiring %s (write)", name));
 }
 
 void rwlock_dtor(struct rwlock *lock)
 {
     SLOG(LOG_DEBUG, "Destruct rwlock %s", rwlock_name(lock));
     pthread_rwlock_destroy(&lock->lock);
-    bench_event_dtor(&lock->aquiring_lock);
+    bench_event_dtor(&lock->acquiring_read_lock);
+    bench_event_dtor(&lock->acquiring_write_lock);
 }
 
 static void acquire(int (*f)(pthread_rwlock_t *), struct rwlock *lock)
 {
-    uint64_t const start = bench_event_start();
     int err = f(&lock->lock);
     if (err) {
         SLOG(LOG_ERR, "Cannot acquire RWLock: %s", strerror(err));
         // so be it
     }
-    bench_event_stop(&lock->aquiring_lock, start);
 }
 
 void rwlock_acquire(struct rwlock *lock, bool write)
 {
-    if (write) acquire(pthread_rwlock_wrlock, lock);
-    else acquire(pthread_rwlock_rdlock, lock);
+    uint64_t const start = bench_event_start();
+    if (write) {
+        acquire(pthread_rwlock_wrlock, lock);
+        bench_event_stop(&lock->acquiring_write_lock, start);
+    } else {
+        acquire(pthread_rwlock_rdlock, lock);
+        bench_event_stop(&lock->acquiring_read_lock, start);
+    }
 }
 
 void rwlock_release(struct rwlock *lock)

@@ -17,7 +17,7 @@ struct mutex {
     pthread_mutex_t mutex;
     char const *name;
     struct bench_atomic_event lock_for_free;
-    struct bench_event aquiring_lock;
+    struct bench_event acquiring_lock;
 };
 
 void mutex_lock(struct mutex *);
@@ -103,7 +103,8 @@ void supermutex_unlock(struct supermutex *);
 struct rwlock {
     pthread_rwlock_t lock;
     char const *name;
-    struct bench_event aquiring_lock;
+    struct bench_event acquiring_read_lock;
+    struct bench_event acquiring_write_lock;
 };
 
 void rwlock_ctor(struct rwlock *, char const *name);
