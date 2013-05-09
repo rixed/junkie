@@ -107,8 +107,14 @@ static inline void unref(struct ref *ref)
     }
 }
 
-void enter_unsafe_region(void);
-void enter_safe_region(void);
+/// Enter the region where multiple threads can enter
+void enter_multi_region(void);
+
+/// Enter the region where only this thread can enter
+void enter_mono_region(void);
+
+/// Leave the protected region (ie. all threads allowed)
+void leave_protected_region(void);
 
 /// Will stop the doomer_thread (must be called bedore ref_fini(), and probably before any parser_fini()
 void doomer_stop(void);

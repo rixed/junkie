@@ -235,7 +235,7 @@ static void *pkt_wl_config_timeouter_thread_(void *config_)
     (void)pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &dummy_oldstate);
 
     while (1) {
-        enter_unsafe_region();
+        enter_mono_region();
         static struct bench_event timeouting_wl = BENCH("timeout waiting lists");
         uint64_t start = bench_event_start();
         for (unsigned h = 0; h < NB_ELEMS(config->lists); h++) {
@@ -253,7 +253,7 @@ static void *pkt_wl_config_timeouter_thread_(void *config_)
         }
         config->next_to = (config->next_to + 1) % NB_ELEMS(config->lists[0].list);
         bench_event_stop(&timeouting_wl, start);
-        enter_safe_region();
+        leave_protected_region();
 
         // Wait
         (void)pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &dummy_oldstate);

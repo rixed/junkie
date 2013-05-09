@@ -37,12 +37,17 @@ LOG_CATEGORY_DEF(ref)
 
 static struct rwlock rwlock;
 
-void enter_unsafe_region(void)
+void enter_multi_region(void)
 {
     rwlock_acquire(&rwlock, false);
 }
 
-void enter_safe_region(void)
+void enter_mono_region(void)
+{
+    rwlock_acquire(&rwlock, true);
+}
+
+void leave_protected_region(void)
 {
     rwlock_release(&rwlock);
 }
@@ -83,9 +88,9 @@ static void delete_doomed(void)
 
 void doomer_run(void)
 {
-    rwlock_acquire(&rwlock, true);
+    enter_mono_region();
     delete_doomed();
-    rwlock_release(&rwlock);
+    leave_protected_region();
 }
 
 static void *doomer_thread_(void unused_ *dummy)
