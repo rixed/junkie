@@ -586,7 +586,7 @@ static SCM g_list_ifaces(void)
     }
 
     for (pcap_if_t *dev = alldevs; dev; dev = dev->next) {
-        ret = scm_cons(scm_from_locale_string(dev->name), ret);
+        ret = scm_cons(scm_from_latin1_string(dev->name), ret);
     }
     pcap_freealldevs(alldevs);
 
@@ -617,7 +617,7 @@ static SCM g_open_iface(SCM ifname_, SCM promisc_, SCM filter_, SCM snaplen_, SC
     int const buffer_size = SCM_UNBNDP(buffer_size_) ? 0 : scm_to_int(buffer_size_);
 
     struct pkt_source *pkt_source = pkt_source_new_if(ifname, promisc, filter, snaplen, buffer_size);
-    return pkt_source ? scm_from_locale_string(pkt_source_guile_name(pkt_source)) : SCM_UNSPECIFIED;
+    return pkt_source ? scm_from_latin1_string(pkt_source_guile_name(pkt_source)) : SCM_UNSPECIFIED;
 }
 
 static struct ext_function sg_open_pcap;
@@ -659,7 +659,7 @@ static SCM g_iface_names(void)
 
     LIST_FOREACH(pkt_source, &pkt_sources, entry) {
         pkt_source_guile_name_2_buf(pkt_source, name, sizeof(name));
-        ret = scm_cons(scm_from_locale_string(name), ret);
+        ret = scm_cons(scm_from_latin1_string(name), ret);
     }
 
     return ret;

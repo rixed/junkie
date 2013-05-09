@@ -188,7 +188,7 @@ static SCM next_log_category(SCM list, struct log_category *next)
 {
     if (! next) return list;
     return next_log_category(
-        scm_cons(scm_from_locale_string(next->name), list),
+        scm_cons(scm_from_latin1_string(next->name), list),
         SLIST_NEXT(next, entry));
 }
 
@@ -210,7 +210,7 @@ static struct ext_function sg_get_log_file;
 static SCM g_get_log_file(void)
 {
     char const *log_file = log_get_file();
-    return log_file ? scm_from_locale_string(log_file) : SCM_UNSPECIFIED;
+    return log_file ? scm_from_latin1_string(log_file) : SCM_UNSPECIFIED;
 }
 
 LOG_CATEGORY_DEF(guile)

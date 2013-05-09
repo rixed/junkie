@@ -145,7 +145,7 @@ static SCM g_plugins(void)
     struct plugin *plugin;
     mutex_lock(&plugins_mutex);
     LIST_FOREACH(plugin, &plugins, entry) {
-        ret = scm_cons(scm_from_locale_string(plugin->libname), ret);
+        ret = scm_cons(scm_from_latin1_string(plugin->libname), ret);
     }
     mutex_unlock(&plugins_mutex);
     return ret;

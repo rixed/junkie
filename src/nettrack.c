@@ -866,7 +866,7 @@ static SCM g_make_nettrack(SCM name_, SCM libname_)
     for (unsigned vi = 0; vi < *nb_vertice_defs; vi++) {
         struct nt_vertex *vertex = nt_vertex_new(v_def[vi].name, graph, v_def[vi].entry_fn, v_def[vi].timeout_fn, v_def[vi].index_size, v_def[vi].timeout);
         if (! vertex) {
-            scm_throw(scm_from_latin1_symbol("cannot-create-nt-vertex"), scm_list_1(scm_from_locale_string(v_def[vi].name)));
+            scm_throw(scm_from_latin1_symbol("cannot-create-nt-vertex"), scm_list_1(scm_from_latin1_string(v_def[vi].name)));
             assert(!"Never reached");
         }
     }
@@ -884,13 +884,13 @@ static SCM g_make_nettrack(SCM name_, SCM libname_)
     }
     for (unsigned e = 0; e < *nb_edge_defs; e++) {
         struct nt_vertex *from = nt_vertex_lookup(graph, e_def[e].from_vertex);
-        if (! from) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_1(scm_from_locale_string(e_def[e].from_vertex)));
+        if (! from) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_1(scm_from_latin1_string(e_def[e].from_vertex)));
         struct nt_vertex *to   = nt_vertex_lookup(graph, e_def[e].to_vertex);
-        if (! to) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_1(scm_from_locale_string(e_def[e].to_vertex)));
+        if (! to) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_1(scm_from_latin1_string(e_def[e].to_vertex)));
         struct proto *inner_proto = proto_of_code(e_def[e].inner_proto);
         if (! inner_proto) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_2(scm_from_latin1_string("no such proto"), scm_from_uint(e_def[e].inner_proto)));
         struct nt_edge *edge = nt_edge_new(graph, from, to, e_def[e].match_fn, e_def[e].from_index_fn, e_def[e].to_index_fn, e_def[e].min_age, e_def[e].spawn, e_def[e].grab, inner_proto, e_def[e].per_packet);
-        if (! edge) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_2(scm_from_locale_string(e_def[e].from_vertex), scm_from_locale_string(e_def[e].to_vertex)));
+        if (! edge) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_2(scm_from_latin1_string(e_def[e].from_vertex), scm_from_latin1_string(e_def[e].to_vertex)));
     }
 
     // build the smob

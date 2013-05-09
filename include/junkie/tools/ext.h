@@ -127,7 +127,7 @@ static SCM g_ext_param_get_##value(void) \
     scm_dynwind_begin(0); \
     pthread_mutex_lock(&ext_param_##value.mutex); \
     scm_dynwind_unwind_handler(pthread_mutex_unlock_, &ext_param_##value.mutex, SCM_F_WIND_EXPLICITLY); \
-    SCM ret = scm_from_locale_string(value ? value : ""); \
+    SCM ret = scm_from_latin1_string(value ? value : ""); \
     scm_dynwind_end(); \
     return ret; \
 }

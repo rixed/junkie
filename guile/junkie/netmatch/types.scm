@@ -298,7 +298,7 @@
             "    memcpy((void *)new_regfile[nm_reg_" regname "__].value, " (stub-result value) ", " tmp ");\n")
           (string-append "new_regfile[nm_reg_" regname "__].value")
           (cons regname (stub-regnames value)))))
-    (simple-to-scm "utf8_string" "char const *")))
+    (simple-to-scm "latin1_string" "char const *")))
 
 (export str)
 

@@ -91,7 +91,7 @@ SCM g_parameter_names(void)
 {
     SCM ret = SCM_EOL;
     struct ext_param *param;
-    SLIST_FOREACH(param, &ext_params, entry) ret = scm_cons(scm_from_locale_string(param->name), ret);
+    SLIST_FOREACH(param, &ext_params, entry) ret = scm_cons(scm_from_latin1_string(param->name), ret);
     return ret;
 }
 
@@ -166,7 +166,7 @@ static void init_scm_extensions_(void unused_ *dummy)
     scm_c_export("junkie-parameters", NULL);
 
     // junkie-version: a mere string to query the current junkie version
-    scm_c_define("junkie-version", scm_from_locale_string(version_string));
+    scm_c_define("junkie-version", scm_from_latin1_string(version_string));
     scm_c_export("junkie-version", NULL);
 
     // bind all ext functions and parameters
@@ -205,12 +205,12 @@ int ext_eval(char const *expression)
 static SCM help_page_fun(struct ext_function const *fun)
 {
     // Add text from function name, arity, etc, eventually ?
-    return scm_from_locale_string(fun->doc);
+    return scm_from_latin1_string(fun->doc);
 }
 
 static SCM help_page_param(struct ext_param const *param)
 {
-    return scm_from_locale_string(param->doc);
+    return scm_from_latin1_string(param->doc);
 }
 
 static SCM all_fun_help(SCM list, struct ext_function const *fun, char const *pattern)

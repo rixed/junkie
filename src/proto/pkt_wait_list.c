@@ -681,7 +681,7 @@ static SCM g_wait_list_names(void)
     mutex_lock(&pkt_wl_configs_mutex);
     struct pkt_wl_config *config;
     SLIST_FOREACH(config, &pkt_wl_configs, entry) {
-        ret = scm_cons(scm_from_locale_string(config->name), ret);
+        ret = scm_cons(scm_from_latin1_string(config->name), ret);
     }
     mutex_unlock(&pkt_wl_configs_mutex);
     return ret;

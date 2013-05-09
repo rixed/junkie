@@ -970,7 +970,7 @@ static SCM g_proto_names(void)
 {
     SCM ret = SCM_EOL;
     struct proto *proto;
-    LIST_FOREACH(proto, &protos, entry) ret = scm_cons(scm_from_locale_string(proto->name), ret);
+    LIST_FOREACH(proto, &protos, entry) ret = scm_cons(scm_from_latin1_string(proto->name), ret);
     return ret;
 }
 
@@ -985,7 +985,7 @@ static SCM g_mux_proto_names(void)
 {
     SCM ret = SCM_EOL;
     struct mux_proto *mux_proto;
-    LIST_FOREACH(mux_proto, &mux_protos, entry) ret = scm_cons(scm_from_locale_string(mux_proto->proto.name), ret);
+    LIST_FOREACH(mux_proto, &mux_protos, entry) ret = scm_cons(scm_from_latin1_string(mux_proto->proto.name), ret);
     return ret;
 }
 

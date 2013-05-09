@@ -147,7 +147,7 @@ SCM g_port_muxer_list(struct port_muxer_list *muxers)
     mutex_lock(&muxers->mutex);
     TAILQ_FOREACH(muxer, &muxers->muxers, entry) {
         SCM muxer_def = scm_list_3(
-            scm_cons(proto_sym,    scm_from_locale_string(muxer->proto->name)),
+            scm_cons(proto_sym,    scm_from_latin1_string(muxer->proto->name)),
             scm_cons(port_min_sym, scm_from_uint16(muxer->port_min)),
             scm_cons(port_max_sym, scm_from_uint16(muxer->port_max)));
         ret = scm_cons(muxer_def, ret);

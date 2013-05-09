@@ -238,7 +238,7 @@ static SCM g_array_names(void)
     SCM ret = SCM_EOL;
     struct redim_array *array;
     mutex_lock(&redim_arrays_mutex);
-    LIST_FOREACH(array, &redim_arrays, entry) ret = scm_cons(scm_from_locale_string(array->name), ret);
+    LIST_FOREACH(array, &redim_arrays, entry) ret = scm_cons(scm_from_latin1_string(array->name), ret);
     mutex_unlock(&redim_arrays_mutex);
     return ret;
 }

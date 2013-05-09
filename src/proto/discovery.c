@@ -188,7 +188,7 @@ static SCM g_proto_signatures(void)
 {
     SCM ret = SCM_EOL;
     struct proto_signature *sig;
-    LIST_FOREACH(sig, &proto_signatures, entry) ret = scm_cons(scm_from_locale_string(sig->protocol.name), ret);
+    LIST_FOREACH(sig, &proto_signatures, entry) ret = scm_cons(scm_from_latin1_string(sig->protocol.name), ret);
     return ret;
 }
 

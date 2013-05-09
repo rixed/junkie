@@ -362,7 +362,7 @@ static SCM g_capfile_names(void)
     mutex_lock(&capfiles_lock);
     scm_dynwind_unwind_handler(pthread_mutex_unlock_, &capfiles_lock.mutex, SCM_F_WIND_EXPLICITLY);
     LIST_FOREACH(capfile , &capfiles, entry) {
-        ret = scm_cons(scm_from_locale_string(capfile->path), ret);
+        ret = scm_cons(scm_from_latin1_string(capfile->path), ret);
     }
     scm_dynwind_end();
 

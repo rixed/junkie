@@ -40,7 +40,7 @@ static SCM g_hash_names(void)
     SCM ret = SCM_EOL;
     struct hash_base *hash;
     LIST_FOREACH(hash, &hashes, entry) {
-        ret = scm_cons(scm_from_locale_string(hash->name), ret);
+        ret = scm_cons(scm_from_latin1_string(hash->name), ret);
     }
     return ret;
 }

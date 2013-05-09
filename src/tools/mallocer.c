@@ -282,7 +282,7 @@ static SCM g_mallocer_names(void)
     SCM ret = SCM_EOL;
     WITH_LOCK(&mallocers_lock) {
         struct mallocer *mallocer;
-        SLIST_FOREACH(mallocer, &mallocers, entry) ret = scm_cons(scm_from_locale_string(mallocer->name), ret);
+        SLIST_FOREACH(mallocer, &mallocers, entry) ret = scm_cons(scm_from_latin1_string(mallocer->name), ret);
     }
     return ret;
 }
