@@ -226,7 +226,7 @@ static SLIST_HEAD(pkt_wl_configs, pkt_wl_config) pkt_wl_configs = SLIST_HEAD_INI
 static struct mutex pkt_wl_configs_mutex;
 
 // Timeouter thread (one per wl_config)
-static void *pkt_wl_config_timeouter_thread(void *config_)
+static void *pkt_wl_config_timeouter_thread_(void *config_)
 {
     struct pkt_wl_config *config = config_;
 
@@ -262,6 +262,11 @@ static void *pkt_wl_config_timeouter_thread(void *config_)
         (void)pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &dummy_oldstate);
     }
     return NULL;
+}
+
+static void *pkt_wl_config_timeouter_thread(void *config_)
+{
+    return scm_with_guile(pkt_wl_config_timeouter_thread_, config_);
 }
 
 // caller must own list->mutex
