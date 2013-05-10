@@ -54,6 +54,9 @@ struct mux_subparser *eth_subparser_and_parser_new(struct parser *, struct proto
 /// Convert an eth address into a displayable string
 char const *eth_addr_2_str(unsigned char const addr[ETH_ADDR_LEN]);
 
+/// convert an eth protocol into a displayable string
+char const *eth_proto_2_str(unsigned protocol);
+
 /// Tells whether an address is the broadcast address
 bool eth_addr_is_broadcast(unsigned char const addr[ETH_ADDR_LEN]);
 

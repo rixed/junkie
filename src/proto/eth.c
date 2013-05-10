@@ -78,6 +78,19 @@ char const *eth_addr_2_str(unsigned char const addr[ETH_ADDR_LEN])
     return str;
 }
 
+char const *eth_proto_2_str(unsigned protocol)
+{
+    switch (protocol) {
+        case ETH_PROTO_IPv4:   return "IPv4";
+        case ETH_PROTO_IPv6:   return "IPv6";
+        case ETH_PROTO_ARP:    return "ARP";
+        case ETH_PROTO_8021Q:  return "8021.Q";
+        case ETH_PROTO_ERSPAN: return "ERSPAN";
+        default:
+            return tempstr_printf("0x%x", protocol);
+    }
+}
+
 static void const *eth_info_addr(struct proto_info const *info_, size_t *size)
 {
     struct eth_proto_info const *info = DOWNCAST(info_, info, eth_proto_info);
@@ -89,12 +102,12 @@ static char const *eth_info_2_str(struct proto_info const *info_)
 {
     struct eth_proto_info const *info = DOWNCAST(info_, info, eth_proto_info);
     char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, vlan_id=%d, source=%s, dest=%s, proto=%u",
+    snprintf(str, TEMPSTR_SIZE, "%s, vlan_id=%d, source=%s, dest=%s, proto=%s",
         proto_info_2_str(info_),
         info->vlan_id,
         eth_addr_2_str(info->addr[0]),
         eth_addr_2_str(info->addr[1]),
-        info->protocol);
+        eth_proto_2_str(info->protocol));
     return str;
 }
 

@@ -8,6 +8,8 @@ NEW in 2.5.0 (since 2.4.0)
 
 * Reorder all TCP traffic by default
 
+* NetTop plugin
+
 
 NEW in 2.4.0 (since 2.3.0)
 --------------------------

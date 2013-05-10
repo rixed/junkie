@@ -915,3 +915,13 @@ to find out what's causes some burst in bandwidth for instance.
 
 Used to send parsed informations to another junkie through a socket.
 
+=== NetTop
+
+Display the heavy hitters, not unlike the famous nettop.
+You can choose to group flows by IPs, MACs, ports, and so on (see the +help+).
+
+Example:
+
+    junkie -p nettop -i eth0
+
+

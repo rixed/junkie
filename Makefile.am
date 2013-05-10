@@ -15,6 +15,7 @@ SUBDIRS = \
 	plugins/os-detect \
 	plugins/packetogram \
 	plugins/duplicogram \
+	plugins/nettop \
 	guile \
 	tests \
 	doc

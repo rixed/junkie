@@ -22,7 +22,7 @@
 struct cli_opt {
     char const *arg[2];
 #   define NEEDS_ARG ((void *)1)    // anything but NULL
-    char const *arg_name;   // if NULL then we don't need any argument. If CLI_OPT_NEEDS_ARG then will print default arg name in help string
+    char const *arg_name;   // if NULL then we don't need any argument. If NEEDS_ARG then will print default arg name in help string
     char const *help;
     enum cli_action {
         CLI_CALL,       // will call u.call

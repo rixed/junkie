@@ -85,6 +85,7 @@ AC_CONFIG_FILES([
 	plugins/os-detect/Makefile
 	plugins/packetogram/Makefile
 	plugins/duplicogram/Makefile
+	plugins/nettop/Makefile
 	config/Makefile
 	config/cacti/Makefile
 	guile/Makefile

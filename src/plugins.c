@@ -101,15 +101,13 @@ void plugin_del_all(void)
 {
     SLOG(LOG_DEBUG, "Unloading all plugins");
 
-    // Ensure no finalizers are registered
+    // Ensure no finalizers are registered (notice that ongoing parsing may cause new objects to be collected in the meantime)
     doomer_run();
-    assert(SLIST_EMPTY(&death_row));
 
     mutex_lock(&plugins_mutex);
     struct plugin *plugin;
     while (NULL != (plugin = LIST_FIRST(&plugins))) {
         plugin_del(plugin);
-        assert(SLIST_EMPTY(&death_row));
     }
     mutex_unlock(&plugins_mutex);
 }
