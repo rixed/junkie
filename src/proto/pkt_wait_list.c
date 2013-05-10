@@ -354,13 +354,14 @@ void pkt_wait_list_dtor(struct pkt_wait_list *pkt_wl)
     supermutex_unlock(mutex);
 }
 
-void pkt_wl_config_ctor(struct pkt_wl_config *config, char const *name, unsigned acceptable_gap, unsigned nb_pkts_max, size_t payload_max, unsigned timeout)
+void pkt_wl_config_ctor(struct pkt_wl_config *config, char const *name, unsigned acceptable_gap, unsigned nb_pkts_max, size_t payload_max, unsigned timeout, bool allow_partial)
 {
     config->name = name;
     config->acceptable_gap = acceptable_gap;
     config->nb_pkts_max = nb_pkts_max;
     config->payload_max = payload_max;
     config->timeout = timeout;
+    config->allow_partial = allow_partial;
     config->list_seqnum = 0;
 #   ifndef __GNUC__
     mutex_ctor(&config->atomic, "pkt_wl_config");
@@ -430,7 +431,7 @@ static bool pkt_wait_list_try_locked(struct pkt_wait_list *pkt_wl, enum proto_pa
     while (NULL != (pkt = LIST_FIRST(&pkt_wl->pkts))) {
         SLOG(LOG_DEBUG, "pkt_wait_list_try_locked pkt=%p, force_timeout=%s", pkt, force_timeout?"yes":"no");
 
-        bool const wait_same_dir = pkt->offset > pkt_wl->next_offset;
+        bool const wait_same_dir = !pkt_wl->config->allow_partial || pkt->offset > pkt_wl->next_offset;
         bool const wait_other_dir = pkt_wl->sync_with && pkt->sync && pkt_wl->sync_with->next_offset < pkt->sync_offset;
         /* In theory we should wait for the other direction to advance somehow.
          * But if the other direction is empty and does not receive anything it will not timeout

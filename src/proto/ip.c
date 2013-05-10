@@ -553,7 +553,7 @@ void ip_init(void)
     ext_param_reassembly_enabled_init();
     mutex_ctor(&ip_subprotos_mutex, "IPv4 subprotocols");
     LIST_INIT(&ip_subprotos);
-    pkt_wl_config_ctor(&ip_reassembly_config, "IP-reassembly", 65536, 100, 65536, 5 /* FRAGMENTATION TIMEOUT (second) */);
+    pkt_wl_config_ctor(&ip_reassembly_config, "IP-reassembly", 65536, 100, 65536, 5 /* FRAGMENTATION TIMEOUT (second) */, false);
 
     static struct proto_ops const ops = {
         .parse       = ip_parse,

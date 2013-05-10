@@ -546,7 +546,7 @@ void tcp_init(void)
 {
     mutex_pool_ctor(&tcp_locks, "TCP subparsers");
     log_category_proto_tcp_init();
-    pkt_wl_config_ctor(&tcp_wl_config, "TCP-reordering", 100000, 20, 100000, 3 /* REORDERING TIMEOUT (second) */);
+    pkt_wl_config_ctor(&tcp_wl_config, "TCP-reordering", 100000, 20, 100000, 3 /* REORDERING TIMEOUT (second) */, true);
 
     static struct proto_ops const ops = {
         .parse       = tcp_parse,

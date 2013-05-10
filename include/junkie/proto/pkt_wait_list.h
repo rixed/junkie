@@ -111,6 +111,8 @@ struct pkt_wl_config {
     unsigned nb_pkts_max;
     /// Max pending payload
     size_t payload_max;
+    /// Can we parse only a subset of the packets or must we wait for the grand reassembly (note: IP -> false, TCP -> true)
+    bool allow_partial;
     /// Timeout (s)
     unsigned timeout;
     /// A thread to timeout WLs more aggressively (otherwise pending packets on a WL which receive no more traffic would have to wait until its parent destruction)
@@ -124,7 +126,8 @@ void pkt_wl_config_ctor(
     unsigned acceptable_gap,        ///< Accept to enqueue a packet only if its not further away from previous one (0 for no check)
     unsigned nb_pkts_max,           ///< Max number of pending packets (0 for unlimited)
     size_t payload_max,             ///< Max pending payload (0 for unlimited)
-    unsigned timeout                ///< Timeout these pkt_wait_lists after this number of seconds (0 for no timeout)
+    unsigned timeout,               ///< Timeout these pkt_wait_lists after this number of seconds (0 for no timeout)
+    bool allow_partial              ///< Should we parse packets as soon as possible or wait for a full PDU?
 );
 
 void pkt_wl_config_dtor(struct pkt_wl_config *);

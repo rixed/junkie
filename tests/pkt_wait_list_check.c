@@ -20,7 +20,7 @@
 static void ctor_dtor_check(void)
 {
     struct pkt_wl_config config;
-    pkt_wl_config_ctor(&config, "test1", 0, 0, 0, 0);
+    pkt_wl_config_ctor(&config, "test1", 0, 0, 0, 0, true);
 
     struct parser *dummy = proto_dummy->ops->parser_new(proto_dummy);
     assert(dummy);
@@ -59,7 +59,7 @@ static enum proto_parse_status test_parse(struct parser *parser, struct proto_in
 
 static void wl_check_setup(void)
 {
-    pkt_wl_config_ctor(&config, "test", 1000, 0, 0, 0);
+    pkt_wl_config_ctor(&config, "test", 1000, 0, 0, 0, true);
 
     static struct proto_ops const ops = {
         .parse      = test_parse,
