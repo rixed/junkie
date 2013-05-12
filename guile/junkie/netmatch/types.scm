@@ -758,6 +758,34 @@
 (add-operator '-TS timestamp-sub)
 (add-operator '- timestamp-sub)
 
+(define (timestamp-comp-op opname cmp-cond)
+  (lambda (ts1 ts2)
+    (let ((res (gensymC (string-append "ts_" opname))))
+      (make-stub
+        (string-append
+          (stub-code ts1)
+          (stub-code ts2)
+          "    bool " res " = timeval_cmp(" (stub-result ts1) ", " (stub-result ts2) ") " cmp-cond ";\n")
+        res
+        (append (stub-regnames ts1) (stub-regnames ts2))))))
+
+(define timestamp-gt
+  (make-op 'timestamp-gt bool (list timestamp timestamp) (timestamp-comp-op "gt" "> 0")))
+(add-operator '> timestamp-gt)
+(define timestamp-ge
+  (make-op 'timestamp-ge bool (list timestamp timestamp) (timestamp-comp-op "ge" ">= 0")))
+(add-operator '>= timestamp-gt)
+(define timestamp-lt
+  (make-op 'timestamp-lt bool (list timestamp timestamp) (timestamp-comp-op "lt" "< 0")))
+(add-operator '< timestamp-gt)
+(define timestamp-le
+  (make-op 'timestamp-le bool (list timestamp timestamp) (timestamp-comp-op "le" "<= 0")))
+(add-operator '<= timestamp-gt)
+(define timestamp-eq
+  (make-op 'timestamp-eq bool (list timestamp timestamp) (timestamp-comp-op "eq" "== 0")))
+(add-operator '== timestamp-gt)
+(add-operator '= timestamp-gt)
+
 (export make-timestamp now age timestamp-sub)
 
 ;; IP addresses manipulation
