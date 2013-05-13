@@ -445,7 +445,7 @@ static bool pkt_wait_list_try_locked(struct pkt_wait_list *pkt_wl, enum proto_pa
             !force_timeout &&
             (!timeval_is_set(now) || timeval_sub(now, &pkt->cap_tv) < t)
         ) break;
-        
+
         force_timeout = false;  // this works only once (so that caller has a chance to advance the reciprocal waiting_list)
         // Advance this direction (gaps will be signaled)
         *status = pkt_wait_finalize(pkt, pkt_wl);

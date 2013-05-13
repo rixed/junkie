@@ -34,16 +34,19 @@
 #include "junkie/tools/timeval.h"
 #include "junkie/tools/tempstr.h"
 
+static volatile sig_atomic_t quit;
+static bool display_help;
+
 /*
  * Parameters
  */
 
 static int64_t refresh_rate = 1000000;  // 1 sec
 static unsigned nb_entries = 0;         // from nb_lines
-static bool use_dev = true;             // key use device id
-static bool use_vlan = true;            // key use vlan id
-static bool use_mac_src = true;         // key use mac src addr
-static bool use_mac_dst = true;         // key use mac dst addr
+static bool use_dev = false;            // key use device id
+static bool use_vlan = false;           // key use vlan id
+static bool use_mac_src = false;        // key use mac src addr
+static bool use_mac_dst = false;        // key use mac dst addr
 static bool use_mac_proto = true;       // key use mac proto
 static bool use_ip_src = true;          // key use IP src addr
 static bool use_ip_dst = true;          // key use IP dst addr
@@ -53,6 +56,28 @@ static bool use_port_src = true;        // key use source port
 static bool use_port_dst = true;        // key use dest port
 static bool use_proto_stack = true;     // key use protocol stack
 static enum sort_by { PACKETS, VOLUME } sort_by = VOLUME;
+static bool shorten_proto_stack = true; // display only the last component
+
+static char const *current_key_2_str(void)
+{
+    char *s = tempstr_printf("%s%s%s%s%s%s%s%s%s%s%s%s%s",
+        use_dev ? ", device id":"",
+        use_vlan ? ", VLAM id":"",
+        use_ip_src ? ", src IP":"",
+        use_port_src ? ", src port":"",
+        use_mac_src ? ", src MAC":"",
+        use_ip_dst ? ", dest IP":"",
+        use_port_dst ? ", dest port":"",
+        use_mac_dst ? ", dest MAC":"",
+        use_mac_proto ? ", Ethernet protocol":"",
+        use_ip_proto ? ", IP protocol":"",
+        use_ip_version ? ", IP version":"",
+        use_proto_stack ? ", protocol names":"",
+        use_proto_stack && shorten_proto_stack ? " (short)":""
+    );
+    if (s[0] == ',') s++;
+    return s;
+}
 
 static int cli_set_refresh(char const *v)
 {
@@ -110,7 +135,7 @@ struct nettop_key {
 
 static size_t print_proto_stack(char *dst, size_t sz, struct proto_info const *last)
 {
-    // Write parrent first:
+    // Write parent first:
     size_t len = 0;
     if (last->parent) {
         len = print_proto_stack(dst, sz, last->parent);
@@ -149,7 +174,7 @@ static void nettop_key_ctor(struct nettop_key *k, struct proto_info const *last)
     if (use_proto_stack) print_proto_stack(k->stack, sizeof(k->stack), last);
 }
 
-static char const *nettop_key_2_str(struct nettop_key const *k)
+static char const *nettop_key_2_str(struct nettop_key const *k, unsigned proto_len, unsigned addr_len)
 {
     char *s = tempstr();
     size_t const sz = TEMPSTR_SIZE;
@@ -165,54 +190,81 @@ static char const *nettop_key_2_str(struct nettop_key const *k)
             snprintf(s+o, sz-o, "     ") :
             snprintf(s+o, sz-o, " %4d", k->vlan_id);
     }
-    if (o < sz && use_mac_src) {
-        o += k->mac_src[0] == '\0' ?
-            snprintf(s+o, sz-o, "                   ") :
-            snprintf(s+o, sz-o, " %12s", eth_addr_2_str(k->mac_src));
-    }
+
+    // Protocol
     bool mac_proto_needed = true;
-    if (o < sz && use_ip_src && k->ip_src.family != 0 /* FIXME */) {
-        o += snprintf(s+o, sz-o, " %s", ip_addr_2_str(&k->ip_src));
+    bool ip_proto_needed = true;
+    char proto_str[proto_len];
+    size_t proto_o = 0;
+
+    if (proto_o < proto_len && use_proto_stack && k->stack[0] != '\0') {
+        char const *stack = k->stack;
+        if (shorten_proto_stack) {
+            char *c = strrchr(k->stack, '/');
+            if (c) stack = c+1;
+        }
+        proto_o += snprintf(proto_str+proto_o, proto_len-proto_o, " %s", stack);
+        while (use_ip_proto && k->ip_proto != -1) {
+            char const *proto = ip_proto_2_str(k->ip_proto);
+            char *f = strstr(k->stack, proto);
+            if (! f) break;  // name not found
+            if (f != k->stack && f[-1] != '/') break;   // not at beginning of proto name
+            int l = strlen(proto);
+            if (f[l] != '\0' && f[l] != '/') break; // not at end of proto name
+            // let's face it: we already print the IP proto name
+            ip_proto_needed = false;
+            break;
+        }
+    }
+    if (proto_o < proto_len && use_ip_proto && ip_proto_needed && k->ip_proto != -1) {
+        proto_o += snprintf(proto_str+proto_o, proto_len-proto_o, " %s", ip_proto_2_str(k->ip_proto));
         mac_proto_needed = false;
     }
-    if (o < sz && use_ip_proto && k->ip_proto != -1) {
-        o += snprintf(s+o, sz-o, " %s", ip_proto_2_str(k->ip_proto));
-        mac_proto_needed = false;
-    }
-    if (o < sz && use_ip_version && !use_ip_src && !use_ip_dst && k->ip_version != -1) {
-        o += snprintf(s+o, sz-o, " %d", k->ip_version);
-        mac_proto_needed = false;
-    }
-    if (o < sz && use_port_src && k->port_src != -1) {
-        o += snprintf(s+o, sz-o, ":%d", k->port_src);
+    if (proto_o < proto_len && use_ip_version && !use_ip_src && !use_ip_dst && k->ip_version != -1) {
+        proto_o += snprintf(proto_str+proto_o, proto_len-proto_o, " %d", k->ip_version);
         mac_proto_needed = false;
     }
 
-    if (o < sz && (use_mac_src||use_ip_src||use_port_src) && (use_mac_dst||use_ip_dst||use_port_dst)) {
-        o += snprintf(s+o, sz-o, " -> ");
-    }
+    // Source
+    size_t src_len = addr_len;
+    char src_str[src_len];
+    size_t src_o = 0;
 
-    if (o < sz && use_mac_dst) {
-        o += k->mac_dst[0] == '\0' ?
-            snprintf(s+o, sz-o, "                   ") :
-            snprintf(s+o, sz-o, " %12s", eth_addr_2_str(k->mac_dst));
+    if (src_o < src_len && use_mac_src) {
+        src_o += snprintf(src_str+src_o, src_len-src_o, " %12s", eth_addr_2_str(k->mac_src));
     }
-    if (o < sz && use_ip_dst && k->ip_dst.family != 0 /* FIXME */) {
-        o += snprintf(s+o, sz-o, " %s", ip_addr_2_str(&k->ip_dst));
+    if (src_o < src_len && use_ip_src && k->ip_src.family != 0 /* FIXME */) {
+        src_o += snprintf(src_str+src_o, src_len-src_o, " %s", ip_addr_2_str(&k->ip_src));
         mac_proto_needed = false;
     }
-    if (o < sz && use_port_dst && k->port_dst != -1) {
-        o += snprintf(s+o, sz-o, ":%d", k->port_dst);
+    if (src_o < src_len && use_port_src && k->port_src != -1) {
+        src_o += snprintf(src_str+src_o, src_len-src_o, ":%d", k->port_src);
         mac_proto_needed = false;
     }
-    if (o < sz && use_mac_proto && mac_proto_needed && k->mac_proto != -1) {
-        o += snprintf(s+o, sz-o, " %s", eth_proto_2_str(k->mac_proto));
-    }
-    if (o < sz && use_proto_stack && k->stack[0] != '\0') {
-        o += snprintf(s+o, sz-o, " %s", k->stack);
+
+    if (src_o < src_len && use_mac_proto && mac_proto_needed && k->mac_proto != -1) {
+        proto_o += snprintf(proto_str+proto_o, proto_len-proto_o, " %s", eth_proto_2_str(k->mac_proto));
     }
 
-    return s+1; // skip first separator
+    // Dest
+    size_t dst_len = addr_len;
+    char dst_str[dst_len];
+    size_t dst_o = 0;
+
+    if (dst_o < dst_len && use_mac_dst) {
+        dst_o += snprintf(dst_str+dst_o, dst_len-dst_o, " %12s", eth_addr_2_str(k->mac_dst));
+    }
+    if (dst_o < dst_len && use_ip_dst && k->ip_dst.family != 0 /* FIXME */) {
+        dst_o += snprintf(dst_str+dst_o, dst_len-dst_o, " %s", ip_addr_2_str(&k->ip_dst));
+        mac_proto_needed = false;
+    }
+    if (dst_o < dst_len && use_port_dst && k->port_dst != -1) {
+        dst_o += snprintf(dst_str+dst_o, dst_len-dst_o, ":%d", k->port_dst);
+        mac_proto_needed = false;
+    }
+
+    o += snprintf(s+o, sz-o, "%*s %*s ->%-*s", (int)proto_len, proto_str, (int)src_len, src_str, (int)dst_len, dst_str);
+    return s;
 }
 
 /*
@@ -259,17 +311,31 @@ static void nettop_cell_del(struct nettop_cell *cell)
 }
 
 /*
- * Callback
+ * Display
  */
+
+#define TOPLEFT "\x1B[1;1H"
+#define CLEAR   "\x1B[2J"
+#define NORMAL  "\x1B[0m"
+#define BRIGHT  "\x1B[1m"
+#define REVERSE "\x1B[7m"
+
+static uint_least64_t packets_count, bytes_count;
 
 static uint64_t value(struct nettop_cell const *cell)
 {
     return sort_by == PACKETS ? cell->packets : cell->volume;
 }
 
-static void nettop_cell_print(struct nettop_cell const *cell)
+static void nettop_cell_print(struct nettop_cell const *cell, unsigned proto_len, unsigned addr_len)
 {
-    printf("%10"PRIu64" %10"PRIu64" %s\n", cell->packets, cell->volume, nettop_key_2_str(&cell->key));
+    if (sort_by == PACKETS) {
+        printf(BRIGHT "%10"PRIu64 NORMAL " %10"PRIu64, cell->packets, cell->volume);
+    } else {
+        printf("%10"PRIu64 BRIGHT " %10"PRIu64 NORMAL, cell->packets, cell->volume);
+    }
+
+    printf(" %s\n", nettop_key_2_str(&cell->key, proto_len, addr_len));
 }
 
 static int cell_cmp(void const *c1_, void const *c2_)
@@ -288,14 +354,12 @@ static void try_display(struct timeval const *now)
     if (timeval_is_set(&last_display) && timeval_sub(now, &last_display) < refresh_rate) return;
     last_display = *now;
 
+    unsigned nb_lines, nb_columns;
+    get_window_size(&nb_columns, &nb_lines);
+    if (nb_lines < 5) nb_lines = 25;    // probably get_window_size failed?
+
     unsigned nb_entries = nb_entries;
     if (! nb_entries) { // from nb_lines
-        static unsigned nb_lines;
-        if (! nb_lines) {
-            unsigned columns;
-            get_window_size(&columns, &nb_lines);
-            if (nb_lines < 5) nb_lines = 25;    // probably get_window_size failed?
-        }
         nb_entries = nb_lines - 5;
     }
 
@@ -334,44 +398,68 @@ static void try_display(struct timeval const *now)
     qsort(top, last_e, sizeof(top[0]), cell_cmp);
 
     // Display the result
-    printf("\x1B[1;1H\x1B[2J");
-    printf("   Packets     Volume ");
-    if (use_dev) printf("Dev ");
-    if (use_vlan) printf("Vlan ");
-    printf("Key\n");
+    printf(TOPLEFT CLEAR);
+    printf("NetTop - Every " BRIGHT "%.2fs" NORMAL " - " BRIGHT "%s" NORMAL, refresh_rate / 1000000., ctime(&now->tv_sec));
+    printf("Packets: " BRIGHT "%"PRIu64 NORMAL", Bytes: " BRIGHT "%"PRIu64 NORMAL "\n\n",
+        packets_count, bytes_count);
+    packets_count = 0; bytes_count = 0;
+
+    unsigned const proto_len = 10 + (use_proto_stack && !shorten_proto_stack ? 30:0);
+    unsigned const addrs_len = nb_columns - 23 - proto_len - (use_vlan ? 5:0) - (use_dev ? 5:0);
+    unsigned const addr_len = (addrs_len - 3) / 2;
+    unsigned c = 0;
+    printf(REVERSE);
+    c += printf("   Packets     Volume ");
+    if (use_dev) c += printf("Dev ");
+    if (use_vlan) c += printf("Vlan ");
+    c += printf("%*s", proto_len, "Protocol");
+    c += printf("%*s", addr_len+1, "Source");
+    c += printf("   ");
+    c += printf("%-*s", addr_len, " Destination");
+    for (; c < nb_columns; c++) printf(" ");
+    printf(NORMAL "\n");
     for (unsigned e = 0; e < last_e; e++) {
-        nettop_cell_print(&top[e]);
+        nettop_cell_print(&top[e], proto_len, addr_len);
     }
 }
 
-static void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info const *last, size_t unused_ cap_len, uint8_t const unused_ *packet, struct timeval const *now)
+static void do_display_help(void)
 {
-    mutex_lock(&cells_lock);
+    printf(
+        TOPLEFT CLEAR
+        BRIGHT "Help for Interactive Commands" NORMAL " - NetTop v%s\n"
+        "\n", version_string);
+    printf(
+        "Most keys control what fields are used to group traffic.\n"
+        "Currently, packets are grouped by:\n"
+        "   " BRIGHT "%s" NORMAL "\n"
+        "And sorted according to: " BRIGHT "%s" NORMAL "\n"
+        "Refresh rate is: " BRIGHT "%.2fs" NORMAL "\n"
+        "\n"
+        BRIGHT "I" NORMAL "     Toggle usage of device id\n"
+        BRIGHT "V" NORMAL "     Toggle usage of VLAN id\n"
+        BRIGHT "s" NORMAL "     Toggle usage of src IP\n"
+        BRIGHT "d" NORMAL "     Toggle usage of dest IP\n"
+        BRIGHT "S" NORMAL "     Toggle usage of src port\n"
+        BRIGHT "D" NORMAL "     Toggle usage of dest port\n"
+        BRIGHT "m" NORMAL "     Toggle usage of src MAC\n"
+        BRIGHT "M" NORMAL "     Toggle usage of dest MAC\n"
+        BRIGHT "p" NORMAL "     Toggle usage of IP protocol\n"
+        BRIGHT "P" NORMAL "     Toggle usage of Ethernet protocol\n"
+        BRIGHT "v" NORMAL "     Toggle usage of IP version\n"
+        BRIGHT "n" NORMAL "     Toggle usage of protocol stack\n"
+        BRIGHT "N" NORMAL "     Display short protocol stack\n"
+        BRIGHT "k" NORMAL "     Toggle sort field (volume or packets)\n"
+        "\n"
+        BRIGHT "+/-" NORMAL "   Refresh rate twice faster/slower\n"
+        BRIGHT "h,H,?" NORMAL " this help screen\n"
+        BRIGHT "q" NORMAL "     return to main screen\n"
+        BRIGHT "^C" NORMAL "    quit\n",
+        current_key_2_str(),
+        sort_by == VOLUME ? "Volume":"Packets",
+        refresh_rate/1000000.);
 
-    try_display(now);
-
-    ASSIGN_INFO_CHK(cap, last, );
-
-    struct nettop_key k;
-    nettop_key_ctor(&k, last);
-    
-    struct nettop_cell *cell;
-    HASH_LOOKUP(cell, &nettop_cells, &k, key, entry);
-    if (! cell) {
-        cell = nettop_cell_new(&k);
-        if (! cell) goto quit;
-    }
-
-    cell->volume += cap->info.payload;
-    cell->packets ++;
-quit:
-    mutex_unlock(&cells_lock);
 }
-
-static struct proto_subscriber subscription;
-static struct termios termios_orig;
-static pthread_t keyctrl_pth;
-static volatile sig_atomic_t quit;
 
 // read keys and change use flags
 static void *keyctrl_thread(void unused_ *dummy)
@@ -400,13 +488,64 @@ static void *keyctrl_thread(void unused_ *dummy)
             case 'P': use_mac_proto ^= 1; break;
             case 'v': use_ip_version ^= 1; break;
             case 'n': use_proto_stack ^= 1; break;
+            case 'N': shorten_proto_stack ^= 1; break;
+            case 'k': sort_by = sort_by == VOLUME ? PACKETS:VOLUME; break;
             case '+': refresh_rate *= 2; break;
             case '-': refresh_rate = MAX(refresh_rate/2, 1000); break;
+            case '?':
+            case 'h':
+            case 'H': display_help ^= 1; break;
+            case 'q':
+                if (display_help) {
+                    display_help = false;
+                }
+                break;
         }
+        // Refresh help page after each keystroke
+        if (display_help) do_display_help();
     }
 
     return NULL;
 }
+
+/*
+ * Callback
+ */
+
+static void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info const *last, size_t unused_ cap_len, uint8_t const unused_ *packet, struct timeval const *now)
+{
+    mutex_lock(&cells_lock);
+
+    if (! display_help) try_display(now);
+
+    ASSIGN_INFO_CHK(cap, last, );
+
+    struct nettop_key k;
+    nettop_key_ctor(&k, last);
+
+    struct nettop_cell *cell;
+    HASH_LOOKUP(cell, &nettop_cells, &k, key, entry);
+    if (! cell) {
+        cell = nettop_cell_new(&k);
+        if (! cell) goto quit;
+    }
+
+    cell->volume += cap->info.payload;
+    cell->packets ++;
+
+    packets_count ++;
+    bytes_count += cap->info.payload;
+quit:
+    mutex_unlock(&cells_lock);
+}
+
+static struct proto_subscriber subscription;
+static struct termios termios_orig;
+static pthread_t keyctrl_pth;
+
+/*
+ * Init
+ */
 
 void on_load(void)
 {

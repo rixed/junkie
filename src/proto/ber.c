@@ -56,7 +56,7 @@ struct ber_tag {
 static char const *ber_tag_2_str(struct ber_tag *t)
 {
     char const *tagname = tempstr_printf("%s of type %u", ber_class_2_str(t->class), t->tag);
-    
+
     // We know the name of some tags
     if (t->class == BER_UNIVERSAL) {
         static char const *universal_tagnames[] = {

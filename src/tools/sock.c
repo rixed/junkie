@@ -257,7 +257,7 @@ static int sock_udp_recv(struct sock *s_, fd_set *set, sock_receiver *receiver, 
     }
 
     SLOG(LOG_DEBUG, "read %zd bytes out of %s", r, s_->name);
-    
+
     return receiver(s_, MIN((size_t)r, sizeof(buf)), buf, &sender, user_data);
 }
 
