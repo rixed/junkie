@@ -351,23 +351,20 @@ static int cell_cmp(void const *c1_, void const *c2_)
     return 0;
 }
 
-static void try_display(struct timeval const *now)
+static struct timeval last_display;
+static void do_display_top(void)
 {
-    static struct timeval last_display;
-    if (timeval_is_set(&last_display) && timeval_sub(now, &last_display) < refresh_rate) return;
-    last_display = *now;
-
     unsigned nb_lines, nb_columns;
     get_window_size(&nb_columns, &nb_lines);
     if (nb_lines < 5) nb_lines = 25;    // probably get_window_size failed?
 
-    unsigned nb_entries = nb_entries;
+    unsigned nbe = nb_entries;
     if (! nb_entries) { // from nb_lines
-        nb_entries = nb_lines - 5;
+        nbe = nb_lines - 5;
     }
 
-    // look for nb_entries top hitters
-    struct nettop_cell top[nb_entries];
+    // look for nbe top hitters
+    struct nettop_cell top[nbe];
     unsigned last_e = 0;
     unsigned min_e = UNSET;
     uint64_t min_value = 0;
@@ -377,7 +374,7 @@ static void try_display(struct timeval const *now)
         uint64_t const new_value = value(cell);
         if (new_value > min_value) {
             // look for a free slot or min_value (note: free slots will be at the end of nettops)
-            if (last_e < nb_entries) {
+            if (last_e < nbe) {
                 min_e = last_e;
                 top[last_e++] = *cell;
             } else {
@@ -402,7 +399,7 @@ static void try_display(struct timeval const *now)
 
     // Display the result
     printf(TOPLEFT CLEAR);
-    printf("NetTop - Every " BRIGHT "%.2fs" NORMAL " - " BRIGHT "%s" NORMAL, refresh_rate / 1000000., ctime(&now->tv_sec));
+    printf("NetTop - Every " BRIGHT "%.2fs" NORMAL " - " BRIGHT "%s" NORMAL, refresh_rate / 1000000., ctime(&last_display.tv_sec));
     printf("Packets: " BRIGHT "%"PRIu64 NORMAL", Bytes: " BRIGHT "%"PRIu64 NORMAL "\n\n",
         packets_count, bytes_count);
     packets_count = 0; bytes_count = 0;
@@ -426,6 +423,14 @@ static void try_display(struct timeval const *now)
     }
 }
 
+static void try_display(struct timeval const *now)
+{
+    if (timeval_is_set(&last_display) && timeval_sub(now, &last_display) < refresh_rate) return;
+    last_display = *now;
+
+    do_display_top();
+}
+
 static void do_display_help(void)
 {
     printf(
@@ -439,29 +444,28 @@ static void do_display_help(void)
         "And sorted according to: " BRIGHT "%s" NORMAL "\n"
         "Refresh rate is: " BRIGHT "%.2fs" NORMAL "\n"
         "\n"
-        BRIGHT "I" NORMAL "     Toggle usage of device id\n"
-        BRIGHT "V" NORMAL "     Toggle usage of VLAN id\n"
-        BRIGHT "s" NORMAL "     Toggle usage of src IP\n"
-        BRIGHT "d" NORMAL "     Toggle usage of dest IP\n"
-        BRIGHT "S" NORMAL "     Toggle usage of src port\n"
-        BRIGHT "D" NORMAL "     Toggle usage of dest port\n"
-        BRIGHT "m" NORMAL "     Toggle usage of src MAC\n"
-        BRIGHT "M" NORMAL "     Toggle usage of dest MAC\n"
-        BRIGHT "p" NORMAL "     Toggle usage of IP protocol\n"
-        BRIGHT "P" NORMAL "     Toggle usage of Ethernet protocol\n"
-        BRIGHT "v" NORMAL "     Toggle usage of IP version\n"
-        BRIGHT "n" NORMAL "     Toggle usage of protocol stack\n"
-        BRIGHT "N" NORMAL "     Display short protocol stack\n"
-        BRIGHT "k" NORMAL "     Toggle sort field (volume or packets)\n"
+        "  " BRIGHT "I" NORMAL "     Toggle usage of device id\n"
+        "  " BRIGHT "V" NORMAL "     Toggle usage of VLAN id\n"
+        "  " BRIGHT "s" NORMAL "     Toggle usage of src IP\n"
+        "  " BRIGHT "d" NORMAL "     Toggle usage of dest IP\n"
+        "  " BRIGHT "S" NORMAL "     Toggle usage of src port\n"
+        "  " BRIGHT "D" NORMAL "     Toggle usage of dest port\n"
+        "  " BRIGHT "m" NORMAL "     Toggle usage of src MAC\n"
+        "  " BRIGHT "M" NORMAL "     Toggle usage of dest MAC\n"
+        "  " BRIGHT "p" NORMAL "     Toggle usage of IP protocol\n"
+        "  " BRIGHT "P" NORMAL "     Toggle usage of Ethernet protocol\n"
+        "  " BRIGHT "v" NORMAL "     Toggle usage of IP version\n"
+        "  " BRIGHT "n" NORMAL "     Toggle usage of protocol stack\n"
+        "  " BRIGHT "N" NORMAL "     Display short protocol stack\n"
+        "  " BRIGHT "k" NORMAL "     Toggle sort field (volume or packets)\n"
         "\n"
-        BRIGHT "+/-" NORMAL "   Refresh rate twice faster/slower\n"
-        BRIGHT "h,H,?" NORMAL " this help screen\n"
-        BRIGHT "q" NORMAL "     return to main screen\n"
-        BRIGHT "^C" NORMAL "    quit\n",
+        "  " BRIGHT "+/-" NORMAL "   Refresh rate twice faster/slower\n"
+        "  " BRIGHT "h,H,?" NORMAL " this help screen\n"
+        "  " BRIGHT "q" NORMAL "     return to main screen\n"
+        "  " BRIGHT "^C" NORMAL "    quit\n",
         current_key_2_str(),
         sort_by == VOLUME ? "Volume":"Packets",
         refresh_rate/1000000.);
-
 }
 
 // read keys and change use flags
@@ -499,13 +503,17 @@ static void *keyctrl_thread(void unused_ *dummy)
             case 'h':
             case 'H': display_help ^= 1; break;
             case 'q':
+            case '\n':
                 if (display_help) {
                     display_help = false;
                 }
                 break;
         }
         // Refresh help page after each keystroke
+        mutex_lock(&cells_lock);
         if (display_help) do_display_help();
+        else do_display_top();
+        mutex_unlock(&cells_lock);
     }
 
     return NULL;
