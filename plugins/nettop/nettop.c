@@ -195,6 +195,7 @@ static char const *nettop_key_2_str(struct nettop_key const *k, unsigned proto_l
     bool mac_proto_needed = true;
     bool ip_proto_needed = true;
     char proto_str[proto_len];
+    proto_str[0] = '\0';
     size_t proto_o = 0;
 
     if (proto_o < proto_len && use_proto_stack && k->stack[0] != '\0') {
@@ -228,10 +229,11 @@ static char const *nettop_key_2_str(struct nettop_key const *k, unsigned proto_l
     // Source
     size_t src_len = addr_len;
     char src_str[src_len];
+    src_str[0] = '\0';
     size_t src_o = 0;
 
     if (src_o < src_len && use_mac_src) {
-        src_o += snprintf(src_str+src_o, src_len-src_o, " %12s", eth_addr_2_str(k->mac_src));
+        src_o += snprintf(src_str+src_o, src_len-src_o, " %s", eth_addr_2_str(k->mac_src));
     }
     if (src_o < src_len && use_ip_src && k->ip_src.family != 0 /* FIXME */) {
         src_o += snprintf(src_str+src_o, src_len-src_o, " %s", ip_addr_2_str(&k->ip_src));
@@ -249,10 +251,11 @@ static char const *nettop_key_2_str(struct nettop_key const *k, unsigned proto_l
     // Dest
     size_t dst_len = addr_len;
     char dst_str[dst_len];
+    dst_str[0] = '\0';
     size_t dst_o = 0;
 
     if (dst_o < dst_len && use_mac_dst) {
-        dst_o += snprintf(dst_str+dst_o, dst_len-dst_o, " %12s", eth_addr_2_str(k->mac_dst));
+        dst_o += snprintf(dst_str+dst_o, dst_len-dst_o, " %s", eth_addr_2_str(k->mac_dst));
     }
     if (dst_o < dst_len && use_ip_dst && k->ip_dst.family != 0 /* FIXME */) {
         dst_o += snprintf(dst_str+dst_o, dst_len-dst_o, " %s", ip_addr_2_str(&k->ip_dst));
@@ -263,7 +266,7 @@ static char const *nettop_key_2_str(struct nettop_key const *k, unsigned proto_l
         mac_proto_needed = false;
     }
 
-    o += snprintf(s+o, sz-o, "%*s %*s ->%-*s", (int)proto_len, proto_str, (int)src_len, src_str, (int)dst_len, dst_str);
+    o += snprintf(s+o, sz-o, "%*s %*s%s%-*s", (int)proto_len, proto_str, (int)src_len, src_str, src_str[0]!='\0' && dst_str[0]!='\0' ? " ->":"", (int)dst_len, dst_str);
     return s;
 }
 
