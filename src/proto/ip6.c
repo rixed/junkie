@@ -47,6 +47,7 @@ static void ip6_proto_info_ctor(struct ip_proto_info *info, struct parser *parse
     ip_addr_ctor_from_ip6(&info->key.addr[1], &iphdr->dst);
     info->key.protocol = READ_U8(&iphdr->next);
     info->ttl = READ_U8(&iphdr->hop_limit);
+    info->way = 0;  // will be set later
     info->traffic_class = (READ_U8(&iphdr->version_class) << 4) | (READ_U8(&iphdr->flow[0]) >> 4);
     info->id = ((READ_U8(&iphdr->flow[0]) & 0x0f) << 16U) | READ_U16N(&iphdr->flow[1]);
 }
@@ -122,13 +123,12 @@ static enum proto_parse_status ip6_parse(struct parser *parser, struct proto_inf
     // Parse payload
 
     struct mux_subparser *subparser = NULL;
-    unsigned way2 = 0;
 
     struct ip_subproto *subproto;
     LIST_LOOKUP_LOCKED(subproto, &ip6_subprotos, entry, subproto->protocol == info.key.protocol, &ip6_subprotos_mutex);
     if (subproto) {
         struct ip_key subparser_key;
-        way2 = ip_key_ctor(&subparser_key, info.key.protocol, info.key.addr+0, info.key.addr+1);
+        info.way = ip_key_ctor(&subparser_key, info.key.protocol, info.key.addr+0, info.key.addr+1);
         subparser = mux_subparser_lookup(mux_parser, subproto->proto, NULL, &subparser_key, now);
     }
 
@@ -137,12 +137,12 @@ static enum proto_parse_status ip6_parse(struct parser *parser, struct proto_inf
         goto fallback;
     }
 
-    enum proto_parse_status status = proto_parse(subparser->parser, &info.info, way2, packet + iphdr_len, cap_payload, payload, now, tot_cap_len, tot_packet);
+    enum proto_parse_status status = proto_parse(subparser->parser, &info.info, info.way, packet + iphdr_len, cap_payload, payload, now, tot_cap_len, tot_packet);
     mux_subparser_unref(&subparser);
     if (status == PROTO_OK) return PROTO_OK;
 
 fallback:
-    (void)proto_parse(NULL, &info.info, way2, packet + iphdr_len, cap_payload, payload, now, tot_cap_len, tot_packet);
+    (void)proto_parse(NULL, &info.info, info.way, packet + iphdr_len, cap_payload, payload, now, tot_cap_len, tot_packet);
     return PROTO_OK;
 }
 
