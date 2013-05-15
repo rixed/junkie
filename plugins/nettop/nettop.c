@@ -145,7 +145,11 @@ static size_t print_proto_stack(char *dst, size_t sz, struct proto_info const *l
     sz -= len;
 
     // Then our own:
-    int l = snprintf(dst, sz, "%s%s", len ? "/":"", last->parser->proto->name);
+    int l =
+        last->parser->proto->code != PROTO_CODE_CAP ? // we don't really want to see this one
+            snprintf(dst, sz, "%s%s", len ? "/":"", last->parser->proto->name) :
+            0;
+
     return len + l;
 }
 
