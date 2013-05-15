@@ -186,7 +186,7 @@ err1:
 
 bool file_exists(char const *file_name)
 {
-    int fd = file_open(file_name, O_RDONLY);
+    int fd = open(file_name, O_RDONLY, 0644);
     if (fd < 0) return false;
     file_close(fd);
     return true;

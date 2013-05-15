@@ -881,7 +881,7 @@ void mux_proto_dtor(struct mux_proto *mux_proto)
     for (unsigned m = 0; m < NB_ELEMS(mux_proto->mutexes); m++) {
         mutex_dtor(&mux_proto->mutexes[m].mutex);
         if (! TAILQ_EMPTY(&mux_proto->mutexes[m].timeout_queue)) {
-            SLOG(LOG_WARNING, "While destructing proto %s, timeout_queue %u not empty", mux_proto->proto.name, m);
+            SLOG(LOG_NOTICE, "While destructing proto %s, timeout_queue %u not empty", mux_proto->proto.name, m);
         }
     }
     proto_dtor(&mux_proto->proto);

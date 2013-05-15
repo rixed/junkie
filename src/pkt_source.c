@@ -824,7 +824,7 @@ void pkt_source_fini(void)
         bool is_empty = LIST_EMPTY(&pkt_sources);
         mutex_unlock(&pkt_sources_lock);
         if (is_empty) break;
-        SLOG(LOG_WARNING, "Waiting for termination of packet source '%s'", pkt_source_name(LIST_FIRST(&pkt_sources)));
+        SLOG(LOG_NOTICE, "Waiting for termination of packet source '%s'", pkt_source_name(LIST_FIRST(&pkt_sources)));
         sleep(1);
     }
 
