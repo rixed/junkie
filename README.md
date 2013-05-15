@@ -100,8 +100,6 @@ Parsers for:
 
 - H323
 
-- SCCP
-
 - SMB
 
 - MSSQL

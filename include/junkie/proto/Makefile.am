@@ -33,4 +33,5 @@ thisinclude_HEADERS = \
 	discovery.h \
 	deduplication.h \
 	erspan.h \
-	ber.h
+	ber.h \
+	skinny.h
