@@ -246,6 +246,8 @@ void log_init(void)
     files_init();
     ext_init();
 
+    log_set_file("/dev/stderr");
+
     ext_function_ctor(&sg_set_log_level, "set-log-level", 1, 1, 0, g_set_log_level,
         "(set-log-level n): sets log level globally to n.\n"
         "(set-log-level n \"cat\"): sets log level of this category to n.\n"
