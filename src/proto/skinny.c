@@ -21,7 +21,9 @@
 #include <assert.h>
 #include <string.h>
 #include <ctype.h>
+#include "junkie/tools/objalloc.h"
 #include "junkie/proto/serialize.h"
+#include "junkie/proto/streambuf.h"
 #include "junkie/proto/tcp.h"
 #include "junkie/proto/skinny.h"
 
@@ -152,33 +154,93 @@ static void skinny_proto_info_ctor(struct skinny_proto_info *info, struct parser
  * Parse
  */
 
-static enum proto_parse_status skinny_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
+struct skinny_parser {
+    struct parser parser;
+    struct streambuf sbuf;
+};
+
+static parse_fun skinny_sbuf_parse;
+static int skinny_parser_ctor(struct skinny_parser *skinny_parser, struct proto *proto)
 {
-#   define MIN_MSG_SIZE 12
-    if (wire_len < MIN_MSG_SIZE) return PROTO_PARSE_ERR;
-    if (cap_len < MIN_MSG_SIZE) return PROTO_TOO_SHORT;
+    SLOG(LOG_DEBUG, "Construct SKINNY parser@%p", skinny_parser);
+
+    assert(proto == proto_skinny);
+    if (0 != parser_ctor(&skinny_parser->parser, proto)) return -1;
+#   define SKINNY_MAX_HDR_SIZE 200   // in bytes
+    if (0 != streambuf_ctor(&skinny_parser->sbuf, skinny_sbuf_parse, SKINNY_MAX_HDR_SIZE)) return -1;
+
+    return 0;
+}
+
+static struct parser *skinny_parser_new(struct proto *proto)
+{
+    struct skinny_parser *skinny_parser = objalloc_nice(sizeof(*skinny_parser), "SKINNY parsers");
+    if (! skinny_parser) return NULL;
+
+    if (-1 == skinny_parser_ctor(skinny_parser, proto)) {
+        objfree(skinny_parser);
+        return NULL;
+    }
+
+    return &skinny_parser->parser;
+}
+
+static void skinny_parser_dtor(struct skinny_parser *skinny_parser)
+{
+    SLOG(LOG_DEBUG, "Destruct SKINNY parser@%p", skinny_parser);
+
+    parser_dtor(&skinny_parser->parser);
+    streambuf_dtor(&skinny_parser->sbuf);
+}
+
+static void skinny_parser_del(struct parser *parser)
+{
+    struct skinny_parser *skinny_parser = DOWNCAST(parser, parser, skinny_parser);
+    skinny_parser_dtor(skinny_parser);
+    objfree(skinny_parser);
+}
+
+static enum proto_parse_status skinny_sbuf_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
+{
+    struct skinny_parser *skinny_parser = DOWNCAST(parser, parser, skinny_parser);
+
+#   define SKINNY_MIN_HDR_SIZE 12
+    if (wire_len < SKINNY_MIN_HDR_SIZE) {
+        streambuf_set_restart(&skinny_parser->sbuf, way, packet, true); // wait for more
+        return PROTO_OK;
+    }
+    if (cap_len < SKINNY_MIN_HDR_SIZE) return PROTO_TOO_SHORT;
+
     uint32_t msg_len = READ_U32LE(packet);
     uint32_t header_ver = READ_U32LE(packet+4);
-    enum skinny_msgid msgid = READ_U32LE(packet+8);
+    enum skinny_msgid msg_id = READ_U32LE(packet+8);
     if (header_ver != 0) return PROTO_PARSE_ERR;
-    if (msg_len < 4 || msg_len > 200 /* guestimated */) return PROTO_PARSE_ERR;
-    msg_len -= 4;   // since the msgid was counted
+    if (msg_len < 4 || msg_len > SKINNY_MAX_HDR_SIZE /* guestimated */) return PROTO_PARSE_ERR;
+    msg_len -= 4;   // since the msg_id was counted
     if (wire_len < msg_len) return PROTO_TOO_SHORT; // wait for the message to be complete
     // Ok we have what looks like a skinny message in there
     struct skinny_proto_info info;
-    skinny_proto_info_ctor(&info, parser, parent, MIN_MSG_SIZE, msg_len);
-    info.msgid = msgid;
-
+    skinny_proto_info_ctor(&info, parser, parent, SKINNY_MIN_HDR_SIZE, msg_len);
+    info.msgid = msg_id;
     (void)proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
+
+    streambuf_set_restart(&skinny_parser->sbuf, way, packet + 12 + msg_len, false); // go to next msg
+
     return PROTO_OK;
+}
+
+static enum proto_parse_status skinny_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
+{
+    struct skinny_parser *skinny_parser = DOWNCAST(parser, parser, skinny_parser);
+    return streambuf_add(&skinny_parser->sbuf, parser, parent, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
 }
 
 /*
  * Init
  */
 
-static struct uniq_proto uniq_proto_skinny;
-struct proto *proto_skinny = &uniq_proto_skinny.proto;
+static struct proto proto_skinny_;
+struct proto *proto_skinny = &proto_skinny_;
 static struct port_muxer tcp_port_muxer;
 
 void skinny_init(void)
@@ -187,21 +249,21 @@ void skinny_init(void)
 
     static struct proto_ops const ops = {
         .parse       = skinny_parse,
-        .parser_new  = uniq_parser_new,
-        .parser_del  = uniq_parser_del,
+        .parser_new  = skinny_parser_new,
+        .parser_del  = skinny_parser_del,
         .info_2_str  = skinny_info_2_str,
         .info_addr   = skinny_info_addr,
         .serialize   = skinny_serialize,
         .deserialize = skinny_deserialize,
     };
-    uniq_proto_ctor(&uniq_proto_skinny, &ops, "SKINNY", PROTO_CODE_SKINNY);
+    proto_ctor(&proto_skinny_, &ops, "SKINNY", PROTO_CODE_SKINNY);
     port_muxer_ctor(&tcp_port_muxer, &tcp_port_muxers, SKINNY_PORT, SKINNY_PORT, proto_skinny);
 }
 
 void skinny_fini(void)
 {
     port_muxer_dtor(&tcp_port_muxer, &tcp_port_muxers);
-    uniq_proto_dtor(&uniq_proto_skinny);
+    proto_dtor(&proto_skinny_);
     log_category_proto_skinny_fini();
 }
 

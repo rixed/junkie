@@ -819,10 +819,7 @@ static enum proto_parse_status http_sbuf_parse(struct parser *parser, struct pro
 static enum proto_parse_status http_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct http_parser *http_parser = DOWNCAST(parser, parser, http_parser);
-
-    enum proto_parse_status const status = streambuf_add(&http_parser->sbuf, parser, parent, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
-
-    return status;
+    return streambuf_add(&http_parser->sbuf, parser, parent, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
 }
 
 /*
