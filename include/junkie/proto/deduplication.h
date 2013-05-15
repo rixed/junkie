@@ -48,8 +48,7 @@ struct dedup_proto_info {
 unsigned max_dup_delay;
 
 /// To be called each time a duplicate frame is found
-int dup_subscriber_ctor(struct proto_subscriber *, proto_cb_t *);
-void dup_subscriber_dtor(struct proto_subscriber *);
+struct hook dup_hook;
 
 void digest_init(void);
 void digest_fini(void);

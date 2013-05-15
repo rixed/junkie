@@ -122,7 +122,7 @@ static void edge_del(struct edge *edge)
 static struct cli_opt arpgraph_opts[] = {
     {
         { "monitoring-period", NULL }, NEEDS_ARG,
-        "Listen ARP messages for this amount of second before outputing the graph (default: "STRIZE(DEFAULT_MONITORING_PERIOD)"s)",
+        "Listen ARP messages for this number of seconds before outputing the graph",
         CLI_SET_UINT, { .uint = &opt_monitoring_period }
     }, {
         { "loop", NULL }, NULL,

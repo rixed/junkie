@@ -279,14 +279,14 @@ void on_load(void)
         "get-duplicogram", 0, 0, 0, g_get_duplicogram,
         "(get-duplicogram): fetch duplicogram data and reset internal state. Not for the casual user");
 
-    dup_subscriber_ctor(&dup_subscription, dup_callback);
+    hook_subscriber_ctor(&dup_hook, &dup_subscription, dup_callback);
     hook_subscriber_ctor(&proto_cap->hook, &cap_subscription, cap_callback);
 }
 
 void on_unload(void)
 {
     SLOG(LOG_INFO, "Duplicogram unloading");
-    dup_subscriber_dtor(&dup_subscription);
+    hook_subscriber_dtor(&dup_hook, &dup_subscription);
     hook_subscriber_dtor(&proto_cap->hook, &cap_subscription);
     cli_unregister(duplicogram_opts);
     //mutex_dtor(&dup_lock); no since we can have some callbacks called even after we unsubscribed (in another thread)
