@@ -49,7 +49,7 @@ uint_least16_t cursor_read_u16n(struct cursor *cursor)
     return (a << 8) | b;
 }
 
-uint_least16_t cursor_read_u16(struct cursor *cursor)
+uint_least16_t cursor_read_u16le(struct cursor *cursor)
 {
     uint_least32_t a = cursor_read_u8(cursor);
     uint_least32_t b = cursor_read_u8(cursor);
@@ -64,7 +64,7 @@ uint_least32_t cursor_read_u24n(struct cursor *cursor)
     return (a << 16) | (b << 8) | c;
 }
 
-uint_least32_t cursor_read_u24(struct cursor *cursor)
+uint_least32_t cursor_read_u24le(struct cursor *cursor)
 {
     uint_least32_t a = cursor_read_u8(cursor);
     uint_least32_t b = cursor_read_u8(cursor);
@@ -79,17 +79,24 @@ uint_least32_t cursor_read_u32n(struct cursor *cursor)
     return (a << 16) | b;
 }
 
-uint_least32_t cursor_read_u32(struct cursor *cursor)
+uint_least32_t cursor_read_u32le(struct cursor *cursor)
 {
-    uint_least32_t a = cursor_read_u16(cursor);
-    uint_least32_t b = cursor_read_u16(cursor);
+    uint_least32_t a = cursor_read_u16le(cursor);
+    uint_least32_t b = cursor_read_u16le(cursor);
     return a | (b << 16);
 }
 
-uint_least64_t cursor_read_u64(struct cursor *cursor)
+uint_least64_t cursor_read_u64n(struct cursor *cursor)
 {
-    uint_least64_t a = cursor_read_u32(cursor);
-    uint_least64_t b = cursor_read_u32(cursor);
+    uint_least64_t a = cursor_read_u32le(cursor);
+    uint_least64_t b = cursor_read_u32le(cursor);
+    return (a << 32) | b;
+}
+
+uint_least64_t cursor_read_u64le(struct cursor *cursor)
+{
+    uint_least64_t a = cursor_read_u32le(cursor);
+    uint_least64_t b = cursor_read_u32le(cursor);
     return a | (b << 32);
 }
 

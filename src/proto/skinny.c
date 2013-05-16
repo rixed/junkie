@@ -22,9 +22,12 @@
 #include <string.h>
 #include <ctype.h>
 #include "junkie/tools/objalloc.h"
+#include "junkie/proto/cursor.h"
 #include "junkie/proto/serialize.h"
 #include "junkie/proto/streambuf.h"
 #include "junkie/proto/tcp.h"
+#include "junkie/proto/rtp.h"
+#include "junkie/proto/cnxtrack.h"
 #include "junkie/proto/skinny.h"
 
 #undef LOG_CAT
@@ -84,7 +87,7 @@ static char const *skinny_msgid_2_str(enum skinny_msgid id)
         case SKINNY_STATION_DEVICE_TO_USER_DATA: return "Device to user data";
         case SKINNY_STATION_DEVICE_TO_USER_DATA_RESP: return "Device to user data response";
         case SKINNY_STATION_UPDATE_CAPABILITIES: return "Update capabilities";
-        case SKINNY_STATION_OPEN_MULTI_MEDIA_RECV_CHANNEL_ACK: return "Open multi media receive channel ack";
+        case SKINNY_STATION_OPEN_MULTIMEDIA_RECV_CHANNEL_ACK: return "Open multimedia receive channel ack";
         case SKINNY_STATION_CLEAR_CONFERENCE: return "Clear conference";
         case SKINNY_STATION_SERVICE_URLSTAT_REQ: return "Service urlstat request";
         case SKINNY_STATION_FEATURE_STAT_REQ: return "Feature stat request";
@@ -97,7 +100,7 @@ static char const *skinny_msgid_2_str(enum skinny_msgid id)
         case SKINNY_STATION_DEVICE_TO_USER_DATA_VERSION1: return "Device to user data version1";
         case SKINNY_STATION_DEVICE_TO_USER_DATA_RESP_VERSION1: return "Device to user data response version1";
         case SKINNY_STATION_DIALED_PHONE_BOOK: return "Dialed phone book";
-        case SKINNY_MGR_KEEPALIVE: return "Keep alive";
+        case SKINNY_MGR_KEEPALIVE: return "Keepalive";
         case SKINNY_MGR_START_TONE: return "Start tone";
         case SKINNY_MGR_STOP_TONE: return "Stop tone";
         case SKINNY_MGR_SET_RINGER: return "Set ringer";
@@ -112,7 +115,7 @@ static char const *skinny_msgid_2_str(enum skinny_msgid id)
         case SKINNY_MGR_CALL_INFORMATION: return "Call information";
         case SKINNY_MGR_REGISTER_REJECT: return "Register reject";
         case SKINNY_MGR_RESET: return "Reset";
-        case SKINNY_MGR_KEEPALIVE_ACK: return "Keep alive ack";
+        case SKINNY_MGR_KEEPALIVE_ACK: return "Keepalive ack";
         case SKINNY_MGR_FORWARD_STATUS: return "Forward status";
         case SKINNY_MGR_SPEED_DIAL_STATUS: return "Speed dial status";
         case SKINNY_MGR_LINE_STATUS: return "Line status";
@@ -167,12 +170,12 @@ static char const *skinny_msgid_2_str(enum skinny_msgid id)
         case SKINNY_MGR_UNSUBSCRIBE_DTMF_PAYLOAD_ERR: return "Unsubscribe dtmf payload err";
         case SKINNY_MGR_SERVICE_URLSTAT: return "Service urlstat";
         case SKINNY_MGR_CALL_SELECT_STAT: return "Call select stat";
-        case SKINNY_MGR_OPEN_MULTI_MEDIA_CHANNEL: return "Open multi media channel";
-        case SKINNY_MGR_START_MULTI_MEDIA_TRANSMIT: return "Start multi media transmit";
-        case SKINNY_MGR_STOP_MULTI_MEDIA_TRANSMIT: return "Stop multi media transmit";
+        case SKINNY_MGR_OPEN_MULTIMEDIA_CHANNEL: return "Open multimedia channel";
+        case SKINNY_MGR_START_MULTIMEDIA_TRANSMIT: return "Start multimedia transmit";
+        case SKINNY_MGR_STOP_MULTIMEDIA_TRANSMIT: return "Stop multimedia transmit";
         case SKINNY_MGR_MISCELLANEOUS_COMMAND: return "Miscellaneous command";
         case SKINNY_MGR_FLOW_CONTROL_COMMAND: return "Flow control command";
-        case SKINNY_MGR_CLOSE_MULTI_MEDIA_RECV_CHANNEL: return "Close multi media receive channel";
+        case SKINNY_MGR_CLOSE_MULTIMEDIA_RECV_CHANNEL: return "Close multimedia receive channel";
         case SKINNY_MGR_CREATE_CONFERENCE_REQ: return "Create conference request";
         case SKINNY_MGR_DELETE_CONFERENCE_REQ: return "Delete conference request";
         case SKINNY_MGR_MODIFY_CONFERENCE_REQ: return "Modify conference request";
@@ -181,19 +184,44 @@ static char const *skinny_msgid_2_str(enum skinny_msgid id)
         case SKINNY_MGR_AUDIT_CONFERENCE_REQ: return "Audit conference request";
         case SKINNY_MGR_AUDIT_PARTICIPANT_REQ: return "Audit participant request";
         case SKINNY_MGR_USER_TO_DEVICE_DATA_VERSION1: return "User to device data version1";
-        case SKINNY_MGR_CM5CALL_INFO: return "Cm5call info";
+        case SKINNY_MGR_CALL_INFO: return "call info";
         case SKINNY_MGR_DIALED_PHONE_BOOK_ACK: return "Dialed phone book ack";
         case SKINNY_MGR_XMLALARM: return "Xmlalarm";
     }
     return tempstr_printf("Unknown msgid 0x%X", id);
 }
 
+static char const *skinny_call_state_2_str(enum skinny_call_state st) {
+    switch (st) {
+        case SKINNY_OFF_HOOK: return "Off hook";
+        case SKINNY_ON_HOOK: return "on hook";
+        case SKINNY_RING_OUT: return "ring out";
+        case SKINNY_RING_IN: return "ring in";
+        case SKINNY_CONNECTED: return "connected";
+        case SKINNY_BUSY: return "busy";
+        case SKINNY_CONGESTION: return "congestion";
+        case SKINNY_HOLD: return "hold";
+        case SKINNY_CALL_WAITING: return "call waiting";
+        case SKINNY_CALL_TRANSFER: return "call transfer";
+        case SKINNY_CALL_PARK: return "call park";
+        case SKINNY_PROCEED: return "proceed";
+        case SKINNY_REMOTE_MULTILINE: return "remote multiline";
+        case SKINNY_INVALID_NUMBER: return "invalid number";
+    }
+    return tempstr_printf("Unknown call state %u", st);
+}
+
 static char const *skinny_info_2_str(struct proto_info const *info_)
 {
     struct skinny_proto_info const *info = DOWNCAST(info_, info, skinny_proto_info);
-    return tempstr_printf("%s, %s",
+    return tempstr_printf("%s, MsgId:%s%s%s%s%s%s",
         proto_info_2_str(&info->info),
-        skinny_msgid_2_str(info->msgid));
+        skinny_msgid_2_str(info->msgid),
+        info->set_values & SKINNY_NEW_KEY_PAD ? tempstr_printf(", Key:%"PRIu32, info->new_key_pad):"",
+        info->set_values & SKINNY_LINE_INSTANCE ? tempstr_printf(", Line:%"PRIu32, info->line_instance):"",
+        info->set_values & SKINNY_CALL_ID ? tempstr_printf(", CallId:%"PRIu32, info->call_id):"",
+        info->set_values & SKINNY_CONFERENCE_ID ? tempstr_printf(", ConfId:%"PRIu32, info->conf_id):"",
+        info->set_values & SKINNY_CALL_STATE ? tempstr_printf(", CallState:%s", skinny_call_state_2_str(info->call_state)):"");
 }
 
 static void skinny_serialize(struct proto_info const *info_, uint8_t **buf)
@@ -220,6 +248,11 @@ static void skinny_proto_info_ctor(struct skinny_proto_info *info, struct parser
 struct skinny_parser {
     struct parser parser;
     struct streambuf sbuf;
+#   define FROM_STATION 0
+#   define FROM_MGR 1
+    bool media_set[2];          // from station/msg
+    struct ip_addr peer[2];     // from station/mgr
+    uint16_t port[2];           // from station/mgr
 };
 
 static parse_fun skinny_sbuf_parse;
@@ -263,6 +296,35 @@ static void skinny_parser_del(struct parser *parser)
     objfree(skinny_parser);
 }
 
+static void try_cnxtrack(struct skinny_parser *parser, struct timeval const *now)
+{
+    if (!parser->media_set[FROM_MGR] || !parser->media_set[FROM_STATION]) return;
+
+    spawn_rtp_subparsers(&parser->peer[FROM_STATION], parser->port[FROM_STATION], &parser->peer[FROM_MGR], parser->port[FROM_MGR], now, proto_skinny);
+    parser->media_set[FROM_MGR] = parser->media_set[FROM_STATION] = false;
+}
+
+static int read_channel(struct skinny_parser *parser, unsigned from, struct cursor *curs, struct timeval const *now)
+{
+    assert(from == FROM_MGR || from == FROM_STATION);
+    uint32_t ip_version = cursor_read_u32le(curs);
+    if (ip_version == 0) {  // v4
+        uint32_t ip = cursor_read_u32(curs);
+        cursor_drop(curs, 12);    // this field is 16 bytes in length
+        ip_addr_ctor_from_ip4(&parser->peer[from], ip);
+    } else if (ip_version == 1) {    // v16
+        ip_addr_ctor_from_ip6(&parser->peer[from], (struct in6_addr const *)curs->head);
+        cursor_drop(curs, 16);
+    } else {
+        SLOG(LOG_DEBUG, "Invalid IP version (%d)", ip_version);
+        return -1;
+    }
+    parser->port[from] = cursor_read_u32le(curs);
+    parser->media_set[from] = true;
+    try_cnxtrack(parser, now);
+    return 0;
+}
+
 static enum proto_parse_status skinny_sbuf_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct skinny_parser *skinny_parser = DOWNCAST(parser, parser, skinny_parser);
@@ -274,9 +336,11 @@ static enum proto_parse_status skinny_sbuf_parse(struct parser *parser, struct p
     }
     if (cap_len < SKINNY_MIN_HDR_SIZE) return PROTO_TOO_SHORT;
 
-    uint32_t msg_len = READ_U32LE(packet);
-    uint32_t header_ver = READ_U32LE(packet+4);
-    enum skinny_msgid msg_id = READ_U32LE(packet+8);
+    struct cursor curs;
+    cursor_ctor(&curs, packet, cap_len);
+    uint32_t msg_len = cursor_read_u32le(&curs);
+    uint32_t header_ver = cursor_read_u32le(&curs);
+    enum skinny_msgid msg_id = cursor_read_u32le(&curs);
     if (header_ver != SKINNY_BASIC && header_ver != SKINNY_CM7_TYPE_A && header_ver != SKINNY_CM7_TYPE_B && header_ver != SKINNY_CM7_TYPE_C) return PROTO_PARSE_ERR;
     if (msg_len < 4 || msg_len > SKINNY_MAX_HDR_SIZE /* guestimated */) return PROTO_PARSE_ERR;
     msg_len -= 4;   // since the msg_id was counted
@@ -285,9 +349,46 @@ static enum proto_parse_status skinny_sbuf_parse(struct parser *parser, struct p
     struct skinny_proto_info info;
     skinny_proto_info_ctor(&info, parser, parent, SKINNY_MIN_HDR_SIZE, msg_len);
     info.msgid = msg_id;
+    switch (msg_id) {
+        case SKINNY_STATION_KEY_PAD_BUTTON:
+            info.set_values |= SKINNY_NEW_KEY_PAD | SKINNY_LINE_INSTANCE | SKINNY_CALL_ID;
+            info.new_key_pad = cursor_read_u32le(&curs);
+            info.line_instance = cursor_read_u32le(&curs);
+            info.call_id = cursor_read_u32le(&curs);
+            break;
+        case SKINNY_MGR_CALL_STATE:
+            info.set_values |= SKINNY_CALL_STATE | SKINNY_LINE_INSTANCE | SKINNY_CALL_ID;
+            info.call_state = cursor_read_u32le(&curs);
+            info.line_instance = cursor_read_u32le(&curs);
+            info.call_id = cursor_read_u32le(&curs);
+            break;
+        case SKINNY_MGR_CLOSE_RECV_CHANNEL:
+        case SKINNY_MGR_STOP_MEDIA_TRANSMIT:
+            info.set_values |= SKINNY_CONFERENCE_ID;
+            info.conf_id = cursor_read_u32le(&curs);
+            // ignore pass-thru party id (what's that?)
+            break;
+        case SKINNY_MGR_START_MEDIA_TRANSMIT:
+            info.set_values |= SKINNY_CONFERENCE_ID;
+            info.conf_id = cursor_read_u32le(&curs);
+            cursor_drop(&curs, 4);
+            if (0 != read_channel(skinny_parser, FROM_MGR, &curs, now)) return PROTO_PARSE_ERR;
+            break;
+        case SKINNY_STATION_OPEN_RECV_CHANNEL_ACK:;
+            uint32_t status = cursor_read_u32le(&curs);
+            if (status == 0 /* Ok */) {
+                if (0 != read_channel(skinny_parser, FROM_STATION, &curs, now)) return PROTO_PARSE_ERR;
+            }
+            break;
+        case SKINNY_MGR_OPEN_RECV_CHANNEL:
+            // TODO
+            break;
+        default:
+            break;
+    }
     (void)proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 
-    streambuf_set_restart(&skinny_parser->sbuf, way, packet + 12 + msg_len, false); // go to next msg
+    streambuf_set_restart(&skinny_parser->sbuf, way, packet + SKINNY_MIN_HDR_SIZE + msg_len, false); // go to next msg
 
     return PROTO_OK;
 }

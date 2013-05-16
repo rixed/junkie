@@ -33,7 +33,6 @@
 #include "junkie/proto/udp.h"
 #include "junkie/proto/ip.h"
 #include "junkie/proto/rtp.h"
-#include "junkie/proto/cnxtrack.h"
 #include "proto/liner.h"
 #include "proto/sdper.h"
 
@@ -42,6 +41,11 @@
 
 LOG_CATEGORY_DEF(proto_sdp);
 
+/* FIXME: That would be much better if cnxtrack were able to receive two half socket instead of a single one,
+ *        ie. if the state below (host_set to sender) was kept by the cnxtracker, so that parsers such as this
+ *        one could be uniq_parsers instead of full fledged parsers.
+ *        Also, this would allow for finding a tracked cnx for which we received only half of the socket.
+ */
 struct sdp_parser {
     struct parser parser;
     // We remember the first host/port seen in order to init conntracking when the other one is received
@@ -167,14 +171,6 @@ static int sdp_extract_port(unsigned unused_ cmd, struct liner *liner, void *inf
     return 0;
 }
 
-static void spawn_subparsers(struct ip_addr const *this_host, uint16_t this_port, struct ip_addr const *other_host, uint16_t other_port, struct timeval const *now, struct proto *requestor)
-{
-    SLOG(LOG_DEBUG, "Spawning RT(C)P parsers for %s:%"PRIu16"<->%s:%"PRIu16, ip_addr_2_str(this_host), this_port, ip_addr_2_str(other_host), other_port);
-
-    (void)cnxtrack_ip_new(IPPROTO_UDP, this_host, this_port,   other_host, other_port,   false, proto_rtp,  now, requestor);
-    (void)cnxtrack_ip_new(IPPROTO_UDP, this_host, this_port+1, other_host, other_port+1, false, proto_rtcp, now, requestor);
-}
-
 static enum proto_parse_status sdp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct sdp_parser *sdp_parser = DOWNCAST(parser, parser, sdp_parser);
@@ -221,7 +217,7 @@ static enum proto_parse_status sdp_parse(struct parser *parser, struct proto_inf
         } else if (0 != ip_addr_cmp(&sdp_parser->host, &info.host)) {
             /* Start conntracking between the advertized hosts
              * Notice that we request RT(C)P on behalf of our parent! */
-            spawn_subparsers(&sdp_parser->host, sdp_parser->port, &info.host, info.port, now, parent->parser->proto);
+            spawn_rtp_subparsers(&sdp_parser->host, sdp_parser->port, &info.host, info.port, now, parent->parser->proto);
 
             ASSIGN_INFO_OPT(ip, parent);
             bool may_use_stun[2] = {
@@ -230,15 +226,15 @@ static enum proto_parse_status sdp_parse(struct parser *parser, struct proto_inf
             };
             // If the sender IP was different from the advertized host, start conntracking on this socket too
             if (may_use_stun[0]) {
-                spawn_subparsers(&sdp_parser->sender, sdp_parser->port, &info.host, info.port, now, parent->parser->proto);
+                spawn_rtp_subparsers(&sdp_parser->sender, sdp_parser->port, &info.host, info.port, now, parent->parser->proto);
             }
             // If _this_ sender IP is different from this advertized host, start conntracking on this socket as well
             if (may_use_stun[1]) {
-                spawn_subparsers(&sdp_parser->host, sdp_parser->port, &ip->key.addr[0], info.port, now, parent->parser->proto);
+                spawn_rtp_subparsers(&sdp_parser->host, sdp_parser->port, &ip->key.addr[0], info.port, now, parent->parser->proto);
             }
             // If both senders IP were different from advertized ones then start conntracking between these two senders IP as well
             if (may_use_stun[0] && may_use_stun[1]) {
-                spawn_subparsers(&sdp_parser->sender, sdp_parser->port, &ip->key.addr[0], info.port, now, parent->parser->proto);
+                spawn_rtp_subparsers(&sdp_parser->sender, sdp_parser->port, &ip->key.addr[0], info.port, now, parent->parser->proto);
             }
 
             // TODO: terminate this parser. meanwhile, reset its state :
