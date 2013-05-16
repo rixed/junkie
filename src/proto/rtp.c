@@ -25,6 +25,8 @@
 #include "junkie/tools/proto.h"
 #include "junkie/proto/serialize.h"
 #include "junkie/proto/proto.h"
+#include "junkie/proto/cnxtrack.h"
+#include "junkie/proto/rtcp.h"
 #include "junkie/proto/rtp.h"
 
 #undef LOG_CAT
@@ -45,6 +47,18 @@ struct rtp_hdr {
     uint32_t ssrc;
     uint32_t csrc[];
 };
+
+/*
+ * Tools
+ */
+
+void spawn_rtp_subparsers(struct ip_addr const *this_host, uint16_t this_port, struct ip_addr const *other_host, uint16_t other_port, struct timeval const *now, struct proto *requestor)
+{
+    SLOG(LOG_DEBUG, "Spawning RT(C)P parsers for %s:%"PRIu16"<->%s:%"PRIu16, ip_addr_2_str(this_host), this_port, ip_addr_2_str(other_host), other_port);
+
+    (void)cnxtrack_ip_new(IPPROTO_UDP, this_host, this_port,   other_host, other_port,   false, proto_rtp,  now, requestor);
+    (void)cnxtrack_ip_new(IPPROTO_UDP, this_host, this_port+1, other_host, other_port+1, false, proto_rtcp, now, requestor);
+}
 
 /*
  * Proto infos

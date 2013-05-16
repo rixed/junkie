@@ -28,7 +28,8 @@ libproto_la_SOURCES = \
 	discovery.c \
 	hook.c \
 	erspan.c \
-	ber.c
+	ber.c \
+	skinny.c
 
 libproto_la_LIBADD = ../tools/libjunkietools.la
 libproto_la_LDFLAGS = -export-dynamic

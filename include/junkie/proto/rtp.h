@@ -3,6 +3,7 @@
 #ifndef RTP_H_100520
 #define RTP_H_100520
 #include <junkie/proto/proto.h>
+#include <junkie/tools/ip_addr.h>
 
 /** @file
  * @brief RTP informations
@@ -19,6 +20,8 @@ struct rtp_proto_info {
 };
 
 char const *rtp_payload_type_2_str(uint8_t type);
+
+void spawn_rtp_subparsers(struct ip_addr const *this_host, uint16_t this_port, struct ip_addr const *other_host, uint16_t other_port, struct timeval const *now, struct proto *requestor);
 
 void rtp_init(void);
 void rtp_fini(void);
