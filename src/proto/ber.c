@@ -134,6 +134,7 @@ enum proto_parse_status ber_skip(struct cursor *c)
 
 enum proto_parse_status ber_skip_optional(struct cursor *c, unsigned tag)
 {
+    struct cursor c_save = *c;
     struct ber_tag t;
     enum proto_parse_status status = ber_decode_tag(c, &t);
     if (status != PROTO_OK) return status;
@@ -142,6 +143,8 @@ enum proto_parse_status ber_skip_optional(struct cursor *c, unsigned tag)
         // Skip the value
         if (c->cap_len < t.length) return PROTO_TOO_SHORT;
         cursor_drop(c, t.length);
+    } else {    // rewind
+        *c = c_save;
     }
 
     return PROTO_OK;

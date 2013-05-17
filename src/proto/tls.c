@@ -744,8 +744,11 @@ static enum proto_parse_status look_for_cname(struct cursor *cur, void *info_)
 {
     struct tls_proto_info *info = info_;
     enum proto_parse_status status;
+    SLOG(LOG_DEBUG, "Enter the RelativeDistinguishedName");
     if (PROTO_OK != (status = ber_enter(cur))) return status;  // enter the RelativeDistinguishedName
+    SLOG(LOG_DEBUG, "Enter the AttributeValueAssertion");
     if (PROTO_OK != (status = ber_enter(cur))) return status;  // enter the AttributeValueAssertion
+    SLOG(LOG_DEBUG, "Look for commonName");
     // Look for commonName (in DER)
     if (cur->cap_len < 5) return PROTO_TOO_SHORT;
     if (
@@ -757,6 +760,7 @@ static enum proto_parse_status look_for_cname(struct cursor *cur, void *info_)
         if (PROTO_OK != (status = ber_decode_string(cur, sizeof(info->u.handshake.server_common_name), info->u.handshake.server_common_name))) return status;
         info->set_values |= SERVER_COMMON_NAME_SET;
     } else {
+        SLOG(LOG_DEBUG, "Not the commonName...");
         // Not commonName
         if (PROTO_OK != (status = ber_skip(cur))) return status;
         if (PROTO_OK != (status = ber_skip(cur))) return status;
@@ -767,20 +771,31 @@ static enum proto_parse_status look_for_cname(struct cursor *cur, void *info_)
 
 static enum proto_parse_status tls_parse_certificate(struct tls_proto_info *info, struct cursor *cur)
 {
+    SLOG(LOG_DEBUG, "Parsing TLS certificate");
     enum proto_parse_status status;
+    SLOG(LOG_DEBUG, "Enter the Certificate");
     if (PROTO_OK != (status = ber_enter(cur))) return status; // enter the Certificate
+    SLOG(LOG_DEBUG, "Enter the TBSCertificate");
     if (PROTO_OK != (status = ber_enter(cur))) return status; // enter the TBSCertificate
+    SLOG(LOG_DEBUG, "Skip optional Version");
     if (PROTO_OK != (status = ber_skip_optional(cur, 0))) return status;  // skip the optional Version (tag 0)
+    SLOG(LOG_DEBUG, "Skip the serial number");
     if (PROTO_OK != (status = ber_skip(cur))) return status;  // skip the serial number
+    SLOG(LOG_DEBUG, "Skip the signature");
     if (PROTO_OK != (status = ber_skip(cur))) return status;  // skip the signature
+    SLOG(LOG_DEBUG, "Skip the issuer");
     if (PROTO_OK != (status = ber_skip(cur))) return status;  // skip the issuer
+    SLOG(LOG_DEBUG, "Skip the validity");
     if (PROTO_OK != (status = ber_skip(cur))) return status;  // skip the validity
+    SLOG(LOG_DEBUG, "iter over all RelativeDistinguishedName");
     if (PROTO_OK != (status = ber_foreach(cur, look_for_cname, info))) return status; // iter over all RelativeDistinguishedName and look for the common name
     return PROTO_OK;
 }
 
 static enum proto_parse_status tls_parse_handshake(struct tls_parser *parser, unsigned way, struct tls_proto_info *info, struct cursor *cur, size_t wire_len)
 {
+    SLOG(LOG_DEBUG, "%zu bytes on wire, %zu captured", wire_len, cur->cap_len);
+
     enum tls_handshake_type {
         tls_hello_request = 0, tls_client_hello, tls_server_hello,
         tls_certificate = 11, tls_server_key_exchange, tls_certificate_request,
@@ -872,7 +887,10 @@ static enum proto_parse_status tls_parse_handshake(struct tls_parser *parser, un
     }
 
     // Go to next message in this record
-    if (wire_len == length) return PROTO_OK;    // we are done
+    if (wire_len == length) {
+        SLOG(LOG_DEBUG, "Done with this record");
+        return PROTO_OK;    // we are done
+    }
     assert(wire_len > length);
     wire_len -= length;
     if (cur->cap_len < length) return PROTO_TOO_SHORT;
