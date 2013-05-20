@@ -22,6 +22,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <termios.h>    // for key input
+#include <signal.h>     // for sig_atomic_t
 #include "junkie/cpp.h"
 #include "junkie/proto/cap.h"
 #include "junkie/proto/eth.h"
