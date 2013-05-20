@@ -329,6 +329,7 @@ static void nettop_cell_del(struct nettop_cell *cell)
 #define REVERSE "\x1B[7m"
 
 static uint_least64_t packets_count, bytes_count;
+static struct timeval start_counting;
 
 static uint64_t value(struct nettop_cell const *cell)
 {
@@ -356,8 +357,7 @@ static int cell_cmp(void const *c1_, void const *c2_)
     return 0;
 }
 
-static struct timeval last_display;
-static void do_display_top(void)
+static void do_display_top(struct timeval const *now)
 {
     unsigned nb_lines, nb_columns;
     get_window_size(&nb_columns, &nb_lines);
@@ -404,10 +404,15 @@ static void do_display_top(void)
 
     // Display the result
     printf(TOPLEFT CLEAR);
-    printf("NetTop - Every " BRIGHT "%.2fs" NORMAL " - " BRIGHT "%s" NORMAL, refresh_rate / 1000000., ctime(&last_display.tv_sec));
-    printf("Packets: " BRIGHT "%"PRIu64 NORMAL", Bytes: " BRIGHT "%"PRIu64 NORMAL "\n\n",
+    printf("NetTop - Every " BRIGHT "%.2fs" NORMAL " - " BRIGHT "%s" NORMAL, refresh_rate / 1000000., ctime(&now->tv_sec));
+    printf("Packets: " BRIGHT "%"PRIu64 NORMAL", Bytes: " BRIGHT "%"PRIu64 NORMAL,
         packets_count, bytes_count);
+    int64_t const dt = (timeval_sub(now, &start_counting) + 500000) / 1000000;
+    if (dt >= 1) {
+        printf(" (%"PRIu64" bytes/sec)\n\n", bytes_count / dt);
+    }
     packets_count = 0; bytes_count = 0;
+    start_counting = *now;
 
     unsigned const proto_len = 10 + (use_proto_stack && !shorten_proto_stack ? 30:0);
     unsigned const addrs_len = nb_columns - 23 - proto_len - (use_vlan ? 5:0) - (use_dev ? 5:0);
@@ -428,12 +433,14 @@ static void do_display_top(void)
     }
 }
 
+static struct timeval last_display;
+
 static void try_display(struct timeval const *now)
 {
     if (timeval_is_set(&last_display) && timeval_sub(now, &last_display) < refresh_rate) return;
     last_display = *now;
 
-    do_display_top();
+    do_display_top(now);
 }
 
 static void do_display_help(void)
@@ -517,7 +524,7 @@ static void *keyctrl_thread(void unused_ *dummy)
         // Refresh help page after each keystroke
         mutex_lock(&cells_lock);
         if (display_help) do_display_help();
-        else do_display_top();
+        else do_display_top(&last_display);
         mutex_unlock(&cells_lock);
     }
 
@@ -531,6 +538,8 @@ static void *keyctrl_thread(void unused_ *dummy)
 static void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info const *last, size_t unused_ cap_len, uint8_t const unused_ *packet, struct timeval const *now)
 {
     mutex_lock(&cells_lock);
+
+    if (! timeval_is_set(&start_counting)) start_counting = *now;
 
     if (! display_help) try_display(now);
 
