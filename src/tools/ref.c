@@ -136,9 +136,7 @@ void ref_init(void)
 
     int err = pthread_create(&doomer_pth, NULL, doomer_thread, NULL);
 
-    if (! err) {
-        pthread_detach(doomer_pth);
-    } else {
+    if (err) {
         SLOG(LOG_ERR, "Cannot pthread_create(): %s", strerror(err));
     }
 }
