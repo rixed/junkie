@@ -21,5 +21,6 @@ thisinclude_HEADERS = \
 	netflow.h \
 	objalloc.h \
 	proto.h \
-	bench.h
+	bench.h \
+	proto_stack.h
 

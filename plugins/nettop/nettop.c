@@ -29,6 +29,7 @@
 #include "junkie/proto/ip.h"
 #include "junkie/proto/tcp.h"
 #include "junkie/proto/udp.h"
+#include "junkie/tools/proto_stack.h"
 #include "junkie/tools/hash.h"
 #include "junkie/tools/cli.h"
 #include "junkie/tools/objalloc.h"
@@ -131,28 +132,8 @@ struct nettop_key {
     int port_src;       // or -1
     int port_dst;       // or -1
     // From whole stack:
-    char stack[128];    // or ""
+    struct proto_stack stack;
 };
-
-static size_t print_proto_stack(char *dst, size_t sz, struct proto_info const *last)
-{
-    // Write parent first:
-    size_t len = 0;
-    if (last->parent) {
-        len = print_proto_stack(dst, sz, last->parent);
-        if (len > sz) return len;   // can't write more
-    }
-    dst += len;
-    sz -= len;
-
-    // Then our own:
-    int l =
-        last->parser->proto->code != PROTO_CODE_CAP ? // we don't really want to see this one
-            snprintf(dst, sz, "%s%s", len ? "/":"", last->parser->proto->name) :
-            0;
-
-    return len + l;
-}
 
 static void nettop_key_ctor(struct nettop_key *k, struct proto_info const *last)
 {
@@ -176,7 +157,7 @@ static void nettop_key_ctor(struct nettop_key *k, struct proto_info const *last)
     if (use_ip_version) k->ip_version = ip ? (int)ip->version:-1;
     if (use_port_src) k->port_src = ports ? (int)ports->port[0]:-1;
     if (use_port_dst) k->port_dst = ports ? (int)ports->port[1]:-1;
-    if (use_proto_stack) print_proto_stack(k->stack, sizeof(k->stack), last);
+    if (use_proto_stack) (void)proto_stack_update(&k->stack, last);
 }
 
 static char const *nettop_key_2_str(struct nettop_key const *k, unsigned proto_len, unsigned addr_len)
@@ -203,18 +184,18 @@ static char const *nettop_key_2_str(struct nettop_key const *k, unsigned proto_l
     proto_str[0] = '\0';
     size_t proto_o = 0;
 
-    if (proto_o < proto_len && use_proto_stack && k->stack[0] != '\0') {
-        char const *stack = k->stack;
+    if (proto_o < proto_len && use_proto_stack && k->stack.depth > 0) {
+        char const *stack = k->stack.name;
         if (shorten_proto_stack) {
-            char *c = strrchr(k->stack, '/');
+            char *c = strrchr(k->stack.name, '/');
             if (c) stack = c+1;
         }
         proto_o += snprintf(proto_str+proto_o, proto_len-proto_o, " %s", stack);
         while (use_ip_proto && k->ip_proto != -1) {
             char const *proto = ip_proto_2_str(k->ip_proto);
-            char *f = strstr(k->stack, proto);
+            char *f = strstr(k->stack.name, proto);
             if (! f) break;  // name not found
-            if (f != k->stack && f[-1] != '/') break;   // not at beginning of proto name
+            if (f != k->stack.name && f[-1] != '/') break;   // not at beginning of proto name
             int l = strlen(proto);
             if (f[l] != '\0' && f[l] != '/') break; // not at end of proto name
             // let's face it: we already print the IP proto name
