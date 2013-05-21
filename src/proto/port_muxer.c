@@ -193,7 +193,7 @@ SCM g_port_muxer_del(struct port_muxer_list *muxers, SCM name_, SCM port_min_, S
  */
 
 #include <junkie/tools/files.h>
-static unsigned srv_ports[65536];
+static unsigned srv_ports[65536];   // count each time we encounter a server on this port
 static char const *const srv_ports_file = STRIZE(VARDIR) "/srv-ports.db";
 
 static void srv_ports_init(void)

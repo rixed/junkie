@@ -21,6 +21,7 @@ struct tcp_proto_info {
     unsigned fin:1;
     unsigned psh:1;
     unsigned urg:1;
+    unsigned to_srv:1; // key.port[srv] is the server, aka set if the packet is going to the server
     uint16_t window;
     uint16_t urg_ptr;    // copied whatever the value of the urg flag
     uint32_t ack_num;

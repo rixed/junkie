@@ -74,9 +74,10 @@ static char const *tcp_info_2_str(struct proto_info const *info_)
 {
     struct tcp_proto_info const *info = DOWNCAST(info_, info, tcp_proto_info);
     char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, ports=%"PRIu16"->%"PRIu16", flags=%s%s%s%s%s%s, win=%"PRIu16", ack=%"PRIu32", seq=%"PRIu32" (%"PRIu32"), urg=%"PRIx16", opts=%s",
+    snprintf(str, TEMPSTR_SIZE, "%s, ports=%"PRIu16"%s->%"PRIu16"%s, flags=%s%s%s%s%s%s, win=%"PRIu16", ack=%"PRIu32", seq=%"PRIu32" (%"PRIu32"), urg=%"PRIx16", opts=%s",
         proto_info_2_str(info_),
-        info->key.port[0], info->key.port[1],
+        info->key.port[0], info->to_srv ? "":"(srv)",
+        info->key.port[1], info->to_srv ? "(srv)":"",
         info->syn ? "Syn":"",
         info->ack ? "Ack":"",
         info->rst ? "Rst":"",
@@ -98,7 +99,7 @@ static void tcp_serialize(struct proto_info const *info_, uint8_t **buf)
     proto_info_serialize(info_, buf);
     serialize_2(buf, info->key.port[0]);
     serialize_2(buf, info->key.port[1]);
-    serialize_1(buf, info->syn + (info->ack<<1) + (info->rst<<2) + (info->fin<<3) + (info->urg<<4) + (info->psh<<5));
+    serialize_1(buf, info->syn + (info->ack<<1) + (info->rst<<2) + (info->fin<<3) + (info->urg<<4) + (info->psh<<5) + (info->to_srv<<6));
     serialize_2(buf, info->window);
     serialize_2(buf, info->urg_ptr);
     serialize_4(buf, info->ack_num);
@@ -126,6 +127,7 @@ static void tcp_deserialize(struct proto_info *info_, uint8_t const **buf)
     info->fin = !!(flags & 0x08);
     info->urg = !!(flags & 0x10);
     info->psh = !!(flags & 0x20);
+    info->to_srv = !!(flags & 0x40);
     info->window = deserialize_2(buf);
     info->urg_ptr = deserialize_2(buf);
     info->ack_num = deserialize_4(buf);
@@ -146,12 +148,14 @@ static void tcp_proto_info_ctor(struct tcp_proto_info *info, struct parser *pars
 
     info->key.port[0] = sport;
     info->key.port[1] = dport;
-    info->syn = !!(READ_U8(&tcphdr->flags) & TCP_SYN_MASK);
-    info->ack = !!(READ_U8(&tcphdr->flags) & TCP_ACK_MASK);
-    info->rst = !!(READ_U8(&tcphdr->flags) & TCP_RST_MASK);
-    info->fin = !!(READ_U8(&tcphdr->flags) & TCP_FIN_MASK);
-    info->urg = !!(READ_U8(&tcphdr->flags) & TCP_URG_MASK);
-    info->psh = !!(READ_U8(&tcphdr->flags) & TCP_PSH_MASK);
+    uint8_t const flags = READ_U8(&tcphdr->flags);
+    info->syn = !!(flags & TCP_SYN_MASK);
+    info->ack = !!(flags & TCP_ACK_MASK);
+    info->rst = !!(flags & TCP_RST_MASK);
+    info->fin = !!(flags & TCP_FIN_MASK);
+    info->urg = !!(flags & TCP_URG_MASK);
+    info->psh = !!(flags & TCP_PSH_MASK);
+    // to_srv set later from tcp_subparser
     info->window = READ_U16N(&tcphdr->window);
     info->urg_ptr = READ_U16N(&tcphdr->urg_ptr);
     info->ack_num = READ_U32N(&tcphdr->ack_seq);
@@ -256,7 +260,7 @@ static struct pkt_wl_config tcp_wl_config;
 
 static struct mutex_pool tcp_locks;
 
-// We overload the mux_subparser in order to store cnx state.
+// We overload the mux_subparser in order to store a waiting list.
 struct tcp_subparser {
     uint32_t fin_seqnum[2];     // indice = way
     uint32_t max_acknum[2];
@@ -269,6 +273,8 @@ struct tcp_subparser {
 #   define IS_SET_FOR_WAY(way, field) (!!(field & (1U<<way)))
     uint8_t fin:2, ack:2, syn:2;
     uint8_t origin:2;           // do we have wl_origin set yet?
+    uint8_t srv_way:1;          // is srv the peer[0] when way==0 or peer[0] when way==1 ? (UNSET if !srv_set)
+    uint8_t srv_set:2;          // 0 -> UNSET, 1 -> UNSURE, 2 -> CERTAIN (and 3 -> BUG)
     struct mux_subparser mux_subparser; // must be the last member of this struct since mux_subparser is variable in size
 };
 
@@ -294,7 +300,7 @@ static bool tcp_subparser_term(struct tcp_subparser const *tcp_sub)
         (IS_SET_FOR_WAY(1, tcp_sub->fin) && IS_SET_FOR_WAY(0, tcp_sub->ack) && seqnum_gt(tcp_sub->max_acknum[0], tcp_sub->fin_seqnum[1]));
 }
 
-static int tcp_subparser_ctor(struct tcp_subparser *tcp_sub, struct mux_parser *mux_parser, struct parser *child, struct proto *requestor, void const *key, struct timeval const *now)
+static int tcp_subparser_ctor(struct tcp_subparser *tcp_sub, struct mux_parser *mux_parser, struct parser *child, struct proto *requestor, struct port_key const *key, struct timeval const *now)
 {
     SLOG(LOG_DEBUG, "Constructing TCP subparser @%p", tcp_sub);
 
@@ -304,6 +310,7 @@ static int tcp_subparser_ctor(struct tcp_subparser *tcp_sub, struct mux_parser *
     tcp_sub->ack = 0;
     tcp_sub->syn = 0;
     tcp_sub->origin = 0;
+    tcp_sub->srv_set = 0;   // will be set later
 
     if (0 != pkt_wait_list_ctor(tcp_sub->wl+0, 0 /* relative to the ISN */, &tcp_wl_config, child, tcp_sub->wl+1)) {
         return -1;
@@ -483,7 +490,21 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
     // Set relative sequence number if we know it
     if (IS_SET_FOR_WAY(way, tcp_sub->syn)) info.rel_seq_num = info.seq_num - tcp_sub->isn[way];
 
-    SLOG(LOG_DEBUG, "Subparser@%p state: >ISN:%"PRIu32"%s Fin:%"PRIu32" Ack:%"PRIu32" <ISN:%"PRIu32"%s Fin:%"PRIu32" Ack:%"PRIu32,
+    // Set srv_way
+    assert(tcp_sub->srv_set < 3);
+    if (tcp_sub->srv_set == 0 || (tcp_sub->srv_set == 1 && info.syn)) {
+        if (comes_from_client(info.key.port, info.syn, info.ack)) {
+            // this packet comes from the client
+            tcp_sub->srv_way = !way;
+        } else {
+            tcp_sub->srv_way = way;
+        }
+        tcp_sub->srv_set = info.syn ? 2:1;
+    }
+    // Now patch it into tcp info
+    info.to_srv = tcp_sub->srv_way != way;
+
+    SLOG(LOG_DEBUG, "Subparser@%p state: >ISN:%"PRIu32"%s Fin:%"PRIu32" Ack:%"PRIu32" <ISN:%"PRIu32"%s Fin:%"PRIu32" Ack:%"PRIu32", SrvWay=%u%s",
         subparser->parser,
         IS_SET_FOR_WAY(0, tcp_sub->syn) ? tcp_sub->isn[0] : IS_SET_FOR_WAY(0, tcp_sub->origin) ? tcp_sub->wl_origin[0] : 0,
         IS_SET_FOR_WAY(0, tcp_sub->syn) ? "" : " (approx)",
@@ -492,7 +513,10 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
         IS_SET_FOR_WAY(1, tcp_sub->syn) ? tcp_sub->isn[1] : IS_SET_FOR_WAY(1, tcp_sub->origin) ? tcp_sub->wl_origin[1] : 0,
         IS_SET_FOR_WAY(1, tcp_sub->syn) ? "" : " (approx)",
         IS_SET_FOR_WAY(1, tcp_sub->fin) ? tcp_sub->fin_seqnum[1] : 0,
-        IS_SET_FOR_WAY(1, tcp_sub->ack) ? tcp_sub->max_acknum[1] : 0);
+        IS_SET_FOR_WAY(1, tcp_sub->ack) ? tcp_sub->max_acknum[1] : 0,
+        tcp_sub->srv_way,
+        tcp_sub->srv_set == 0 ? " (unset)":
+            tcp_sub->srv_set == 1 ? " (unsure)":"(certain)");
 
     enum proto_parse_status err;
     /* Use the wait_list to parse this packet.

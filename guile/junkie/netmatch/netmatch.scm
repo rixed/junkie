@@ -193,7 +193,7 @@
            ((or ('pgsql 'dbname) ('mysql 'dbname) ('tns 'dbname)) type:str)
            ((or ('pgsql 'passwd) ('mysql 'passwd) ('tns 'passwd)) type:str)
            ((or ('pgsql 'sql) ('mysql 'sql) ('tns 'sql)) type:str)
-           ((or ('tcp 'syn) ('tcp 'ack) ('tcp 'rst) ('tcp 'fin)) type:bool)
+           ((or ('tcp 'syn) ('tcp 'ack) ('tcp 'rst) ('tcp 'fin) ('tcp 'to-srv)) type:bool)
            ; then all others are uint
            (_ type:uint))))
 
