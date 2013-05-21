@@ -187,13 +187,92 @@ SCM g_port_muxer_del(struct port_muxer_list *muxers, SCM name_, SCM port_min_, S
     return SCM_BOOL_T;
 }
 
+/*
+ * Simple heuristic to find out if a new TCP fragment that's not a SYN comes from
+ * the client or the server.
+ */
+
+#include <junkie/tools/files.h>
+static unsigned srv_ports[65536];
+static char const *const srv_ports_file = STRIZE(VARDIR) "/srv-ports.db";
+
+static void srv_ports_init(void)
+{
+    SLOG(LOG_DEBUG, "Reading server ports from '%s'", srv_ports_file);
+
+    int fd = file_open(srv_ports_file, O_RDONLY);
+    if (fd < 0) return;
+
+    if (file_read(fd, srv_ports, sizeof(srv_ports)) != sizeof(srv_ports)) {
+        memset(srv_ports, 0, sizeof(srv_ports));
+    }
+
+    file_close(fd);
+}
+
+static void srv_ports_fini(void)
+{
+    SLOG(LOG_DEBUG, "Saving server ports into '%s'", srv_ports_file);
+
+    int fd = file_open(srv_ports_file, O_WRONLY|O_CREAT|O_TRUNC);
+    if (fd < 0) return;
+
+    (void)file_write(fd, srv_ports, sizeof(srv_ports));
+
+    file_close(fd);
+}
+
+static void incr_srv_port(uint16_t p)
+{
+    if (++srv_ports[p] == 0) {
+        SLOG(LOG_DEBUG, "Too many cnx to port %"PRIu16", rescaling srv_ports", p);
+        for (unsigned q = 0; q < NB_ELEMS(srv_ports); q++) {
+            srv_ports[q] >>= 1;
+        }
+        srv_ports[p] = UINT_MAX>>1;
+    }
+}
+
+
+bool comes_from_client(uint16_t const *port, bool syn, bool ack)
+{
+    if (syn && !ack) {
+        // Note that it could still be the server part of a 4way handshake, but we ignore this possibility for now
+        incr_srv_port(port[1]);
+        return true;
+    }
+    if (syn && ack) {
+        // Again, in a 4way handshake this heuristic may fail
+        incr_srv_port(port[0]);
+        return false;
+    }
+    // Trust port if one is below 1024, but do not record it in srv_ports
+    if (port[0] >= 1024 && port[1] < 1024) {
+        return true;
+    }
+    if (port[0] < 1024 && port[1] >= 1024) {
+        return false;
+    }
+    // When in doubt, use srv_ports
+    if (srv_ports[port[1]] == srv_ports[port[0]]) { // hum...
+        return port[1] <= port[0];
+    }
+    return srv_ports[port[1]] > srv_ports[port[0]];
+}
+
+/*
+ * Init
+ */
+
 void port_muxer_init(void)
 {
     proto_sym    = scm_permanent_object(scm_from_latin1_symbol("proto"));
     port_min_sym = scm_permanent_object(scm_from_latin1_symbol("port-min"));
     port_max_sym = scm_permanent_object(scm_from_latin1_symbol("port-max"));
+    srv_ports_init();
 }
 
 void port_muxer_fini(void)
 {
+    srv_ports_fini();
 }

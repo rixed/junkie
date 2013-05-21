@@ -57,6 +57,9 @@ SCM g_port_muxer_list(struct port_muxer_list *);
 SCM g_port_muxer_add(struct port_muxer_list *, SCM name, SCM port_min, SCM port_max);
 SCM g_port_muxer_del(struct port_muxer_list *, SCM name, SCM port_min, SCM port_max);
 
+// On a related note, helper to find out which end is the server:
+bool comes_from_client(uint16_t const *port, bool syn, bool ack);
+
 void port_muxer_init(void);
 void port_muxer_fini(void);
 

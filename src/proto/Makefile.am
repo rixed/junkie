@@ -1,5 +1,5 @@
 AM_CFLAGS = -std=c99 -Wall -W
-AM_CPPFLAGS = -I $(top_srcdir)/include -I $(top_srcdir)/src -D_GNU_SOURCE
+AM_CPPFLAGS = -I $(top_srcdir)/include -I $(top_srcdir)/src -D_GNU_SOURCE -DVARDIR="@VARDIR@"
 
 noinst_LTLIBRARIES = libproto.la
 

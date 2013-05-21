@@ -62,6 +62,9 @@ AS_IF([test "x$GUILELIBDIR" = x], [if test -n "$DEFAULT_GUILELIBDIR"; then GUILE
 DEFAULT_GUILECACHEDIR="$(guile -c '(display (car (last-pair %load-compiled-path)))')"
 AC_ARG_VAR([GUILECACHEDIR], [Where to install guile compiled files])
 AS_IF([test "x$GUILECACHEDIR" = x], [if test -n "$DEFAULT_GUILECACHEDIR"; then GUILECACHEDIR="$DEFAULT_GUILECACHEDIR"; else exit 1; fi])
+AC_ARG_VAR([VARDIR], [Where to store junkie variable state [$(localstatedir)/junkie]])
+AS_IF([test "x$VARDIR" = x], [VARDIR='$(localstatedir)/junkie'])
+
 
 AC_ARG_VAR([CONFDIR], [Where to store configuration files [SYSCONFDIR/junkie]])
 AS_IF([test "x$CONFDIR" = x], [CONFDIR="$sysconfdir/junkie"])
