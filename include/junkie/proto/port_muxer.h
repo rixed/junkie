@@ -33,7 +33,7 @@ struct port_muxer {
     TAILQ_ENTRY(port_muxer) entry;
     uint16_t port_min, port_max;
     struct proto *proto;
-    bool malloced;  ///< Tru if it was malloced (ie. created from guile)
+    bool malloced;  ///< True if it was malloced (ie. created from guile)
 };
 
 void port_muxer_ctor(struct port_muxer *, struct port_muxer_list *, uint16_t port_min, uint16_t port_max, struct proto *proto);
