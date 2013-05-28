@@ -1283,6 +1283,7 @@ static struct sock *make_sock_buf(SCM mtu_, SCM ll_sock_)
 {
     unsigned mtu = scm_to_uint(mtu_);
     scm_assert_smob_type(sock_smob_tag, ll_sock_);
+    scm_gc_protect_object(ll_sock_);    // FIXME: store a ref to it in the SMOB so that it's deleted when this buffered sock is deleted?
     struct sock *ll_sock = (struct sock *)SCM_SMOB_DATA(ll_sock_);
 
     struct sock *s = sock_buf_new(mtu, ll_sock);
