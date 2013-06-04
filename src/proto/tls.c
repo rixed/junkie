@@ -77,7 +77,7 @@ static int tls_keyfile_ctor(struct tls_keyfile *keyfile, char const *path, char 
         SLOG(LOG_ERR, "SSL error while initializing keyfile %s: %s", path, ERR_error_string(ERR_get_error(), NULL));
         goto err0;
     }
-    // Load private key file TODO
+    // Load private key file
     if (1 != SSL_CTX_use_PrivateKey_file(keyfile->ssl_ctx, path, SSL_FILETYPE_PEM)) {
         if (1 != SSL_CTX_use_PrivateKey_file(keyfile->ssl_ctx, path, SSL_FILETYPE_ASN1)) {
             SLOG(LOG_ERR, "Cannot load keyfile %s", path);
