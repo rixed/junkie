@@ -237,6 +237,17 @@ bool ip_addr_match_mask(struct ip_addr const *host, struct ip_addr const *net, s
     }
 }
 
+bool ip_addr_match_range(struct ip_addr const *host, struct ip_addr const *min, struct ip_addr const *max)
+{
+    assert(min->family == max->family);
+    if (host->family != min->family) return false;
+
+    // Addresses are stored in network byte order (big endian) so we can compare than with memcmp whatever the size
+    return
+        memcmp(&host->u, &min->u, host->family == AF_INET ? 4:16) >= 0 &&
+        memcmp(&host->u, &max->u, host->family == AF_INET ? 4:16) <= 0;
+}
+
 SCM scm_from_ip_addr(struct ip_addr const *ip)
 {
     if (ip->family == AF_INET) {

@@ -48,6 +48,9 @@ bool ip_addr_is_broadcast(struct ip_addr const *);
 
 bool ip_addr_match_mask(struct ip_addr const *host, struct ip_addr const *net, struct ip_addr const *mask);
 
+/// Tells whether this address is between min and max, inclusives.
+bool ip_addr_match_range(struct ip_addr const *host, struct ip_addr const *min, struct ip_addr const *max);
+
 /// convert an IP addr into a SCM number
 SCM scm_from_ip_addr(struct ip_addr const *);
 
