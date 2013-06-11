@@ -390,8 +390,9 @@ static void do_display_top(struct timeval const *now)
         packets_count, bytes_count);
     int64_t const dt = (timeval_sub(now, &start_counting) + 500000) / 1000000;
     if (dt >= 1) {
-        printf(" (%"PRIu64" bytes/sec)\n\n", bytes_count / dt);
+        printf(" (%"PRIu64" bytes/sec)", bytes_count / dt);
     }
+    printf("\n\n");
     packets_count = 0; bytes_count = 0;
     start_counting = *now;
 
