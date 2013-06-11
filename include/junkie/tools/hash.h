@@ -38,6 +38,8 @@ struct name_ { \
     struct hash_base base; \
 }
 
+#define HASH_SIZE(hash) (hash)->base.size
+
 #define HASH_INIT(hash, size_, name_) do { \
     (hash)->base.nb_lists = 1 + size_ / HASH_LENGTH_GOOD; \
     (hash)->base.nb_lists_min = (hash)->base.nb_lists; \
