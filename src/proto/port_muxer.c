@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <inttypes.h>
+#include <unistd.h> // for access
 #include "junkie/tools/log.h"
 #include "junkie/tools/objalloc.h"
 #include "junkie/proto/port_muxer.h"
@@ -200,6 +201,9 @@ static void srv_ports_init(void)
 {
     SLOG(LOG_DEBUG, "Reading server ports from '%s'", srv_ports_file);
 
+    // Do not bark if we have no read perm to this file or if it does not exist
+    if (0 != access(srv_ports_file, R_OK)) return;
+
     int fd = file_open(srv_ports_file, O_RDONLY);
     if (fd < 0) return;
 
@@ -213,6 +217,9 @@ static void srv_ports_init(void)
 static void srv_ports_fini(void)
 {
     SLOG(LOG_DEBUG, "Saving server ports into '%s'", srv_ports_file);
+
+    // Do not bark if we have no write perm to this file
+    if (0 != access(srv_ports_file, W_OK)) return;
 
     int fd = file_open(srv_ports_file, O_WRONLY|O_CREAT|O_TRUNC);
     if (fd < 0) return;
