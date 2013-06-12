@@ -59,6 +59,7 @@ struct tls_keyfile {
     char path[PATH_MAX];
     char pwd[1024];
     struct ip_addr net, mask;
+    bool is_mask;   // is false, then mask is actually the end of a range
     struct proto *proto;
     struct mutex lock;  // to protect the folowing lists
     HASH_TABLE(tls_sessions, tls_session) sessions;
@@ -134,7 +135,7 @@ static int tls_password_cb(char *buf, int bufsz, int rwflag, void *keyfile_)
     return len;
 }
 
-static int tls_keyfile_ctor(struct tls_keyfile *keyfile, char const *path, char const *pwd, struct ip_addr const *net, struct ip_addr const *mask, struct proto *proto)
+static int tls_keyfile_ctor(struct tls_keyfile *keyfile, char const *path, char const *pwd, struct ip_addr const *net, struct ip_addr const *mask, bool is_mask, struct proto *proto)
 {
     SLOG(LOG_DEBUG, "Construct keyfile@%p '%s' for '%s', proto %s", keyfile, path, ip_addr_2_str(net), proto->name);
 
@@ -161,6 +162,7 @@ static int tls_keyfile_ctor(struct tls_keyfile *keyfile, char const *path, char 
     }
     keyfile->net = *net;
     keyfile->mask = *mask;
+    keyfile->is_mask = is_mask;
     keyfile->proto = proto;
     HASH_INIT(&keyfile->sessions, 67, "TLS Sessions");
     TAILQ_INIT(&keyfile->sessions_lru);
@@ -176,11 +178,11 @@ err0:
     return -1;
 }
 
-static struct tls_keyfile *tls_keyfile_new(char const *path, char const *pwd, struct ip_addr const *net, struct ip_addr const *mask, struct proto *proto)
+static struct tls_keyfile *tls_keyfile_new(char const *path, char const *pwd, struct ip_addr const *net, struct ip_addr const *mask, bool is_mask, struct proto *proto)
 {
     struct tls_keyfile *keyfile = objalloc(sizeof(*keyfile), "keyfiles");
     if (! keyfile) return NULL;
-    if (0 != tls_keyfile_ctor(keyfile, path, pwd, net, mask, proto)) {
+    if (0 != tls_keyfile_ctor(keyfile, path, pwd, net, mask, is_mask, proto)) {
         objfree(keyfile);
         return NULL;
     }
@@ -220,11 +222,20 @@ static struct tls_keyfile *tls_keyfile_of_name(char const *name)
     return keyfile;
 }
 
+static bool ip_match_keyfile(struct ip_addr const *ip, struct tls_keyfile const *keyfile)
+{
+    if (keyfile->is_mask) {
+        return ip_addr_match_mask(ip, &keyfile->net, &keyfile->mask);
+    } else {
+        return ip_addr_match_range(ip, &keyfile->net, &keyfile->mask);
+    }
+}
+
 static struct tls_keyfile *tls_keyfile_lookup(struct ip_addr const *ip, uint16_t unused_ port)
 {
     struct tls_keyfile *keyfile;
     WITH_LOCK(&tls_keyfiles_lock) {
-        LIST_LOOKUP(keyfile, &tls_keyfiles, entry, ip_addr_match_mask(ip, &keyfile->net, &keyfile->mask));
+        LIST_LOOKUP(keyfile, &tls_keyfiles, entry, ip_match_keyfile(ip, keyfile));
     }
     return keyfile;
 }
@@ -254,17 +265,18 @@ static SCM g_tls_keys(void)
 }
 
 static struct ext_function sg_tls_add_key;
-static SCM g_tls_add_key(SCM file_, SCM net_, SCM mask_, SCM proto_, SCM pwd_)
+static SCM g_tls_add_key(SCM file_, SCM net_, SCM mask_, SCM is_mask_, SCM proto_, SCM pwd_)
 {
     (void)pwd_; // TODO
 
     char const *file = scm_to_tempstr(file_);
     struct ip_addr net, mask;
     if (0 != scm_netmask_2_ip_addr2(&net, &mask, net_, mask_)) return SCM_BOOL_F;
+    bool is_mask = scm_to_bool(is_mask_);
     struct proto *proto = proto_of_scm_name(proto_);
     if (! proto) return SCM_BOOL_F;
 
-    struct tls_keyfile *keyfile = tls_keyfile_new(file, NULL, &net, &mask, proto);
+    struct tls_keyfile *keyfile = tls_keyfile_new(file, NULL, &net, &mask, is_mask, proto);
     return keyfile ? SCM_BOOL_T : SCM_BOOL_F;
 }
 
@@ -1323,8 +1335,8 @@ void tls_init(void)
         "(tls-keys): returns a list of all known private keys.\n");
 
     ext_function_ctor(&sg_tls_add_key,
-        "tls-add-key", 4, 1, 0, g_tls_add_key,
-        "(tls-add-key \"/var/keys/secret.pem\" \"192.168.1.42\" \"255.255.255.255\" \"http\"): use this key to decrypt HTTP traffic to this IP.\n"
+        "tls-add-key", 5, 1, 0, g_tls_add_key,
+        "(tls-add-key \"/var/keys/secret.pem\" \"192.168.1.42\" \"255.255.255.255\" #t \"http\"): use this key to decrypt HTTP traffic to this IP.\n"
         "Optionally, you can pass a password (used to decrypt the file) as another argument.\n"
         "See also (? 'tls-del-key)\n");
 
