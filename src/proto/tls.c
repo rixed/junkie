@@ -320,80 +320,116 @@ static bool rsa_cipher_is_ephemeral(enum tls_cipher_suite cipher)
 }
 
 static struct tls_cipher_info {
-#define KEX_RSA     0x10
-#define KEX_DH      0x11
-#define SIG_RSA     0x20
-#define SIG_DSS     0x21
-#define SIG_NONE    0x22
-#define ENC_DES     0x30
-#define ENC_3DES    0x31
-#define ENC_RC4     0x32
-#define ENC_RC2     0x33
-#define ENC_IDEA    0x34
-#define ENC_AES128  0x35
-#define ENC_AES256  0x36
-#define ENC_NULL    0x37
-#define DIG_MD5     0x40
-#define DIG_SHA     0x41
+    // FIXME: enums
+#   define KEX_RSA     0x10
+#   define KEX_DH      0x11
+#   define ENC_DES     0x30
+#   define ENC_3DES    0x31
+#   define ENC_RC4     0x32
+#   define ENC_RC2     0x33
+#   define ENC_IDEA    0x34
+#   define ENC_AES128  0x35
+#   define ENC_AES256  0x36
+#   define ENC_NULL    0x37
+#   define ENC_CML128  0x39
+#   define ENC_CML256  0x40
+#   define DIG_MD5     0x50
+#   define DIG_SHA     0x51
     bool defined;
     EVP_CIPHER const *ciph;
-    int kex;
-    int sig;
+    int kex;    // key exchenge
     int enc;
     int block;
     int bits;
     int eff_bits;
     int dig;
-    unsigned dig_len;
     int export;
 } tls_cipher_infos[] = {
-    [1] = { true, NULL, KEX_RSA,SIG_RSA,ENC_NULL,0,0,0,DIG_MD5,16,0 },
-    [2] = { true, NULL, KEX_RSA,SIG_RSA,ENC_NULL,0,0,0,DIG_SHA,20,0 },
-    [3] = { true, NULL, KEX_RSA,SIG_RSA,ENC_RC4,1,128,40,DIG_MD5,16,1 },
-    [4] = { true, NULL, KEX_RSA,SIG_RSA,ENC_RC4,1,128,128,DIG_MD5,16,0 },
-    [5] = { true, NULL, KEX_RSA,SIG_RSA,ENC_RC4,1,128,128,DIG_SHA,20,0 },
-    [6] = { true, NULL, KEX_RSA,SIG_RSA,ENC_RC2,8,128,40,DIG_SHA,20,1 },
-    [7] = { true, NULL, KEX_RSA,SIG_RSA,ENC_IDEA,8,128,128,DIG_SHA,20,0 },
-    [8] = { true, NULL, KEX_RSA,SIG_RSA,ENC_DES,8,64,40,DIG_SHA,20,1 },
-    [9] = { true, NULL, KEX_RSA,SIG_RSA,ENC_DES,8,64,64,DIG_SHA,20,0 },
-    [10] = { true, NULL, KEX_RSA,SIG_RSA,ENC_3DES,8,192,192,DIG_SHA,20,0 },
-    [11] = { true, NULL, KEX_DH,SIG_DSS,ENC_DES,8,64,40,DIG_SHA,20,1 },
-    [12] = { true, NULL, KEX_DH,SIG_DSS,ENC_DES,8,64,64,DIG_SHA,20,0 },
-    [13] = { true, NULL, KEX_DH,SIG_DSS,ENC_3DES,8,192,192,DIG_SHA,20,0 },
-    [14] = { true, NULL, KEX_DH,SIG_RSA,ENC_DES,8,64,40,DIG_SHA,20,1 },
-    [15] = { true, NULL, KEX_DH,SIG_RSA,ENC_DES,8,64,64,DIG_SHA,20,0 },
-    [16] = { true, NULL, KEX_DH,SIG_RSA,ENC_3DES,8,192,192,DIG_SHA,20,0 },
-    [17] = { true, NULL, KEX_DH,SIG_DSS,ENC_DES,8,64,40,DIG_SHA,20,1 },
-    [18] = { true, NULL, KEX_DH,SIG_DSS,ENC_DES,8,64,64,DIG_SHA,20,0 },
-    [19] = { true, NULL, KEX_DH,SIG_DSS,ENC_3DES,8,192,192,DIG_SHA,20,0 },
-    [20] = { true, NULL, KEX_DH,SIG_RSA,ENC_DES,8,64,40,DIG_SHA,20,1 },
-    [21] = { true, NULL, KEX_DH,SIG_RSA,ENC_DES,8,64,64,DIG_SHA,20,0 },
-    [22] = { true, NULL, KEX_DH,SIG_RSA,ENC_3DES,8,192,192,DIG_SHA,20,0 },
-    [23] = { true, NULL, KEX_DH,SIG_NONE,ENC_RC4,1,128,40,DIG_MD5,16,1 },
-    [24] = { true, NULL, KEX_DH,SIG_NONE,ENC_RC4,1,128,128,DIG_MD5,16,0 },
-    [25] = { true, NULL, KEX_DH,SIG_NONE,ENC_DES,8,64,40,DIG_MD5,16,1 },
-    [26] = { true, NULL, KEX_DH,SIG_NONE,ENC_DES,8,64,64,DIG_MD5,16,0 },
-    [27] = { true, NULL, KEX_DH,SIG_NONE,ENC_3DES,8,192,192,DIG_MD5,16,0 },
-    [47] = { true, NULL, KEX_RSA,SIG_RSA,ENC_AES128,16,128,128,DIG_SHA,20,0 },
-    [48] = { true, NULL, KEX_DH,SIG_DSS,ENC_AES128,16,128,128,DIG_SHA,20,0 },
-    [49] = { true, NULL, KEX_DH,SIG_RSA,ENC_AES128,16,128,128,DIG_SHA,20,0 },
-    [50] = { true, NULL, KEX_DH,SIG_DSS,ENC_AES128,16,128,128,DIG_SHA,20,0 },
-    [51] = { true, NULL, KEX_DH,SIG_RSA,ENC_AES128,16,128,128,DIG_SHA,20,0 },
-    [52] = { true, NULL, KEX_DH,SIG_NONE,ENC_AES128,16,128,128,DIG_SHA,20,0 },
-    [53] = { true, NULL, KEX_RSA,SIG_RSA,ENC_AES256,16,256,256,DIG_SHA,20,0 },
-    [54] = { true, NULL, KEX_DH,SIG_DSS,ENC_AES256,16,256,256,DIG_SHA,20,0 },
-    [55] = { true, NULL, KEX_DH,SIG_RSA,ENC_AES256,16,256,256,DIG_SHA,20,0 },
-    [56] = { true, NULL, KEX_DH,SIG_DSS,ENC_AES256,16,256,256,DIG_SHA,20,0 },
-    [57] = { true, NULL, KEX_DH,SIG_RSA,ENC_AES256,16,256,256,DIG_SHA,20,0 },
-    [58] = { true, NULL, KEX_DH,SIG_NONE,ENC_AES256,16,256,256,DIG_SHA,20,0 },
-    [96] = { true, NULL, KEX_RSA,SIG_RSA,ENC_RC4,1,128,56,DIG_MD5,16,1 },
-    [97] = { true, NULL, KEX_RSA,SIG_RSA,ENC_RC2,1,128,56,DIG_MD5,16,1 },
-    [98] = { true, NULL, KEX_RSA,SIG_RSA,ENC_DES,8,64,64,DIG_SHA,20,1 },
-    [99] = { true, NULL, KEX_DH,SIG_DSS,ENC_DES,8,64,64,DIG_SHA,20,1 },
-    [100] = { true, NULL, KEX_RSA,SIG_RSA,ENC_RC4,1,128,56,DIG_SHA,20,1 },
-    [101] = { true, NULL, KEX_DH,SIG_DSS,ENC_RC4,1,128,56,DIG_SHA,20,1 },
-    [102] = { true, NULL, KEX_DH,SIG_DSS,ENC_RC4,1,128,128,DIG_SHA,20,0 },
+    [TLS_RSA_WITH_NULL_MD5] =                   { true, NULL, KEX_RSA,ENC_NULL,   0,  0,  0,DIG_MD5,0 },
+    [TLS_RSA_WITH_NULL_SHA] =                   { true, NULL, KEX_RSA,ENC_NULL,   0,  0,  0,DIG_SHA,0 },
+    [TLS_RSA_EXPORT_WITH_RC4_40_MD5] =          { true, NULL, KEX_RSA,ENC_RC4,    1,128, 40,DIG_MD5,1 },
+    [TLS_RSA_WITH_RC4_128_MD5] =                { true, NULL, KEX_RSA,ENC_RC4,    1,128,128,DIG_MD5,0 },
+    [TLS_RSA_WITH_RC4_128_SHA] =                { true, NULL, KEX_RSA,ENC_RC4,    1,128,128,DIG_SHA,0 },
+    [TLS_RSA_EXPORT_WITH_RC2_CBC_40_MD5] =      { true, NULL, KEX_RSA,ENC_RC2,    8,128, 40,DIG_MD5,1 },
+    [TLS_RSA_WITH_IDEA_CBC_SHA] =               { true, NULL, KEX_RSA,ENC_IDEA,   8,128,128,DIG_SHA,0 },
+    [TLS_RSA_EXPORT_WITH_DES40_CBC_SHA] =       { true, NULL, KEX_RSA,ENC_DES,    8, 64, 40,DIG_SHA,1 },
+    [TLS_RSA_WITH_DES_CBC_SHA] =                { true, NULL, KEX_RSA,ENC_DES,    8, 64, 64,DIG_SHA,0 },
+    [TLS_RSA_WITH_3DES_EDE_CBC_SHA] =           { true, NULL, KEX_RSA,ENC_3DES,   8,192,192,DIG_SHA,0 },
+    [TLS_DH_DSS_EXPORT_WITH_DES40_CBC_SHA] =    { true, NULL, KEX_DH, ENC_DES,    8, 64, 40,DIG_SHA,1 },
+    [TLS_DH_DSS_WITH_DES_CBC_SHA] =             { true, NULL, KEX_DH, ENC_DES,    8, 64, 64,DIG_SHA,0 },
+    [TLS_DH_DSS_WITH_3DES_EDE_CBC_SHA] =        { true, NULL, KEX_DH, ENC_3DES,   8,192,192,DIG_SHA,0 },
+    [TLS_DH_RSA_EXPORT_WITH_DES40_CBC_SHA] =    { true, NULL, KEX_DH, ENC_DES,    8, 64, 40,DIG_SHA,1 },
+    [TLS_DH_RSA_WITH_DES_CBC_SHA] =             { true, NULL, KEX_DH, ENC_DES,    8, 64, 64,DIG_SHA,0 },
+    [TLS_DH_RSA_WITH_3DES_EDE_CBC_SHA] =        { true, NULL, KEX_DH, ENC_3DES,   8,192,192,DIG_SHA,0 },
+    [TLS_DHE_DSS_EXPORT_WITH_DES40_CBC_SHA] =   { true, NULL, KEX_DH, ENC_DES,    8, 64, 40,DIG_SHA,1 },
+    [TLS_DHE_DSS_WITH_DES_CBC_SHA] =            { true, NULL, KEX_DH, ENC_DES,    8, 64, 64,DIG_SHA,0 },
+    [TLS_DHE_DSS_WITH_3DES_EDE_CBC_SHA] =       { true, NULL, KEX_DH, ENC_3DES,   8,192,192,DIG_SHA,0 },
+    [TLS_DHE_RSA_EXPORT_WITH_DES40_CBC_SHA] =   { true, NULL, KEX_DH, ENC_DES,    8, 64, 40,DIG_SHA,1 },
+    [TLS_DHE_RSA_WITH_DES_CBC_SHA] =            { true, NULL, KEX_DH, ENC_DES,    8, 64, 64,DIG_SHA,0 },
+    [TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA] =       { true, NULL, KEX_DH, ENC_3DES,   8,192,192,DIG_SHA,0 },
+    [TLS_DH_anon_EXPORT_WITH_RC4_40_MD5] =      { true, NULL, KEX_DH, ENC_RC4,    1,128, 40,DIG_MD5,1 },
+    [TLS_DH_anon_WITH_RC4_128_MD5] =            { true, NULL, KEX_DH, ENC_RC4,    1,128,128,DIG_MD5,0 },
+    [TLS_DH_anon_EXPORT_WITH_DES40_CBC_SHA] =   { true, NULL, KEX_DH, ENC_DES,    8, 64, 40,DIG_SHA,1 },
+    [TLS_DH_anon_WITH_DES_CBC_SHA] =            { true, NULL, KEX_DH, ENC_DES,    8, 64, 64,DIG_SHA,0 },
+    [TLS_DH_anon_WITH_3DES_EDE_CBC_SHA] =       { true, NULL, KEX_DH, ENC_3DES,   8,192,192,DIG_SHA,0 },
+    //
+    [TLS_RSA_WITH_AES_128_CBC_SHA] =            { true, NULL, KEX_RSA,ENC_AES128,16,128,128,DIG_SHA,0 },
+    [TLS_DH_DSS_WITH_AES_128_CBC_SHA] =         { true, NULL, KEX_DH, ENC_AES128,16,128,128,DIG_SHA,0 },
+    [TLS_DH_RSA_WITH_AES_128_CBC_SHA] =         { true, NULL, KEX_DH, ENC_AES128,16,128,128,DIG_SHA,0 },
+    [TLS_DHE_DSS_WITH_AES_128_CBC_SHA] =        { true, NULL, KEX_DH, ENC_AES128,16,128,128,DIG_SHA,0 },
+    [TLS_DHE_RSA_WITH_AES_128_CBC_SHA] =        { true, NULL, KEX_DH, ENC_AES128,16,128,128,DIG_SHA,0 },
+    [TLS_DH_anon_WITH_AES_128_CBC_SHA] =        { true, NULL, KEX_DH, ENC_AES128,16,128,128,DIG_SHA,0 },
+    [TLS_RSA_WITH_AES_256_CBC_SHA] =            { true, NULL, KEX_RSA,ENC_AES256,16,256,256,DIG_SHA,0 },
+    [TLS_DH_DSS_WITH_AES_256_CBC_SHA] =         { true, NULL, KEX_DH, ENC_AES256,16,256,256,DIG_SHA,0 },
+    [TLS_DH_RSA_WITH_AES_256_CBC_SHA] =         { true, NULL, KEX_DH, ENC_AES256,16,256,256,DIG_SHA,0 },
+    [TLS_DHE_DSS_WITH_AES_256_CBC_SHA] =        { true, NULL, KEX_DH, ENC_AES256,16,256,256,DIG_SHA,0 },
+    [TLS_DHE_RSA_WITH_AES_256_CBC_SHA] =        { true, NULL, KEX_DH, ENC_AES256,16,256,256,DIG_SHA,0 },
+    [TLS_DH_anon_WITH_AES_256_CBC_SHA] =        { true, NULL, KEX_DH, ENC_AES256,16,256,256,DIG_SHA,0 },
+    //
+    [TLS_RSA_WITH_CAMELLIA_128_CBC_SHA] =       { true, NULL, KEX_RSA,ENC_CML128,16,128,128,DIG_SHA,0 },
+    [TLS_DH_DSS_WITH_CAMELLIA_128_CBC_SHA] =    { true, NULL, KEX_DH, ENC_CML128,16,128,128,DIG_SHA,0 },
+    [TLS_DH_RSA_WITH_CAMELLIA_128_CBC_SHA] =    { true, NULL, KEX_DH, ENC_CML128,16,128,128,DIG_SHA,0 },
+    [TLS_DHE_DSS_WITH_CAMELLIA_128_CBC_SHA] =   { true, NULL, KEX_DH, ENC_CML128,16,128,128,DIG_SHA,0 },
+    [TLS_DHE_RSA_WITH_CAMELLIA_128_CBC_SHA] =   { true, NULL, KEX_DH, ENC_CML128,16,128,128,DIG_SHA,0 },
+    [TLS_DH_anon_WITH_CAMELLIA_128_CBC_SHA] =   { true, NULL, KEX_DH, ENC_CML128,16,128,128,DIG_SHA,0 },
+    //
+    [0x60] =                                    { true, NULL, KEX_RSA,ENC_RC4,    1,128, 56,DIG_MD5,1 },
+    [0x61] =                                    { true, NULL, KEX_RSA,ENC_RC2,    1,128, 56,DIG_MD5,1 },
+    [TLS_RSA_EXPORT1024_WITH_DES_CBC_SHA] =     { true, NULL, KEX_RSA,ENC_DES,    8, 64, 64,DIG_SHA,1 },
+    [TLS_DHE_DSS_EXPORT1024_WITH_DES_CBC_SHA] = { true, NULL, KEX_DH, ENC_DES,    8, 64, 64,DIG_SHA,1 },
+    [TLS_RSA_EXPORT1024_WITH_RC4_56_SHA] =      { true, NULL, KEX_RSA,ENC_RC4,    1,128, 56,DIG_SHA,1 },
+    [TLS_DHE_DSS_EXPORT1024_WITH_RC4_56_SHA] =  { true, NULL, KEX_DH, ENC_RC4,    1,128, 56,DIG_SHA,1 },
+    [TLS_DHE_DSS_WITH_RC4_128_SHA] =            { true, NULL, KEX_DH, ENC_RC4,    1,128,128,DIG_SHA,0 },
+    //
+    [TLS_RSA_WITH_CAMELLIA_256_CBC_SHA] =       { true, NULL, KEX_RSA,ENC_CML256,16,256,256,DIG_SHA,0 },
+    [TLS_DH_DSS_WITH_CAMELLIA_256_CBC_SHA] =    { true, NULL, KEX_DH, ENC_CML256,16,256,256,DIG_SHA,0 },
+    [TLS_DH_RSA_WITH_CAMELLIA_256_CBC_SHA] =    { true, NULL, KEX_DH, ENC_CML256,16,256,256,DIG_SHA,0 },
+    [TLS_DHE_DSS_WITH_CAMELLIA_256_CBC_SHA] =   { true, NULL, KEX_DH, ENC_CML256,16,256,256,DIG_SHA,0 },
+    [TLS_DHE_RSA_WITH_CAMELLIA_256_CBC_SHA] =   { true, NULL, KEX_DH, ENC_CML256,16,256,256,DIG_SHA,0 },
+    [TLS_DH_anon_WITH_CAMELLIA_256_CBC_SHA] =   { true, NULL, KEX_DH, ENC_CML256,16,256,256,DIG_SHA,0 },
+    //
+    [TLS_RSA_WITH_CAMELLIA_128_CBC_SHA256] =    { true, NULL, KEX_RSA,ENC_CML128,16,128,128,DIG_SHA,0 },
+    [TLS_DH_DSS_WITH_CAMELLIA_128_CBC_SHA256] = { true, NULL, KEX_DH ,ENC_CML128,16,128,128,DIG_SHA,0 },
+    [TLS_DH_RSA_WITH_CAMELLIA_128_CBC_SHA256] = { true, NULL, KEX_DH ,ENC_CML128,16,128,128,DIG_SHA,0 },
+    [TLS_DHE_DSS_WITH_CAMELLIA_128_CBC_SHA256] ={ true, NULL, KEX_DH ,ENC_CML128,16,128,128,DIG_SHA,0 },
+    [TLS_DHE_RSA_WITH_CAMELLIA_128_CBC_SHA256] ={ true, NULL, KEX_DH ,ENC_CML128,16,128,128,DIG_SHA,0 },
+    [TLS_DH_anon_WITH_CAMELLIA_128_CBC_SHA256] ={ true, NULL, KEX_DH ,ENC_CML128,16,128,128,DIG_SHA,0 },
+    [TLS_RSA_WITH_CAMELLIA_256_CBC_SHA256] =    { true, NULL, KEX_DH ,ENC_CML256,16,256,256,DIG_SHA,0 },
+    [TLS_DH_DSS_WITH_CAMELLIA_256_CBC_SHA256] = { true, NULL, KEX_DH ,ENC_CML256,16,256,256,DIG_SHA,0 },
+    [TLS_DH_RSA_WITH_CAMELLIA_256_CBC_SHA256] = { true, NULL, KEX_DH ,ENC_CML256,16,256,256,DIG_SHA,0 },
+    [TLS_DHE_DSS_WITH_CAMELLIA_256_CBC_SHA256] ={ true, NULL, KEX_DH ,ENC_CML256,16,256,256,DIG_SHA,0 },
+    [TLS_DHE_RSA_WITH_CAMELLIA_256_CBC_SHA256] ={ true, NULL, KEX_DH ,ENC_CML256,16,256,256,DIG_SHA,0 },
+    [TLS_DH_anon_WITH_CAMELLIA_256_CBC_SHA256] ={ true, NULL, KEX_DH ,ENC_CML256,16,256,256,DIG_SHA,0 },
 };
+
+static size_t tls_digest_len(unsigned dig)
+{
+    switch (dig) {
+        case DIG_MD5: return 16;
+        case DIG_SHA: return 20;
+    }
+    assert(!"Unknown digest type");
+}
 
 static char const *cipher_name_of_enc(unsigned enc)
 {
@@ -405,6 +441,8 @@ static char const *cipher_name_of_enc(unsigned enc)
         case ENC_IDEA: return "IDEA";
         case ENC_AES128: return "AES128";
         case ENC_AES256: return "AES256";
+        case ENC_CML128: return "CAMELLIA128";
+        case ENC_CML256: return "CAMELLIA256";
     }
     assert(!"Invalid encoder");
 }
@@ -523,33 +561,48 @@ static char const *tls_cipher_suite_2_str(enum tls_cipher_suite c)
 {
     switch (c) {
 #       define CASE(x) case TLS_##x: return #x
-        CASE(NULL_WITH_NULL_NULL);               CASE(RSA_WITH_NULL_MD5);
-        CASE(RSA_WITH_NULL_SHA);                 CASE(RSA_EXPORT_WITH_RC4_40_MD5);
-        CASE(RSA_WITH_RC4_128_MD5);              CASE(RSA_WITH_RC4_128_SHA);
-        CASE(RSA_EXPORT_WITH_RC2_CBC_40_MD5);    CASE(RSA_WITH_IDEA_CBC_SHA);
-        CASE(RSA_EXPORT_WITH_DES40_CBC_SHA);     CASE(RSA_WITH_DES_CBC_SHA);
-        CASE(RSA_WITH_3DES_EDE_CBC_SHA);         CASE(DH_DSS_EXPORT_WITH_DES40_CBC_SHA);
-        CASE(DH_DSS_WITH_DES_CBC_SHA);           CASE(DH_DSS_WITH_3DES_EDE_CBC_SHA);
-        CASE(DH_RSA_EXPORT_WITH_DES40_CBC_SHA);  CASE(DH_RSA_WITH_DES_CBC_SHA);
-        CASE(DH_RSA_WITH_3DES_EDE_CBC_SHA);      CASE(DHE_DSS_EXPORT_WITH_DES40_CBC_SHA);
-        CASE(DHE_DSS_WITH_DES_CBC_SHA);          CASE(DHE_DSS_WITH_3DES_EDE_CBC_SHA);
-        CASE(DHE_RSA_EXPORT_WITH_DES40_CBC_SHA); CASE(DHE_RSA_WITH_DES_CBC_SHA);
-        CASE(DHE_RSA_WITH_3DES_EDE_CBC_SHA);     CASE(DH_anon_EXPORT_WITH_RC4_40_MD5);
-        CASE(DH_anon_WITH_RC4_128_MD5);          CASE(DH_anon_EXPORT_WITH_DES40_CBC_SHA);
-        CASE(DH_anon_WITH_DES_CBC_SHA);          CASE(DH_anon_WITH_3DES_EDE_CBC_SHA);
-        CASE(RSA_WITH_AES_128_CBC_SHA);          CASE(DH_DSS_WITH_AES_128_CBC_SHA);
-        CASE(DH_RSA_WITH_AES_128_CBC_SHA);       CASE(DHE_DSS_WITH_AES_128_CBC_SHA);
-        CASE(DHE_RSA_WITH_AES_128_CBC_SHA);      CASE(DH_anon_WITH_AES_128_CBC_SHA);
-        CASE(RSA_WITH_AES_256_CBC_SHA);          CASE(DH_DSS_WITH_AES_256_CBC_SHA);
-        CASE(DH_RSA_WITH_AES_256_CBC_SHA);       CASE(DHE_DSS_WITH_AES_256_CBC_SHA);
-        CASE(DHE_RSA_WITH_AES_256_CBC_SHA);      CASE(DH_anon_WITH_AES_256_CBC_SHA);
-        CASE(RSA_WITH_NULL_SHA256);              CASE(RSA_WITH_AES_128_CBC_SHA256);
-        CASE(RSA_WITH_AES_256_CBC_SHA256);       CASE(DH_DSS_WITH_AES_128_CBC_SHA256);
-        CASE(DH_RSA_WITH_AES_128_CBC_SHA256);    CASE(DHE_DSS_WITH_AES_128_CBC_SHA256);
-        CASE(DHE_RSA_WITH_AES_128_CBC_SHA256);   CASE(DH_DSS_WITH_AES_256_CBC_SHA256);
-        CASE(DH_RSA_WITH_AES_256_CBC_SHA256);    CASE(DHE_DSS_WITH_AES_256_CBC_SHA256);
-        CASE(DHE_RSA_WITH_AES_256_CBC_SHA256);   CASE(DH_anon_WITH_AES_128_CBC_SHA256);
-        CASE(DH_anon_WITH_AES_256_CBC_SHA256);
+        CASE(NULL_WITH_NULL_NULL);                  CASE(RSA_WITH_NULL_MD5);
+        CASE(RSA_WITH_NULL_SHA);                    CASE(RSA_EXPORT_WITH_RC4_40_MD5);
+        CASE(RSA_WITH_RC4_128_MD5);                 CASE(RSA_WITH_RC4_128_SHA);
+        CASE(RSA_EXPORT_WITH_RC2_CBC_40_MD5);       CASE(RSA_WITH_IDEA_CBC_SHA);
+        CASE(RSA_EXPORT_WITH_DES40_CBC_SHA);        CASE(RSA_WITH_DES_CBC_SHA);
+        CASE(RSA_WITH_3DES_EDE_CBC_SHA);            CASE(DH_DSS_EXPORT_WITH_DES40_CBC_SHA);
+        CASE(DH_DSS_WITH_DES_CBC_SHA);              CASE(DH_DSS_WITH_3DES_EDE_CBC_SHA);
+        CASE(DH_RSA_EXPORT_WITH_DES40_CBC_SHA);     CASE(DH_RSA_WITH_DES_CBC_SHA);
+        CASE(DH_RSA_WITH_3DES_EDE_CBC_SHA);         CASE(DHE_DSS_EXPORT_WITH_DES40_CBC_SHA);
+        CASE(DHE_DSS_WITH_DES_CBC_SHA);             CASE(DHE_DSS_WITH_3DES_EDE_CBC_SHA);
+        CASE(DHE_RSA_EXPORT_WITH_DES40_CBC_SHA);    CASE(DHE_RSA_WITH_DES_CBC_SHA);
+        CASE(DHE_RSA_WITH_3DES_EDE_CBC_SHA);        CASE(DH_anon_EXPORT_WITH_RC4_40_MD5);
+        CASE(DH_anon_WITH_RC4_128_MD5);             CASE(DH_anon_EXPORT_WITH_DES40_CBC_SHA);
+        CASE(DH_anon_WITH_DES_CBC_SHA);             CASE(DH_anon_WITH_3DES_EDE_CBC_SHA);
+        CASE(RSA_WITH_AES_128_CBC_SHA);             CASE(DH_DSS_WITH_AES_128_CBC_SHA);
+        CASE(DH_RSA_WITH_AES_128_CBC_SHA);          CASE(DHE_DSS_WITH_AES_128_CBC_SHA);
+        CASE(DHE_RSA_WITH_AES_128_CBC_SHA);         CASE(DH_anon_WITH_AES_128_CBC_SHA);
+        CASE(RSA_WITH_AES_256_CBC_SHA);             CASE(DH_DSS_WITH_AES_256_CBC_SHA);
+        CASE(DH_RSA_WITH_AES_256_CBC_SHA);          CASE(DHE_DSS_WITH_AES_256_CBC_SHA);
+        CASE(DHE_RSA_WITH_AES_256_CBC_SHA);         CASE(DH_anon_WITH_AES_256_CBC_SHA);
+        CASE(RSA_WITH_NULL_SHA256);                 CASE(RSA_WITH_AES_128_CBC_SHA256);
+        CASE(RSA_WITH_AES_256_CBC_SHA256);          CASE(DH_DSS_WITH_AES_128_CBC_SHA256);
+        CASE(DH_RSA_WITH_AES_128_CBC_SHA256);       CASE(DHE_DSS_WITH_AES_128_CBC_SHA256);
+        CASE(RSA_WITH_CAMELLIA_128_CBC_SHA);        CASE(DH_DSS_WITH_CAMELLIA_128_CBC_SHA);
+        CASE(DH_RSA_WITH_CAMELLIA_128_CBC_SHA);     CASE(DHE_DSS_WITH_CAMELLIA_128_CBC_SHA);
+        CASE(DHE_RSA_WITH_CAMELLIA_128_CBC_SHA);    CASE(DH_anon_WITH_CAMELLIA_128_CBC_SHA);
+        CASE(RSA_EXPORT1024_WITH_DES_CBC_SHA);      CASE(DHE_DSS_EXPORT1024_WITH_DES_CBC_SHA);
+        CASE(RSA_EXPORT1024_WITH_RC4_56_SHA);       CASE(DHE_DSS_EXPORT1024_WITH_RC4_56_SHA);
+        CASE(DHE_DSS_WITH_RC4_128_SHA);
+        CASE(DHE_RSA_WITH_AES_128_CBC_SHA256);      CASE(DH_DSS_WITH_AES_256_CBC_SHA256);
+        CASE(DH_RSA_WITH_AES_256_CBC_SHA256);       CASE(DHE_DSS_WITH_AES_256_CBC_SHA256);
+        CASE(DHE_RSA_WITH_AES_256_CBC_SHA256);      CASE(DH_anon_WITH_AES_128_CBC_SHA256);
+        CASE(DH_anon_WITH_AES_256_CBC_SHA256);      CASE(RSA_WITH_CAMELLIA_256_CBC_SHA);
+        CASE(DH_DSS_WITH_CAMELLIA_256_CBC_SHA);     CASE(DH_RSA_WITH_CAMELLIA_256_CBC_SHA);
+        CASE(DHE_DSS_WITH_CAMELLIA_256_CBC_SHA);    CASE(DHE_RSA_WITH_CAMELLIA_256_CBC_SHA);
+        CASE(DH_anon_WITH_CAMELLIA_256_CBC_SHA);    CASE(RSA_WITH_CAMELLIA_128_CBC_SHA256);
+        CASE(DH_DSS_WITH_CAMELLIA_128_CBC_SHA256);  CASE(DH_RSA_WITH_CAMELLIA_128_CBC_SHA256);
+        CASE(DHE_DSS_WITH_CAMELLIA_128_CBC_SHA256); CASE(DHE_RSA_WITH_CAMELLIA_128_CBC_SHA256);
+        CASE(DH_anon_WITH_CAMELLIA_128_CBC_SHA256); CASE(RSA_WITH_CAMELLIA_256_CBC_SHA256);
+        CASE(DH_DSS_WITH_CAMELLIA_256_CBC_SHA256);  CASE(DH_RSA_WITH_CAMELLIA_256_CBC_SHA256);
+        CASE(DHE_DSS_WITH_CAMELLIA_256_CBC_SHA256); CASE(DHE_RSA_WITH_CAMELLIA_256_CBC_SHA256);
+        CASE(DH_anon_WITH_CAMELLIA_256_CBC_SHA256);
 #       undef CASE
     }
     return tempstr_printf("Unknown cipher suite 0x%x", c);
@@ -793,7 +846,7 @@ unknown_cipher:
     if (! cipher_info->defined) goto unknown_cipher;
 
     unsigned const needed =
-        cipher_info->dig_len*2 +
+        tls_digest_len(cipher_info->dig)*2 +
         cipher_info->bits/4 +
         (cipher_info->block > 1 ? cipher_info->block*2 : 0);
     assert(needed <= sizeof(clt_next_spec->key_block));
@@ -810,8 +863,8 @@ unknown_cipher:
     // Save cryptographic material from the key_block
     // TODO: handle export ciphers?
     uint8_t *ptr = clt_next_spec->key_block;
-    clt_next_decoder->mac_key = ptr; ptr += cipher_info->dig_len;
-    srv_next_decoder->mac_key = ptr; ptr += cipher_info->dig_len;
+    clt_next_decoder->mac_key = ptr; ptr += tls_digest_len(cipher_info->dig);
+    srv_next_decoder->mac_key = ptr; ptr += tls_digest_len(cipher_info->dig);
     clt_next_decoder->write_key = ptr; ptr += cipher_info->eff_bits/8;
     srv_next_decoder->write_key = ptr; ptr += cipher_info->eff_bits/8;
     if (cipher_info->block > 1) {
@@ -1116,11 +1169,11 @@ static int tls_decrypt(struct tls_cipher_spec *spec, unsigned way, size_t cap_le
     }
 
     // Strip off the MAC
-    if (cipher_info->dig_len > *out_sz) {
+    if (tls_digest_len(cipher_info->dig) > *out_sz) {
         SLOG(LOG_DEBUG, "Cannot decrypt: no space for a MAC?");
         return -1;
     }
-    *out_sz -= cipher_info->dig_len;
+    *out_sz -= tls_digest_len(cipher_info->dig);
 
     SLOG(LOG_INFO, "Successfully decrypted %zu bytes!", *out_sz);
     SLOG_HEX(LOG_INFO, out, *out_sz);
