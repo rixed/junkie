@@ -37,6 +37,10 @@
 #include "junkie/proto/ber.h"
 #include "junkie/proto/tls.h"
 
+// We use directly session_id digest as a hash key
+#undef HASH_FUNC
+#define HASH_FUNC(key) (*(key))
+
 #undef LOG_CAT
 #define LOG_CAT proto_tls_log_category
 
@@ -67,32 +71,23 @@ static struct mutex tls_keyfiles_lock;
 struct tls_session {
     HASH_ENTRY(tls_session) h_entry;
     TAILQ_ENTRY(tls_session) lru_entry;
-    struct tls_session_key {
-        uint8_t id_len;
-#       define MAX_SESSION_ID_LEN 32
-        uint8_t id[MAX_SESSION_ID_LEN]; // fill with zeros
-    } packed_ key;
+#   define MAX_SESSION_ID_LEN 32
+#   define KEY_HASH_SET 0x80000000U // bit 31 used as a set flag
+    uint32_t key_hash;
 #   define SECRET_LEN 48
     uint8_t master_secret[SECRET_LEN];
 };
 
-static void tls_session_key_ctor(struct tls_session_key *key, uint8_t id_len, uint8_t const *id)
+static uint32_t tls_session_key_hash(uint8_t id_len, uint8_t const *id)
 {
-    key->id_len = id_len;
-    memcpy(key->id, id, id_len);
-    memset(key->id + id_len, 0, sizeof(key->id) - id_len);
-}
-
-static void tls_session_key_dtor(struct tls_session_key *key)
-{
-    (void)key;
+    return hashlittle(id, id_len, 0x5139D3C6U);
 }
 
 static void tls_session_dtor(struct tls_session *session, struct tls_keyfile *keyfile)
 {
+    SLOG(LOG_DEBUG, "Destruct TLS session@%p", session);
     TAILQ_REMOVE(&keyfile->sessions_lru, session, lru_entry);
     HASH_REMOVE(&keyfile->sessions, session, h_entry);
-    tls_session_key_dtor(&session->key);
 }
 
 static void tls_session_del(struct tls_session *session, struct tls_keyfile *keyfile)
@@ -101,14 +96,16 @@ static void tls_session_del(struct tls_session *session, struct tls_keyfile *key
     objfree(session);
 }
 
-static void tls_session_ctor(struct tls_session *session, struct tls_keyfile *keyfile, uint8_t id_len, uint8_t const *id)
+static void tls_session_ctor(struct tls_session *session, struct tls_keyfile *keyfile, uint32_t key_hash)
 {
-    tls_session_key_ctor(&session->key, id_len, id);
+    SLOG(LOG_DEBUG, "Constructing TLS session@%p for key_hash %"PRIu32, session, key_hash);
+    assert(key_hash & KEY_HASH_SET);  // bit 31 used as a set flag
+    session->key_hash = key_hash;
     TAILQ_INSERT_HEAD(&keyfile->sessions_lru, session, lru_entry);
-    HASH_INSERT(&keyfile->sessions, session, &session->key, h_entry);
+    HASH_INSERT(&keyfile->sessions, session, &session->key_hash, h_entry);
 }
 
-static struct tls_session *tls_session_new(struct tls_keyfile *keyfile, uint8_t id_len, uint8_t const *id)
+static struct tls_session *tls_session_new(struct tls_keyfile *keyfile, uint32_t key_hash)
 {
     while (HASH_SIZE(&keyfile->sessions) > max_sessions_per_key) {
         // remove least recently used session
@@ -117,7 +114,7 @@ static struct tls_session *tls_session_new(struct tls_keyfile *keyfile, uint8_t 
     }
     struct tls_session *session = objalloc(sizeof(*session), "sessions");
     if (! session) return NULL;
-    tls_session_ctor(session, keyfile, id_len, id);
+    tls_session_ctor(session, keyfile, key_hash);
     return session;
 }
 
@@ -139,7 +136,7 @@ static int tls_password_cb(char *buf, int bufsz, int rwflag, void *keyfile_)
 
 static int tls_keyfile_ctor(struct tls_keyfile *keyfile, char const *path, char const *pwd, struct ip_addr const *net, struct ip_addr const *mask, struct proto *proto)
 {
-    SLOG(LOG_DEBUG, "Construct keyfile@%p '%s' for '%s'", keyfile, path, ip_addr_2_str(net));
+    SLOG(LOG_DEBUG, "Construct keyfile@%p '%s' for '%s', proto %s", keyfile, path, ip_addr_2_str(net), proto->name);
 
     // Initialize our only SSL_CTX, with a single private key, that we will use for everything
     keyfile->ssl_ctx = SSL_CTX_new(SSLv23_server_method());
@@ -203,6 +200,8 @@ static void tls_keyfile_dtor(struct tls_keyfile *keyfile)
         tls_session_del(session, keyfile);
     }
     assert(0 == HASH_SIZE(&keyfile->sessions));
+    HASH_DEINIT(&keyfile->sessions);
+
     mutex_dtor(&keyfile->lock);
 }
 
@@ -425,7 +424,7 @@ struct tls_parser {
         struct tls_decoder {  // used for the establishment of next crypto keys
 #           define RANDOM_LEN 32
             uint8_t random[RANDOM_LEN];
-            struct tls_session_key session_key;
+            uint32_t session_key_hash;  // The hash of the session_id (TODO: or the session ticket), with bit 31 serving as a is_set flag
             // pointers into key_block
             uint8_t *mac_key, *write_key, *init_vector; // points into key_block
             EVP_CIPHER_CTX evp;
@@ -445,6 +444,9 @@ static int tls_parser_ctor(struct tls_parser *tls_parser, struct proto *proto)
     tls_parser->c2s_way = UNSET;
     tls_parser->current[0] = tls_parser->current[1] = 0;
     tls_parser->spec[0].decoder_ready = tls_parser->spec[1].decoder_ready = false;
+    // Clear bit 31 of session_key_hash
+    tls_parser->spec[0].decoder[0].session_key_hash = tls_parser->spec[0].decoder[1].session_key_hash = 0;
+    tls_parser->spec[1].decoder[0].session_key_hash = tls_parser->spec[1].decoder[1].session_key_hash = 0;
     tls_parser->spec[0].cipher = tls_parser->spec[1].cipher = TLS_NULL_WITH_NULL_NULL;
     tls_parser->subparser = NULL;
 #   define MAX_TLS_BUFFER (16383 + 5)
@@ -698,14 +700,17 @@ static int decrypt_master_secret(struct tls_parser *parser, unsigned way, struct
 {
     int err = -1;
 
+    unsigned const srv_idx = way == parser->c2s_way ? 1 : 0;
+    SLOG(LOG_DEBUG, "way=%u, parser->c2s_way=%u -> srv_idx=%u", way, parser->c2s_way, srv_idx);
+
     // find the relevant keyfile
     ASSIGN_INFO_OPT(tcp, &info->info);
     if (! tcp) goto quit0;
     ASSIGN_INFO_OPT(ip, &tcp->info);
     if (! ip) goto quit0;
-    struct tls_keyfile *keyfile = tls_keyfile_lookup(&ip->key.addr[1], tcp->key.port[1]);
+    struct tls_keyfile *keyfile = tls_keyfile_lookup(&ip->key.addr[srv_idx], tcp->key.port[srv_idx]);
     if (! keyfile) {
-        SLOG(LOG_DEBUG, "No keyfile found for %s:%"PRIu16, ip_addr_2_str(&ip->key.addr[1]), tcp->key.port[1]);
+        SLOG(LOG_DEBUG, "No keyfile found for %s:%"PRIu16, ip_addr_2_str(&ip->key.addr[srv_idx]), tcp->key.port[srv_idx]);
         goto quit0;
     }
     SLOG(LOG_DEBUG, "Will decrypt MS using keyfile %s", keyfile->path);
@@ -725,9 +730,9 @@ static int decrypt_master_secret(struct tls_parser *parser, unsigned way, struct
         // oh, well
     }
 
-    struct tls_cipher_spec *next_spec = &parser->spec[!parser->current[way]];
-    struct tls_decoder *next_decoder = &next_spec->decoder[way];
-    struct tls_decoder *srv_next_decoder = &parser->spec[!parser->current[!way]].decoder[!way];
+    struct tls_cipher_spec *clt_next_spec = &parser->spec[!parser->current[parser->c2s_way]];
+    struct tls_decoder *clt_next_decoder = &clt_next_spec->decoder[parser->c2s_way];
+    struct tls_decoder *srv_next_decoder = &parser->spec[!parser->current[!parser->c2s_way]].decoder[!parser->c2s_way];
 
     uint8_t *master_secret; // decrypt it from encrypted_master_secret or retrieve it from saved session
     uint8_t master_secret_buf[SECRET_LEN];
@@ -748,86 +753,88 @@ static int decrypt_master_secret(struct tls_parser *parser, unsigned way, struct
 
         master_secret = master_secret_buf;  // by default
         // derive the master_secret (FIXME: wait to be sure we have both random + this pre_shared_secret)
-        if (next_decoder->session_key.id_len > 0) {
+        if (srv_next_decoder->session_key_hash & KEY_HASH_SET) {
             // try to allocate a new session
-            struct tls_session *session = tls_session_new(keyfile, next_decoder->session_key.id_len, next_decoder->session_key.id);
+            struct tls_session *session = tls_session_new(keyfile, srv_next_decoder->session_key_hash);
             if (session) {
                 master_secret = session->master_secret;
             }
         }
 
-        if (0 != prf(next_spec->version, ssl,
+        if (0 != prf(clt_next_spec->version, ssl,
                      pre_master_secret, "master secret",
-                     next_decoder->random,
+                     clt_next_decoder->random,
                      srv_next_decoder->random,
                      sizeof(master_secret_buf), master_secret))
             goto quit1;
     } else {    // !encrypted_pms but we can use session_id
         // We do not bother coming here with no usable session_id
-        assert(next_decoder->session_key.id_len > 0 && srv_next_decoder->session_key.id_len > 0);
+        assert((clt_next_decoder->session_key_hash & KEY_HASH_SET) && (srv_next_decoder->session_key_hash & KEY_HASH_SET));
         // Look for this session_id in keyfile
         struct tls_session *session;
         WITH_LOCK(&keyfile->lock) {
-            HASH_LOOKUP(session, &keyfile->sessions, &next_decoder->session_key, key, h_entry);
+            HASH_LOOKUP(session, &keyfile->sessions, &clt_next_decoder->session_key_hash, key_hash, h_entry);
         }
         if (! session) {
             SLOG(LOG_DEBUG, "No reusable session, give up decryption");
             goto quit1;
         }
+        SLOG(LOG_DEBUG, "Reuing session for session_id %"PRIu32" (hash)", session->key_hash);
         tls_session_promote(session, keyfile);
         master_secret = session->master_secret;  // TODO: a ref?
     }
 
-    if (next_spec->cipher >= NB_ELEMS(tls_cipher_infos)) {
+    if (clt_next_spec->cipher >= NB_ELEMS(tls_cipher_infos)) {
 unknown_cipher:
-        SLOG(LOG_DEBUG, "Don't know the caracteristics of cipher %s", tls_cipher_suite_2_str(next_spec->cipher));
+        SLOG(LOG_DEBUG, "Don't know the caracteristics of cipher %s", tls_cipher_suite_2_str(clt_next_spec->cipher));
         goto quit1;
     }
-    struct tls_cipher_info const *cipher_info = tls_cipher_infos + next_spec->cipher;
+    struct tls_cipher_info const *cipher_info = tls_cipher_infos + clt_next_spec->cipher;
     if (! cipher_info->defined) goto unknown_cipher;
 
     unsigned const needed =
         cipher_info->dig_len*2 +
         cipher_info->bits/4 +
         (cipher_info->block > 1 ? cipher_info->block*2 : 0);
-    assert(needed <= sizeof(next_spec->key_block));
+    assert(needed <= sizeof(clt_next_spec->key_block));
 
-    if (0 != prf(next_spec->version, ssl,
+    if (0 != prf(clt_next_spec->version, ssl,
                  master_secret, "key expansion",
                  srv_next_decoder->random,
-                 next_decoder->random,
-                 needed, next_spec->key_block))
+                 clt_next_decoder->random,
+                 needed, clt_next_spec->key_block))
         goto quit1;
     SLOG(LOG_DEBUG, "key_block:");
-    SLOG_HEX(LOG_DEBUG, next_spec->key_block, needed);
+    SLOG_HEX(LOG_DEBUG, clt_next_spec->key_block, needed);
 
     // Save cryptographic material from the key_block
     // TODO: handle export ciphers?
-    uint8_t *ptr = next_spec->key_block;
-    next_decoder->mac_key = ptr; ptr += cipher_info->dig_len;
+    uint8_t *ptr = clt_next_spec->key_block;
+    clt_next_decoder->mac_key = ptr; ptr += cipher_info->dig_len;
     srv_next_decoder->mac_key = ptr; ptr += cipher_info->dig_len;
-    next_decoder->write_key = ptr; ptr += cipher_info->eff_bits/8;
+    clt_next_decoder->write_key = ptr; ptr += cipher_info->eff_bits/8;
     srv_next_decoder->write_key = ptr; ptr += cipher_info->eff_bits/8;
     if (cipher_info->block > 1) {
-        next_decoder->init_vector = ptr; ptr += cipher_info->block;
+        clt_next_decoder->init_vector = ptr; ptr += cipher_info->block;
         srv_next_decoder->init_vector = ptr; ptr += cipher_info->block;
     }
 
     // prepare a cipher for both directions
     for (unsigned dir = 0; dir < 2; dir ++) {
-        if (next_spec->decoder_ready) {
-            EVP_CIPHER_CTX_cleanup(&next_spec->decoder[dir].evp);
+        if (clt_next_spec->decoder_ready) {
+            EVP_CIPHER_CTX_cleanup(&clt_next_spec->decoder[dir].evp);
         }
-        EVP_CIPHER_CTX_init(&next_spec->decoder[dir].evp);
-        EVP_CipherInit(&next_spec->decoder[dir].evp, cipher_info->ciph, next_spec->decoder[dir].write_key, next_spec->decoder[dir].init_vector, 0);
+        EVP_CIPHER_CTX_init(&clt_next_spec->decoder[dir].evp);
+        EVP_CipherInit(&clt_next_spec->decoder[dir].evp, cipher_info->ciph, clt_next_spec->decoder[dir].write_key, clt_next_spec->decoder[dir].init_vector, 0);
     }
-    next_spec->decoder_ready = true;
+    clt_next_spec->decoder_ready = true;
 
     // Prepare a subparser (if we haven't one yet)
     if (! parser->subparser && keyfile->proto) {
+        SLOG(LOG_DEBUG, "Spawn new TLS subparser for proto %s", keyfile->proto->name);
         parser->subparser = keyfile->proto->ops->parser_new(keyfile->proto);
         if (! parser->subparser) {
-            SLOG(LOG_DEBUG, "Cannot create TLS subparser for proto %s", keyfile->proto->name);
+            SLOG(LOG_WARNING, "Cannot create TLS subparser for proto %s", keyfile->proto->name);
             goto quit1;
         }
     }
@@ -891,15 +898,18 @@ static enum proto_parse_status tls_parse_certificate(struct tls_proto_info *info
     return PROTO_OK;
 }
 
-static enum proto_parse_status copy_session_id(struct tls_session_key *session_key, struct cursor *cur)
+// Rather than copying it we only save it's digest
+static enum proto_parse_status copy_session_id(uint32_t *key_hash, struct cursor *cur)
 {
     if (cur->cap_len < 1) return PROTO_TOO_SHORT;
     uint8_t const id_len = cursor_read_u8(cur);
     if (id_len > MAX_SESSION_ID_LEN) return PROTO_PARSE_ERR;
-    ASSERT_COMPILE(MAX_SESSION_ID_LEN <= sizeof(session_key->id));
     if (cur->cap_len < id_len) return PROTO_TOO_SHORT;
-    tls_session_key_ctor(session_key, id_len, cur->head);
-    cursor_drop(cur, id_len);
+    if (id_len > 0) {
+        *key_hash = tls_session_key_hash(id_len, cur->head) | KEY_HASH_SET;
+        SLOG(LOG_DEBUG, "Found session_id which digest is %"PRIu32, *key_hash);
+        cursor_drop(cur, id_len);
+    }
     return PROTO_OK;
 }
 
@@ -941,7 +951,7 @@ static enum proto_parse_status tls_parse_handshake(struct tls_parser *parser, un
             ASSERT_COMPILE(sizeof(next_decoder->random) == RANDOM_LEN);
             cursor_copy(&next_decoder->random, &tcur, RANDOM_LEN);
             // Save the session_id
-            if ((err = copy_session_id(&next_decoder->session_key, &tcur)) != PROTO_OK) return err;
+            if ((err = copy_session_id(&next_decoder->session_key_hash, &tcur)) != PROTO_OK) return err;
             break;    // done with this record
         case tls_server_hello:
             // fix c2s_way
@@ -954,7 +964,7 @@ static enum proto_parse_status tls_parse_handshake(struct tls_parser *parser, un
             ASSERT_COMPILE(sizeof(next_decoder->random) == RANDOM_LEN);
             cursor_copy(&next_decoder->random, &tcur, RANDOM_LEN);
             // Read session_id
-            if ((err = copy_session_id(&next_decoder->session_key, &tcur)) != PROTO_OK) return err;
+            if ((err = copy_session_id(&next_decoder->session_key_hash, &tcur)) != PROTO_OK) return err;
             // Save cipher infos
             if (tcur.cap_len < 3) return PROTO_TOO_SHORT;
             next_spec->cipher = cursor_read_u16n(&tcur);
@@ -962,11 +972,10 @@ static enum proto_parse_status tls_parse_handshake(struct tls_parser *parser, un
             // Should we resume an old session?
             struct tls_decoder *clt_next_decoder = &parser->spec[!parser->current[!way]].decoder[!way];
             if (
-                next_decoder->session_key.id_len > 0 &&
-                next_decoder->session_key.id_len == clt_next_decoder->session_key.id_len &&
-                0 == memcmp(next_decoder->session_key.id, clt_next_decoder->session_key.id, next_decoder->session_key.id_len)
+                (next_decoder->session_key_hash & KEY_HASH_SET) &&
+                next_decoder->session_key_hash == clt_next_decoder->session_key_hash
             ) {
-                if (0 != decrypt_master_secret(parser, !way, info, 0, NULL)) {
+                if (0 != decrypt_master_secret(parser, way, info, 0, NULL)) {
                     // too bad.
                 }
             }
@@ -1113,8 +1122,9 @@ static int tls_decrypt(struct tls_cipher_spec *spec, unsigned way, size_t cap_le
     }
     *out_sz -= cipher_info->dig_len;
 
-    SLOG(LOG_INFO, "Successfuly decrypted %zu bytes!", *out_sz);
+    SLOG(LOG_INFO, "Successfully decrypted %zu bytes!", *out_sz);
     SLOG_HEX(LOG_INFO, out, *out_sz);
+    SLOG(LOG_DEBUG, "(%.*s)", (int)*out_sz, out);
 
     return 0;
 }
@@ -1156,7 +1166,7 @@ static enum proto_parse_status tls_sbuf_parse(struct parser *parser, struct prot
 
     // If this is the first time we are called, init c2s_way
     if (tls_parser->c2s_way == UNSET) {
-        tls_parser->c2s_way = !way;
+        tls_parser->c2s_way = way;
         SLOG(LOG_DEBUG, "First packet, init c2s_way to %u", tls_parser->c2s_way);
     }
 
@@ -1224,6 +1234,7 @@ static struct port_muxer tcp_port_muxer_skinny;
 void tls_init(void)
 {
     log_category_proto_tls_init();
+    hash_init();
 
     LIST_INIT(&tls_keyfiles);
     mutex_ctor(&tls_keyfiles_lock, "TLS keyfiles");
@@ -1285,5 +1296,6 @@ void tls_fini(void)
 
     ext_param_max_sessions_per_key_fini();
 
+    hash_fini();
     log_category_proto_tls_fini();
 }

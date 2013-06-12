@@ -31,7 +31,7 @@ struct ip_proto_info {
     } packed_ key;              ///< Note that this struct ip_key is packet so that it can easily serve as a hash key or the like
     unsigned version;           ///< IP version (will be 4 or 6)
     unsigned ttl;               ///< Time To Live
-    unsigned way;               ///< The way used to store the mux subparsers
+    unsigned way;               ///< 0 or 1, The way used to store the mux subparsers (key.addr[way] is the source of the packet)
     enum ip_fragmentation {
         IP_NOFRAG,              ///< If the received packet was not a fragment (with dont_frag flag not set)
         IP_DONTFRAG,            ///< If the received packet has the dont_frag flag set (and so was not fragmented)
