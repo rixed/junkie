@@ -43,6 +43,11 @@ LOG_CATEGORY_DEF(sock);
 
 static struct ip_addr local_ip;
 
+union sockaddr_gen {
+    struct sockaddr a;
+    struct sockaddr_storage placeholder;
+};
+
 /*
  * Functions on socks
  */
@@ -88,7 +93,7 @@ static int sock_inet_client_ctor(struct sock_inet *s, char const *host, char con
         return -1;
     }
 
-    struct sockaddr srv_addr;
+    union sockaddr_gen srv_addr;
     socklen_t srv_addrlen;
     int srv_family;
 
@@ -99,7 +104,7 @@ static int sock_inet_client_ctor(struct sock_inet *s, char const *host, char con
         srv_family = info_->ai_family;
 
         char addr[256], srv[256];
-        err = getnameinfo(&srv_addr, srv_addrlen, addr, sizeof(addr), srv, sizeof(srv), NI_DGRAM|NI_NOFQDN|NI_NUMERICSERV|NI_NUMERICHOST);
+        err = getnameinfo(&srv_addr.a, srv_addrlen, addr, sizeof(addr), srv, sizeof(srv), NI_DGRAM|NI_NOFQDN|NI_NUMERICSERV|NI_NUMERICHOST);
         if (! err) {
             snprintf(s->sock.name, sizeof(s->sock.name), "%s://%s@%s:%s", proto, info_->ai_canonname, addr, srv);
         } else {
@@ -115,7 +120,7 @@ static int sock_inet_client_ctor(struct sock_inet *s, char const *host, char con
         }
 
         // try to connect
-        if (0 != connect(s->fd[0], &srv_addr, srv_addrlen)) {
+        if (0 != connect(s->fd[0], &srv_addr.a, srv_addrlen)) {
             SLOG(LOG_WARNING, "Cannot connect(): %s", strerror(errno));
             continue;
         }
@@ -152,7 +157,7 @@ static int sock_inet_server_ctor(struct sock_inet *s, char const *service, size_
         return -1;
     }
 
-    struct sockaddr srv_addr;
+    union sockaddr_gen srv_addr;
     socklen_t srv_addrlen;
     int srv_family;
 
@@ -169,7 +174,7 @@ static int sock_inet_server_ctor(struct sock_inet *s, char const *service, size_
             SLOG(LOG_WARNING, "Cannot socket(): %s", strerror(errno));
             continue;
         }
-        if (0 != bind(s->fd[s->nb_fds], &srv_addr, srv_addrlen)) {
+        if (0 != bind(s->fd[s->nb_fds], &srv_addr.a, srv_addrlen)) {
             SLOG(LOG_WARNING, "Cannot bind(): %s", strerror(errno));
             (void)close(s->fd[s->nb_fds]);
             continue;
@@ -234,9 +239,7 @@ static ssize_t my_recvfrom(int fd, uint8_t *buf, size_t bufsz, struct ip_addr *s
 {
     union {
         struct sockaddr a;
-        struct sockaddr_in ip4;
-        struct sockaddr_in6 ip6;
-        struct sockaddr_un unix;
+        struct sockaddr_storage placeholder;
     } src_addr;
     socklen_t addrlen = sizeof(src_addr);
     ssize_t r = recvfrom(fd, buf, bufsz, 0, &src_addr.a, &addrlen);
@@ -394,9 +397,9 @@ static int sock_tcp_recv(struct sock *s_, fd_set *set, sock_receiver *receiver, 
         // Handle new connections
         if (FD_ISSET(i_->fd[fdi], set)) {
             // accept the connection
-            struct sockaddr addr;
+            union sockaddr_gen addr;
             socklen_t addrlen = sizeof(addr);
-            int fd = accept(i_->fd[fdi], &addr, &addrlen);
+            int fd = accept(i_->fd[fdi], &addr.a, &addrlen);
             if (fd < 0) {
                 SLOG(LOG_ERR, "Cannot accept new connection to %s: %s", s_->name, strerror(errno));
                 continue;
@@ -410,7 +413,7 @@ static int sock_tcp_recv(struct sock *s_, fd_set *set, sock_receiver *receiver, 
                 continue;
             }
             s->clients[new_c].fd = fd;
-            ip_addr_ctor_from_sockaddr(&s->clients[new_c].addr, &addr, addrlen);
+            ip_addr_ctor_from_sockaddr(&s->clients[new_c].addr, &addr.a, addrlen);
             SLOG(LOG_NOTICE, "New connection from %s to %s", ip_addr_2_str(&s->clients[new_c].addr), s_->name);
         }
     }
