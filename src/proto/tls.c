@@ -474,7 +474,8 @@ struct tls_parser {
         struct tls_decoder {  // used for the establishment of next crypto keys
 #           define RANDOM_LEN 32
             uint8_t random[RANDOM_LEN];
-            uint32_t session_key_hash;  // The hash of the session_id (TODO: or the session ticket), with bit 31 serving as a is_set flag
+            uint32_t session_id_hash;  // The hash of the session_id (TODO: or the session ticket), with bit 31 serving as a is_set flag
+            uint32_t session_ticket_hash;
             // pointers into key_block
             uint8_t *mac_key, *write_key, *init_vector; // points into key_block
             EVP_CIPHER_CTX evp;
@@ -492,11 +493,14 @@ static int tls_parser_ctor(struct tls_parser *tls_parser, struct proto *proto)
     assert(proto == proto_tls);
     if (0 != parser_ctor(&tls_parser->parser, proto)) return -1;
     tls_parser->c2s_way = UNSET;
-    tls_parser->current[0] = tls_parser->current[1] = 0;
-    tls_parser->spec[0].decoder_ready = tls_parser->spec[1].decoder_ready = false;
-    // Clear bit 31 of session_key_hash
-    tls_parser->spec[0].decoder[0].session_key_hash = tls_parser->spec[0].decoder[1].session_key_hash = 0;
-    tls_parser->spec[1].decoder[0].session_key_hash = tls_parser->spec[1].decoder[1].session_key_hash = 0;
+    for (unsigned w = 0; w <=1 ; w++) {
+        tls_parser->current[w] = 0;
+        tls_parser->spec[w].decoder_ready = false;
+        for (unsigned d = 0; d <= 1; d++) {
+            // Clear bit 31 of session_id/ticket_hash
+            tls_parser->spec[w].decoder[d].session_id_hash = tls_parser->spec[w].decoder[d].session_ticket_hash = 0;
+        }
+    }
     tls_parser->spec[0].cipher = tls_parser->spec[1].cipher = TLS_NULL_WITH_NULL_NULL;
     tls_parser->subparser = NULL;
 #   define MAX_TLS_BUFFER (16383 + 5)
@@ -818,9 +822,9 @@ static int decrypt_master_secret(struct tls_parser *parser, unsigned way, struct
 
         master_secret = master_secret_buf;  // by default
         // derive the master_secret (FIXME: wait to be sure we have both random + this pre_shared_secret)
-        if (srv_next_decoder->session_key_hash & KEY_HASH_SET) {
+        if (srv_next_decoder->session_id_hash & KEY_HASH_SET) {
             // try to allocate a new session
-            struct tls_session *session = tls_session_new(keyfile, srv_next_decoder->session_key_hash);
+            struct tls_session *session = tls_session_new(keyfile, srv_next_decoder->session_id_hash);
             if (session) {
                 master_secret = session->master_secret;
             }
@@ -834,11 +838,11 @@ static int decrypt_master_secret(struct tls_parser *parser, unsigned way, struct
             goto quit1;
     } else {    // !encrypted_pms but we can use session_id
         // We do not bother coming here with no usable session_id
-        assert((clt_next_decoder->session_key_hash & KEY_HASH_SET) && (srv_next_decoder->session_key_hash & KEY_HASH_SET));
+        assert((clt_next_decoder->session_id_hash & KEY_HASH_SET) && (srv_next_decoder->session_id_hash & KEY_HASH_SET));
         // Look for this session_id in keyfile
         struct tls_session *session;
         WITH_LOCK(&keyfile->lock) {
-            HASH_LOOKUP(session, &keyfile->sessions, &clt_next_decoder->session_key_hash, key_hash, h_entry);
+            HASH_LOOKUP(session, &keyfile->sessions, &clt_next_decoder->session_id_hash, key_hash, h_entry);
         }
         if (! session) {
             SLOG(LOG_DEBUG, "No reusable session, give up decryption");
@@ -963,18 +967,67 @@ static enum proto_parse_status tls_parse_certificate(struct tls_proto_info *info
     return PROTO_OK;
 }
 
+static enum proto_parse_status copy_session(uint32_t *key_hash, size_t len, struct cursor *cur)
+{
+    if (cur->cap_len < len) return PROTO_TOO_SHORT;
+    if (len > 0) {
+        *key_hash = tls_session_key_hash(len, cur->head) | KEY_HASH_SET;
+        SLOG(LOG_DEBUG, "Found session which digest is %"PRIu32, *key_hash);
+        cursor_drop(cur, len);
+    }
+    return PROTO_OK;
+}
+
 // Rather than copying it we only save it's digest
 static enum proto_parse_status copy_session_id(uint32_t *key_hash, struct cursor *cur)
 {
     if (cur->cap_len < 1) return PROTO_TOO_SHORT;
     uint8_t const id_len = cursor_read_u8(cur);
     if (id_len > MAX_SESSION_ID_LEN) return PROTO_PARSE_ERR;
-    if (cur->cap_len < id_len) return PROTO_TOO_SHORT;
-    if (id_len > 0) {
-        *key_hash = tls_session_key_hash(id_len, cur->head) | KEY_HASH_SET;
-        SLOG(LOG_DEBUG, "Found session_id which digest is %"PRIu32, *key_hash);
-        cursor_drop(cur, id_len);
+    return copy_session(key_hash, id_len, cur);
+}
+
+static enum proto_parse_status len1_skip(struct cursor *cur)
+{
+    if (cur->cap_len < 1) return PROTO_TOO_SHORT;
+    uint8_t len = cursor_read_u8(cur);
+    if (cur->cap_len < len) return PROTO_TOO_SHORT;
+    cursor_drop(cur, len);
+    return PROTO_OK;
+}
+
+static enum proto_parse_status len2_skip(struct cursor *cur)
+{
+    if (cur->cap_len < 2) return PROTO_TOO_SHORT;
+    uint16_t len = cursor_read_u16n(cur);
+    if (cur->cap_len < len) return PROTO_TOO_SHORT;
+    cursor_drop(cur, len);
+    return PROTO_OK;
+}
+
+static enum proto_parse_status tls_parse_extensions(struct tls_decoder *next_decoder, struct cursor *cur)
+{
+    SLOG(LOG_DEBUG, "Parsing TLS extensions");
+
+    while (cur->cap_len > 0) {
+        if (cur->cap_len < 4) {
+            return PROTO_TOO_SHORT;
+        }
+        uint16_t tag = cursor_read_u16n(cur);
+        uint16_t len = cursor_read_u16n(cur);
+        if (cur->cap_len < len) return PROTO_TOO_SHORT;
+        enum proto_parse_status err;
+        switch (tag) {
+            case 0x0023:    // SessionTicket
+                if ((err = copy_session(&next_decoder->session_ticket_hash, len, cur)) != PROTO_OK) return err;
+                SLOG(LOG_DEBUG, "Saving session ticket which hash is %"PRIu32, next_decoder->session_ticket_hash);
+                break;
+            default:
+                cursor_drop(cur, len);
+                break;
+        }
     }
+
     return PROTO_OK;
 }
 
@@ -984,6 +1037,7 @@ static enum proto_parse_status tls_parse_handshake(struct tls_parser *parser, un
 
     enum tls_handshake_type {
         tls_hello_request = 0, tls_client_hello, tls_server_hello,
+        tls_server_new_session_ticket = 4,
         tls_certificate = 11, tls_server_key_exchange, tls_certificate_request,
         tls_server_hello_done, tls_certificate_verify, tls_client_key_exchange,
         tls_finished = 20,
@@ -1016,7 +1070,20 @@ static enum proto_parse_status tls_parse_handshake(struct tls_parser *parser, un
             ASSERT_COMPILE(sizeof(next_decoder->random) == RANDOM_LEN);
             cursor_copy(&next_decoder->random, &tcur, RANDOM_LEN);
             // Save the session_id
-            if ((err = copy_session_id(&next_decoder->session_key_hash, &tcur)) != PROTO_OK) return err;
+            if ((err = copy_session_id(&next_decoder->session_id_hash, &tcur)) != PROTO_OK) return err;
+            /*
+             * go for a session ticket extension
+             */
+            // skip cipher suites
+            if ((err = len2_skip(&tcur)) != PROTO_OK) {
+quit_parse:
+                if (err == PROTO_TOO_SHORT) break;
+                return err;
+            }
+            // skip compression method
+            if ((err = len1_skip(&tcur)) != PROTO_OK) goto quit_parse;
+            // parse extensions
+            if ((err = tls_parse_extensions(next_decoder, &tcur)) != PROTO_OK) goto quit_parse;
             break;    // done with this record
         case tls_server_hello:
             // fix c2s_way
@@ -1029,7 +1096,7 @@ static enum proto_parse_status tls_parse_handshake(struct tls_parser *parser, un
             ASSERT_COMPILE(sizeof(next_decoder->random) == RANDOM_LEN);
             cursor_copy(&next_decoder->random, &tcur, RANDOM_LEN);
             // Read session_id
-            if ((err = copy_session_id(&next_decoder->session_key_hash, &tcur)) != PROTO_OK) return err;
+            if ((err = copy_session_id(&next_decoder->session_id_hash, &tcur)) != PROTO_OK) return err;
             // Save cipher infos
             if (tcur.cap_len < 3) return PROTO_TOO_SHORT;
             next_spec->cipher = cursor_read_u16n(&tcur);
@@ -1037,8 +1104,8 @@ static enum proto_parse_status tls_parse_handshake(struct tls_parser *parser, un
             // Should we resume an old session?
             struct tls_decoder *clt_next_decoder = &parser->spec[!parser->current[!way]].decoder[!way];
             if (
-                (next_decoder->session_key_hash & KEY_HASH_SET) &&
-                next_decoder->session_key_hash == clt_next_decoder->session_key_hash
+                (next_decoder->session_id_hash & KEY_HASH_SET) &&
+                next_decoder->session_id_hash == clt_next_decoder->session_id_hash
             ) {
                 if (0 != decrypt_master_secret(parser, way, info, 0, NULL)) {
                     // too bad.
@@ -1048,6 +1115,9 @@ static enum proto_parse_status tls_parse_handshake(struct tls_parser *parser, un
             info->set_values |= CIPHER_SUITE_SET;
             info->u.handshake.cipher_suite = next_spec->cipher;
             info->u.handshake.compress_algorithm = next_spec->compress;
+            break;
+        case tls_server_new_session_ticket:
+            if ((err = copy_session(&next_decoder->session_ticket_hash, length, &tcur)) != PROTO_OK) return err;
             break;
         case tls_certificate:   // where the server shows us his public key (we don't need it, though)
             // fix c2s_way
@@ -1107,8 +1177,10 @@ invalid:
         SLOG(LOG_DEBUG, "Invalid ChangeCipherSpec msg");
         return PROTO_PARSE_ERR;
     }
-    // it's value is supposed to be 1
+    // its value is supposed to be 1
     if (cur->cap_len >= 1 && cur->head[0] != 1) goto invalid;
+
+    // TODO: if we still lack the decryption key but we have session_ticket_hash from client then try to resume this session
 
     // put next crypto material into production
     parser->current[way] ^= 1;
