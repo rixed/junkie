@@ -53,7 +53,7 @@ LOG_CATEGORY_DEF(proto_sip);
  * (in order not to depend upon the transport socket pair as would be the case if SIP parser was a mux) */
 
 struct callid_2_sdp {
-    LIST_ENTRY(callid_2_sdp) entry;     // entry in the hash
+    HASH_ENTRY(callid_2_sdp) entry;     // entry in the hash
     TAILQ_ENTRY(callid_2_sdp) used_entry;   // entry in the used list
     char call_id[SIP_CALLID_LEN+1];
     struct parser *sdp_parser;

@@ -15,16 +15,6 @@
                                               (((rest @ 0) & #xc0) == #x40)
                                               (((((rest @ 0) & #x3f) << 8) + (rest @ 1)) == (nb-bytes rest))))) ; FIXME: we'd rather compare with wire-length!
 
-(add-proto-signature "SSLv3" 2 'medium
-                     (nm:compile
-                       type:bool '(tcp) '(and ((nb-bytes rest) >= 3)
-                                              (or
-                                                ((rest @ 0) == 22) ; handshake
-                                                ((rest @ 0) == 23)) ; application data
-                                              ((rest @ 1) == 3)
-                                              ((rest @ 2) == 0))))
-
-
 (add-proto-signature "TLS" 3 'medium
                      (nm:compile
                        type:bool '(tcp) '(and ((nb-bytes rest) >= 3)
@@ -32,7 +22,9 @@
                                                 ((rest @ 0) == 22) ; handshake
                                                 ((rest @ 0) == 23)) ; application data
                                               ((rest @ 1) == 3)
-                                              ((rest @ 2) == 1))))
+                                              (or
+                                                ((rest @ 2) == 1) ; TLS v3.1
+                                                ((rest @ 2) == 0))))) ; TLS v3.0
 
 (add-proto-signature "bittorrent" 4 'medium
                      (nm:compile

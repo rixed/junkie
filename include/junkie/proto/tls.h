@@ -72,6 +72,19 @@ struct tls_proto_info {
                 TLS_DH_DSS_WITH_AES_128_CBC_SHA256,
                 TLS_DH_RSA_WITH_AES_128_CBC_SHA256,
                 TLS_DHE_DSS_WITH_AES_128_CBC_SHA256,        // 0x040
+                TLS_RSA_WITH_CAMELLIA_128_CBC_SHA,
+                TLS_DH_DSS_WITH_CAMELLIA_128_CBC_SHA,
+                TLS_DH_RSA_WITH_CAMELLIA_128_CBC_SHA,
+                TLS_DHE_DSS_WITH_CAMELLIA_128_CBC_SHA,
+                TLS_DHE_RSA_WITH_CAMELLIA_128_CBC_SHA,
+                TLS_DH_anon_WITH_CAMELLIA_128_CBC_SHA,
+
+                // 0x062 to 0x066 -> Cf. Rescorla book p73+74 about non standard additions by [Banes1999]
+                TLS_RSA_EXPORT1024_WITH_DES_CBC_SHA = 0x062,
+                TLS_DHE_DSS_EXPORT1024_WITH_DES_CBC_SHA,
+                TLS_RSA_EXPORT1024_WITH_RC4_56_SHA,
+                TLS_DHE_DSS_EXPORT1024_WITH_RC4_56_SHA,
+                TLS_DHE_DSS_WITH_RC4_128_SHA,
 
                 TLS_DHE_RSA_WITH_AES_128_CBC_SHA256 = 0x067,
                 TLS_DH_DSS_WITH_AES_256_CBC_SHA256,         // 0x068
@@ -80,6 +93,26 @@ struct tls_proto_info {
                 TLS_DHE_RSA_WITH_AES_256_CBC_SHA256,
                 TLS_DH_anon_WITH_AES_128_CBC_SHA256,
                 TLS_DH_anon_WITH_AES_256_CBC_SHA256,        // 0x06D
+
+                TLS_RSA_WITH_CAMELLIA_256_CBC_SHA = 0x084,
+                TLS_DH_DSS_WITH_CAMELLIA_256_CBC_SHA,
+                TLS_DH_RSA_WITH_CAMELLIA_256_CBC_SHA,
+                TLS_DHE_DSS_WITH_CAMELLIA_256_CBC_SHA,
+                TLS_DHE_RSA_WITH_CAMELLIA_256_CBC_SHA,
+                TLS_DH_anon_WITH_CAMELLIA_256_CBC_SHA,
+
+                TLS_RSA_WITH_CAMELLIA_128_CBC_SHA256 = 0x0BA,
+                TLS_DH_DSS_WITH_CAMELLIA_128_CBC_SHA256,
+                TLS_DH_RSA_WITH_CAMELLIA_128_CBC_SHA256,
+                TLS_DHE_DSS_WITH_CAMELLIA_128_CBC_SHA256,
+                TLS_DHE_RSA_WITH_CAMELLIA_128_CBC_SHA256,
+                TLS_DH_anon_WITH_CAMELLIA_128_CBC_SHA256,
+                TLS_RSA_WITH_CAMELLIA_256_CBC_SHA256,       // 0x0C0
+                TLS_DH_DSS_WITH_CAMELLIA_256_CBC_SHA256,
+                TLS_DH_RSA_WITH_CAMELLIA_256_CBC_SHA256,
+                TLS_DHE_DSS_WITH_CAMELLIA_256_CBC_SHA256,
+                TLS_DHE_RSA_WITH_CAMELLIA_256_CBC_SHA256,
+                TLS_DH_anon_WITH_CAMELLIA_256_CBC_SHA256,
             } cipher_suite;
             enum tls_compress_algo {
                 TLS_COMPRESS_NULL,

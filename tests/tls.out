@@ -24,3 +24,19 @@ TLS: head_len=75, payload=0, version=3.1, content-type=handshake
 TLS: head_len=179, payload=0, version=3.1, content-type=handshake
 TLS: head_len=1138, payload=0, version=3.1, content-type=data
 TLS: head_len=936, payload=0, version=3.1, content-type=data
+-- pcap/https/mycorp_with_sessions.pcap --
+TLS: head_len=104, payload=0, version=3.1, content-type=handshake
+TLS: head_len=86, payload=0, version=3.1, content-type=handshake, cipher_suite=RSA_WITH_AES_128_CBC_SHA, compression_algo=none
+TLS: head_len=267, payload=0, version=3.1, content-type=handshake
+TLS: head_len=6, payload=0, version=3.1, content-type=change_cipher_spec
+TLS: head_len=37, payload=0, version=3.1, content-type=alert
+TLS: head_len=136, payload=0, version=3.1, content-type=handshake
+TLS: head_len=86, payload=0, version=3.1, content-type=handshake, cipher_suite=RSA_WITH_AES_128_CBC_SHA, compression_algo=none
+TLS: head_len=6, payload=0, version=3.1, content-type=change_cipher_spec
+TLS: head_len=36, payload=1, version=3.1, content-type=data
+TLS: head_len=26, payload=251, version=3.1, content-type=data
+HTTP: head_len=251, payload=0, method=unset, code=200, content_length=816, transfert_encoding=unset, mime_type=text/html;charset=UTF-8, host=unset, user_agent=unset, referrer=unset, server=Apache/2.2.22 (Debian), url=unset, pkts=1, compressed
+TLS: head_len=36, payload=1, version=3.1, content-type=data
+TLS: head_len=35, payload=290, version=3.1, content-type=data
+HTTP: head_len=290, payload=0, method=unset, code=200, content_length=148, transfert_encoding=unset, mime_type=image/gif, host=unset, user_agent=unset, referrer=unset, server=Apache/2.2.22 (Debian), url=unset, pkts=1
+TLS: head_len=37, payload=0, version=3.1, content-type=alert
