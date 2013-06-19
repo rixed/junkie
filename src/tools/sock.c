@@ -48,6 +48,9 @@ union sockaddr_gen {
     struct sockaddr_storage placeholder;
 };
 
+static bool bind_v6_as_v6 = true;
+EXT_PARAM_RW(bind_v6_as_v6, "bind-v6-as-v6", bool, "Bind IPv6 sockets for V6 addresses only (IPV6_V6ONLY socket option)")
+
 /*
  * Functions on socks
  */
@@ -180,11 +183,15 @@ static int sock_inet_server_ctor(struct sock_inet *s, char const *service, size_
             continue;
         } else {
             if (buf_size) set_rcvbuf(s->fd[s->nb_fds], buf_size);
-            if (srv_family == AF_INET6) {
+            if (srv_family == AF_INET6 && bind_v6_as_v6) {
                 /* Do what I say instead of what Linux thinks I should do
                  * (ie, work around poor default value for bindv6only) */
+                SLOG(LOG_DEBUG, "binding IPv6 only when binding IPv6");
                 int v6only = 1;
-                (void)setsockopt(s->fd[s->nb_fds], SOL_SOCKET, IPV6_V6ONLY, &v6only, sizeof(v6only));
+                int err = setsockopt(s->fd[s->nb_fds], IPPROTO_IPV6, IPV6_V6ONLY, &v6only, sizeof(v6only));
+                if (err) {
+                    SLOG(LOG_ERR, "Cannot setsockopt(IPV6_V6ONLY): %s", strerror(errno));
+                }
             }
             s->nb_fds ++;
             continue;
@@ -1419,6 +1426,7 @@ void sock_init(void)
     log_category_sock_init();
     mallocer_init();
     ext_init();
+    ext_param_bind_v6_as_v6_init();
 
     udp_sym    = scm_permanent_object(scm_from_latin1_symbol("udp"));
     tcp_sym    = scm_permanent_object(scm_from_latin1_symbol("tcp"));
@@ -1463,6 +1471,7 @@ void sock_fini(void)
 {
     if (--inited) return;
 
+    ext_param_bind_v6_as_v6_fini();
     log_category_sock_fini();
     mallocer_fini();
     ext_fini();
