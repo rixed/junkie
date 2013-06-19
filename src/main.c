@@ -126,9 +126,9 @@ static void all_init(void)
 
 static void all_fini(void)
 {
+    // Make some effort to honnor any plugins destructor at exit
+
     doomer_stop();  // doomer_thread must not awake while we destroy parsers, plugins, and so on
-    // help plugins by cleaning as most as possible first
-    doomer_run();
 
     plugin_del_all();
 
@@ -136,6 +136,11 @@ static void all_fini(void)
         initers[--i].fini();
     }
 
+#   ifndef DELETE_ALL_AT_EXIT
+    return;
+#   else
+    /* This is sometime usefull to clean all allocated ressources
+     * at exit to help valgrind help us find memory leaks. */
     ERR_free_strings();
 
     redim_array_fini();
@@ -146,6 +151,7 @@ static void all_fini(void)
     ext_fini();
     files_fini();
     log_fini();
+#   endif
 }
 
 /*

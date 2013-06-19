@@ -101,8 +101,13 @@ void plugin_del_all(void)
 {
     SLOG(LOG_DEBUG, "Unloading all plugins");
 
-    // Ensure no finalizers are registered (notice that ongoing parsing may cause new objects to be collected in the meantime)
+#   ifdef DELETE_ALL_AT_EXIT
+    /* Ensure no finalizers of any plugins are still registered
+     * (notice that ongoing parsing may cause new objects to be collected in the meantime) */
     doomer_run();
+#   else
+    // We are going to exit without running doomer anyway
+#   endif
 
     mutex_lock(&plugins_mutex);
     struct plugin *plugin;

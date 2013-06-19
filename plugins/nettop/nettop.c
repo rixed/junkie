@@ -36,7 +36,6 @@
 #include "junkie/tools/timeval.h"
 #include "junkie/tools/tempstr.h"
 
-static volatile sig_atomic_t quit;
 static bool display_help;
 
 /*
@@ -456,24 +455,26 @@ static void do_display_help(void)
         "  " BRIGHT "+/-" NORMAL "   Refresh rate twice faster/slower\n"
         "  " BRIGHT "h,H,?" NORMAL " this help screen\n"
         "  " BRIGHT "q" NORMAL "     return to main screen\n"
-        "  " BRIGHT "^C" NORMAL "    quit\n",
+        "  " BRIGHT "q,^C" NORMAL "  quit\n",
         current_key_2_str(),
         sort_by == VOLUME ? "Volume":"Packets",
         refresh_rate/1000000.);
 }
 
+static void term_fini(void);
+
 // read keys and change use flags
 static void *keyctrl_thread(void unused_ *dummy)
 {
-    while (! quit) {
+    while (1) {
         unsigned char c;
         int r = read(0, &c, 1);
+        pthread_testcancel();
         if (r == 0) {
             SLOG(LOG_ERR, "Cannot read(stdin): end of file");
             return NULL;
         } else if (r < 1) {
             SLOG(LOG_ERR, "Cannot read(stdin): %s", strerror(errno));
-            quit =  1;
             return NULL;
         }
         switch (c) {
@@ -497,6 +498,12 @@ static void *keyctrl_thread(void unused_ *dummy)
             case 'h':
             case 'H': display_help ^= 1; break;
             case 'q':
+                if (display_help) {
+                    display_help = false;
+                } else {
+                    term_fini();
+                    _exit(0);
+                }
             case '\n':
                 if (display_help) {
                     display_help = false;
@@ -554,13 +561,23 @@ static pthread_t keyctrl_pth;
  * Init
  */
 
-void on_load(void)
+static void term_init(void)
 {
     tcgetattr(0, &termios_orig);
     struct termios termios_new = termios_orig;
 //    cfmakeraw(&termios_new);
     termios_new.c_lflag &= ~(ECHO | ICANON);    // Disable echo and make chars available immediately
     tcsetattr(0, TCSANOW, &termios_new);
+}
+
+static void term_fini(void)
+{
+    tcsetattr(0, TCSANOW, &termios_orig);
+}
+
+void on_load(void)
+{
+    term_init();
 
     if (0 != pthread_create(&keyctrl_pth, NULL, keyctrl_thread, NULL)) {
         SLOG(LOG_CRIT, "Cannot spawn keyboard controler thread");
@@ -579,11 +596,10 @@ void on_unload(void)
 {
     SLOG(LOG_INFO, "NetTop unloading");
 
-    quit = 1;
     (void)pthread_cancel(keyctrl_pth);
     (void)pthread_join(keyctrl_pth, NULL);
 
-    tcsetattr(0, TCSANOW, &termios_orig);
+    term_fini();
 
     hook_subscriber_dtor(&pkt_hook, &subscription);
     HASH_DEINIT(&nettop_cells);
