@@ -139,5 +139,6 @@ EXTRA_DIST = \
 	sip.out \
 	tcp.out \
 	http.out \
+	tls.out \
 	netmatch_check_lib.scm \
 	pcap
