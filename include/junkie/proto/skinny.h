@@ -182,12 +182,22 @@ struct skinny_proto_info {
 #   define SKINNY_CALL_ID       0x0004
 #   define SKINNY_CALL_STATE    0x0008
 #   define SKINNY_CONFERENCE_ID 0x0010
+#   define SKINNY_PASS_THRU_ID  0x0020
+#   define SKINNY_MEDIA_CNX     0x0040
+#   define SKINNY_CALLED_PARTY  0x0080
+#   define SKINNY_CALLING_PARTY 0x0100
     unsigned set_values;
     uint32_t new_key_pad;
     uint32_t line_instance;
     uint32_t call_id;
     uint32_t conf_id;
+    uint32_t pass_thru_id;
+    struct ip_addr media_ip;    // if SKINNY_MEDIA_CNX
+    uint16_t media_port;        // if SKINNY_MEDIA_CNX
     enum skinny_call_state call_state;
+#   define DIALED_NUMBER_SIZE 24
+    char called_party[DIALED_NUMBER_SIZE+1];
+    char calling_party[DIALED_NUMBER_SIZE+1];
 };
 
 void skinny_init(void);

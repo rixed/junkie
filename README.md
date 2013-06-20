@@ -95,6 +95,12 @@ Minor
 
 - automatic resolution of inter-modules dependancies during init;
 
+Plugins
+-------
+
+* An histogram of RTT from TCP acks (in order to find out delayed ack timeouts)
+
+
 Parsers for:
 ------------
 
