@@ -52,6 +52,7 @@ struct frame {
 int parser_callbacks(struct proto_info const *last, size_t tot_cap_len, uint8_t const *tot_packet);
 
 unsigned pkt_count; // max number of packets to process
+char *default_bpf_filter;   // default filter to use with new pkt_sources
 
 void pkt_source_init(void);
 void pkt_source_fini(void);

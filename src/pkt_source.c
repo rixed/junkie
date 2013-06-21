@@ -40,6 +40,10 @@
 #include "plugins.h"
 #include "nettrack.h"
 
+LOG_CATEGORY_DEF(pkt_sources);
+#undef LOG_CAT
+#define LOG_CAT pkt_sources_log_category
+
 static LIST_HEAD(pkt_sources, pkt_source) pkt_sources = LIST_HEAD_INITIALIZER(pkt_sources);
 static struct mutex pkt_sources_lock;   // protects pkt_sources and terminating flag
 static volatile sig_atomic_t terminating;   // set once in the fini process. terminating imply want_exit
@@ -61,9 +65,8 @@ static struct mutex giant_lock;
 static bool quit_when_done = true;
 EXT_PARAM_RW(quit_when_done, "quit-when-done", bool, "Should junkie exits when the last packet source is closed ?")
 
-LOG_CATEGORY_DEF(pkt_sources);
-#undef LOG_CAT
-#define LOG_CAT pkt_sources_log_category
+char *default_bpf_filter;
+EXT_PARAM_STRING_RW(default_bpf_filter, "default-filter", "BPF filter that will be used for next opened packet sources.")
 
 /*
  * Tools
@@ -389,6 +392,8 @@ static struct pkt_source *pkt_source_new(char const *name, pcap_t *pcap_handle, 
 
 static struct pkt_source *pkt_source_new_file(char const *filename, char const *filter, bool rt, bool patch_ts, bool loop)
 {
+    if (! filter) filter = default_bpf_filter;
+
     char errbuf[PCAP_ERRBUF_SIZE] = "";
 
     SLOG(LOG_DEBUG, "Opening pcap file '%s' with filter %s", filename, filter ? filter:"NONE");
@@ -455,6 +460,8 @@ static uint8_t dev_id_of_ifname(char const *ifname)
 
 static struct pkt_source *pkt_source_new_if(char const *ifname, bool promisc, char const *filter, size_t snaplen, int buffer_size)
 {
+    if (! filter) filter = default_bpf_filter;
+
     char errbuf[PCAP_ERRBUF_SIZE] = "";
 
     SLOG(LOG_INFO, "Opening pcap device '%s'%s with filter %s and buffer size %d", ifname, promisc ? " in promiscuous mode":"", filter ? filter:"NONE", buffer_size);
@@ -756,6 +763,7 @@ void pkt_source_init(void)
     filter_sym            = scm_permanent_object(scm_from_latin1_symbol("filter"));
 
     ext_param_quit_when_done_init();
+    ext_param_default_bpf_filter_init();
     log_category_pkt_sources_init();
 
     cap_parser = proto_cap->ops->parser_new(proto_cap);
@@ -846,6 +854,7 @@ void pkt_source_fini(void)
 
     log_category_pkt_sources_fini();
     ext_param_quit_when_done_fini();
+    ext_param_default_bpf_filter_fini();
 
     digest_queue_unref(&global_digests);
 

@@ -263,6 +263,8 @@ int main(int nb_args, char **args)
         { { "log", "l" },     "file",    "log into this file",            CLI_CALL,     { .call = opt_logfile } },
         { { "load", "p" },    "file.so", "load this plugin",              CLI_CALL,     { .call = opt_plugin } },
         { { "iface", "i" },   "iface",   "listen this interface",         CLI_CALL,     { .call = opt_iface } },
+        { { "filter", "f" },  "filter",  "open next ifaces with this BPF filter",
+                                                                          CLI_DUP_STR,  { .str = &default_bpf_filter } },
         { { "read", "r" },    "file",    "read this pcap file",           CLI_CALL,     { .call = opt_read } },
         { { "count", NULL },  "nb-pkts", "Exit after displaying this amount of packets",
                                                                           CLI_SET_UINT, { .uint = &pkt_count } },
