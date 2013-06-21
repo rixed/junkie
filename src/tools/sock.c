@@ -74,24 +74,51 @@ struct sock_inet {
     struct sock sock;
     int fd[5];  // up to 5 listened sockets (for servers, clients use only the first)
     unsigned nb_fds;
+    // everything required to rebuild the socket in case something goes wrong
+    char *host;   // strdupped
+    char *service;    // strdupped
+    size_t buf_size;
+    int type;   // SOCK_STREAM/SOCK_DGRAM
+    time_t last_connect;
 };
 
-static int sock_inet_client_ctor(struct sock_inet *s, char const *host, char const *service, size_t buf_size, int type, struct sock_ops const *ops)
+static void sock_inet_disconnect_all(struct sock_inet *s)
 {
+    for (unsigned f = 0; f < s->nb_fds; f++) {
+        file_close(s->fd[f]);
+    }
+    s->nb_fds = 0;
+}
+
+static int sock_inet_client_connect(struct sock_inet *s)
+{
+    SLOG(LOG_INFO, "Connecting %s:%s", s->host, s->service);
+
+    // start by closing what we still have
+    sock_inet_disconnect_all(s);
+
+    // don't attempt repeatedly
+    time_t now = time(NULL);
+#   define SOCK_QUARANTINE_SECS 3
+    if (now < s->last_connect + SOCK_QUARANTINE_SECS) {
+        SLOG(LOG_DEBUG, "Won't attempt to connect right now");
+        return -1;
+    }
+    s->last_connect = now;
+
     int res = -1;
-    char const *proto = type == SOCK_STREAM ? "tcp":"udp";
-    SLOG(LOG_DEBUG, "Construct sock to %s://%s:%s", proto, host, service);
+    char const *proto = s->type == SOCK_STREAM ? "tcp":"udp";
 
     struct addrinfo *info;
     struct addrinfo hints;
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;    // either v4 or v6
-    hints.ai_socktype = type;
+    hints.ai_socktype = s->type;
     hints.ai_flags = AI_CANONNAME | AI_V4MAPPED | AI_ADDRCONFIG;
 
-    int err = getaddrinfo(host, service, &hints, &info);
+    int err = getaddrinfo(s->host, s->service, &hints, &info);
     if (err) {
-        SLOG(LOG_ERR, "Cannot getaddrinfo(host=%s, service=%s): %s", service, host, gai_strerror(err));
+        SLOG(LOG_ERR, "Cannot getaddrinfo(host=%s, service=%s): %s", s->service, s->host, gai_strerror(err));
         // freeaddrinfo ?
         return -1;
     }
@@ -112,11 +139,11 @@ static int sock_inet_client_ctor(struct sock_inet *s, char const *host, char con
             snprintf(s->sock.name, sizeof(s->sock.name), "%s://%s@%s:%s", proto, info_->ai_canonname, addr, srv);
         } else {
             SLOG(LOG_WARNING, "Cannot getnameinfo(): %s", gai_strerror(err));
-            snprintf(s->sock.name, sizeof(s->sock.name), "%s://%s@?:%s", proto, info_->ai_canonname, service);
+            snprintf(s->sock.name, sizeof(s->sock.name), "%s://%s@?:%s", proto, info_->ai_canonname, s->service);
         }
         SLOG(LOG_DEBUG, "Trying to use socket %s", s->sock.name);
 
-        s->fd[0] = socket(srv_family, type, 0);
+        s->fd[0] = socket(srv_family, s->type, 0);
         if (s->fd[0] < 0) {
             SLOG(LOG_WARNING, "Cannot socket(): %s", strerror(errno));
             continue;
@@ -130,15 +157,30 @@ static int sock_inet_client_ctor(struct sock_inet *s, char const *host, char con
         // Finish construction of s
         res = 0;
         s->nb_fds = 1;
-        sock_ctor(&s->sock, ops);
         SLOG(LOG_INFO, "Connected to %s", s->sock.name);
         break;  // go with this one
     }
 
-    if (buf_size) set_rcvbuf(s->fd[0], buf_size);
+    if (s->buf_size) set_rcvbuf(s->fd[0], s->buf_size);
 
     freeaddrinfo(info);
     return res;
+}
+
+static int sock_inet_client_ctor(struct sock_inet *s, char const *host, char const *service, size_t buf_size, int type, struct sock_ops const *ops)
+{
+    char const *proto = type == SOCK_STREAM ? "tcp":"udp";
+    SLOG(LOG_DEBUG, "Construct sock to %s://%s:%s", proto, host, service);
+
+    sock_ctor(&s->sock, ops);
+    s->host = objalloc_strdup(host);
+    s->service = objalloc_strdup(service);
+    s->buf_size = buf_size;
+    s->type = type;
+    s->last_connect = 0;
+    s->nb_fds = 0;
+
+    return sock_inet_client_connect(s);
 }
 
 static int sock_inet_server_ctor(struct sock_inet *s, char const *service, size_t buf_size, int type, struct sock_ops const *ops)
@@ -180,6 +222,7 @@ static int sock_inet_server_ctor(struct sock_inet *s, char const *service, size_
         if (0 != bind(s->fd[s->nb_fds], &srv_addr.a, srv_addrlen)) {
             SLOG(LOG_WARNING, "Cannot bind(): %s", strerror(errno));
             (void)close(s->fd[s->nb_fds]);
+            s->fd[s->nb_fds] = -1;
             continue;
         } else {
             if (buf_size) set_rcvbuf(s->fd[s->nb_fds], buf_size);
@@ -210,9 +253,15 @@ static int sock_inet_server_ctor(struct sock_inet *s, char const *service, size_
 
 static void sock_inet_dtor(struct sock_inet *s)
 {
+    sock_inet_disconnect_all(s);
     sock_dtor(&s->sock);
-    while (s->nb_fds--) {
-        file_close(s->fd[s->nb_fds]);
+    if (s->host) {
+        objfree(s->host);
+        s->host = NULL;
+    }
+    if (s->service) {
+        objfree(s->service);
+        s->service = NULL;
     }
 }
 
@@ -235,9 +284,12 @@ static int sock_udp_send(struct sock *s_, void const *buf, size_t len)
 
     SLOG(LOG_DEBUG, "Sending %zu bytes to %s (fd %d)", len, s_->name, i_->fd[0]);
 
-    if (-1 == send(i_->fd[0], buf, len, MSG_DONTWAIT)) {
+    if (i_->nb_fds < 1 || -1 == send(i_->fd[0], buf, len, MSG_DONTWAIT)) {
         TIMED_SLOG(LOG_ERR, "Cannot send %zu bytes into %s: %s", len, s_->name, strerror(errno));
-        return -1;
+        if (0 != sock_inet_client_connect(i_)) {
+            return -1;
+        }
+        return sock_udp_send(s_, buf, len);
     }
     return 0;
 }
@@ -387,9 +439,12 @@ static int sock_tcp_send(struct sock *s_, void const *buf, size_t len)
         { .iov_base = &msg_len, .iov_len = sizeof(msg_len), },
         { .iov_base = (void *)buf, .iov_len = len, },
     };
-    if (-1 == writev(i_->fd[0], iov, NB_ELEMS(iov))) {
+    if (i_->nb_fds < 1 || -1 == writev(i_->fd[0], iov, NB_ELEMS(iov))) {
         TIMED_SLOG(LOG_ERR, "Cannot send %zu bytes into %s: %s", len, s_->name, strerror(errno));
-        return -1;
+        if (0 != sock_inet_client_connect(i_)) {
+            return -1;
+        }
+        return sock_tcp_send(s_, buf, len);
     }
     return 0;
 }
@@ -425,13 +480,14 @@ static int sock_tcp_recv(struct sock *s_, fd_set *set, sock_receiver *receiver, 
         }
     }
 
-    // Now to we have actual incoming datas?
+    // Now do we have actual incoming datas?
     for (unsigned c = 0; c < NB_ELEMS(s->clients); c++) {
         if (c == new_c) continue;   // avoids asking for a fd we didn't set (although this would work on glibc)
         if (s->clients[c].fd >= 0 && FD_ISSET(s->clients[c].fd, set)) {
             // receive it
             SLOG(LOG_DEBUG, "Reading on socket %s (cnx to %s)", s_->name, ip_addr_2_str(&s->clients[c].addr));
             msg_len len;
+            // read the size
             ssize_t r = read(s->clients[c].fd, &len, sizeof(len));
             if (r < 0) {
                 SLOG(LOG_ERR, "Cannot read a message size from %s, client %d: %s", s_->name, c, strerror(errno));
@@ -439,19 +495,23 @@ fail:
                 (void)close(s->clients[c].fd);
                 s->clients[c].fd = -1;
                 continue;
+            } else if (r == 0) {
+                SLOG(LOG_INFO, "closing connection %d of %s", c, s_->name);
+                goto fail;
             }
 
             if (len > SOCK_MAX_MSG_SIZE) {
                 SLOG(LOG_ERR, "Message size from %s (%zu) bigger than max expected message size (" STRIZE(SOCK_MAX_MSG_SIZE) ")!", s_->name, (size_t)len);
                 goto fail;
             }
+            // then the msg
             uint8_t buf[len];
             r = read(s->clients[c].fd, buf, len);
             if (r < 0) {
                 SLOG(LOG_ERR, "Cannot read from %s, client %d: %s", s_->name, c, strerror(errno));
                 goto fail;
             } else if (r == 0) {
-                SLOG(LOG_INFO, "closing connection %d of %s", c, s_->name);
+                SLOG(LOG_INFO, "closing connection %d of %s (2)", c, s_->name);
                 goto fail;
             } else {
                 SLOG(LOG_DEBUG, "read %zd bytes out of %s", r, s_->name);
