@@ -219,23 +219,27 @@ static int sock_inet_server_ctor(struct sock_inet *s, char const *service, size_
             SLOG(LOG_WARNING, "Cannot socket(): %s", strerror(errno));
             continue;
         }
+
+        int one = 1;
+        if (srv_family == AF_INET6 && bind_v6_as_v6) {
+            /* Do what I say instead of what Linux thinks I should do
+             * (ie, work around poor default value for bindv6only) */
+            SLOG(LOG_DEBUG, "binding IPv6 only when binding IPv6");
+            if (0 != setsockopt(s->fd[s->nb_fds], IPPROTO_IPV6, IPV6_V6ONLY, &one, sizeof(one))) {
+                SLOG(LOG_ERR, "Cannot setsockopt(%s, IPV6_V6ONLY): %s", service, strerror(errno));
+            }
+        }
+        if (0 != setsockopt(s->fd[s->nb_fds], SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one))) {
+            SLOG(LOG_ERR, "Cannot setsockopt(%s, SO_REUSEADDR): %s", service, strerror(errno));
+        }
+
         if (0 != bind(s->fd[s->nb_fds], &srv_addr.a, srv_addrlen)) {
-            SLOG(LOG_WARNING, "Cannot bind(): %s", strerror(errno));
+            SLOG(LOG_WARNING, "Cannot bind(%s): %s", service, strerror(errno));
             (void)close(s->fd[s->nb_fds]);
             s->fd[s->nb_fds] = -1;
             continue;
         } else {
             if (buf_size) set_rcvbuf(s->fd[s->nb_fds], buf_size);
-            if (srv_family == AF_INET6 && bind_v6_as_v6) {
-                /* Do what I say instead of what Linux thinks I should do
-                 * (ie, work around poor default value for bindv6only) */
-                SLOG(LOG_DEBUG, "binding IPv6 only when binding IPv6");
-                int v6only = 1;
-                int err = setsockopt(s->fd[s->nb_fds], IPPROTO_IPV6, IPV6_V6ONLY, &v6only, sizeof(v6only));
-                if (err) {
-                    SLOG(LOG_ERR, "Cannot setsockopt(IPV6_V6ONLY): %s", strerror(errno));
-                }
-            }
             s->nb_fds ++;
             continue;
         }
