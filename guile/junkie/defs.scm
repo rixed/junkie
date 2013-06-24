@@ -34,6 +34,8 @@
             (apply ? args)))
 
 
+(define TCP_NODELAY 1) ; unknown from GUILE
+
 ; Start a server that executes anything (from localhost only)
 (define*-public (start-repl-server #:key
                                    (port 29000)
@@ -49,7 +51,11 @@
                                                                    (consume-white-spaces port))))))))
     (let* ((repl (lambda ()
                    (let ((reader  (lambda (port)
+                                    ; flush the prompt down to TCP segment by disabling Nagle (for cases when the client is a program)
+                                    (setsockopt port IPPROTO_TCP TCP_NODELAY 1)
                                     (display (prompt))
+                                    (force-output)
+                                    (setsockopt port IPPROTO_TCP TCP_NODELAY 0)
                                     (consume-white-spaces port)
                                     (read port)))
                          (evaler  (lambda (expr)
