@@ -1,5 +1,7 @@
 // vim:filetype=asciidoc expandtab
 = Junkie The Network Sniffer
+:toc:
+:website: http://github.com/securactive/junkie
 
 == Overview
 
@@ -40,20 +42,20 @@ You might find Junkie interesting if you:
 
 ==== Wireshark
 
-Wireshark can completely descramble hundreds of exotic protocols while Junkie 
-only gather the most useful informations of a few. But Junkie can do so in 
-realtime with no interruption on large amount of traffic while Wireshark 
+Wireshark can completely descramble hundreds of exotic protocols while Junkie
+only gather the most useful informations of a few. But Junkie can do so in
+realtime with no interruption on large amount of traffic while Wireshark
 cannot.
 
-Also, Wireshark can select packets using a simple, stateless language, while 
-Junkie can select packets or a succession of packets using a less simple but 
-stateful language (for instance, with junkie you can select all DNS answers 
+Also, Wireshark can select packets using a simple, stateless language, while
+Junkie can select packets or a succession of packets using a less simple but
+stateful language (for instance, with junkie you can select all DNS answers
 that are received more than 150ms after the corresponding request ; you cannot
 do that with Wireshark).
 
 ==== Tcpdump
 
-Tcpdump can only display/save packets. Junkie can do that as well, and much 
+Tcpdump can only display/save packets. Junkie can do that as well, and much
 more. But Tcpdump is faster and easier.
 
 ==== Netsniff-ng
@@ -68,7 +70,7 @@ Disclamer: I never used netsniff-ng
 ==== Bro
 
 Bro is an extensible sniffer targeted as an IDS. It seams less general
-purpose, yet if your goal is related to security you'd probably make sure you 
+purpose, yet if your goal is related to security you'd probably make sure you
 tried Bro before Junkie. Also, Bro seams to have a broader community of users.
 
 Disclamer: I never used bro
@@ -120,6 +122,440 @@ Running configure might tell you that you need:
 Compiling with GCC is recommended.
 
 Then it's a matter of './configure && make && sudo make install'.
+Optionally, 'sudo make setcap' will give any user the permission to sniff
+traffic (like anyone else tapping on the wire).
+
+== Running junkie
+
+=== Command line
+
+By default, Junkie loads no plugins nor sniffs any device, thus doing nothing.
+You must use the command line to achieve anything. I will not document the
+command line with too much details here and will mention only the few options
+you're likely to start with; try +--help+ later for a comprehensive list of
+options.
+
+The four simplest options are:
+
+- +-i+ to sniff from the named interface. For instance, +-i eth0+.
+  You will probably need superuser privileges, though.
+
+- +-r+ to read packets from a pcap savefile. For instance, +-r traffic.pcap+.
+
+- +-f+ to apply a BPF filter (same than tcpdump filter) to any packet sources.
+
+- +-p+ to load a plugin. Junkie comes with a few ones, such as +dumper+ so
+  display a short textual description of the packets.
+
+For instance:
+
+    # junkie -i wlan0 -p dumper.so
+    Capture: head_len=48, payload=84, dev_id=0, tv=1343079318s 591221us
+    Ethernet: head_len=14, payload=70, vlan_id=-1, source=00:26:5e:0a:d2:b9, dest=00:24:d4:51:59:2c, proto=2048
+    IPv4: head_len=20, payload=50, version=4, addr=192.168.0.18->192.168.0.254, proto=UDP, ttl=64, frag=DontFrag, id=0x4a1b, Class=0:NonECT
+    UDP: head_len=8, payload=42, ports=57312->53
+    DNS: head_len=42, payload=0, QUERY, tx_id=659, err_code=0, request_type=A, dns_class=IN, name=ssl.google-analytics.com
+
+    Capture: head_len=48, payload=84, dev_id=0, tv=1343079318s 591614us
+    Ethernet: head_len=14, payload=70, vlan_id=-1, source=00:26:5e:0a:d2:b9, dest=00:24:d4:51:59:2c, proto=2048
+    IPv4: head_len=20, payload=50, version=4, addr=192.168.0.18->192.168.0.254, proto=UDP, ttl=64, frag=DontFrag, id=0x4a1c, Class=0:NonECT
+    UDP: head_len=8, payload=42, ports=57312->53
+    DNS: head_len=42, payload=0, QUERY, tx_id=30270, err_code=0, request_type=AAAA, dns_class=IN, name=ssl.google-analytics.com
+
+    ...
+
+Notice that you can open as many interfaces and/or files as you wish and
+that Junkie will process them all simultaneously (one thread per packet
+source).
+
+Very important remark:
+
+All command line parameters are processed in the same order you write them. In
+the example above, +wlan0+ is opened *before* the plugin is loaded (which
+makes little difference here). But if we wanted to apply a filter we'd have to
+add the +-f+ option *before* the +-i+ or +-r+.  For instance:
+
+    # junkie -i wlan0 -f 'host 192.168.1.2' -r file.pcap -p dumper
+
+is very different from:
+
+    # junkie -f 'host 192.168.1.2' -i wlan0 -r file.pcap -p dumper
+
+In the former case, all packets captured from +wlan0+ and all packets from
+host +192.168.1.2+ from the pcap file named "file.pcap" are dumped, while in
+the later case only packets from host +192.168.1.2+ are dumped, whatever the
+packet source.
+
+== Plugins
+
+Junkie is designed to be extensible but can also be useful all by itself
+thanks to the few plugins that ships with it.
+
+Remember that to load a plugin you must run:
+
+    junkie -p pluginname
+
+Also, each plugin adds it's own command line options that you can read help
+for with:
+
+    junkie -p pluginname --help
+
+
+=== Dumper
+
+Dumps to stdout every packets, not unlike tcpdump.
+
+Example:
+
+    # junkie -p dumper -i eth0
+    Capture: head_len=48, payload=92, dev_id=0, tv=1372061164s 847010us
+    Ethernet: head_len=14, payload=78, vlan_id=-1, source=00:21:70:0c:cb:2c, dest=ff:ff:ff:ff:ff:ff, proto=IPv4
+    IPv4: head_len=20, payload=58, version=4, addr=192.168.10.203->192.168.10.255, proto=UDP, ttl=128, frag=NoFrag, id=0x9d28, Class=0:NonECT
+    UDP: head_len=8, payload=50, ports=137->137
+    DNS: head_len=50, payload=0, QUERY, tx_id=32811, err_code=0, request_type=NB, dns_class=IN, name=BRN001BA9E23A8E
+
+    Capture: head_len=48, payload=1514, dev_id=0, tv=1372061164s 928352us
+    Ethernet: head_len=14, payload=1500, vlan_id=-1, source=d4:be:d9:a6:fc:4a, dest=00:10:f3:10:61:30, proto=IPv4
+    IPv4: head_len=20, payload=1480, version=4, addr=192.168.10.9->5.135.156.187 (hashed the other way), proto=TCP, ttl=64, frag=DontFrag, id=0x39cb, Class=2:NonECT
+    TCP: head_len=32, payload=1448, ports=50200->22(srv), flags=AckPsh, win=730, ack=3224280098, seq=844841801 (0), urg=0, opts=nop,nop,8
+
+    Capture: head_len=48, payload=66, dev_id=0, tv=1372061164s 960546us
+    Ethernet: head_len=14, payload=52, vlan_id=-1, source=00:10:f3:10:61:30, dest=d4:be:d9:a6:fc:4a, proto=IPv4
+    IPv4: head_len=20, payload=32, version=4, addr=5.135.156.187->192.168.10.9, proto=TCP, ttl=54, frag=DontFrag, id=0x7439, Class=0:NonECT
+    TCP: head_len=32, payload=0, ports=22(srv)->50200, flags=Ack, win=1994, ack=844843249, seq=3224280098 (0), urg=0, opts=nop,nop,8
+
+    ....
+
+Much more verbose than `tcpdump` but also easier to read.
+
+
+=== Writer
+
+Save packets in a pcap (or optionally, CSV) file. Has many options to control
+what packets to save.
+
+Example, asking junkie to select only dns message for name "google.com" and
+piping the pcap packets into tcpdump:
+
+    # junkie -p writer --file /dev/stdout --netmatch "'(dns) '(dns.name = "'"google.com")' -i eth0 | tcpdump -n -r /dev/stdin
+    reading from file /dev/stdin, link-type EN10MB (Ethernet)
+    10:25:28.008388 IP 192.168.10.9.36668 > 192.168.10.254.53: 13033+ A?  google.com. (28)
+    10:25:28.008756 IP 192.168.10.254.53 > 192.168.10.9.36668: 13033 11/4/0 A 173.194.45.78, A 173.194.45.65, A 173.194.45.68, A 173.194.45.72, A 173.194.45.67, A 173.194.45.64, A 173.194.45.70, A 173.194.45.69, A 173.194.45.73, A 173.194.45.66, A 173.194.45.71 (276)
+    10:25:28.009456 IP 192.168.10.9.57805 > 192.168.10.254.53: 12314+ AAAA?  google.com. (28)
+    10:25:28.009770 IP 192.168.10.254.53 > 192.168.10.9.57805: 12314 1/4/0 AAAA 2a00:1450:4007:806::100e (128)
+    10:25:28.009956 IP 192.168.10.9.46258 > 192.168.10.254.53: 64985+ MX?  google.com. (28)
+    10:25:28.010334 IP 192.168.10.254.53 > 192.168.10.9.46258: 64985 5/4/5 MX alt4.aspmx.l.google.com. 50, MX aspmx.l.google.com. 10, MX alt2.aspmx.l.google.com. 30, MX alt3.aspmx.l.google.com. 40, MX alt1.aspmx.l.google.com. 20 (288)
+
+Quoting from command line is getting tricky. Notice how +eth0+ is opened
+_after_ the filter is set (or the plugin would receive first packets before
+the +--netmatch+ parameter is executed.
+
+The `netmatch` filter is an alternative way to select packets based on
+protocolar informations (more powerful but also more complex than the mere BPF
+filter available with the +-f+ option).
+
+Netmatch language is somewhat unique in filtering tools in that it allow to
+store a state and invoque any C/Scheme functions. More on that later.
+
+=== Rater
+
+Similar to writer but triggers the save based on the rate of packets. Useful
+to find out what's causes some burst in bandwidth for instance.
+
+=== Packetogram
+
+Display the distribution of packet sizes. Useful to find out the various MTU
+used in a LAN, for instance.
+
+Example:
+
+    junkie -p packetogram -i eth0
+
+Typical display:
+
+           IPv4:  21982/540880  (101.8%)     0-   49:     0,   0.0%
+       Ethernet:  21338/531290  (100.0%)    50-   99:  7659,  35.9% -------------------                                                           |
+            TCP:  17121/443755  ( 83.5%)   100-  149:   492,   2.3% -   |
+           HTTP:   3507/73140   ( 13.8%)   150-  199:   351,   1.6%   |
+            UDP:   2618/52396   (  9.9%)   200-  249:   149,   0.7% |
+            GRE:    644/9596    (  1.8%)   250-  299:   120,   0.6% |
+            TLS:    386/8706    (  1.6%)   300-  349:    68,   0.3%
+            FTP:    299/6308    (  1.2%)   350-  399:    49,   0.2%
+            DNS:    137/5093    (  1.0%)   400-  449:    61,   0.3%
+           ICMP:     36/797     (  0.2%)   450-  499:    92,   0.4%
+           ICMP:     36/797     (  0.2%)   500-  549:    66,   0.3%
+           IPv6:     35/346     (  0.1%)   550-  599:    99,   0.5% |
+          MySQL:      0/47      (  0.0%)   600-  649:    53,   0.2%
+            SIP:      0/1       (  0.0%)   650-  699:    36,   0.2%
+                                           700-  749:    66,   0.3%
+                                           750-  799:  2291,  10.7% -----           |
+                                           800-  849:    53,   0.2%
+                                           850-  899:    55,   0.3%
+                                           900-  949:    46,   0.2%
+                                           950-  999:    33,   0.2%
+                                          1000- 1049:    33,   0.2%
+                                          1050- 1099:    29,   0.1%
+                                          1100- 1149:    55,   0.3%
+                                          1150- 1199:   132,   0.6% |
+                                          1200- 1249:    31,   0.1%
+                                          1250- 1299:   215,   1.0%
+                                          1300- 1349:   208,   1.0%  |
+                                          1350- 1399:    81,   0.4%
+                                          1400- 1449:   695,   3.3% -          |
+                                          1450- 1499:  1029,   4.8% --    |
+                                          1500- 1549:  6992,  32.8% -----------------                                                                 |
+                                              count: 21339/531292, min size:    64/   64, max size:  1518/ 1518
+
+
+The left half of the display shows a decomposition per protocol which show
+that an IPv4 datagram is present in 101.8% of packets. Looks dubious until a
+closer look reveal that we also have 1.8% of packets with a GRE tunnel, so
+with 2 IP datagrams.
+
+The right half of the screen displays an histogram of packet sizes, revealing
+that somewhere in the tapped traffic we have an MTU of 800 bytes only.
+
+
+=== NetTop
+
+Display the heavy hitters, not unlike the famous nettop.
+You can choose to group flows by IPs, MACs, ports, and so on (see the +help+).
+
+Example:
+
+    junkie -p nettop -i eth0
+
+Typical display:
+
+    NetTop - Every 1.00s - Tue Dec 13 09:48:25 2011
+    Packets: 144317, Bytes: 49144856 (49144856 bytes/sec)
+
+       Packets     Volume                  Protocol                Source    Destination
+          5661    8586686         Ethernet/IPv4/TCP       194.51.225.7:80 -> 135.206.251.185:4009
+          1436    2179848    Ethernet/IPv4/TCP/HTTP        9.20.214.28:80 -> 194.49.226.10:54190
+          1080    1639440     Ethernet/IPv4/TCP/FTP  198.118.195.40:64490 -> 135.206.55.137:55266
+           820    1237864         Ethernet/IPv4/TCP     194.49.226.47:443 -> 194.48.220.28:39485
+           644     977592         Ethernet/IPv4/TCP      94.211.92.148:80 -> 135.206.199.39:37755
+           624     947232         Ethernet/IPv4/TCP  198.118.195.40:60979 -> 135.206.51.8:34456
+           406     616308         Ethernet/IPv4/TCP  198.118.195.40:55845 -> 135.206.55.137:55259
+           417     596964    Ethernet/IPv4/TCP/HTTP      135.206.84.17:80 -> 131.220.125.26:33258
+           362     549516         Ethernet/IPv4/TCP  198.118.195.40:56332 -> 135.206.51.8:34507
+           346     525228     Ethernet/IPv4/TCP/FTP  198.118.195.40:55787 -> 135.206.55.137:55260
+           345     523710     Ethernet/IPv4/TCP/FTP  198.118.195.40:59358 -> 135.206.55.137:55254
+           306     464508     Ethernet/IPv4/TCP/FTP  198.118.195.40:55381 -> 135.206.55.137:55264
+           301     456918         Ethernet/IPv4/TCP  198.118.195.40:59685 -> 135.206.55.137:55237
+           297     450846         Ethernet/IPv4/TCP  198.118.195.40:63912 -> 135.206.51.8:34520
+           337     448866         Ethernet/IPv4/TCP    194.49.180.2:27016 -> 38.107.111.251:52498
+           281     423286    Ethernet/IPv4/TCP/HTTP    213.218.150.153:80 -> 135.206.50.57:50096
+           277     420486         Ethernet/IPv4/TCP  198.118.195.40:64241 -> 135.206.55.137:55241
+
+Which shows a top of active sockets. In a way similar to top, the +h+ key leads to an help page which allow
+to change interactively what's displayed. In particular, you can change what
+fields are used to group traffic, so that you can change the default `group by
+socket` view to a `group by protocols + MACs` view:
+
+    NetTop - Every 8.00s - Tue Dec 13 09:50:57 2011
+    Packets: 423608, Bytes: 340297686 (42537210 bytes/sec)
+
+       Packets     Volume                          Protocol              Source    Destination
+        144328  133103337                 Ethernet/IPv4/TCP   b4:a5:e3:4d:5c:00 -> 88:44:e1:1d:6d:00
+         71441  100876369            Ethernet/IPv4/TCP/HTTP   b4:a5:e3:4d:5c:00 -> 88:44:e1:1d:6d:00
+        120110   40144204                 Ethernet/IPv4/TCP   88:44:e1:1d:6d:00 -> b4:a5:e3:4d:5c:00
+          9257   14024997             Ethernet/IPv4/TCP/FTP   b4:a5:e3:4d:5c:00 -> 88:44:e1:1d:6d:00
+         20659   13767085                 Ethernet/IPv4/UDP   88:44:e1:1d:6d:00 -> b4:a5:e3:4d:5c:00
+         11245   12914303            Ethernet/IPv4/TCP/HTTP   88:44:e1:1d:6d:00 -> b4:a5:e3:4d:5c:00
+         17049   11861508                     Ethernet/IPv4   88:44:e1:1d:6d:00 -> b4:a5:e3:4d:5c:00
+         12446    2913406                 Ethernet/IPv4/UDP   b4:a5:e3:4d:5c:00 -> 88:44:e1:1d:6d:00
+          3303    2843771             Ethernet/IPv4/TCP/TLS   b4:a5:e3:4d:5c:00 -> 88:44:e1:1d:6d:00
+          2609    2630285        Ethernet/IPv4/GRE/IPv4/TCP   88:44:e1:1d:6d:00 -> b4:a5:e3:4d:5c:00
+          1429     727555             Ethernet/IPv4/TCP/TLS   88:44:e1:1d:6d:00 -> b4:a5:e3:4d:5c:00
+          1600     342837             Ethernet/IPv4/UDP/DNS   b4:a5:e3:4d:5c:00 -> 88:44:e1:1d:6d:00
+           355     329909   Ethernet/IPv4/GRE/IPv4/TCP/HTTP   88:44:e1:1d:6d:00 -> b4:a5:e3:4d:5c:00
+          1605     176905             Ethernet/IPv4/UDP/DNS   88:44:e1:1d:6d:00 -> b4:a5:e3:4d:5c:00
+           222     145830                Ethernet/IPv4/ICMP   88:44:e1:1d:6d:00 -> b4:a5:e3:4d:5c:00
+            15      11819    Ethernet/IPv4/GRE/IPv4/TCP/TLS   88:44:e1:1d:6d:00 -> b4:a5:e3:4d:5c:00
+            84       7912         Ethernet/IPv4/IPv6/ICMPv6   b4:a5:e3:4d:5c:00 -> 88:44:e1:1d:6d:00
+             9       7154    Ethernet/IPv4/GRE/IPv4/TCP/TLS   b4:a5:e3:4d:5c:00 -> 88:44:e1:1d:6d:00
+            46       4822        Ethernet/IPv4/GRE/IPv4/UDP   b4:a5:e3:4d:5c:00 -> 88:44:e1:1d:6d:00
+            16       3507    Ethernet/IPv4/GRE/IPv4/UDP/DNS   88:44:e1:1d:6d:00 -> b4:a5:e3:4d:5c:00
+
+=== Duplicogram
+
+Display the distribution of packet duplicates (according to the time interval
+between them). Useful to find out how many sources of duplication there are.
+
+Example:
+
+    junkie -p duplicogram -d 1 --bucket-width 1 -i eth0
+
+Typical display:
+
+    dusp:           636/761252       (  0.08%)
+    bytes:       148930/611060778    (  0.02%)
+         |  *
+         |  *
+         |  *
+         |  *
+         |  *
+      122|  *
+         |  *
+         |  *
+         |  *
+         |  *
+         |  *
+      103|  **
+         |  **
+         |  **
+         |  **
+         |  **
+         |  **
+       85|  ***
+         |  ***
+         |  ***
+         |  ***
+         |  ***
+         |  ***
+       66|  ***
+         |  ***
+         |  ****
+         |  ****
+         |  ****
+         |  ****
+       47|  *****
+         |  *****
+         |  *****
+         |  *****
+         | ******
+         | ******
+       29| ******
+         | ******
+         | *******
+         | *******
+         | *******
+         | *******
+       10| *******
+         | ********
+         | ********** * * *
+         +---------------+---------------+---------------+---------------+---------------+---------------+--->
+         0               16              32              48              64              80              96 us
+
+
+Here we have less than 0.1% of dups, arriving after approximately 5us. The
+closest switch we mirror traffic from is certainly the only source of duplication.
+
+=== Os Detect
+
+Display the detected operating system per IP addresses.
+
+Example:
+
+    # junkie -p os-detect -i eth0
+    195.167.253.19: g:unix:Linux:2.2.x-3.x
+    194.49.224.10: g:unix:Linux:2.2.x-3.x
+    135.206.159.186: g:win:Windows:NT kernel
+    62.62.55.124: g:win:Windows:NT kernel
+    194.49.226.10: g:unix:Linux:2.2.x-3.x
+    173.19.138.182: g:win:Windows:NT kernel
+    190.22.107.82: g:win:Windows:NT kernel
+    194.49.226.10: g:unix:Linux:2.2.x-3.x
+    ...
+
+To detect OS junkie uses only the TCP fingerprints taken from p0f. If you need
+only this information you'd rather be using p0f directly, which provides more
+accurate results.
+
+=== ARP graph
+
+Output periodically a dot schema of communicating peers.
+
+Example:
+
+    junkie -p arpgraph -r file.pcap
+
+=== Serializer
+
+Used to send parsed informations to another junkie through a socket.
+
+
+Although you can use a plugin to perform anything, this is not the way you
+will want to run Junkie, though. Instead, you will want to use its extension
+language (Guile) to control the sniffer from the inside.
+
+== Taking full control with Guile
+
+Junkie is linked with the Guile Scheme implementation and roughly a hundred of
+parameters/functions are available from there. Also, additional
+functionalities are merely implemented in scheme as separate threads (SNMP
+subagent, Web server, control socket...) You can of course add your own.
+
+So you'd probably want to run Junkie with either the +-c+ (load and execute a
+Guile file) or the +-e+ options (execute the given command).
+
+Actually, all command line parameters are scheme commands in disguise
+(for instance, +-c file+ is translated into +-e (load "file")+).
+
+Let's try it:
+
+    $ junkie -e "(define (fact n) (if (equal? n 0) 1 (* n (fact (- n 1)))))" \
+             -e "(display (fact 100))" \
+             -e "(newline)"
+    93326215443944152681699238856266700490715968264381621468592963895217599993229915608941463976156518286253697920827223758251185210916864000000000000000000000000
+
+Ok not very useful but notice how command line arguments are
+processed from first to last. For something more entertaining try:
+
+    $ sudo junkie -e "(start-repl-server)" &
+    $ rlwrap telnet localhost 29000
+    Trying 127.0.0.1...
+    Connected to localhost.
+    Escape character is '^]'.
+    junkie>
+
+Yes this prompt is Junkie waiting for more orders. Go ahead:
+
+    junkie> (open-iface "eth0" #t "udp port 53")
+    "eth0"
+    junkie> (iface-stats "eth0")
+    ((id . 0)
+     (nb-packets . 56)
+     (nb-duplicates . 0)
+     (tot-received . 56)
+     (tot-dropped . 0)
+     (nb-cap-bytes . 5898)
+     (nb-wire-bytes . 5898)
+     (file? . #f)
+     (filter . "udp port 53"))
+
+Here we opened device "eth0" (like we did earlier with the command line
+parameter +-i+) but with the additional argument specifying that we want
+to turn the device in promiscuous mode and filter received packets through
+the BPF filter "udp port 53" (same libpcap as Tcpdump, thus same BPF filters
+syntax). When in doubt, ask for help:
+
+    junkie> (help "open-iface")
+    (open-iface "iface-name"): open the given iface, and set it in promiscuous mode.
+    (open-iface "iface-name" #f): open the given iface without setting it in promiscuous mode.
+    (open-iface "iface-name" #t "filter"): open the given iface in promiscuous mode,
+        with the given packet filter.
+    (open-iface "iface-name" #t "filter" 90): same as above, but capture only the first
+        90 bytes of each packet. Use 0 for all bytes (the default).
+    (open-iface "iface-name" #t "[filter]" 90 (* 10 1024 1024)): same as above, using
+        a buffer size of 10Mb (instead of system default).
+    Will return #t or #f depending on the success of the operation.
+    See also (? 'list-ifaces) to have a list of all openable ifaces,
+        and (? 'close-iface) to close a given iface
+
+
+You got the idea (or you need
+http://www.gnu.org/software/guile/manual/html_node/index.html[a quick
+refresher about Scheme syntax]).
+
+Notice that you don't want to keep this 29000 server _running as root and
+executing any scheme command_ any longer.
+
+The following section suppose you are somewhat familiar with Scheme and
+Guile.
+
 
 == Design
 
@@ -206,7 +642,7 @@ digraph G {
         rankdir="LR"
         splines=curved
     ]
-    
+
     queue0 [
         shape=record
         label="<h>digests for eth1|\<&#8710;t\>, &#963;|{MD4 &#8594; TimeStamp0}|{MD4 &#8594; TimeStamp1}|{MD4 &#8594; TimeStamp2}|{...}|{<last>MD4 &#8594; TimeStampN}"
@@ -309,12 +745,12 @@ digraph G {
         rankdir="LR"
         splines=curved
     ]
-    
+
     config [
         shape=record
         label="<h>pkt_wl_config|acceptable_gap|nb_pkts_max|payload_max|timeout"
     ]
-    
+
     wl1 [
         shape=record
         label="pkt_wait_list (1)|<p>pkts|<c>config|nb_pkts|tot_payload|next_offset|last_used|parser"
@@ -482,126 +918,6 @@ Be aware that as junkie uses several threads to parse traffic your plugins are
 required to be reentrant, and that you can not count on the fact that similar
 packets (like the ones of the same TCP socket) will be handled by the same
 thread (junkie makes no such assumption nor attempt to guaranty this).
-
-
-=== Controlling junkie
-
-==== Command line
-
-By default, Junkie loads no plugins nor sniffs any device, thus doing nothing.
-You must use the command line to achieve anything. I will not document the
-command line with too much details here and will mention only the few options
-you're likely to start with; try +--help+ later for a comprehensive list of
-options.
-
-The three simplest options are:
-
-- +-i+ to sniff from the named interface. For instance, +-i eth0+.
-  You will probably need superuser privileges, though.
-
-- +-r+ to read packets from a pcap savefile. For instance, +-r traffic.pcap+.
-
-- +-p+ to load a plugin. Junkie comes with a few ones, such as +dumper.so+ so
-  display a short textual description of the packets.
-
-For instance:
-
-    # junkie -i wlan0 -p dumper.so
-    Capture: head_len=48, payload=84, dev_id=0, tv=1343079318s 591221us
-    Ethernet: head_len=14, payload=70, vlan_id=-1, source=00:26:5e:0a:d2:b9, dest=00:24:d4:51:59:2c, proto=2048
-    IPv4: head_len=20, payload=50, version=4, addr=192.168.0.18->192.168.0.254, proto=UDP, ttl=64, frag=DontFrag, id=0x4a1b, Class=0:NonECT
-    UDP: head_len=8, payload=42, ports=57312->53
-    DNS: head_len=42, payload=0, QUERY, tx_id=659, err_code=0, request_type=A, dns_class=IN, name=ssl.google-analytics.com
-    
-    Capture: head_len=48, payload=84, dev_id=0, tv=1343079318s 591614us
-    Ethernet: head_len=14, payload=70, vlan_id=-1, source=00:26:5e:0a:d2:b9, dest=00:24:d4:51:59:2c, proto=2048
-    IPv4: head_len=20, payload=50, version=4, addr=192.168.0.18->192.168.0.254, proto=UDP, ttl=64, frag=DontFrag, id=0x4a1c, Class=0:NonECT
-    UDP: head_len=8, payload=42, ports=57312->53
-    DNS: head_len=42, payload=0, QUERY, tx_id=30270, err_code=0, request_type=AAAA, dns_class=IN, name=ssl.google-analytics.com
-    
-    ...
-
-Notice that you can open as many interfaces and/or files as you wish and
-that Junkie will process them all at once.
-
-Although you can use a plugin to perform anything, this is not the way you
-will want to run Junkie, though. Instead, you will want to use its extension
-language (Guile) to control the sniffer from the inside.
-
-==== Taking full control with Guile
-
-Junkie is linked with the Guile Scheme implementation and roughly a hundred of
-parameters/functions are available from there. Also, additional
-functionalities are merely implemented in scheme as separate threads (SNMP
-subagent, Web server, control socket...) You can of course add your own.
-
-So you'd probably want to run Junkie with either the +-c+ (load and execute a
-Guile file) or the +-e+ options (execute the given command).
-
-Actually, all command line parameters are scheme commands in disguise
-(for instance, +-c file+ is translated into +-e (load "file")+).
-
-Let's try it:
-
-    $ junkie -e "(define (fact n) (if (equal? n 0) 1 (* n (fact (- n 1)))))" \
-             -e "(display (fact 100))" \
-             -e "(newline)"
-    93326215443944152681699238856266700490715968264381621468592963895217599993229915608941463976156518286253697920827223758251185210916864000000000000000000000000
-
-Ok not very useful but notice how command line arguments are
-processed from first to last. For something more entertaining try:
-
-    $ sudo junkie -e "(start-repl-server)" &
-    $ rlwrap telnet localhost 29000
-    Trying 127.0.0.1...
-    Connected to localhost.
-    Escape character is '^]'.
-    junkie>
-
-Yes this prompt is Junkie waiting for more orders. Go ahead:
-
-    junkie> (open-iface "eth0" #t "udp port 53")
-    "eth0"
-    junkie> (iface-stats "eth0")
-    ((id . 0)
-     (nb-packets . 56)
-     (nb-duplicates . 0)
-     (tot-received . 56)
-     (tot-dropped . 0)
-     (nb-cap-bytes . 5898)
-     (nb-wire-bytes . 5898)
-     (file? . #f)
-     (filter . "udp port 53"))
-
-Here we opened device "eth0" (like we did earlier with the command line
-parameter +-i+) but with the additional argument specifying that we want
-to turn the device in promiscuous mode and filter received packets through
-the BPF filter "udp port 53" (same libpcap as Tcpdump, thus same BPF filters
-syntax). When in doubt, ask for help:
-
-    junkie> (help "open-iface")
-    (open-iface "iface-name"): open the given iface, and set it in promiscuous mode.
-    (open-iface "iface-name" #f): open the given iface without setting it in promiscuous mode.
-    (open-iface "iface-name" #t "filter"): open the given iface in promiscuous mode,
-        with the given packet filter.
-    (open-iface "iface-name" #t "filter" 90): same as above, but capture only the first
-        90 bytes of each packet. Use 0 for all bytes (the default).
-    (open-iface "iface-name" #t "[filter]" 90 (* 10 1024 1024)): same as above, using
-        a buffer size of 10Mb (instead of system default).
-    Will return #t or #f depending on the success of the operation.
-    See also (? 'list-ifaces) to have a list of all openable ifaces,
-        and (? 'close-iface) to close a given iface
-
-
-You got the idea (or you need
-http://www.gnu.org/software/guile/manual/html_node/index.html[a quick
-refresher about Scheme syntax]).
-
-Notice that you don't want to keep this 29000 server _running as root and
-executing any scheme command_ any longer.
-
-The following sections suppose you are somewhat familiar with Scheme and
-Guile.
 
 
 === Netmatch language
@@ -837,91 +1153,5 @@ Some ideas of what can be done with this:
 - save all packets between such and such events
 - ...!
 
-
-== Plugins
-
-Junkie is designed to be extensible but can also be usefull by itself due
-to the few plugins that comes with it.
-
-Remember that to load a plugin you must run:
-
-    junkie -p pluginname
-
-Also, each plugin adds it's own command line options that you can read help
-for with:
-
-    junkie -p pluginname --help
-
-
-=== Dumper
-
-Dumps to stdout every packets, not unlike tcpdump.
-
-Example:
-
-    junkie -p dumper -i eth0
-
-=== Writer
-
-Save packets in a pcap (or optionally, CSV) file. Has many options to control
-what packets to save.
-
-Example:
-
-    junkie -p writer -i eth0 --file /dev/stdout --netmatch "'(dns) '(dns.name = "'"google.com")'
-
-(quoting from command line is getting tricky)
-
-=== Packetogram
-
-Display the distribution of packet sizes. Useful to find out the various MTU
-used in a LAN.
-
-Example:
-
-    junkie -p packetogram -i eth0
-
-=== Duplicogram
-
-Display the distribution of packet duplicates (according to the time interval
-between them). Useful to find out how many sources of duplication there are.
-
-Example:
-
-    junkie -p duplicogram -i eth0
-
-=== Os Detect
-
-Display the detected Operating system per IP addresses.
-
-Example:
-
-    junkie -p os-detect -i eth0
-
-=== ARP graph
-
-Output periodically a dot schema of communicating peers.
-
-Example:
-
-    junkie -p arpgraph -r file.pcap
-
-=== Rater
-
-Similar to writer but triggers the save based on the rate of packets. Useful
-to find out what's causes some burst in bandwidth for instance.
-
-=== Serializer
-
-Used to send parsed informations to another junkie through a socket.
-
-=== NetTop
-
-Display the heavy hitters, not unlike the famous nettop.
-You can choose to group flows by IPs, MACs, ports, and so on (see the +help+).
-
-Example:
-
-    junkie -p nettop -i eth0
 
 

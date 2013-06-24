@@ -37,6 +37,7 @@ clear:
 
 doc: Doxyfile
 	doxygen $<
+	$(MAKE) -C doc $@
 
 module-deps.dot:
 	@(echo "digraph deps {" ;\
