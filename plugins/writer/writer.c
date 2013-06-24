@@ -133,6 +133,8 @@ static int set_netmatch(struct capture_conf *conf, char const *value)
     if (0 == netmatch_filter_ctor(&conf->netmatch, libname)) {
         conf->netmatch_set = true;
         err = 0;
+    } else {
+        DIE("Cannot compile expression %s", value);
     }
 
     scm_dynwind_end();

@@ -158,6 +158,7 @@ static void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info c
         last_output = now->tv_sec;
     } else if (now->tv_sec > last_output + (time_t)opt_monitoring_period) {
         output_graph();
+        if (! opt_loop) _exit(0);
         reset_edges();
         last_output = now->tv_sec;
     }
