@@ -21,7 +21,6 @@
 #include <stdio.h>
 #include <assert.h>
 #include <stdbool.h>
-#include <termios.h>    // for key input
 #include <signal.h>     // for sig_atomic_t
 #include "junkie/cpp.h"
 #include "junkie/proto/cap.h"
@@ -35,6 +34,7 @@
 #include "junkie/tools/objalloc.h"
 #include "junkie/tools/timeval.h"
 #include "junkie/tools/tempstr.h"
+#include "junkie/tools/term.h"
 
 static bool display_help;
 
@@ -461,63 +461,47 @@ static void do_display_help(void)
         refresh_rate/1000000.);
 }
 
-static void term_fini(void);
-
-// read keys and change use flags
-static void *keyctrl_thread(void unused_ *dummy)
+// Key handling function
+static void handle_key(char c)
 {
-    while (1) {
-        unsigned char c;
-        int r = read(0, &c, 1);
-        pthread_testcancel();
-        if (r == 0) {
-            SLOG(LOG_ERR, "Cannot read(stdin): end of file");
-            return NULL;
-        } else if (r < 1) {
-            SLOG(LOG_ERR, "Cannot read(stdin): %s", strerror(errno));
-            return NULL;
-        }
-        switch (c) {
-            case 'I': use_dev ^= 1; break;
-            case 'V': use_vlan ^= 1; break;
-            case 's': use_ip_src ^= 1; break;
-            case 'S': use_port_src ^= 1; break;
-            case 'd': use_ip_dst ^= 1; break;
-            case 'D': use_port_dst ^= 1; break;
-            case 'm': use_mac_src ^= 1; break;
-            case 'M': use_mac_dst ^= 1; break;
-            case 'p': use_ip_proto ^= 1; break;
-            case 'P': use_mac_proto ^= 1; break;
-            case 'v': use_ip_version ^= 1; break;
-            case 'n': use_proto_stack ^= 1; break;
-            case 'N': shorten_proto_stack ^= 1; break;
-            case 'k': sort_by = sort_by == VOLUME ? PACKETS:VOLUME; break;
-            case '+': refresh_rate *= 2; break;
-            case '-': refresh_rate = MAX(refresh_rate/2, 1000); break;
-            case '?':
-            case 'h':
-            case 'H': display_help ^= 1; break;
-            case 'q':
-                if (display_help) {
-                    display_help = false;
-                } else {
-                    term_fini();
-                    _exit(0);
-                }
-            case '\n':
-                if (display_help) {
-                    display_help = false;
-                }
-                break;
-        }
-        // Refresh help page after each keystroke
-        mutex_lock(&cells_lock);
-        if (display_help) do_display_help();
-        else do_display_top(&last_display);
-        mutex_unlock(&cells_lock);
+    switch (c) {
+        case 'I': use_dev ^= 1; break;
+        case 'V': use_vlan ^= 1; break;
+        case 's': use_ip_src ^= 1; break;
+        case 'S': use_port_src ^= 1; break;
+        case 'd': use_ip_dst ^= 1; break;
+        case 'D': use_port_dst ^= 1; break;
+        case 'm': use_mac_src ^= 1; break;
+        case 'M': use_mac_dst ^= 1; break;
+        case 'p': use_ip_proto ^= 1; break;
+        case 'P': use_mac_proto ^= 1; break;
+        case 'v': use_ip_version ^= 1; break;
+        case 'n': use_proto_stack ^= 1; break;
+        case 'N': shorten_proto_stack ^= 1; break;
+        case 'k': sort_by = sort_by == VOLUME ? PACKETS:VOLUME; break;
+        case '+': refresh_rate *= 2; break;
+        case '-': refresh_rate = MAX(refresh_rate/2, 1000); break;
+        case '?':
+        case 'h':
+        case 'H': display_help ^= 1; break;
+        case 'q':
+            if (display_help) {
+                display_help = false;
+            } else {
+                term_fini();
+                _exit(0);
+            }
+        case '\n':
+            if (display_help) {
+                display_help = false;
+            }
+            break;
     }
-
-    return NULL;
+    // Refresh help page after each keystroke
+    mutex_lock(&cells_lock);
+    if (display_help) do_display_help();
+    else do_display_top(&last_display);
+    mutex_unlock(&cells_lock);
 }
 
 /*
@@ -554,38 +538,19 @@ quit:
 }
 
 static struct proto_subscriber subscription;
-static struct termios termios_orig;
-static pthread_t keyctrl_pth;
 
 /*
  * Init
  */
 
-static void term_init(void)
-{
-    tcgetattr(0, &termios_orig);
-    struct termios termios_new = termios_orig;
-//    cfmakeraw(&termios_new);
-    termios_new.c_lflag &= ~(ECHO | ICANON);    // Disable echo and make chars available immediately
-    tcsetattr(0, TCSANOW, &termios_new);
-}
-
-static void term_fini(void)
-{
-    tcsetattr(0, TCSANOW, &termios_orig);
-}
-
 void on_load(void)
 {
-    term_init();
+    SLOG(LOG_INFO, "NetTop loaded");
 
-    if (0 != pthread_create(&keyctrl_pth, NULL, keyctrl_thread, NULL)) {
-        SLOG(LOG_CRIT, "Cannot spawn keyboard controler thread");
-    }
+    term_init(&handle_key);
 
     objalloc_init();
     hash_init();
-    SLOG(LOG_INFO, "NetTop loaded");
     cli_register("NetTop plugin", nettop_opts, NB_ELEMS(nettop_opts));
     HASH_INIT(&nettop_cells, 30011, "nettop hitters");
     mutex_ctor(&cells_lock, "nettop lock");
@@ -595,9 +560,6 @@ void on_load(void)
 void on_unload(void)
 {
     SLOG(LOG_INFO, "NetTop unloading");
-
-    (void)pthread_cancel(keyctrl_pth);
-    (void)pthread_join(keyctrl_pth, NULL);
 
     term_fini();
 

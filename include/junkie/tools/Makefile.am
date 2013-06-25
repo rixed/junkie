@@ -22,5 +22,6 @@ thisinclude_HEADERS = \
 	objalloc.h \
 	proto.h \
 	bench.h \
-	proto_stack.h
+	proto_stack.h \
+	term.h
 
