@@ -27,12 +27,13 @@
 #include <inttypes.h>
 #include <signal.h>
 #include <assert.h>
-#include <junkie/tools/log.h>
-#include <junkie/tools/cli.h>
-#include <junkie/tools/miscmacs.h>
-#include <junkie/tools/ext.h>
-#include <junkie/proto/deduplication.h>
-#include <junkie/proto/cap.h>
+#include "junkie/tools/log.h"
+#include "junkie/tools/cli.h"
+#include "junkie/tools/miscmacs.h"
+#include "junkie/tools/ext.h"
+#include "junkie/tools/term.h"
+#include "junkie/proto/deduplication.h"
+#include "junkie/proto/cap.h"
 
 LOG_CATEGORY_DEF(duplicogram);
 #undef LOG_CAT
@@ -47,7 +48,6 @@ EXT_PARAM_RW(bucket_width, "duplicogram-bucket-width", uint, "Width of time inte
 static pthread_t display_pth; // only set if display_started
 static bool display_started;
 
-static void *display_thread(void *);
 static int cli_set_refresh(char const *v)
 {
     char *end;
@@ -58,18 +58,8 @@ static int cli_set_refresh(char const *v)
     }
     refresh_rate = d * 1000000.;
 
-    // spawn display thread
-    if (0 != pthread_create(&display_pth, NULL, display_thread, NULL)) {
-        SLOG(LOG_CRIT, "Cannot spawn display thread");
-    }
-
     return 0;
 }
-
-static struct cli_opt duplicogram_opts[] = {
-    { { "interval",     "d" },  "seconds",  "update interval (default: no display)", CLI_CALL,     { .call = &cli_set_refresh } },
-    { { "bucket-width", NULL }, "useconds", "distribution step for time interval",   CLI_SET_UINT, { .uint = &bucket_width } },
-};
 
 static uint64_t nb_nodups, nb_dups;
 static uint64_t sz_nodups, sz_dups;
@@ -211,9 +201,9 @@ static void display(void)
 
 static void *display_thread(void unused_ *dummy)
 {
-    set_thread_name("duplicogram display");
+    set_thread_name("J-duplicogram-display");
 
-    while (1) {
+    while (refresh_rate) {
 #       define SLEEP_CHUNK 100000U
         int64_t r;
         for (r = refresh_rate; !quit && r > SLEEP_CHUNK; r -= SLEEP_CHUNK) {
@@ -258,6 +248,16 @@ static SCM g_get_duplicogram(void)
     return lst;
 }
 
+// Key handling function
+static void handle_key(char c)
+{
+    switch (c) {
+        case 'q':
+            term_fini();
+            _exit(0);
+    }
+}
+
 /*
  * Init
  */
@@ -265,12 +265,20 @@ static SCM g_get_duplicogram(void)
 static struct proto_subscriber dup_subscription;
 static struct proto_subscriber cap_subscription;
 
+static struct cli_opt duplicogram_opts[] = {
+    { { "interval",     "d" },  "seconds",  "update interval. Set to 0 to disable display (default: 1s)", CLI_CALL,     { .call = &cli_set_refresh } },
+    { { "bucket-width", NULL }, "useconds", "distribution step for time interval", CLI_SET_UINT, { .uint = &bucket_width } },
+};
+
 void on_load(void)
 {
     log_category_duplicogram_init();
     ext_param_bucket_width_init();
 
     SLOG(LOG_INFO, "Duplicogram loaded");
+
+    term_init(&handle_key);
+
     cli_register("Duplicogram plugin", duplicogram_opts, NB_ELEMS(duplicogram_opts));
 
     mutex_ctor(&dup_lock, "Duplicogram mutex");
@@ -281,11 +289,19 @@ void on_load(void)
 
     hook_subscriber_ctor(&dup_hook, &dup_subscription, dup_callback);
     hook_subscriber_ctor(&proto_cap->hook, &cap_subscription, cap_callback);
+    
+    // spawn display thread
+    if (0 != pthread_create(&display_pth, NULL, display_thread, NULL)) {
+        SLOG(LOG_CRIT, "Cannot spawn display thread");
+    }
 }
 
 void on_unload(void)
 {
     SLOG(LOG_INFO, "Duplicogram unloading");
+
+    term_fini();
+
     hook_subscriber_dtor(&dup_hook, &dup_subscription);
     hook_subscriber_dtor(&proto_cap->hook, &cap_subscription);
     cli_unregister(duplicogram_opts);

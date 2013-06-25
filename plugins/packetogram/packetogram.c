@@ -30,6 +30,7 @@
 #include <junkie/cpp.h>
 #include <junkie/tools/cli.h>
 #include <junkie/tools/mutex.h>
+#include <junkie/tools/term.h>
 
 static int64_t refresh_rate = 1000000;  // 1 sec
 static unsigned bucket_width = 50;  // 50 bytes = 1 bar
@@ -221,12 +222,27 @@ static void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info c
     mutex_unlock(&disp_lock);
 }
 
+// Key handling function
+static void handle_key(char c)
+{
+    switch (c) {
+        case 'q':
+            term_fini();
+            _exit(0);
+    }
+}
+
+/*
+ * Init
+ */
+
 static struct proto_subscriber subscription;
 static pthread_t display_pth;
 
 void on_load(void)
 {
     SLOG(LOG_INFO, "Packetogram loaded");
+    term_init(&handle_key);
     cli_register("Packetogram plugin", packetogram_opts, NB_ELEMS(packetogram_opts));
 
     mutex_ctor(&disp_lock, "display lock");
@@ -240,6 +256,9 @@ void on_load(void)
 void on_unload(void)
 {
     SLOG(LOG_INFO, "Packetogram unloading");
+
+    term_fini();
+
     hook_subscriber_dtor(&pkt_hook, &subscription);
     cli_unregister(packetogram_opts);
 
@@ -247,3 +266,4 @@ void on_unload(void)
     pthread_join(display_pth, NULL);
     mutex_dtor(&disp_lock);
 }
+

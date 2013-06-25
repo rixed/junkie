@@ -386,7 +386,7 @@ between them). Useful to find out how many sources of duplication there are.
 
 Example:
 
-    junkie -p duplicogram -d 1 --bucket-width 1 -i eth0
+    junkie -p duplicogram --bucket-width 1 -i eth0
 
 Typical display:
 
