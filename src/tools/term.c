@@ -22,6 +22,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <sys/ioctl.h>
 #include <termios.h>
 #include "junkie/config.h"
 #include "junkie/tools/log.h"
@@ -30,6 +31,19 @@
 
 static int quit = 0;
 static __thread bool from_keyctrl = false;
+
+// A tool to get terminal window size
+void get_window_size(unsigned *cols, unsigned *rows)
+{
+    struct winsize ws;
+    if (-1 == ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws)) {
+        SLOG(LOG_WARNING, "Cannot get terminal size: %s", strerror(errno));
+        ws.ws_row = 25;
+        ws.ws_col = 80;
+    }
+    if (cols) *cols = ws.ws_col;
+    if (rows) *rows = ws.ws_row;
+}
 
 /*
  * Key reading thread

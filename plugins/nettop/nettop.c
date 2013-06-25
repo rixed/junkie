@@ -302,12 +302,6 @@ static void nettop_cell_del(struct nettop_cell *cell)
  * Display
  */
 
-#define TOPLEFT "\x1B[1;1H"
-#define CLEAR   "\x1B[2J"
-#define NORMAL  "\x1B[0m"
-#define BRIGHT  "\x1B[1m"
-#define REVERSE "\x1B[7m"
-
 static uint_least64_t packets_count, bytes_count;
 static struct timeval start_counting;
 

@@ -26,14 +26,16 @@
 #include <unistd.h>
 #include <inttypes.h>
 #include <signal.h>
-#include <junkie/proto/cap.h>
-#include <junkie/cpp.h>
-#include <junkie/tools/cli.h>
-#include <junkie/tools/mutex.h>
-#include <junkie/tools/term.h>
+#include "junkie/proto/cap.h"
+#include "junkie/cpp.h"
+#include "junkie/tools/cli.h"
+#include "junkie/tools/mutex.h"
+#include "junkie/tools/term.h"
+#include "junkie/tools/ext.h"   // for version_string
 
 static int64_t refresh_rate = 1000000;  // 1 sec
 static unsigned bucket_width = 50;  // 50 bytes = 1 bar
+static bool display_help;
 
 static int cli_set_refresh(char const *v)
 {
@@ -53,7 +55,6 @@ static struct cli_opt packetogram_opts[] = {
                                                               CLI_SET_UINT, { .uint = &bucket_width } },
 };
 
-static volatile sig_atomic_t quit;
 static struct mutex disp_lock;
 static unsigned max_size = 0;
 static unsigned min_size = UINT_MAX;
@@ -74,7 +75,23 @@ static int proto_code_cmp(void const *a_, void const *b_)
     return 1;
 }
 
-static void display(void)
+static void do_display_help(void)
+{
+    printf(
+        TOPLEFT CLEAR
+        BRIGHT "Help for Interactive Commands" NORMAL " - Packetogram v%s\n"
+        "\n", version_string);
+    printf(
+        "Refresh rate is: " BRIGHT "%.2fs" NORMAL "\n"
+        "\n"
+        "  " BRIGHT "+/-" NORMAL "   Refresh rate twice faster/slower\n"
+        "  " BRIGHT "h,H,?" NORMAL " this help screen\n"
+        "  " BRIGHT "q" NORMAL "     return to main screen\n"
+        "  " BRIGHT "q,^C" NORMAL "  quit\n",
+        refresh_rate/1000000.);
+}
+
+static void do_display(struct timeval const *now)
 {
     static unsigned tot_min_size = UINT_MAX;
     if (min_size < tot_min_size) tot_min_size = min_size;
@@ -106,7 +123,8 @@ static void display(void)
 
     /* Display protocol statistics */
 
-    printf("\x1B[1;1H\x1B[2J");
+    printf(TOPLEFT CLEAR);
+    printf("Packetogram - Every " BRIGHT "%.2fs" NORMAL " - " BRIGHT "%s" NORMAL, refresh_rate / 1000000., ctime(&now->tv_sec));
 
     unsigned nb_pc = 0;
     enum proto_code pc[NB_ELEMS(proto_count)];
@@ -119,7 +137,7 @@ static void display(void)
 
     /* Display distribution of sizes */
 
-    unsigned lineno = 0;
+    unsigned lineno = 1;
     unsigned lines, columns;
     get_window_size(&columns, &lines);
 
@@ -178,29 +196,28 @@ static void display(void)
             DISP(max_size), DISP(tot_max_size));
 }
 
-static void *display_thread(void unused_ *dummy)
+static struct timeval last_display;
+
+static void try_display(struct timeval const *now)
 {
-    set_thread_name("Packetogram display");
+    if (timeval_is_set(&last_display) && timeval_sub(now, &last_display) < refresh_rate) return;
+    last_display = *now;
 
-    while (! quit) {
-        usleep(refresh_rate);
-
-        mutex_lock(&disp_lock);
-        display();
-        // reset
-        unsigned const max_bucket = max_size / bucket_width;
-        memset(histo, 0, sizeof(histo[0]) * (max_bucket+1));
-        memset(proto_count, 0, sizeof(proto_count));
-        max_size = max_count = count = 0;
-        min_size = UINT_MAX;
-        mutex_unlock(&disp_lock);
-    }
-
-    return NULL;
+    mutex_lock(&disp_lock);
+    do_display(now);
+    // reset
+    unsigned const max_bucket = max_size / bucket_width;
+    memset(histo, 0, sizeof(histo[0]) * (max_bucket+1));
+    memset(proto_count, 0, sizeof(proto_count));
+    max_size = max_count = count = 0;
+    min_size = UINT_MAX;
+    mutex_unlock(&disp_lock);
 }
 
-static void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info const *last, size_t unused_ cap_len, uint8_t const unused_ *packet, struct timeval const unused_ *now)
+static void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info const *last, size_t unused_ cap_len, uint8_t const unused_ *packet, struct timeval const *now)
 {
+    if (! display_help) try_display(now);
+
     struct proto_info const *info = last;
     while (info->parent) {
         proto_count[info->parser->proto->code] ++;
@@ -226,10 +243,28 @@ static void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info c
 static void handle_key(char c)
 {
     switch (c) {
+        case '+': refresh_rate *= 2; break;
+        case '-': refresh_rate = MAX(refresh_rate/2, 1000); break;
+        case '?':
+        case 'h':
+        case 'H': display_help ^= 1; break;
         case 'q':
-            term_fini();
-            _exit(0);
+            if (display_help) {
+                display_help = false;
+            } else {
+                term_fini();
+                _exit(0);
+            }
+        case '\n':
+            if (display_help) {
+                display_help = false;
+            }
+            break;
     }
+    mutex_lock(&disp_lock);
+    if (display_help) do_display_help();
+    else do_display(&last_display);
+    mutex_unlock(&disp_lock);
 }
 
 /*
@@ -237,7 +272,6 @@ static void handle_key(char c)
  */
 
 static struct proto_subscriber subscription;
-static pthread_t display_pth;
 
 void on_load(void)
 {
@@ -246,9 +280,6 @@ void on_load(void)
     cli_register("Packetogram plugin", packetogram_opts, NB_ELEMS(packetogram_opts));
 
     mutex_ctor(&disp_lock, "display lock");
-    if (0 != pthread_create(&display_pth, NULL, display_thread, NULL)) {
-        SLOG(LOG_CRIT, "Cannot spawn display thread");
-    }
 
     hook_subscriber_ctor(&pkt_hook, &subscription, pkt_callback);
 }
@@ -262,8 +293,6 @@ void on_unload(void)
     hook_subscriber_dtor(&pkt_hook, &subscription);
     cli_unregister(packetogram_opts);
 
-    quit = 1;
-    pthread_join(display_pth, NULL);
     mutex_dtor(&disp_lock);
 }
 

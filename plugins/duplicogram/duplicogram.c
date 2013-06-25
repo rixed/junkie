@@ -42,11 +42,8 @@ LOG_CATEGORY_DEF(duplicogram);
 
 static int64_t refresh_rate = 1000000;  // 1 sec
 static unsigned last_bucket_width = 0;
-static unsigned bucket_width = 0;  //  in usec. If unset (0), set to 100ms/columns
+static unsigned bucket_width = 0;  //  in usec. If unset (0), scale to max_dup_delay
 EXT_PARAM_RW(bucket_width, "duplicogram-bucket-width", uint, "Width of time interval (in usec) used to compute dups distribution");
-
-static pthread_t display_pth; // only set if display_started
-static bool display_started;
 
 static int cli_set_refresh(char const *v)
 {
@@ -101,44 +98,42 @@ static void init(void)
     dup_reset_locked();
 }
 
-static void cap_callback(struct proto_subscriber unused_ *s, struct proto_info const unused_ *last, size_t cap_len, uint8_t const unused_ *packet, struct timeval const unused_ *now)
+static bool display_help;
+
+static void do_display_help()
 {
-    mutex_lock(&dup_lock);
-    init();
-    nb_nodups ++;
-    sz_nodups += cap_len;
-    mutex_unlock(&dup_lock);
+    printf(
+        TOPLEFT CLEAR
+        BRIGHT "Help for Interactive Commands" NORMAL " - Duplicogram v%s\n"
+        "\n", version_string);
+    printf(
+        "You can use keys to zoom into the dups distribution or change refresh rate.\n"
+        "Refresh rate is: " BRIGHT "%.2fs" NORMAL "\n"
+        "\n"
+        "  " BRIGHT "i" NORMAL "     Zoom in\n"
+        "  " BRIGHT "o" NORMAL "     Zoom out\n"
+        "  " BRIGHT "a" NORMAL "     Scale to max-dup-delay\n"
+        "\n"
+        "  " BRIGHT "+/-" NORMAL "   Refresh rate twice faster/slower\n"
+        "  " BRIGHT "h,H,?" NORMAL " this help screen\n"
+        "  " BRIGHT "q" NORMAL "     return to main screen\n"
+        "  " BRIGHT "q,^C" NORMAL "  quit\n",
+        refresh_rate/1000000.);
 }
 
-static void dup_callback(struct proto_subscriber unused_ *s, struct proto_info const *last, size_t cap_len, uint8_t const unused_ *packet, struct timeval const unused_ *now)
+static void do_display(struct timeval const *now)
 {
-    struct dedup_proto_info *dedup = DOWNCAST(last, info, dedup_proto_info);
-    mutex_lock(&dup_lock);
-    init();
-    unsigned const b = MIN(nb_buckets-1, dedup->dt / bucket_width);
-    nb_dups ++;
-    sz_dups += cap_len;
-    dups[b] ++;
-    mutex_unlock(&dup_lock);
-}
+    if (! refresh_rate) return;
 
-/*
- * Display thread
- */
-
-static volatile sig_atomic_t quit;
-
-static void display(void)
-{
-    printf("\x1B[1;1H\x1B[2J");
-
-    printf("dusp:  %12"PRIu64"/%-12"PRIu64" (%6.2f%%)\n", nb_dups, nb_dups+nb_nodups, 100.*(double)nb_dups/(nb_dups+nb_nodups));
-    printf("bytes: %12"PRIu64"/%-12"PRIu64" (%6.2f%%)\n", sz_dups, sz_dups+sz_nodups, 100.*(double)sz_dups/(sz_dups+sz_nodups));
+    printf(TOPLEFT CLEAR);
+    printf("Duplicogram - Every " BRIGHT "%.2fs" NORMAL " - " BRIGHT "%s" NORMAL, refresh_rate / 1000000., ctime(&now->tv_sec));
+    printf(BRIGHT "dups" NORMAL ":  %12"PRIu64"/%-12"PRIu64" (%6.2f%%)\n", nb_dups, nb_dups+nb_nodups, 100.*(double)nb_dups/(nb_dups+nb_nodups));
+    printf(BRIGHT "bytes" NORMAL ": %12"PRIu64"/%-12"PRIu64" (%6.2f%%)\n", sz_dups, sz_dups+sz_nodups, 100.*(double)sz_dups/(sz_dups+sz_nodups));
 
     unsigned lines, columns;
     get_window_size(&columns, &lines);
 
-    if (lines <= 4) return;
+    if (lines <= 5) return;
 
     mutex_lock(&dup_lock);
     if (! dups) {
@@ -165,7 +160,7 @@ static void display(void)
 
     unsigned prev_y_label = ~0U;
     unsigned no_y_tick = 0;
-    for (unsigned y = lines - 4; y > 0; y--) {
+    for (unsigned y = lines - 5; y > 0; y--) {
         unsigned const y_label = ROUND_DIV(dups_max*y, lines-3);
         if (no_y_tick++ == 5 && y_label != prev_y_label) {
             printf("%5u|", y_label);
@@ -199,24 +194,38 @@ static void display(void)
     fflush(stdout);
 }
 
-static void *display_thread(void unused_ *dummy)
+static struct timeval last_display;
+
+static void try_display(struct timeval const *now)
 {
-    set_thread_name("J-duplicogram-display");
+    if (timeval_is_set(&last_display) && timeval_sub(now, &last_display) < refresh_rate) return;
+    last_display = *now;
 
-    while (refresh_rate) {
-#       define SLEEP_CHUNK 100000U
-        int64_t r;
-        for (r = refresh_rate; !quit && r > SLEEP_CHUNK; r -= SLEEP_CHUNK) {
-            usleep(SLEEP_CHUNK);
-        }
-        if (quit) break;
-        usleep(r);
-        display();
-        // reset
-        dup_reset();
-    }
+    do_display(now);
+    dup_reset();
+}
 
-    return NULL;
+static void cap_callback(struct proto_subscriber unused_ *s, struct proto_info const unused_ *last, size_t cap_len, uint8_t const unused_ *packet, struct timeval const unused_ *now)
+{
+    if (! display_help) try_display(now);
+
+    mutex_lock(&dup_lock);
+    init();
+    nb_nodups ++;
+    sz_nodups += cap_len;
+    mutex_unlock(&dup_lock);
+}
+
+static void dup_callback(struct proto_subscriber unused_ *s, struct proto_info const *last, size_t cap_len, uint8_t const unused_ *packet, struct timeval const unused_ *now)
+{
+    struct dedup_proto_info *dedup = DOWNCAST(last, info, dedup_proto_info);
+    mutex_lock(&dup_lock);
+    init();
+    unsigned const b = MIN(nb_buckets-1, dedup->dt / bucket_width);
+    nb_dups ++;
+    sz_dups += cap_len;
+    dups[b] ++;
+    mutex_unlock(&dup_lock);
 }
 
 /*
@@ -252,10 +261,35 @@ static SCM g_get_duplicogram(void)
 static void handle_key(char c)
 {
     switch (c) {
+        case 'i':
+            bucket_width /= 2;
+            break;
+        case 'o':
+            bucket_width *= 2;
+            break;
+        case 'a':
+            bucket_width = 0;
+            break;
+        case '+': refresh_rate *= 2; break;
+        case '-': refresh_rate = MAX(refresh_rate/2, 1000); break;
+        case '?':
+        case 'h':
+        case 'H': display_help ^= 1; break;
         case 'q':
-            term_fini();
-            _exit(0);
+            if (display_help) {
+                display_help = false;
+            } else {
+                term_fini();
+                _exit(0);
+            }
+        case '\n':
+            if (display_help) {
+                display_help = false;
+            }
+            break;
     }
+    if (display_help) do_display_help();
+    else do_display(&last_display);
 }
 
 /*
@@ -289,11 +323,6 @@ void on_load(void)
 
     hook_subscriber_ctor(&dup_hook, &dup_subscription, dup_callback);
     hook_subscriber_ctor(&proto_cap->hook, &cap_subscription, cap_callback);
-    
-    // spawn display thread
-    if (0 != pthread_create(&display_pth, NULL, display_thread, NULL)) {
-        SLOG(LOG_CRIT, "Cannot spawn display thread");
-    }
 }
 
 void on_unload(void)
@@ -306,11 +335,6 @@ void on_unload(void)
     hook_subscriber_dtor(&proto_cap->hook, &cap_subscription);
     cli_unregister(duplicogram_opts);
     //mutex_dtor(&dup_lock); no since we can have some callbacks called even after we unsubscribed (in another thread)
-
-    if (display_started) {
-        quit = 1;
-        pthread_join(display_pth, NULL);
-    }
 
     ext_param_bucket_width_fini();
     log_category_duplicogram_fini();
