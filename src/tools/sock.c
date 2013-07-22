@@ -429,6 +429,8 @@ struct sock_tcp {
     struct sock_tcp_clients {
         int fd; // <0 when free
         struct ip_addr addr;
+        size_t prev_read;   // what was already read of next message
+        uint8_t read_buf[SOCK_MAX_MSG_SIZE];    // the read buffer for messages
     } clients[NB_MAX_TCP_CLIENTS];
 };
 
@@ -443,7 +445,7 @@ static int sock_tcp_send(struct sock *s_, void const *buf, size_t len)
         { .iov_base = &msg_len, .iov_len = sizeof(msg_len), },
         { .iov_base = (void *)buf, .iov_len = len, },
     };
-    if (i_->nb_fds < 1 || -1 == writev(i_->fd[0], iov, NB_ELEMS(iov))) {
+    if (i_->nb_fds < 1 || -1 == file_writev(i_->fd[0], iov, NB_ELEMS(iov))) {
         TIMED_SLOG(LOG_ERR, "Cannot send %zu bytes into %s: %s", len, s_->name, strerror(errno));
         if (0 != sock_inet_client_connect(i_)) {
             return -1;
@@ -459,6 +461,7 @@ static int sock_tcp_recv(struct sock *s_, fd_set *set, sock_receiver *receiver, 
     struct sock_tcp *s = DOWNCAST(i_, inet, sock_tcp);
     unsigned new_c = NB_ELEMS(s->clients);
 
+    // Note: a sock_inet listens on several sockets (for instance, ipv4 + ipv6)
     for (unsigned fdi = 0; fdi < i_->nb_fds; fdi++) {
         // Handle new connections
         if (FD_ISSET(i_->fd[fdi], set)) {
@@ -478,8 +481,10 @@ static int sock_tcp_recv(struct sock *s_, fd_set *set, sock_receiver *receiver, 
                 SLOG(LOG_ERR, "Cannot accept new connection to %s: no more available slots", s_->name);
                 continue;
             }
+            // construct the client
             s->clients[new_c].fd = fd;
             ip_addr_ctor_from_sockaddr(&s->clients[new_c].addr, &addr.a, addrlen);
+            s->clients[new_c].prev_read = 0;
             SLOG(LOG_NOTICE, "New connection from %s to %s", ip_addr_2_str(&s->clients[new_c].addr), s_->name);
         }
     }
@@ -487,12 +492,14 @@ static int sock_tcp_recv(struct sock *s_, fd_set *set, sock_receiver *receiver, 
     // Now do we have actual incoming datas?
     for (unsigned c = 0; c < NB_ELEMS(s->clients); c++) {
         if (c == new_c) continue;   // avoids asking for a fd we didn't set (although this would work on glibc)
-        if (s->clients[c].fd >= 0 && FD_ISSET(s->clients[c].fd, set)) {
-            // receive it
-            SLOG(LOG_DEBUG, "Reading on socket %s (cnx to %s)", s_->name, ip_addr_2_str(&s->clients[c].addr));
-            msg_len len;
-            // read the size
-            ssize_t r = read(s->clients[c].fd, &len, sizeof(len));
+        if (s->clients[c].fd < 0 || !FD_ISSET(s->clients[c].fd, set)) continue;
+
+        SLOG(LOG_DEBUG, "Reading on socket %s (cnx to %s)", s_->name, ip_addr_2_str(&s->clients[c].addr));
+
+        // start or continue reading previous msg.
+        if (s->clients[c].prev_read < sizeof(msg_len)) {
+            // We still have not read the msg length
+            ssize_t const r = read(s->clients[c].fd, s->clients[c].read_buf + s->clients[c].prev_read, sizeof(msg_len));
             if (r < 0) {
                 SLOG(LOG_ERR, "Cannot read a message size from %s, client %d: %s", s_->name, c, strerror(errno));
 fail:
@@ -503,25 +510,35 @@ fail:
                 SLOG(LOG_INFO, "closing connection %d of %s", c, s_->name);
                 goto fail;
             }
+            s->clients[c].prev_read += (size_t)r;
+        }
 
-            if (len > SOCK_MAX_MSG_SIZE) {
-                SLOG(LOG_ERR, "Message size from %s (%zu) bigger than max expected message size (" STRIZE(SOCK_MAX_MSG_SIZE) ")!", s_->name, (size_t)len);
-                goto fail;
-            }
-            // then the msg
-            uint8_t buf[len];
-            r = read(s->clients[c].fd, buf, len);
-            if (r < 0) {
-                SLOG(LOG_ERR, "Cannot read from %s, client %d: %s", s_->name, c, strerror(errno));
-                goto fail;
-            } else if (r == 0) {
-                SLOG(LOG_INFO, "closing connection %d of %s (2)", c, s_->name);
-                goto fail;
-            } else {
-                SLOG(LOG_DEBUG, "read %zd bytes out of %s", r, s_->name);
-                int err = receiver(s_, len, buf, &local_ip, user_data);
-                if (err) return err;
-            }
+        // now if we have read the whole msg_len, proceed with reading the msg itself
+        msg_len len;
+        memcpy(&len, s->clients[c].read_buf, sizeof(msg_len));
+
+        if (len > sizeof(s->clients[c].read_buf)-sizeof(msg_len)) {
+            SLOG(LOG_ERR, "Message size from %s (%zu) bigger than max expected message size (" STRIZE(SOCK_MAX_MSG_SIZE) " - msg_len)!", s_->name, (size_t)len);
+            goto fail;
+        }
+        // then the msg (notice we may have already received the beginning of it)
+        size_t const rest = (sizeof(msg_len) + len) - s->clients[c].prev_read;
+        ssize_t const r = read(s->clients[c].fd, s->clients[c].read_buf + s->clients[c].prev_read, rest);
+        if (r < 0) {
+            SLOG(LOG_ERR, "Cannot read %zu bytes from %s, client %d: %s", rest, s_->name, c, strerror(errno));
+            goto fail;
+        } else if (r == 0) {
+            SLOG(LOG_INFO, "closing connection %d of %s (2)", c, s_->name);
+            goto fail;
+        }
+
+        if ((size_t)r < rest) {
+            s->clients[c].prev_read += (size_t)r;
+        } else {
+            SLOG(LOG_DEBUG, "read msg of %zu bytes out of %s", (size_t)len, s_->name);
+            int err = receiver(s_, len, s->clients[c].read_buf + sizeof(msg_len), &local_ip, user_data);
+            s->clients[c].prev_read = 0;
+            if (err) return err;
         }
     }
 

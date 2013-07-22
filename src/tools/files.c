@@ -216,11 +216,23 @@ int file_writev(int fd, struct iovec *iov, int iovcnt)
 
     while (1) {
         ssize_t ret = writev(fd, iov, iovcnt);
-        if (ret >= 0) break;
-        if (errno != EINTR) {
-            SLOG(LOG_ERR, "Cannot writev %d IOvectors onto fd %d: %s", iovcnt, fd, strerror(errno));
-            return -1;
+        if (ret < 0) {
+            if (errno == EINTR) {
+                ret = 0;    // retry
+            } else {
+                SLOG(LOG_ERR, "Cannot writev %d IOvectors onto fd %d: %s", iovcnt, fd, strerror(errno));
+                return -1;
+            }
         }
+        while ((size_t)ret >= iov->iov_len) {
+            ret -= iov->iov_len;
+            iov ++;
+            iovcnt --;
+        }
+        assert(iovcnt >= 0);
+        if (0 == iovcnt) break; // we are done
+        iov->iov_base = iov->iov_base + ret;
+        iov->iov_len -= (size_t)ret;
     }
 
     return 0;
