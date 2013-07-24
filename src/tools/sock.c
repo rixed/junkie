@@ -59,11 +59,13 @@ static void sock_ctor(struct sock *s, struct sock_ops const *ops)
 {
     SLOG(LOG_DEBUG, "Construct sock@%p", s);
     s->ops = ops;
+    bench_event_ctor(&s->sending, tempstr_printf("Sending to %p", s));  // to bad we have not always the name at this point
 }
 
 static void sock_dtor(struct sock *s)
 {
     SLOG(LOG_DEBUG, "Destruct sock %s", s->name);
+    bench_event_dtor(&s->sending);
 }
 
 /*
@@ -288,6 +290,7 @@ static int sock_udp_send(struct sock *s_, void const *buf, size_t len)
 
     SLOG(LOG_DEBUG, "Sending %zu bytes to %s (fd %d)", len, s_->name, i_->fd[0]);
 
+    uint64_t const start = bench_event_start();
     if (i_->nb_fds < 1 || -1 == send(i_->fd[0], buf, len, MSG_DONTWAIT)) {
         TIMED_SLOG(LOG_ERR, "Cannot send %zu bytes into %s: %s", len, s_->name, strerror(errno));
         if (0 != sock_inet_client_connect(i_)) {
@@ -295,6 +298,7 @@ static int sock_udp_send(struct sock *s_, void const *buf, size_t len)
         }
         return sock_udp_send(s_, buf, len);
     }
+    bench_event_stop(&s_->sending, start);
     return 0;
 }
 
@@ -445,6 +449,7 @@ static int sock_tcp_send(struct sock *s_, void const *buf, size_t len)
         { .iov_base = &msg_len, .iov_len = sizeof(msg_len), },
         { .iov_base = (void *)buf, .iov_len = len, },
     };
+    uint64_t const start = bench_event_start();
     if (i_->nb_fds < 1 || -1 == file_writev(i_->fd[0], iov, NB_ELEMS(iov))) {
         TIMED_SLOG(LOG_ERR, "Cannot send %zu bytes into %s: %s", len, s_->name, strerror(errno));
         if (0 != sock_inet_client_connect(i_)) {
@@ -452,6 +457,7 @@ static int sock_tcp_send(struct sock *s_, void const *buf, size_t len)
         }
         return sock_tcp_send(s_, buf, len);
     }
+    bench_event_stop(&s_->sending, start);
     return 0;
 }
 
@@ -660,10 +666,12 @@ static int sock_unix_send(struct sock *s_, void const *buf, size_t len)
 
     SLOG(LOG_DEBUG, "Sending %zu bytes to %s (fd %d)", len, s->sock.name, s->fd);
 
+    uint64_t const start = bench_event_start();
     if (-1 == send(s->fd, buf, len, 0)) {
         TIMED_SLOG(LOG_ERR, "Cannot send %zu bytes into %s: %s", len, s->sock.name, strerror(errno));
         return -1;
     }
+    bench_event_stop(&s_->sending, start);
     return 0;
 }
 
@@ -871,7 +879,10 @@ static int sock_file_send(struct sock *s_, void const *buf, size_t len)
         { .iov_base = &msg_len, .iov_len = sizeof(msg_len), },
         { .iov_base = (void *)buf, .iov_len = len, },
     };
-    return file_writev(s->fd, iov, NB_ELEMS(iov));
+    uint64_t const start = bench_event_start();
+    int err = file_writev(s->fd, iov, NB_ELEMS(iov));
+    if (!err) bench_event_stop(&s_->sending, start);
+    return err;
 }
 
 static int sock_file_recv(struct sock *s_, fd_set *set, sock_receiver *receiver, void *user_data)
@@ -1506,6 +1517,7 @@ void sock_init(void)
     if (inited++) return;
     log_category_sock_init();
     mallocer_init();
+    bench_init();
     ext_init();
     ext_param_bind_v6_as_v6_init();
 
@@ -1556,4 +1568,5 @@ void sock_fini(void)
     log_category_sock_fini();
     mallocer_fini();
     ext_fini();
+    bench_fini();
 }

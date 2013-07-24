@@ -13,6 +13,7 @@
 #include <junkie/config.h>
 #include <junkie/tools/ip_addr.h>
 #include <junkie/tools/ext.h>
+#include <junkie/tools/bench.h>
 
 /** @file
  * @brief Tools to send/receive message via all kind of sockets
@@ -57,6 +58,7 @@ struct sock {
         void (*del)(struct sock *);
     } const *ops;
     char name[64];
+    struct bench_event sending;
 };
 
 // Constructors
