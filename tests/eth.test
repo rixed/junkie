@@ -1,10 +1,11 @@
 #!/bin/sh
 
 NAME="Ethernet"
-PCAPS="pcap/eth/stp_cdp.pcap"
+PCAPS="pcap/eth/stp_cdp.pcap pcap/eth/qinq.pcap"
 filter() {
-	grep '^Ethernet' | cut -d' ' -f 2-
+	grep -E '^(Ethernet|ARP)'
 }
 OUTPUT="eth.out"
+CMDLINE="(set-collapse-vlans #f)"
 
 . "$srcdir/dump_test"

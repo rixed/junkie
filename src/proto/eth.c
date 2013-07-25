@@ -81,11 +81,14 @@ char const *eth_addr_2_str(unsigned char const addr[ETH_ADDR_LEN])
 char const *eth_proto_2_str(unsigned protocol)
 {
     switch (protocol) {
-        case ETH_PROTO_IPv4:   return "IPv4";
-        case ETH_PROTO_IPv6:   return "IPv6";
-        case ETH_PROTO_ARP:    return "ARP";
-        case ETH_PROTO_8021Q:  return "8021.Q";
-        case ETH_PROTO_ERSPAN: return "ERSPAN";
+        case ETH_PROTO_IPv4:     return "IPv4";
+        case ETH_PROTO_IPv6:     return "IPv6";
+        case ETH_PROTO_ARP:      return "ARP";
+        case ETH_PROTO_8021Q:    return "8021.Q";
+        case ETH_PROTO_8021QinQ:
+        case ETH_PROTO_8021QinQ_alt:
+                                 return "QinQ";
+        case ETH_PROTO_ERSPAN:   return "ERSPAN";
         default:
             return tempstr_printf("0x%x", protocol);
     }
@@ -213,7 +216,7 @@ static enum proto_parse_status eth_parse(struct parser *parser, struct proto_inf
         // We dont care about the source MAC being funny
     }
 
-    if (h_proto == ETH_PROTO_8021Q) {   // Take into account 802.1q vlan tag
+    while (h_proto == ETH_PROTO_8021Q || h_proto == ETH_PROTO_8021QinQ || h_proto == ETH_PROTO_8021QinQ_alt) {   // Take into account 802.1q vlan tag (with possible QinQ)
         if (cap_len < ethhdr_len + 4) return PROTO_TOO_SHORT;
         struct eth_vlan {
             uint16_t vlan_id, h_proto;
