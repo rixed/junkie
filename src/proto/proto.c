@@ -64,6 +64,14 @@ void proto_ctor(struct proto *proto, struct proto_ops const *ops, char const *na
 
     proto->ops = ops;
     proto->name = name;
+    proto->stack_name = objalloc_strdup(name);
+    // We don't want '/' in the name used for protostacks, so we keep only "FOO" from "FOO/UDP", for instance
+    for (unsigned i = 0; proto->stack_name[i] != '\0'; i++) {
+        if (proto->stack_name[i] == '/') {
+            proto->stack_name[i] = '\0';
+            break;
+        }
+    }
     proto->enabled = true;
     proto->code = code;
     proto->nb_frames = 0;
@@ -115,6 +123,8 @@ void proto_dtor(struct proto *proto)
     }
 
     bench_event_dtor(&proto->parsing);
+
+    objfree(proto->stack_name);
 
     LIST_REMOVE(proto, entry);
     mutex_dtor(&proto->lock);

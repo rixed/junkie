@@ -34,9 +34,10 @@ static char const *proto_name(struct proto_info const *info)
         return pipi->protocol.name;
     }
 
-    return info->parser->proto->name;
+    return info->parser->proto->stack_name;
 }
 
+// return true if stack in last was indeed deeper
 static bool update_if_deeper(struct proto_stack *stack, int *len, unsigned depth, struct proto_info const *last)
 {
     if (! last) {
