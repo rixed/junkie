@@ -193,7 +193,7 @@ static char const *skinny_msgid_2_str(enum skinny_msgid id)
 
 static char const *skinny_call_state_2_str(enum skinny_call_state st) {
     switch (st) {
-        case SKINNY_OFF_HOOK: return "Off hook";
+        case SKINNY_OFF_HOOK: return "off hook";
         case SKINNY_ON_HOOK: return "on hook";
         case SKINNY_RING_OUT: return "ring out";
         case SKINNY_RING_IN: return "ring in";
@@ -332,6 +332,7 @@ static int read_channel(struct skinny_parser *parser, unsigned from, struct skin
     try_cnxtrack(parser, now);
 
     // Copy these into the info block
+    SLOG(LOG_DEBUG, "Got media info");
     info->set_values |= SKINNY_MEDIA_CNX;
     info->media_ip = parser->peer[from];
     info->media_port = parser->port[from];
@@ -369,6 +370,7 @@ static enum proto_parse_status skinny_sbuf_parse(struct parser *parser, struct p
     uint32_t msg_len = cursor_read_u32le(&curs);
     uint32_t header_ver = cursor_read_u32le(&curs);
     enum skinny_msgid msg_id = cursor_read_u32le(&curs);
+    SLOG(LOG_DEBUG, "New SKINNY msg of size %"PRIu32", msgid=0x%"PRIx32, msg_len, msg_id);
     if (header_ver != SKINNY_BASIC && header_ver != SKINNY_CM7_TYPE_A && header_ver != SKINNY_CM7_TYPE_B && header_ver != SKINNY_CM7_TYPE_C) return PROTO_PARSE_ERR;
     if (msg_len < 4 || msg_len > SKINNY_MAX_HDR_SIZE /* guestimated */) return PROTO_PARSE_ERR;
     msg_len -= 4;   // since the msg_id was counted
@@ -388,6 +390,7 @@ static enum proto_parse_status skinny_sbuf_parse(struct parser *parser, struct p
             info.call_state = cursor_read_u32le(&curs);
             info.line_instance = cursor_read_u32le(&curs);
             info.call_id = cursor_read_u32le(&curs);
+            SLOG(LOG_DEBUG, "New call state: %s", skinny_call_state_2_str(info.call_state));
             break;
         case SKINNY_MGR_CLOSE_RECV_CHANNEL:
         case SKINNY_MGR_STOP_MEDIA_TRANSMIT:
