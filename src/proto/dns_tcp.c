@@ -76,7 +76,7 @@ void dns_tcp_init(void)
         .parser_new = uniq_parser_new,
         .parser_del = uniq_parser_del,
     };
-    uniq_proto_ctor(&uniq_proto_dns_tcp, &ops, "DNS", PROTO_CODE_DNSoTCP);
+    uniq_proto_ctor(&uniq_proto_dns_tcp, &ops, "DNS/TCP", PROTO_CODE_DNSoTCP);
     port_muxer_ctor(&dns_tcp_port_muxer, &tcp_port_muxers, DNS_PORT, DNS_PORT, proto_dns_tcp);
     port_muxer_ctor(&mdns_tcp_port_muxer, &tcp_port_muxers, MDNS_PORT, MDNS_PORT, proto_dns_tcp);
     port_muxer_ctor(&nbns_tcp_port_muxer, &tcp_port_muxers, NBNS_PORT, NBNS_PORT, proto_dns_tcp);
