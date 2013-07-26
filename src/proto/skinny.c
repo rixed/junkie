@@ -312,9 +312,10 @@ static void try_cnxtrack(struct skinny_parser *parser, struct timeval const *now
     parser->media_set[FROM_MGR] = parser->media_set[FROM_STATION] = false;
 }
 
-static int read_channel(struct skinny_parser *parser, unsigned from, struct skinny_proto_info *info, struct cursor *curs, struct timeval const *now)
+static enum proto_parse_status read_channel(struct skinny_parser *parser, unsigned from, struct skinny_proto_info *info, struct cursor *curs, struct timeval const *now)
 {
     assert(from == FROM_MGR || from == FROM_STATION);
+    if (curs->cap_len < 4+16+4) return PROTO_TOO_SHORT;
     uint32_t ip_version = cursor_read_u32le(curs);
     if (ip_version == 0) {  // v4
         uint32_t ip = cursor_read_u32(curs);
@@ -325,7 +326,7 @@ static int read_channel(struct skinny_parser *parser, unsigned from, struct skin
         cursor_drop(curs, 16);
     } else {
         SLOG(LOG_DEBUG, "Invalid IP version (%d)", ip_version);
-        return -1;
+        return PROTO_PARSE_ERR;
     }
     parser->port[from] = cursor_read_u32le(curs);
     parser->media_set[from] = true;
@@ -337,21 +338,23 @@ static int read_channel(struct skinny_parser *parser, unsigned from, struct skin
     info->media_ip = parser->peer[from];
     info->media_port = parser->port[from];
 
-    return 0;
+    return PROTO_OK;
 }
 
-static int read_string(char *dest, size_t max_size, struct cursor *curs)
+static enum proto_parse_status read_string(char *dest, size_t max_size, struct cursor *curs)
 {
     // This is an error to not reach '\0' before the end of the cursor
     while (curs->cap_len > 0 && curs->head[0] != '\0') {
         if (max_size > 1) {
             max_size --;
             *dest ++ = cursor_read_u8(curs);
+        } else {    // we suppose, if this does not fit in max_size, that we are not parsing Skinny
+            return PROTO_PARSE_ERR;
         }
     }
-    if (! curs->cap_len) return -1;
+    if (! curs->cap_len) return PROTO_TOO_SHORT;
     *dest ++ = cursor_read_u8(curs);    // the nul
-    return 0;
+    return PROTO_OK;
 }
 
 static enum proto_parse_status skinny_sbuf_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
@@ -380,12 +383,14 @@ static enum proto_parse_status skinny_sbuf_parse(struct parser *parser, struct p
     skinny_proto_info_ctor(&info, parser, parent, SKINNY_MIN_HDR_SIZE, msg_len, msg_id);
     switch (msg_id) {
         case SKINNY_STATION_KEY_PAD_BUTTON:
+            if (curs.cap_len < 12) return PROTO_TOO_SHORT;
             info.set_values |= SKINNY_NEW_KEY_PAD | SKINNY_LINE_INSTANCE | SKINNY_CALL_ID;
             info.new_key_pad = cursor_read_u32le(&curs);
             info.line_instance = cursor_read_u32le(&curs);
             info.call_id = cursor_read_u32le(&curs);
             break;
         case SKINNY_MGR_CALL_STATE:
+            if (curs.cap_len < 12) return PROTO_TOO_SHORT;
             info.set_values |= SKINNY_CALL_STATE | SKINNY_LINE_INSTANCE | SKINNY_CALL_ID;
             info.call_state = cursor_read_u32le(&curs);
             info.line_instance = cursor_read_u32le(&curs);
@@ -394,47 +399,56 @@ static enum proto_parse_status skinny_sbuf_parse(struct parser *parser, struct p
             break;
         case SKINNY_MGR_CLOSE_RECV_CHANNEL:
         case SKINNY_MGR_STOP_MEDIA_TRANSMIT:
+            if (curs.cap_len < 8) return PROTO_TOO_SHORT;
             info.set_values |= SKINNY_CONFERENCE_ID | SKINNY_PASS_THRU_ID;
             info.conf_id = cursor_read_u32le(&curs);
             info.pass_thru_id = cursor_read_u32le(&curs);
             break;
         case SKINNY_MGR_START_MEDIA_TRANSMIT:
+            if (curs.cap_len < 8) return PROTO_TOO_SHORT;
             info.set_values |= SKINNY_CONFERENCE_ID | SKINNY_PASS_THRU_ID;
             info.conf_id = cursor_read_u32le(&curs);
             info.pass_thru_id = cursor_read_u32le(&curs);
-            if (0 != read_channel(skinny_parser, FROM_MGR, &info, &curs, now)) return PROTO_PARSE_ERR;
+            enum proto_parse_status status = read_channel(skinny_parser, FROM_MGR, &info, &curs, now);
+            if (PROTO_OK != status) return status;
             break;
-        case SKINNY_STATION_OPEN_RECV_CHANNEL_ACK:;
-            uint32_t status = cursor_read_u32le(&curs);
-            if (status == 0 /* Ok */) {
-                if (0 != read_channel(skinny_parser, FROM_STATION, &info, &curs, now)) return PROTO_PARSE_ERR;
+        case SKINNY_STATION_OPEN_RECV_CHANNEL_ACK:
+            if (curs.cap_len < 4) return PROTO_TOO_SHORT;
+            uint32_t open_status = cursor_read_u32le(&curs);
+            if (open_status == 0 /* Ok */) {
+                enum proto_parse_status status = read_channel(skinny_parser, FROM_STATION, &info, &curs, now);
+                if (PROTO_OK != status) return status;
                 info.set_values |= SKINNY_PASS_THRU_ID;
+                if (curs.cap_len < 4) return PROTO_TOO_SHORT;
                 info.pass_thru_id = cursor_read_u32le(&curs);
             }
             break;
         case SKINNY_MGR_OPEN_RECV_CHANNEL:
+            if (curs.cap_len < 8) return PROTO_TOO_SHORT;
             info.set_values |= SKINNY_CONFERENCE_ID | SKINNY_PASS_THRU_ID;
             info.conf_id = cursor_read_u32le(&curs);
             info.pass_thru_id = cursor_read_u32le(&curs);
             break;
         case SKINNY_MGR_DIALED_NUMBER:
+#           define DIALED_NUMBER_SIZE 24
+            if (curs.cap_len < DIALED_NUMBER_SIZE+8) return PROTO_TOO_SHORT;
             info.set_values |= SKINNY_CALLED_PARTY | SKINNY_LINE_INSTANCE | SKINNY_CALL_ID;
             // 24 chars, terminated with 0 (if fits)
-#           define DIALED_NUMBER_SIZE 24
             snprintf(info.called_party, sizeof(info.called_party), "%.*s", (int)DIALED_NUMBER_SIZE, curs.head);
             cursor_drop(&curs, DIALED_NUMBER_SIZE);
             info.line_instance = cursor_read_u32le(&curs);
             info.call_id = cursor_read_u32le(&curs);
             break;
         case SKINNY_MGR_CALL_INFO:
+            if (curs.cap_len < 8 + 4 + 5*4) return PROTO_TOO_SHORT;
             info.set_values |= SKINNY_CALLING_PARTY | SKINNY_CALLED_PARTY | SKINNY_LINE_INSTANCE | SKINNY_CALL_ID;
             info.line_instance = cursor_read_u32le(&curs);
             info.call_id = cursor_read_u32le(&curs);
             cursor_drop(&curs, 4 + 5*4);  // drop Call Type and 5 unknown fields
             // From now on, informations are nul terminated strings
-            if (0 != read_string(info.calling_party, sizeof(info.calling_party), &curs)) return PROTO_PARSE_ERR; // Calling party
-            if (0 != read_string(info.called_party,  sizeof(info.called_party),  &curs)) return PROTO_PARSE_ERR; // Calling party voice mailbox, skip it
-            if (0 != read_string(info.called_party,  sizeof(info.called_party),  &curs)) return PROTO_PARSE_ERR; // Called party
+            if (PROTO_OK != (status = read_string(info.calling_party, sizeof(info.calling_party), &curs))) return status; // Calling party
+            if (PROTO_OK != (status = read_string(info.called_party,  sizeof(info.called_party),  &curs))) return status; // Calling party voice mailbox, skip it
+            if (PROTO_OK != (status = read_string(info.called_party,  sizeof(info.called_party),  &curs))) return status; // Called party
             // discard the rest of informations
             break;
         default:
