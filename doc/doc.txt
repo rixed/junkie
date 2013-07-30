@@ -75,7 +75,7 @@ tried Bro before Junkie. Also, Bro seams to have a broader community of users.
 
 Disclamer: I never used bro
 
-== Limitations
+=== Limitations
 
 As a realtime protocol analyzer, Junkie is limited in what protocols it
 supports and how deep it inspects packets. Here is a quick overview of the
@@ -118,6 +118,7 @@ Running configure might tell you that you need:
 - libssl
 - libpcap
 - libltdl (aka libtool runtime lib)
+- guile-agentx (https://github.com/securactive/guile-agentx.git)
 
 Compiling with GCC is recommended.
 
@@ -125,11 +126,15 @@ Then it's a matter of './configure && make && sudo make install'.
 Optionally, 'sudo make setcap' will give any user the permission to sniff
 traffic (like anyone else tapping on the wire).
 
-== Running junkie
+NOTE: guile-agentx is used to make Junkie a SNMP subagent.
+      Most users won't need it and thus it should be made optional.
+
+
+== Running Junkie
 
 === Command line
 
-By default, Junkie loads no plugins nor sniffs any device, thus doing nothing.
+By default, Junkie loads no plugins nor sniffs no device, thus doing nothing.
 You must use the command line to achieve anything. I will not document the
 command line with too much details here and will mention only the few options
 you're likely to start with; try +--help+ later for a comprehensive list of
@@ -186,7 +191,7 @@ host +192.168.1.2+ from the pcap file named "file.pcap" are dumped, while in
 the later case only packets from host +192.168.1.2+ are dumped, whatever the
 packet source.
 
-== Plugins
+=== Plugins
 
 Junkie is designed to be extensible but can also be useful all by itself
 thanks to the few plugins that ships with it.
@@ -201,7 +206,7 @@ for with:
     junkie -p pluginname --help
 
 
-=== Dumper
+==== Dumper
 
 Dumps to stdout every packets, not unlike tcpdump.
 
@@ -229,7 +234,7 @@ Example:
 Much more verbose than `tcpdump` but also easier to read.
 
 
-=== Writer
+==== Writer
 
 Save packets in a pcap (or optionally, CSV) file. Has many options to control
 what packets to save.
@@ -257,12 +262,12 @@ filter available with the +-f+ option).
 Netmatch language is somewhat unique in filtering tools in that it allow to
 store a state and invoque any C/Scheme functions. More on that later.
 
-=== Rater
+==== Rater
 
 Similar to writer but triggers the save based on the rate of packets. Useful
 to find out what's causes some burst in bandwidth for instance.
 
-=== Packetogram
+==== Packetogram
 
 Display the distribution of packet sizes. Useful to find out the various MTU
 used in a LAN, for instance.
@@ -316,7 +321,7 @@ The right half of the screen displays an histogram of packet sizes, revealing
 that somewhere in the tapped traffic we have an MTU of 800 bytes only.
 
 
-=== NetTop
+==== NetTop
 
 Display the heavy hitters, not unlike the famous nettop.
 You can choose to group flows by IPs, MACs, ports, and so on (see the +help+).
@@ -379,7 +384,11 @@ socket` view to a `group by protocols + MACs` view:
             46       4822        Ethernet/IPv4/GRE/IPv4/UDP   b4:a5:e3:4d:5c:00 -> 88:44:e1:1d:6d:00
             16       3507    Ethernet/IPv4/GRE/IPv4/UDP/DNS   88:44:e1:1d:6d:00 -> b4:a5:e3:4d:5c:00
 
-=== Duplicogram
+NOTE: All addresses in this doc were properly anonymized.
+      There is no use to try to find out what network was used.
+      Don't even try, shhhh.
+
+==== Duplicogram
 
 Display the distribution of packet duplicates (according to the time interval
 between them). Useful to find out how many sources of duplication there are.
@@ -443,7 +452,7 @@ Typical display:
 Here we have less than 0.1% of dups, arriving after approximately 5us. The
 closest switch we mirror traffic from is certainly the only source of duplication.
 
-=== Os Detect
+==== Os Detect
 
 Display the detected operating system per IP addresses.
 
@@ -462,9 +471,9 @@ Example:
 
 To detect OS junkie uses only the TCP fingerprints taken from p0f. If you need
 only this information you'd rather be using p0f directly, which provides more
-accurate results.
+accurate results vsince it uses other sources of informations.
 
-=== ARP graph
+==== ARP graph
 
 Output periodically a dot schema of communicating peers.
 
@@ -472,16 +481,16 @@ Example:
 
     junkie -p arpgraph -r file.pcap
 
-=== Serializer
+==== Serializer
 
 Used to send parsed informations to another junkie through a socket.
 
 
+=== Taking full control with Guile
+
 Although you can use a plugin to perform anything, this is not the way you
 will want to run Junkie, though. Instead, you will want to use its extension
 language (Guile) to control the sniffer from the inside.
-
-== Taking full control with Guile
 
 Junkie is linked with the Guile Scheme implementation and roughly a hundred of
 parameters/functions are available from there. Also, additional
@@ -550,7 +559,7 @@ You got the idea (or you need
 http://www.gnu.org/software/guile/manual/html_node/index.html[a quick
 refresher about Scheme syntax]).
 
-Notice that you don't want to keep this 29000 server _running as root and
+Notice that you do not want to keep this 29000 server _running as root and
 executing any scheme command_ any longer.
 
 The following section suppose you are somewhat familiar with Scheme and
@@ -559,10 +568,15 @@ Guile.
 
 == Design
 
+As already stated, this network sniffer was build to serve as the fondation
+for further softwares rather than as a complete end product suitable for end
+user hands. This is thus no wonder the design description takes half the
+user manual.
+
 === Main flow of execution
 
-Junkie mainly parses packets one after another in order to provide any
-plugin(s) with unscrambled informations instead of raw bytes:
+Roughly, Junkie parses packets one after another and provide any plugin(s)
+with unscrambled informations instead of raw bytes:
 
 [graphviz]
 -------------------------------------------------------------------------------
@@ -574,11 +588,15 @@ digraph G {
 }
 -------------------------------------------------------------------------------
 
-More precisely, junkie will first try to eliminate duplicate packets and then
-pass each one into a sequence of specialized parsers, reassembling/reordering
-in the process and extracting the most useful informations along the way into
-simple C structures where the plugin can easily get them. Here is an example
-showing the parsing of an HTTP packet:
+Junkie internals can be decomposed further into several stages: sniffing,
+deduplication, and parse (recursively) until no payload is left, no parser can
+consume it or the parsing must be put on hold for reordering/reassembling.  In
+the process, interested plugins can request to be called back at various
+points (but generally at the end of the parse), with the most useful
+information about the traffic readily available as simple C structures.
+
+Here is an illustration of an HTTP packet being parsed and the informations
+that are extracted from each protocol layer:
 
 [graphviz]
 -------------------------------------------------------------------------------
@@ -618,6 +636,45 @@ digraph G {
 where the dashed arrows mean that this call can be deferred until more data is
 available (for IP reassembly, for TCP reordering or for HTTP headers to be complete...)
 
+=== Sniffing
+
+Sniffing is performed with libpcap. Anything that can be opened by libpcap
+(network devices, pcap file) is a suitable packet source (see +struct
+pkt_source+ which wraps a pcap_t handler, various statistics, a pointer
+to the structures needed for deduplication and so on).
+
+NOTE: Initially, Junkie was used to sniff packets without the help of libpcap.
+      It was found that libpcap was more efficient and portable.
+      And we got pcap file support for free.
+
+A libpcap handle can be read by only one thread simultaneously, so we bound
+only one thread to each opened packet source, yet we want multiple CPU to
+parse sniffed packets simultaneously. The traditional technique at this point
+consists at splitting traffic in this thread into several packet rings read by
+that many other threads. This method have the advantage that, by splitting
+according to socket pairs, it gives the illusion that each parsing thread can
+then proceed to parse its packets independently of the others.  This is only
+an illusion, though, as soon as you add connection tracking.  Also, this makes
+it hard (and in extreme cases impossible) to split equal shares of the traffic
+(some threads will work more than others).
+
+We chose not to go this route in Junkie. To split the traffic, we use the in
+kernel packet filtering facility and merely opens several handles with various
+bitmask applied to some random bits of the packets (such as IP checksum). This
+is very efficient since it uses packet filtering that's already there and
+optimized, with no other bottleneck than the network driver, and with
+carefully chosen bitmask you can give equal share of work to any number of
+threads (that is a power of two).
+
+But it has the important drawback that these threads will now handle packets
+at random, there is no more private state possible without proper locking.
+
+NOTE: By applying the packet filter bitmask on a non random field such as IP
+      addresses one could theoretically obtain as few lock contentions than
+      with the former "one pool per socket pair" technique, but again
+      workload between threads wouldn't be evenly distributed.
+
+
 === Deduplication
 
 In some settings, like when port mirroring is used to gather traffic to
@@ -627,8 +684,7 @@ eliminated.
 
 In order to be able to eliminate duplicate frames quickly and efficiently,
 Junkie keeps a list of MD4 digests of previously received frames and some per
-network interface statistics. As several packet sources may use the same
-underlying network device we have three data structures taking part in
+network interface statistics. See the various data structures taking part in
 deduplication:
 
 [graphviz]
@@ -669,6 +725,9 @@ digraph G {
 }
 -------------------------------------------------------------------------------
 
+CAUTION: distinct packet sources frequently use the same underlying network
+         device and thus share the same digest queue.
+
 The only parameter governing deduplication is the maximum delay between two
 dup frames, which is set by default to 100ms (+max-dup-delay+ from Guile).
 Junkie will never check digests older than this (at the contrary these old
@@ -676,23 +735,80 @@ digests will be freed from memory). As a consequence, setting this parameter
 to 0 will disable deduplication altogether.
 
 For each incoming packet, junkie will compute its MD4 digest (masking out some
-field such as IP's TTL or, optionally, the 802.1q vlan tag), and compare it to
-all previous digests, up to +max-dup-delay+. If a packet with same digest and
-which came from the same interface is found then the incoming one is merely
-discarded (Note: as usual we do not use a single hash of digests but one per
-CPU to avoid locking).
+field such as IP's TTL or, optionally, the 802.1q vlan tag), and lookup this
+digest in the hashtable of all previous recent digests, up to +max-dup-delay+.
+If a packet with same digest and which came from the same interface is found
+then the incoming one is merely discarded.
 
-If network interfaces are to be collapsed into one, then an additional
-deduplication pass is to be performed. Notice that in this case the frame will
-be handled twice: the digest will be computed and stored twice. Yes this is
-considered a bug.
+NOTE: We use MD4 rather than the more popular MD5 because it's faster.
+      We don't care it's not cryptographically secure here.
+
+NOTE: We do not use a single lock to protect the multiple simultaneous
+      modification of a single hash, but rather have a set of locks and hashes,
+      chosen according to the MD4. This is a common pattern in Junkie to
+      reduce lock contention.
+
+Additionally, the user can choose to collapse all interfaces into one (in other
+words, to parse traffic as if packets received from one interface was from the
+same network than those received from another one. If that's the case, then an
+additional deduplication pass is to be performed.
+
+NOTE: In this case the frame will be handled twice: the digest will be
+      computed, looked up and stored twice. Yes this is considered a bug.
+
+Any packet that survives deduplication is thus handled by the topmost parser,
+the "Capture" parser.
+
+
+=== Parsing
+
+Parsing, from a sniffer point of view, is something different than from a
+client or a server. We try to get an idea of what's happening on the wire
+rather than actually handle a conversation with the other peer. This make
+things somewhat simpler because most of the time we do not have to descramble
+exhaustively each messages but jump right to what we are after. Let's take as
+an exemple the well known HTTP protocol: for HTTP we want to report the HTTP
+method, status, URL, some important fields and the body payload. We do not
+care about other things except if it helps us fetch these.
+
+NOTE: This suppose that what you are after corresponds to what the author
+      of the parser was after. If it's not exactly the case, well, at least
+      source code is available.
+
+Most of the time, a parser extract a few informations and handle the rest of
+the payload down to the upper layer parser (if you can figure that out). These
+extracted informations, layers after layers, are stacked on the stack for
+efficiency, where they are available to any plugins that hooked himself in the
+way.
+
+We said the "Capture" parser was the topmost. It represent the pcap frame
+itself, so not a real protocol, but so we can save the packet reception
+timestamp, actual size on wire (since we may have captured only the first
+bytes) and source (as a device number).
+
+NOTE: Yes this choice of a 'device number' was unfortunate. Hopefully it will
+      be replaced for a proper source _name_ in the future.
+
+The "Capture" parser then pass the packet to the Ethernet parser.
+
+NOTE: Choosing this parser according to the pcap device type would be useful.
+
+The Ethernet parser will then extract MAC addresses, VLan tags, and so on,
+then will choose a continuation according to the protocol field (because at
+initialization time other parsers may have registered themselves as
+appropriate for a given protocol identifier).
+
+Before reading more about parsing you have to become familiar with some
+important facilities that are offered to parsers and that are central to the
+parsing process.
+
 
 === Reassembly, reordering and buffering
 
 To be able to chain parsers from the transport layer up to the application
-layers junkie must provide a mecanism to rebuild a stream of bytes from
-fragmented or out of order segments, and to buffer temporarily a payload
-until a complete message is received.
+layers junkie must provide a mechanism to rebuild a stream of bytes from
+fragmented packets or out of order segments, and to buffer temporarily a
+payload until more fragments are received.
 
 Reordering and reassembly are done using the +pkt_wait_list+ facility. For
 instance, the IP parser uses this to reassemble fragmented packets and TCP
@@ -702,15 +818,17 @@ Buffering is achieved through the +streambuf+ facility. For instance, the
 HTTP parser uses this to wait until the HTTP headers are complete before
 parsing them.
 
+
 ==== Packet Waiting Lists
 
 IP, TCP and many other protocols based on UDP can receive packets in the wrong
-order and must reorder the data before calling their subparsers so that those
-can understand their payload.  The basic idea is thus to maintain a list of
-out of order packets, provisioned with all incoming packets and dequeuing the
-head of the list whenever complete. The purpose of this list is thus to
-reorder and wait for missing packets, according to an offset in the stream
-that can be TCP sequence number, IP fragment offset, WTP sequence number...
+order and must reorder the data before calling their subparsers.
+
+The basic idea is thus to maintain an ordered list provisioned with all
+incoming packets and dequeuing the head of the list whenever complete. The
+purpose of this list is thus to reorder and wait for missing packets,
+according to an offset in the stream that can be TCP sequence number, IP
+fragment offset, WTP sequence number...
 
 Once created, the user of a +pkt_wait_list+ can then add data to it using
 +pkt_wait_list_add+, and this function will take care of calling the
@@ -900,25 +1018,38 @@ digraph G {
 Notice that we have actually two buffers: one for each direction (since a
 parser is required to handle both directions).
 
+=== Connection tracking
+
+UDP and TCP parsers make use of a connection tracking facility that allow
+anyone (including a plugin, for what it's worth) to register subparsers for
+given socket pairs that may be seen in the future.
+
+
 === Hooks
 
-There are several hooks here and there for plugins to subscribe to and be sent
-the informations gathered up to there (as well as the whole packet). In
-addition to special purpose hooks implemented by a given parser, all parsers
-have a completion hook (subscribing parsers will be called after the parser
-processed its share of the payload) and there is a global per packet hook that
-will be called once per packet after it's fully parsed.
+Interactions with plugins depends on hooks (a la netfilter), called at
+strategic locations by parsers (typically when a message was received). There
+is also a global per packet hook that's called once every packet parse is
+complete, at deepest protocol stack (so that the plugin receives as much
+informations as available). Plugins that are being called are passed all the
+informations gathered up to there, the full packet (just in case the plugin
+want to inspect it, save it or whatever), and the timestamp of reception (for
+commodity since as previously stated it's already always present in the
+Capture layer, up the stack).
 
-Plugins receive all the informations gathered along the way in a list of C
-structure chained together and usually stored on the stack, as well as the
-origin packet that was undergoing parsing when the callback was called. It's
-not allowed to modify these data but apart from that can do anything.
+It's not allowed to modify these data but apart from that can do anything.
+
+All the informations gathered along the way are passed to plugins as a list of
+C structures chained together and usually stored on the stack.
 
 Be aware that as junkie uses several threads to parse traffic your plugins are
 required to be reentrant, and that you can not count on the fact that similar
 packets (like the ones of the same TCP socket) will be handled by the same
 thread (junkie makes no such assumption nor attempt to guaranty this).
 
+More surprising, the timestamps passed to a plugin will not always be
+increasing (simple example: when two packets were received out of order but
+TCP reordered them).
 
 === Netmatch language
 
