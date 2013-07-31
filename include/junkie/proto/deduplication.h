@@ -36,8 +36,6 @@ void digest_queue_unref(struct digest_queue **);
 
 bool digest_queue_find(struct digest_queue *dq, size_t cap_len, uint8_t *packet, struct timeval const *frame_tv);
 
-// FIXME: deduplication phase should be a proto on its own
-
 struct dedup_proto_info {
     struct proto_info info;
     uint64_t dt;    // delay between dup and original packet

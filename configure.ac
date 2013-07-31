@@ -89,6 +89,7 @@ AC_CONFIG_FILES([
 	plugins/packetogram/Makefile
 	plugins/duplicogram/Makefile
 	plugins/nettop/Makefile
+	plugins/delayogram/Makefile
 	config/Makefile
 	config/cacti/Makefile
 	guile/Makefile
