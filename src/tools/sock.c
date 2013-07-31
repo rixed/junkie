@@ -329,7 +329,7 @@ static int sock_udp_recv(struct sock *s_, fd_set *set, sock_receiver *receiver, 
     struct sock_inet *i_ = DOWNCAST(s_, sock, sock_inet);
 
     for (unsigned fdi = 0; fdi < i_->nb_fds; fdi++) {
-        if (! FD_ISSET(i_->fd[fdi], set)) return 0;
+        if (! FD_ISSET(i_->fd[fdi], set)) continue;
 
         SLOG(LOG_DEBUG, "Reading on socket %s (fd %d)", s_->name, i_->fd[fdi]);
 
@@ -470,29 +470,29 @@ static int sock_tcp_recv(struct sock *s_, fd_set *set, sock_receiver *receiver, 
     // Note: a sock_inet listens on several sockets (for instance, ipv4 + ipv6)
     for (unsigned fdi = 0; fdi < i_->nb_fds; fdi++) {
         // Handle new connections
-        if (FD_ISSET(i_->fd[fdi], set)) {
-            // accept the connection
-            union sockaddr_gen addr;
-            socklen_t addrlen = sizeof(addr);
-            int fd = accept(i_->fd[fdi], &addr.a, &addrlen);
-            if (fd < 0) {
-                SLOG(LOG_ERR, "Cannot accept new connection to %s: %s", s_->name, strerror(errno));
-                continue;
-            }
-            // save it in a free client slot
-            for (new_c = 0; new_c < NB_ELEMS(s->clients); new_c++) {
-                if (s->clients[new_c].fd < 0) break;
-            }
-            if (new_c == NB_ELEMS(s->clients)) {
-                SLOG(LOG_ERR, "Cannot accept new connection to %s: no more available slots", s_->name);
-                continue;
-            }
-            // construct the client
-            s->clients[new_c].fd = fd;
-            ip_addr_ctor_from_sockaddr(&s->clients[new_c].addr, &addr.a, addrlen);
-            s->clients[new_c].prev_read = 0;
-            SLOG(LOG_NOTICE, "New connection from %s to %s", ip_addr_2_str(&s->clients[new_c].addr), s_->name);
+        if (! FD_ISSET(i_->fd[fdi], set)) continue;
+
+        // accept the connection
+        union sockaddr_gen addr;
+        socklen_t addrlen = sizeof(addr);
+        int fd = accept(i_->fd[fdi], &addr.a, &addrlen);
+        if (fd < 0) {
+            SLOG(LOG_ERR, "Cannot accept new connection to %s: %s", s_->name, strerror(errno));
+            continue;
         }
+        // save it in a free client slot
+        for (new_c = 0; new_c < NB_ELEMS(s->clients); new_c++) {
+            if (s->clients[new_c].fd < 0) break;
+        }
+        if (new_c == NB_ELEMS(s->clients)) {
+            SLOG(LOG_ERR, "Cannot accept new connection to %s: no more available slots", s_->name);
+            continue;
+        }
+        // construct the client
+        s->clients[new_c].fd = fd;
+        ip_addr_ctor_from_sockaddr(&s->clients[new_c].addr, &addr.a, addrlen);
+        s->clients[new_c].prev_read = 0;
+        SLOG(LOG_NOTICE, "New connection from %s to %s", ip_addr_2_str(&s->clients[new_c].addr), s_->name);
     }
 
     // Now do we have actual incoming datas?
