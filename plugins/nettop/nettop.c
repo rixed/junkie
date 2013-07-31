@@ -58,6 +58,7 @@ static bool use_port_dst = true;        // key use dest port
 static bool use_proto_stack = true;     // key use protocol stack
 static enum sort_by { PACKETS, VOLUME } sort_by = VOLUME;
 static bool shorten_proto_stack = true; // display only the last component
+static bool bidirectional = false;      // whether or not src/dst fields must be reordered before counting
 
 static char const *current_key_2_str(void)
 {
@@ -107,6 +108,7 @@ static struct cli_opt nettop_opts[] = {
     { { "use-src-port", NULL }, NEEDS_ARG, "use source IP in the key", CLI_SET_BOOL, { .boolean = &use_port_src } },
     { { "use-dst-port", NULL }, NEEDS_ARG, "use dest IP in the key", CLI_SET_BOOL, { .boolean = &use_port_dst } },
     { { "use-proto-stack", NULL }, NEEDS_ARG, "use detected protocol stack in the key", CLI_SET_BOOL, { .boolean = &use_proto_stack } },
+    { { "bidirectional", NULL }, NEEDS_ARG, "bidirectional", CLI_SET_BOOL, { .boolean = &bidirectional } },
     { { "sort-by",      "s" },  NEEDS_ARG, "packets|volume", CLI_SET_ENUM, { .uint = &sort_by } },
 };
 
@@ -147,15 +149,17 @@ static void nettop_key_ctor(struct nettop_key *k, struct proto_info const *last)
     memset(k, 0, sizeof(*k));
     if (use_dev) k->dev_id = cap ? (int)cap->dev_id : -1;
     if (use_vlan) k->vlan_id = eth ? eth->vlan_id : -1;
-    if (use_mac_src) snprintf((char *)k->mac_src, sizeof(k->mac_src), "%."STRIZE(ETH_ADDR_LEN)"s", eth ? (char const *)eth->addr[0]:"");
-    if (use_mac_dst) snprintf((char *)k->mac_dst, sizeof(k->mac_dst), "%."STRIZE(ETH_ADDR_LEN)"s", eth ? (char const *)eth->addr[1]:"");
+    unsigned min = 0;
+    if (bidirectional) min = memcmp(eth->addr+0, eth->addr+1, ETH_ADDR_LEN) <= 0 ? 0:1;
+    if (use_mac_src && eth) memcpy(k->mac_src, eth->addr[ min], ETH_ADDR_LEN);
+    if (use_mac_dst && eth) memcpy(k->mac_dst, eth->addr[!min], ETH_ADDR_LEN);
     if (use_mac_proto) k->mac_proto = eth ? (int)eth->protocol:-1;
-    if (use_ip_src && ip) k->ip_src = ip->key.addr[0];
-    if (use_ip_dst && ip) k->ip_dst = ip->key.addr[1];
+    if (use_ip_src && ip) k->ip_src = ip->key.addr[ min];
+    if (use_ip_dst && ip) k->ip_dst = ip->key.addr[!min];
     if (use_ip_proto) k->ip_proto = ip ? (int)ip->key.protocol:-1;
     if (use_ip_version) k->ip_version = ip ? (int)ip->version:-1;
-    if (use_port_src) k->port_src = ports ? (int)ports->port[0]:-1;
-    if (use_port_dst) k->port_dst = ports ? (int)ports->port[1]:-1;
+    if (use_port_src) k->port_src = ports ? (int)ports->port[ min]:-1;
+    if (use_port_dst) k->port_dst = ports ? (int)ports->port[!min]:-1;
     if (use_proto_stack) (void)proto_stack_update(&k->stack, last);
 }
 
@@ -251,7 +255,8 @@ static char const *nettop_key_2_str(struct nettop_key const *k, unsigned proto_l
         mac_proto_needed = false;
     }
 
-    o += snprintf(s+o, sz-o, "%*s %*s%s%-*s", (int)proto_len, proto_str, (int)src_len, src_str, src_str[0]!='\0' && dst_str[0]!='\0' ? " ->":"", (int)dst_len, dst_str);
+    char const *bidir = bidirectional ? " <->":" ->";
+    o += snprintf(s+o, sz-o, "%*s %*s%s%-*s", (int)proto_len, proto_str, (int)src_len, src_str, src_str[0]!='\0' && dst_str[0]!='\0' ? bidir:"", (int)dst_len, dst_str);
     return s;
 }
 
@@ -390,7 +395,7 @@ static void do_display_top(struct timeval const *now)
     start_counting = *now;
 
     unsigned const proto_len = 10 + (use_proto_stack && !shorten_proto_stack ? 30:0);
-    unsigned const addrs_len = nb_columns - 23 - proto_len - (use_vlan ? 5:0) - (use_dev ? 5:0);
+    unsigned const addrs_len = nb_columns - 23 - proto_len - (use_vlan ? 5:0) - (use_dev ? 5:0) - (bidirectional ? 1:0);
     unsigned const addr_len = (addrs_len - 3) / 2;
     unsigned c = 0;
     printf(REVERSE);
@@ -427,7 +432,7 @@ static void do_display_help(void)
     printf(
         "Most keys control what fields are used to group traffic.\n"
         "Currently, packets are grouped by:\n"
-        "   " BRIGHT "%s" NORMAL "\n"
+        "   " BRIGHT "%s%s" NORMAL "\n"
         "And sorted according to: " BRIGHT "%s" NORMAL "\n"
         "Refresh rate is: " BRIGHT "%.2fs" NORMAL "\n"
         "\n"
@@ -445,12 +450,14 @@ static void do_display_help(void)
         "  " BRIGHT "n" NORMAL "     Toggle usage of protocol stack\n"
         "  " BRIGHT "N" NORMAL "     Display short protocol stack\n"
         "  " BRIGHT "k" NORMAL "     Toggle sort field (volume or packets)\n"
+        "  " BRIGHT "b" NORMAL "     Bidirectional\n"
         "\n"
         "  " BRIGHT "+/-" NORMAL "   Refresh rate twice faster/slower\n"
         "  " BRIGHT "h,H,?" NORMAL " this help screen\n"
         "  " BRIGHT "q" NORMAL "     return to main screen\n"
         "  " BRIGHT "q,^C" NORMAL "  quit\n",
         current_key_2_str(),
+        bidirectional ? " (bidirectional)":"",
         sort_by == VOLUME ? "Volume":"Packets",
         refresh_rate/1000000.);
 }
@@ -472,6 +479,7 @@ static void handle_key(char c)
         case 'v': use_ip_version ^= 1; break;
         case 'n': use_proto_stack ^= 1; break;
         case 'N': shorten_proto_stack ^= 1; break;
+        case 'b': bidirectional ^= 1; break;
         case 'k': sort_by = sort_by == VOLUME ? PACKETS:VOLUME; break;
         case '+': refresh_rate *= 2; break;
         case '-': refresh_rate = MAX(refresh_rate/2, 1000); break;
