@@ -34,11 +34,11 @@ static char const *proto_name(struct proto_info const *info)
         return pipi->protocol.name;
     }
 
-    return info->parser->proto->stack_name;
+    return info->parser->proto->name;
 }
 
 // return true if stack in last was indeed deeper
-static bool update_if_deeper(struct proto_stack *stack, int *len, unsigned depth, struct proto_info const *last)
+static bool update_if_deeper(struct proto_stack *stack, size_t *len, unsigned depth, struct proto_info const *last)
 {
     if (! last) {
         if (depth > stack->depth) {
@@ -51,15 +51,21 @@ static bool update_if_deeper(struct proto_stack *stack, int *len, unsigned depth
 
     if (! update_if_deeper(stack, len, depth+1, last->parent)) return false;
 
-    if (*len < (int)sizeof(stack->name) && last->parent /* Skip 'Capture' */) {
-        *len += snprintf(stack->name + *len, sizeof(stack->name) - *len, "%s%s", *len > 0 ? "/":"", proto_name(last));
+    if (*len < sizeof(stack->name) && last->parent /* Skip 'Capture' */) {
+        // Copy name up to '\0' or '\/'
+        char const *name = proto_name(last);
+        if (*len > 0) stack->name[(*len)++] = '/';
+        while (*name != '\0' && *name != '/' && *len < sizeof(stack->name)-1) {
+            stack->name[(*len)++] = *name ++;
+        }
+        stack->name[*len] = '\0';
     }
     return true;
 }
 
 int proto_stack_update(struct proto_stack *stack, struct proto_info const *last)
 {
-    int len = 0;
+    size_t len = 0;
     return update_if_deeper(stack, &len, 0, last) ? 1:0;
 }
 

@@ -178,7 +178,6 @@ struct proto {
         void (*deserialize)(struct proto_info *, uint8_t const **);
     } const *ops;
     char const *name;       ///< Protocol name, used mainly for pretty-printing
-    char *stack_name;       ///< Same, for when used in the protocol stack (ie. with '/' stripped of name)
     bool enabled;           ///< so that we can disable/enable a protocol at runtime
     enum proto_code {
         PROTO_CODE_CAP, PROTO_CODE_ETH, PROTO_CODE_ARP,
