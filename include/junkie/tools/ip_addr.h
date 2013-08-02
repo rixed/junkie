@@ -52,6 +52,9 @@ bool ip_addr_match_mask(struct ip_addr const *host, struct ip_addr const *net, s
 bool ip_addr_match_range(struct ip_addr const *host, struct ip_addr const *min, struct ip_addr const *max);
 
 /// convert an IP addr into a SCM number
+SCM scm_from_ip_addr_number(struct ip_addr const *ip);
+
+/// convert an IP addr into a SCM pair (FAMILY, number)
 SCM scm_from_ip_addr(struct ip_addr const *);
 
 /// and the other way around

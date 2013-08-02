@@ -409,10 +409,7 @@
       (let ((res (gensymC "to_scm_res")))
         (make-stub
           (string-append
-            "    SCM " res " = scm_cons(\n"
-            "        scm_from_int(" (stub-result stub) "->family),\n"
-            "        scm_from_ip_addr(" (stub-result stub) ")\n"
-            "    );\n")
+            "    SCM " res " = scm_from_ip_addr(" (stub-result stub) ");\n")
           res
           (stub-regnames stub))))))
 
@@ -448,12 +445,11 @@
       (throw 'cannot-fetch-a-subnet))
     (boxed-ref "(struct ip_addr[2])")
     boxed-bind
-    (lambda (stub) ; to-scm (as a list of family, number1, number2)
+    (lambda (stub) ; to-scm (as a pair of ip1, ip2)
       (let ((res (gensymC "to_scm_res")))
         (make-stub
           (string-append
-            "    SCM " res " = scm_list_3(\n"
-            "        scm_from_int((struct ip_addr const *)" (stub-result stub) "->family)\n"
+            "    SCM " res " = scm_cons(\n"
             "        scm_from_ip_addr((struct ip_addr const *)" (stub-result stub) "+0),\n"
             "        scm_from_ip_addr((struct ip_addr const *)" (stub-result stub) "+1)\n"
             "    );\n")

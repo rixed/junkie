@@ -248,7 +248,7 @@ bool ip_addr_match_range(struct ip_addr const *host, struct ip_addr const *min, 
         memcmp(&host->u, &max->u, host->family == AF_INET ? 4:16) <= 0;
 }
 
-SCM scm_from_ip_addr(struct ip_addr const *ip)
+SCM scm_from_ip_addr_number(struct ip_addr const *ip)
 {
     if (ip->family == AF_INET) {
         return scm_from_uint32(ntohl(ip->u.v4.s_addr));
@@ -262,6 +262,11 @@ SCM scm_from_ip_addr(struct ip_addr const *ip)
         uint64_t lo = ((uint64_t)ntohl(w2) << 32ULL) | ntohl(w1);
         return scm_logior(scm_ash(scm_from_uint64(hi), scm_from_uint(64)), scm_from_uint64(lo));
     }
+}
+
+SCM scm_from_ip_addr(struct ip_addr const *ip)
+{
+    return scm_cons(scm_from_int(ip->family), scm_from_ip_addr_number(ip));
 }
 
 int scm_string_2_ip_addr(struct ip_addr *ip, SCM ip_)
