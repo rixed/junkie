@@ -1,0 +1,10 @@
+#!/bin/sh
+
+NAME="DHCP"
+PCAPS="pcap/dhcp/dhcp.pcap"
+filter() {
+	grep '^DHCP'
+}
+OUTPUT="dhcp.out"
+
+. "$srcdir/dump_test"

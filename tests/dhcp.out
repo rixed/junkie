@@ -1,0 +1,11 @@
+-- pcap/dhcp/dhcp.pcap --
+DHCP: head_len=291, payload=0, opcode=request, msg_type=discover, xid=0xd7cb617c, client_ip=unset, client_mac=d4:be:d9:a4:90:82, server=unset
+DHCP: head_len=369, payload=0, opcode=reply, msg_type=offer, xid=0xd7cb617c, client_ip=192.168.10.217, client_mac=d4:be:d9:a4:90:82, server=unset
+DHCP: head_len=303, payload=0, opcode=request, msg_type=request, xid=0xd7cb617c, client_ip=unset, client_mac=d4:be:d9:a4:90:82, server=unset
+DHCP: head_len=369, payload=0, opcode=reply, msg_type=nack, xid=0xd7cb617c, client_ip=192.168.10.217, client_mac=d4:be:d9:a4:90:82, server=unset
+DHCP: head_len=300, payload=0, opcode=request, msg_type=discover, xid=0xfbc8f55c, client_ip=unset, client_mac=d4:be:d9:a6:fc:4a, server=unset
+DHCP: head_len=369, payload=0, opcode=reply, msg_type=offer, xid=0xfbc8f55c, client_ip=192.168.10.9, client_mac=d4:be:d9:a6:fc:4a, server=unset
+DHCP: head_len=300, payload=0, opcode=request, msg_type=request, xid=0xfbc8f55c, client_ip=unset, client_mac=d4:be:d9:a6:fc:4a, server=unset
+DHCP: head_len=369, payload=0, opcode=reply, msg_type=nack, xid=0xfbc8f55c, client_ip=192.168.10.9, client_mac=d4:be:d9:a6:fc:4a, server=unset
+DHCP: head_len=300, payload=0, opcode=request, msg_type=request, xid=0x62c98545, client_ip=unset, client_mac=a4:ba:db:e6:15:f7, server=unset
+DHCP: head_len=369, payload=0, opcode=reply, msg_type=nack, xid=0x62c98545, client_ip=192.168.10.2, client_mac=a4:ba:db:e6:15:f7, server=unset

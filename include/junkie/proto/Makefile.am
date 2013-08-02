@@ -34,4 +34,5 @@ thisinclude_HEADERS = \
 	deduplication.h \
 	erspan.h \
 	ber.h \
-	skinny.h
+	skinny.h \
+	dhcp.h

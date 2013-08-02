@@ -30,7 +30,7 @@ dist_check_SCRIPTS = \
 	netmatch_check4.scm netmatch_check5.scm \
 	netmatch_check6.scm netmatch_check7.scm \
 	sock-check.scm \
-	discovery.test tls.test
+	discovery.test tls.test dhcp.test
 
 TESTS = $(check_PROGRAMS) $(dist_check_SCRIPTS)
 

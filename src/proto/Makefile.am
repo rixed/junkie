@@ -29,7 +29,8 @@ libproto_la_SOURCES = \
 	hook.c \
 	erspan.c \
 	ber.c \
-	skinny.c
+	skinny.c \
+	dhcp.c
 
 libproto_la_LIBADD = ../tools/libjunkietools.la
 libproto_la_LDFLAGS = -export-dynamic
