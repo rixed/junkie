@@ -28,7 +28,12 @@ LOG_CATEGORY_DEF(bench)
 #undef LOG_CAT
 #define LOG_CAT bench_log_category
 
+#ifdef WITH_BENCH
 extern inline uint64_t rdtsc(void);
+extern inline void bench_event_fire(struct bench_atomic_event *);
+extern inline uint64_t bench_event_start(void);
+extern inline void bench_event_stop(struct bench_event *, uint64_t);
+#endif
 
 /* We accumulate several counters with same name into a repport.
  * Reports are displayed at the end. */
@@ -205,9 +210,7 @@ void bench_atomic_event_dtor(struct bench_atomic_event *e)
 #   endif
 }
 
-extern inline void bench_event_fire(struct bench_atomic_event *);
-
-extern inline void bench_event_ctor(struct bench_event *e, char const *name)
+void bench_event_ctor(struct bench_event *e, char const *name)
 {
 #   ifdef WITH_BENCH
     bench_atomic_event_ctor(&e->count, name);
@@ -241,9 +244,6 @@ void bench_event_dtor(struct bench_event *e)
     (void)e;
 #   endif
 }
-
-extern inline uint64_t bench_event_start(void);
-extern inline void bench_event_stop(struct bench_event *, uint64_t);
 
 /*
  * Init

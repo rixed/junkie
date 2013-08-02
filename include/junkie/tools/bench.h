@@ -14,25 +14,26 @@
  */
 
 /** To time anything we need RDTSC */
+#ifdef WITH_BENCH
 static inline uint64_t rdtsc(void)
 {
-#   ifdef WITH_BENCH
-#      if defined(__GNUC__) && defined(__x86_64__)
+#   if defined(__GNUC__) && defined(__x86_64__)
         uint32_t hi, lo;
         __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
         return (((uint64_t)hi)<<32U) | lo;
-#       elif defined(__GNUC__) && defined(__i386__)
+#   elif defined(__GNUC__) && defined(__i386__)
         uint64_t x;
         __asm__ __volatile__("rdtsc" : "=A" (x));
         return x;
-#       else
+#   else
 #       warning No rdtsc no bench
         return 0U;
-#       endif
-#   else
-    return 0U;
 #   endif
 }
+#else
+#   define rdtsc() (0U)
+#endif
+
 
 /** The simplest of all possible bench: a single event which we can trigger.
  */
@@ -54,18 +55,18 @@ void bench_atomic_event_dtor(struct bench_atomic_event *e);
 #   define BENCH_ATOMIC(n) {}
 #endif
 
+#ifdef WITH_BENCH
 static inline void bench_event_fire(struct bench_atomic_event *e)
 {
-#   ifdef WITH_BENCH
-#       ifdef __GNUC__
-        __sync_fetch_and_add(&e->count, 1);
-#       else
-        e->count ++;    // bah!
-#       endif
+#   ifdef __GNUC__
+    __sync_fetch_and_add(&e->count, 1);
 #   else
-        (void)e;
+    e->count ++;    // bah!
 #   endif
 }
+#else
+#   define bench_event_fire(e) ((void)e)
+#endif
 
 /** To record events that have a duration. */
 struct bench_event {
@@ -86,11 +87,15 @@ void bench_event_ctor(struct bench_event *e, char const *name);
 
 void bench_event_dtor(struct bench_event *);
 
+#ifdef WITH_BENCH
 static inline uint64_t bench_event_start(void) { return rdtsc(); }
+#else
+#   define bench_event_start() (0U)
+#endif
 
+#ifdef WITH_BENCH
 static inline void bench_event_stop(struct bench_event *e, uint64_t start)
 {
-#   ifdef WITH_BENCH
     bench_event_fire(&e->count);
     uint64_t duration = rdtsc() - start;
 #   ifdef __GNUC__
@@ -101,11 +106,10 @@ static inline void bench_event_stop(struct bench_event *e, uint64_t start)
     // min and max are approximate only
     if (duration < e->min_duration) e->min_duration = duration;
     if (duration > e->max_duration) e->max_duration = duration;
-#   else
-    (void)e;
-    (void)start;
-#   endif
 }
+#else
+#   define bench_event_stop(e, start) ((void)e, (void)start)
+#endif
 
 /** Init */
 
