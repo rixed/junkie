@@ -97,6 +97,7 @@
            (('icmp 'dst-port) "(ICMP_ERR_SET+ICMP_ERR_PORT_SET)")
            (('icmp 'id) "ICMP_ID_SET")
            (('gre 'key) "GRE_KEY_SET")
+           (('dhcp 'client) "DHCP_CLIENT_SET")
            (_ #f))))
 
 ; project all fieldname aliases to the cannonical name
@@ -109,6 +110,9 @@
            (('http 'status) 'error-code)
            (('sip 'via-proto) 'via-protocol)
            (('sip 'via-ip) 'via-addr)
+           (('dhcp 'yiaddr) 'client)
+           (('dhcp 'chaddr) 'client-mac)
+           (('dhcp 'sname) 'server-name)
            ((or ('pgsql 'numrows) ('mysql 'numrows) ('tns 'numrows)) 'nb-rows)
            ((or ('pgsql 'numfields) ('mysql 'numfields) ('tns 'numfields)) 'nb-fields)
            ((or ('pgsql 'nb-cols) ('mysql 'nb-cols) ('tns 'nb-cols)) 'nb-fields)
@@ -194,6 +198,9 @@
            ((or ('pgsql 'passwd) ('mysql 'passwd) ('tns 'passwd)) type:str)
            ((or ('pgsql 'sql) ('mysql 'sql) ('tns 'sql)) type:str)
            ((or ('tcp 'syn) ('tcp 'ack) ('tcp 'rst) ('tcp 'fin) ('tcp 'to-srv)) type:bool)
+           (('dhcp 'client) type:ip)
+           (('dhcp 'client-mac) type:mac)
+           (('dhcp 'server-name) type:str)
            ; then all others are uint
            (_ type:uint))))
 
@@ -229,6 +236,10 @@
          ('sql-unknown 0) ('sql-startup 1) ('sql-query 2) ('sql-exit 3)
          ('sql-requested 0) ('sql-granted 1) ('sql-refused 2)
          ('ssl-unset 0) ('ssl-v2 1) ('ssl-v3 2) ('ssl-tls 3)
+         ('bootp-request 1) ('bootp-reply 2)
+         ('dhcp-discover 1) ('dhcp-offer 2) ('dhcp-request 3) ('dhcp-ack 4)
+         ('dhcp-nack 5) ('dhcp-nak 5) ('dhcp-decline 6) ('dhcp-release 7)
+         ('dhcp-inform 8)
          (_ #f)))
 
 (define expected-type (make-fluid type:any))

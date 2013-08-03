@@ -26,7 +26,7 @@ struct dhcp_proto_info {
 #   define DHCP_CLIENT_SET     0x01
     uint8_t set_values;
     struct ip_addr client;  ///< yiaddr
-    unsigned char client_mac[ETH_ADDR_LEN];
+    unsigned char client_mac[ETH_ADDR_LEN]; // chaddr
     char server_name[64];
 };
 
