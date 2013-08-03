@@ -129,6 +129,9 @@ traffic (like anyone else tapping on the wire).
 NOTE: guile-agentx is used to make Junkie a SNMP subagent.
       Most users won't need it and thus it should be made optional.
 
+To build this documentation you will also need asciidoc and graphviz
+and to run 'make -C doc doc'.
+
 
 == Running Junkie
 
