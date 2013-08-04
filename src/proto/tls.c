@@ -81,7 +81,7 @@ struct tls_session {
 
 static uint32_t tls_session_key_hash(uint8_t id_len, uint8_t const *id)
 {
-    return hashlittle(id, id_len, 0x5139D3C6U);
+    return hashfun(id, id_len);
 }
 
 static void tls_session_dtor(struct tls_session *session, struct tls_keyfile *keyfile)

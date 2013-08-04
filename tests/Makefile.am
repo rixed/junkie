@@ -5,7 +5,7 @@ AM_CPPFLAGS = -I $(top_srcdir)/include -I $(top_srcdir)/src -I $(top_srcdir)/src
 
 check_PROGRAMS = \
 	digest_queue_check timeval_check files_check \
-	hash_check liner_check ip_addr_check jhash_check \
+	hash_check liner_check ip_addr_check \
 	log_check redim_array_check mallocer_check \
 	ip_check udp_check tcp_check http_check sip_check \
 	sdp_check mgcp_check dns_check cnxtrack_check \

@@ -552,8 +552,7 @@ static void try_sacrifice_child(struct mux_proto *mux_proto, struct subparsers *
 
 static unsigned hash_key(void const *key, size_t key_sz, unsigned hash_size)
 {
-#   define ANY_VALUE 0x432317F5U
-    return hashlittle(key, key_sz, ANY_VALUE) % hash_size;
+    return hashfun(key, key_sz) % hash_size;
 }
 
 // Caller must own list->mutex

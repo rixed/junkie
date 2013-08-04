@@ -120,6 +120,23 @@ struct name_ { \
     (hash)->base.max_size = (hash)->base.size; \
 } while (0)
 
+/*
+ * And in case you need one, a simple and fast (for small keys) hash function:
+ */
+
+static inline uint_least32_t hashfun(void const *k_, size_t len)
+{
+    uint8_t const *k = k_;
+    uint_least32_t h = 5381;
+    while (len --) {
+        h = (h << 5) + h + *k++; /* h*33 + *k++; */
+    }
+    return h;
+}
+
+// For compatibility with previous versions:
+#define hashlittle(k, l, s) hashfun(k, l)
+
 void hash_init(void);
 void hash_fini(void);
 

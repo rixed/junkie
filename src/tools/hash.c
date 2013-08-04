@@ -74,6 +74,8 @@ static SCM g_hash_stats(SCM name_)
         scm_cons(nb_rehash_sym, scm_from_uint(hash->nb_rehash)));
 }
 
+extern inline uint_least32_t hashfun(void const *key, size_t len);
+
 static unsigned inited;
 void hash_init(void)
 {

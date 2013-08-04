@@ -10,7 +10,6 @@ thisinclude_HEADERS = \
 	miscmacs.h \
 	ip_addr.h \
 	timeval.h \
-	jhash.h \
 	queue.h \
 	log.h \
 	redim_array.h \
