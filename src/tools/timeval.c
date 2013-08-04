@@ -31,18 +31,6 @@ extern inline bool timeval_is_set(struct timeval const *);
 
 extern inline void timeval_reset(struct timeval *);
 
-static uint64_t timeval_2_usec(struct timeval const *tv)
-{
-    assert(timeval_is_set(tv));
-    return (uint64_t)tv->tv_sec * 1000000 + tv->tv_usec;
-}
-
-static void usec_2_timeval(struct timeval *tv, uint64_t usec)
-{
-    tv->tv_sec  = usec / 1000000;
-    tv->tv_usec = usec % 1000000;
-}
-
 // @returns micro-seconds
 int64_t timeval_sub(struct timeval const *restrict a, struct timeval const *restrict b)
 {
@@ -59,39 +47,16 @@ int64_t timeval_age(struct timeval const *tv)
     return timeval_sub(&now, tv);
 }
 
-int timeval_cmp(struct timeval const *restrict a, struct timeval const *restrict b)
-{
-    if (a->tv_sec < b->tv_sec) return -1;
-    else if (a->tv_sec > b->tv_sec) return 1;
-    else if (a->tv_usec < b->tv_usec) return -1;
-    else if (a->tv_usec > b->tv_usec) return 1;
-    return 0;
-}
-
-void timeval_add_usec(struct timeval *tv, int64_t usec)
-{
-    usec_2_timeval(tv, timeval_2_usec(tv) + usec);
-}
-
-void timeval_add_sec(struct timeval *tv, int32_t sec)
-{
-    tv->tv_sec += sec;
-}
-
-void timeval_sub_usec(struct timeval *tv, int64_t usec)
-{
-    usec_2_timeval(tv, timeval_2_usec(tv) - usec);
-}
-
-void timeval_sub_msec(struct timeval *tv, int64_t msec)
-{
-    usec_2_timeval(tv, timeval_2_usec(tv) - 1000*msec);
-}
-
-void timeval_sub_sec(struct timeval *tv, int32_t sec)
-{
-    tv->tv_sec -= sec;
-}
+extern inline uint64_t timeval_2_usec(struct timeval const *tv);
+extern inline void usec_2_timeval(struct timeval *tv, uint64_t usec);
+extern inline int timeval_cmp(struct timeval const *restrict a, struct timeval const *restrict b);
+extern inline void timeval_add_usec(struct timeval *tv, int64_t usec);
+extern inline void timeval_add_sec(struct timeval *tv, int32_t sec);
+extern inline void timeval_sub_usec(struct timeval *tv, int64_t usec);
+extern inline void timeval_sub_msec(struct timeval *tv, int64_t msec);
+extern inline void timeval_sub_sec(struct timeval *tv, int32_t sec);
+extern inline void timeval_set_min(struct timeval *restrict a, struct timeval const *restrict b);
+extern inline void timeval_set_max(struct timeval *restrict a, struct timeval const *restrict b);
 
 char const *timeval_2_str(struct timeval const *tv)
 {
@@ -114,17 +79,6 @@ void timeval_set_now(struct timeval *now)
 #   else
     gettimeofday(now, NULL);
 #   endif
-}
-
-
-void timeval_set_min(struct timeval *restrict a, struct timeval const *restrict b)
-{
-    if (timeval_cmp(a, b) > 0) *a = *b;
-}
-
-void timeval_set_max(struct timeval *restrict a, struct timeval const *restrict b)
-{
-    if (timeval_cmp(a, b) < 0) *a = *b;
 }
 
 void timeval_serialize(struct timeval const *tv, uint8_t **buf)
