@@ -137,6 +137,8 @@ static void all_fini(void)
         initers[--i].fini();
     }
 
+    bench_display();
+
 #   ifndef DELETE_ALL_AT_EXIT
     return;
 #   else

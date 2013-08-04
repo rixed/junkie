@@ -245,25 +245,6 @@ void bench_event_dtor(struct bench_event *e)
 #   endif
 }
 
-/*
- * Init
- * We depends on nothing but log.
- */
-
-static uint64_t program_start;
-
-static unsigned inited;
-void bench_init(void)
-{
-    if (inited++) return;
-
-    log_category_bench_init();
-    LIST_INIT(&reports);
-    (void)pthread_mutex_init(&report_lock, NULL);
-
-    program_start = rdtsc();
-}
-
 #ifdef WITH_BENCH
 static int report_cmp(void const *a_, void const *b_)
 {
@@ -288,17 +269,14 @@ static int report_cmp(void const *a_, void const *b_)
 }
 #endif
 
-void bench_fini(void)
+static uint64_t program_start;
+
+void bench_display(void)
 {
-    if (--inited) return;
-
-    SLOG(LOG_DEBUG, "Fini bench...");
-
-    struct report *report;
-
 #   ifdef WITH_BENCH
     int64_t const tot_cycles = rdtsc() - program_start;
     // Dump reports (sorted)
+    struct report *report;
     if (tot_cycles > 0) {
         unsigned length = 0;
         LIST_FOREACH(report, &reports, entry) length++;
@@ -314,6 +292,32 @@ void bench_fini(void)
         SLOG(LOG_INFO, "total running time: %"PRId64" cycles", tot_cycles);
     }
 #   endif
+}
+
+/*
+ * Init
+ * We depends on nothing but log.
+ */
+
+static unsigned inited;
+void bench_init(void)
+{
+    if (inited++) return;
+
+    log_category_bench_init();
+    LIST_INIT(&reports);
+    (void)pthread_mutex_init(&report_lock, NULL);
+
+    program_start = rdtsc();
+}
+
+void bench_fini(void)
+{
+    if (--inited) return;
+
+    SLOG(LOG_DEBUG, "Fini bench...");
+
+    struct report *report;
 
     // Dell all reports
     while (NULL != (report = LIST_FIRST(&reports))) {

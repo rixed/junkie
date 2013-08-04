@@ -111,6 +111,8 @@ static inline void bench_event_stop(struct bench_event *e, uint64_t start)
 #   define bench_event_stop(e, start) ((void)e, (void)start)
 #endif
 
+void bench_display(void);
+
 /** Init */
 
 void bench_init(void);
