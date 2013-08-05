@@ -26,7 +26,6 @@
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/hash.h"
 #include "junkie/tools/timeval.h"
-#include "junkie/tools/jhash.h"
 #include "junkie/tools/objalloc.h"
 #include "junkie/proto/serialize.h"
 #include "junkie/proto/proto.h"

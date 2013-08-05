@@ -4,7 +4,6 @@
 #define HASH_H_100922
 #include <stdarg.h>
 #include <junkie/tools/queue.h>
-#include <junkie/tools/jhash.h>
 #include <junkie/tools/objalloc.h>
 #include <junkie/tools/miscmacs.h>
 #include <junkie/tools/log.h>

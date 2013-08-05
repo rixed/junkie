@@ -397,8 +397,7 @@ struct mux_subparser;
  * - the max number of children allowed per multiplexer instance.
  *
  * The hash function being generic, only the key size matters and not the
- * actual structure of the key (as long as your key is packed_ (see jhash.h
- * and cpp.h).
+ * actual structure of the key (as long as your key is packed_).
  *
  * But yet there is an important difficulty to grasp : some stateful parsers
  * deeper in the tree may need to handle traffic in both direction in order to

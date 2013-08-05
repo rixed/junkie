@@ -56,7 +56,6 @@ liner_check_SOURCES = liner_check.c
 liner_check_LDADD = ../src/tools/libjunkietools.la
 ip_addr_check_SOURCES = ip_addr_check.c
 ip_addr_check_LDADD = ../src/tools/libjunkietools.la
-jhash_check_SOURCES = jhash_check.c
 log_check_SOURCES = log_check.c
 log_check_LDADD = ../src/tools/libjunkietools.la
 redim_array_check_SOURCES = redim_array_check.c

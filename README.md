@@ -98,8 +98,10 @@ Minor
 Plugins
 -------
 
-* An histogram of RTT from TCP acks (in order to find out delayed ack timeouts)
+* Delayogram should propose to show ack delay
 
+* A host monitoring tool (monitoring number of established cnx, number of cnx
+  establishment rate, number of peers, address associations)
 
 Parsers for:
 ------------
