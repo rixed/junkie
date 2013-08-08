@@ -128,39 +128,44 @@ static enum proto_parse_status proto_parse_or_die(struct parser **parser, struct
 // caller must own list->mutex
 static enum proto_parse_status pkt_wait_finalize(struct pkt_wait *pkt, struct pkt_wait_list *pkt_wl)
 {
+    enum proto_parse_status status;
+
     if (
         pkt_wl->next_offset >= pkt->next_offset // the pkt content was completely covered
     ) {
         // forget it
         SLOG(LOG_DEBUG, "Advertize a covered packet @(%u:%u)", pkt->offset, pkt->next_offset);
-        enum proto_parse_status status = proto_parse_or_die(NULL, pkt->parent, pkt->way, NULL, 0, 0, &pkt->cap_tv, pkt->tot_cap_len, pkt->packet);
+        status = proto_parse_or_die(NULL, pkt->parent, pkt->way, NULL, 0, 0, &pkt->cap_tv, pkt->tot_cap_len, pkt->packet);
         pkt_wait_del_nolock(pkt, pkt_wl);
-        return status;
     } else if (
         pkt->offset > pkt_wl->next_offset       // the pkt was supposed to come later,
     ) {
-        // advertise the gap instead of the packet
+        // advertise the gap instead of the packet (if the gap is credible)
         size_t const gap = pkt->offset - pkt_wl->next_offset;
-        SLOG(LOG_DEBUG, "Advertise a gap of %zu bytes", gap);
-        pkt_wl->next_offset = pkt->offset;
-        // We can't merely borrow pkt parent since proto_parse is going to flag it when calling subscribers (which would prevent callback of subscribers for actual packet)
-        struct proto_info *copy = copy_info_rec(pkt->parent);
-        enum proto_parse_status status = proto_parse_or_die(&pkt_wl->parser, copy, pkt->way, NULL, 0, gap, &pkt->cap_tv, 0, NULL);
-        proto_info_del_rec(copy);
-        return status;
+        if (pkt_wl->config->acceptable_gap == 0 || gap <= pkt_wl->config->acceptable_gap) {
+            SLOG(LOG_DEBUG, "Advertise a gap of %zu bytes", gap);
+            pkt_wl->next_offset = pkt->offset;
+            // We can't merely borrow pkt parent since proto_parse is going to flag it when calling subscribers (which would prevent callback of subscribers for actual packet)
+            struct proto_info *copy = copy_info_rec(pkt->parent);
+            status = proto_parse_or_die(&pkt_wl->parser, copy, pkt->way, NULL, 0, gap, &pkt->cap_tv, 0, NULL);
+            proto_info_del_rec(copy);
+        } else { // count it but do not parse it
+            status = proto_parse_or_die(NULL, pkt->parent, pkt->way, pkt->packet + pkt->start, pkt->cap_len, pkt->wire_len, &pkt->cap_tv, pkt->tot_cap_len, pkt->packet);
+            pkt_wait_del_nolock(pkt, pkt_wl);
+        }
+    } else {
+        SLOG(LOG_DEBUG, "Finalizing parse of next packet @(%u:%u)", pkt->offset, pkt->next_offset);
+        // So we must parse from pkt_wl->next_offset to pkt->next_offset
+        assert(pkt->offset <= pkt_wl->next_offset);
+        unsigned const trim = pkt_wl->next_offset - pkt->offset;  // This assumes that offsets _are_ bytes. If not, then there is no reason to trim.
+        status =
+            trim < pkt->cap_len ?
+                proto_parse_or_die(&pkt_wl->parser, pkt->parent, pkt->way, pkt->packet + pkt->start + trim, pkt->cap_len - trim, pkt->wire_len - trim, &pkt->cap_tv, pkt->tot_cap_len, pkt->packet) :
+                // The parser may be able to parse this (if he just skip, for instance HTTP skipping a body)
+                proto_parse_or_die(&pkt_wl->parser, pkt->parent, pkt->way, NULL, 0, trim < pkt->wire_len ? pkt->wire_len - trim : 0, &pkt->cap_tv, pkt->tot_cap_len, pkt->packet);
+        pkt_wl->next_offset = pkt->next_offset;
+        pkt_wait_del_nolock(pkt, pkt_wl);
     }
-
-    SLOG(LOG_DEBUG, "Finalizing parse of next packet @(%u:%u)", pkt->offset, pkt->next_offset);
-    // So we must parse from pkt_wl->next_offset to pkt->next_offset
-    assert(pkt->offset <= pkt_wl->next_offset);
-    unsigned const trim = pkt_wl->next_offset - pkt->offset;  // This assumes that offsets _are_ bytes. If not, then there is no reason to trim.
-    enum proto_parse_status const status =
-        trim < pkt->cap_len ?
-            proto_parse_or_die(&pkt_wl->parser, pkt->parent, pkt->way, pkt->packet + pkt->start + trim, pkt->cap_len - trim, pkt->wire_len - trim, &pkt->cap_tv, pkt->tot_cap_len, pkt->packet) :
-            // The parser may be able to parse this (if he just skip, for instance HTTP skipping a body)
-            proto_parse_or_die(&pkt_wl->parser, pkt->parent, pkt->way, NULL, 0, trim < pkt->wire_len ? pkt->wire_len - trim : 0, &pkt->cap_tv, pkt->tot_cap_len, pkt->packet);
-    pkt_wl->next_offset = pkt->next_offset;
-    pkt_wait_del_nolock(pkt, pkt_wl);
     return status;
 }
 

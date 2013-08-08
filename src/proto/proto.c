@@ -146,6 +146,7 @@ char const *proto_parse_status_2_str(enum proto_parse_status status)
 
 enum proto_parse_status proto_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
+    assert(wire_len >= cap_len);
     SLOG(LOG_DEBUG, "proto_parse(parser=%p, parent=%p, way=%u, packet=%p, cap_len=%zu, wire_len=%zu)", parser, parent, way, packet, cap_len, wire_len);
     assert(cap_len <= wire_len);
 
