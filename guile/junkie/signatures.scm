@@ -102,7 +102,7 @@
                      (nm:compile
                        type:bool '(tcp) '(or (starts-with rest "220-")
                                              (starts-with rest "220 ")
-                                             (starts-with rest "USER ")
+                                             ;(starts-with rest "USER ") conflicts with IRC
                                              (starts-with rest "FEAT ")
                                              (starts-with rest "OPTS "))))
 
@@ -126,4 +126,95 @@
                                              (starts-with rest "EPCF ")
                                              (starts-with rest "CRCX ")
                                              (starts-with rest "RSIP "))))
+
+; Chat services
+(add-proto-signature "IRC" 11 'low
+                     (nm:compile
+                       type:bool '(tcp) '(and ((nb-bytes rest) >= 8)
+                                              ((firsts 5 rest) == 4e,49,43,4b,20)))) ; "NICK "
+
+(add-proto-signature "jabber" 12 'low
+                     (nm:compile
+                       type:bool '(tcp) '(and ((nb-bytes rest) >= 14)
+                                              ((firsts 14 rest) == 3c,73,74,72,65,61,6d,3a,73,74,72,65,61,6d))))
+
+
+; Other, mostly windows related
+(add-proto-signature "VNC" 13 'high
+                     (nm:compile
+                       type:bool '(tcp) '(and ((nb-bytes rest) >= 12)
+                                              ((firsts 6 rest) == 52,46,42,20,30,30)
+                                              ((rest @ 6) >= 49) ; from 1
+                                              ((rest @ 6) <= 57) ; to 9
+                                              ((rest @ 7) == 46) ; then .00
+                                              ((rest @ 8) == 48)
+                                              ((rest @ 9) == 48)
+                                              ((rest @ 10) >= 48) ; then from 0
+                                              ((rest @ 10) <= 57) ; to 9
+                                              ((rest @ 11) == 10)))) ; then \n
+
+(add-proto-signature "CIFS" 14 'low
+                     (nm:compile
+                       type:bool '(tcp) '(and ((nb-bytes rest) >= 13)
+                                              ((rest @ 0) == 0) ; NB session msg
+                                              ((rest @ 4) == #xff)
+                                              ((rest @ 5) == 83) ; S
+                                              ((rest @ 6) == 77) ; M
+                                              ((rest @ 7) == 66)))) ; B
+
+(add-proto-signature "PCanywhere" 15 'medium
+                     (nm:compile
+                       type:bool '() '(and ((nb-bytes rest) == 2)
+                                           (or ((firsts 2 rest) == 6e,71)
+                                               ((firsts 2 rest) == 73,74)))))
+
+(add-proto-signature "citrix" 16 'medium
+                     (nm:compile
+                       type:bool '() '(str-in-bytes rest "\x32\x26\x85\x92\x58")))
+
+(add-proto-signature "telnet" 17 'low
+                     (nm:compile
+                       type:bool '(tcp) '(and ((nb-bytes rest) >= 8)
+                                              ((rest @ 0) == #xff)
+                                              ((rest @ 1) >= #xfb)
+                                              ((rest @ 1) <= #xfe)
+                                              ((rest @ 3) == #xff)
+                                              ((rest @ 4) >= #xfb)
+                                              ((rest @ 4) <= #xfe)
+                                              ((rest @ 6) == #xff)
+                                              ((rest @ 7) >= #xfb)
+                                              ((rest @ 7) <= #xfe))))
+
+(add-proto-signature "BGP" 18 'medium
+                     (nm:compile
+                       type:bool '(tcp) '(and ((nb-bytes rest) >= 21)
+                                              (starts-with rest "\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff")
+                                              (or (and ((rest @ 17) == 1)
+                                                       ((rest @ 18) >= 3)
+                                                       ((rest @ 18) <= 4))
+                                                  (and ((rest @ 18) == 1)
+                                                       ((rest @ 19) >= 3)
+                                                       ((rest @ 19) <= 4))))))
+
+(add-proto-signature "IMAP" 19 'low
+                     (nm:compile
+                       type:bool '(tcp) '(and ((nb-bytes rest) >= 4)
+                                              (starts-with rest "* OK"))))
+
+(add-proto-signature "POP" 20 'low
+                     (nm:compile
+                       type:bool '(tcp) '(and ((nb-bytes rest) > 7)
+                                              (starts-with rest "+OK POP"))))
+
+(add-proto-signature "NTP" 21 'low
+                     (nm:compile
+                       type:bool '(udp) '(and ((nb-bytes rest) == 48)
+                                              (or ((rest @ 0) == #x13)
+                                                  ((rest @ 0) == #x14)
+                                                  ((rest @ 0) == #x1b)
+                                                  ((rest @ 0) == #x1c)
+                                                  ((rest @ 0) == #x23)
+                                                  ((rest @ 0) == #xd3)
+                                                  ((rest @ 0) == #xdb)
+                                                  ((rest @ 0) == #xe3)))))
 

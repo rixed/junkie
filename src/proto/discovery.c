@@ -305,6 +305,7 @@ void discovery_init(void)
     ext_function_ctor(&sg_add_proto_signature,
         "add-proto-signature", 4, 0, 0, g_add_proto_signature,  // TODO: additional optional parameter indicating what regular parser to run next
         "(add-proto-signature name id trust netmatch-filter): add this filter for given name/id with given trust level\n"
+        "   notice the id is unused internally, any number will do.\n"
         "   trust can be either 'high, 'medium or 'low.\n"
         "   netmatch-filter is the name of a sofile containing a \"match\" function (as returned by netmatch compiler)\n");
     ext_function_ctor(&sg_proto_signatures,
