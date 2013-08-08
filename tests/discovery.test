@@ -5,7 +5,7 @@
 
 NAME="Discovery"
 # Check we can discover these
-PCAPS="pcap/https/tlsv1.pcap pcap/voip/single-rtp.pcap pcap/misc/telnet.pcap pcap/misc/samba.pcap pcap/misc/irc.pcap"
+PCAPS="pcap/https/tlsv1.pcap pcap/voip/single-rtp.pcap pcap/misc/telnet.pcap pcap/misc/samba.pcap pcap/misc/irc.pcap pcap/misc/rdp.pcap"
 # Check we also find and follow these protos on non-standard ports
 PCAPS="$PCAPS pcap/http/on-alt-port.pcap pcap/ftp/on-alt-port.pcap pcap/sip/on-alt-port.pcap"
 # This one match the signature but the proper parser should fail

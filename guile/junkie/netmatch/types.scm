@@ -972,8 +972,7 @@
                  (string-append
                    (stub-code b)
                    (stub-code s)
-                   ; FIXME: strnstr does not look into haystack after a nul byte, which is not what we want!
-                   "    bool " res " = NULL != strnstr((char const *)" (stub-result b) ".value, " (stub-result s) ", " (stub-result b) ".size);\n")
+                   "    bool " res " = NULL != memmem((char const *)" (stub-result b) ".value, " (stub-result b) ".size, " (stub-result s) ", sizeof(" (stub-result s) "));\n")
                  res
                  (append (stub-regnames b) (stub-regnames s)))))))
 

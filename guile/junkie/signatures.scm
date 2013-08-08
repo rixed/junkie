@@ -218,3 +218,8 @@
                                                   ((rest @ 0) == #xdb)
                                                   ((rest @ 0) == #xe3)))))
 
+(add-proto-signature "RDP" 22 'high
+                     (nm:compile
+                       type:bool '(tcp) '(and (str-in-bytes rest "rdpdr")
+                                              (str-in-bytes rest "cliprdr"))))
+
