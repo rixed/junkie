@@ -237,6 +237,11 @@
          (open-single (lambda (flt) (open-iface ifname promisc flt caplen bufsize))))
     (for-each open-single filters)))
 
+(define*-public (open-pcap-multiple n fname #:key (capfilter "") (realtime #f) (localtime #f) (loop #f))
+  (let* ((filters     (pcap-filters-for-split n #:capfilter capfilter))
+         (open-single (lambda (flt) (open-pcap fname realtime flt localtime loop))))
+    (for-each open-single filters)))
+
 (define*-public (set-ifaces-multiple n pattern #:rest r)
   (make-thread (lambda ()
     (set-thread-name "J-set-ifaces")
