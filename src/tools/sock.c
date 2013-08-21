@@ -214,7 +214,7 @@ static int sock_inet_server_ctor(struct sock_inet *s, char const *service, size_
         memcpy(&srv_addr, info_->ai_addr, info_->ai_addrlen);
         srv_addrlen = info_->ai_addrlen;
         srv_family = info_->ai_family;
-        snprintf(s->sock.name, sizeof(s->sock.name), "%s://*.%s", proto, service);
+        snprintf(s->sock.name, sizeof(s->sock.name), "%s://*:%s", proto, service);
 
         s->fd[s->nb_fds] = socket(srv_family, type, 0);
         if (s->fd[s->nb_fds] < 0) {
