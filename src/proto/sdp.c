@@ -305,6 +305,8 @@ void sdp_init(void)
 
 void sdp_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     proto_dtor(&proto_sdp_);
+#   endif
     log_category_proto_sdp_fini();
 }

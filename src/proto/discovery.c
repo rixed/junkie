@@ -127,6 +127,7 @@ static struct proto_signature *proto_signature_new(uint16_t proto_id, char const
     return sig;
 }
 
+#ifdef DELETE_ALL_AT_EXIT
 static void proto_signature_dtor(struct proto_signature *sig)
 {
     SLOG(LOG_DEBUG, "Destructing proto_signature@%p", sig);
@@ -139,6 +140,7 @@ static void proto_signature_del(struct proto_signature *sig)
     proto_signature_dtor(sig);
     objfree(sig);
 }
+#endif
 
 static SCM high_sym, medium_sym, low_sym;
 
@@ -318,6 +320,7 @@ void discovery_init(void)
 
 void discovery_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     struct proto_signature *sig;
     while (NULL != (sig = LIST_FIRST(&proto_signatures))) {
         proto_signature_del(sig);
@@ -326,5 +329,6 @@ void discovery_fini(void)
     port_muxer_dtor(&udp_port_muxer, &udp_port_muxers);
     port_muxer_dtor(&tcp_port_muxer, &tcp_port_muxers);
     uniq_proto_dtor(&uniq_proto_discovery);
+#   endif
     log_category_proto_discovery_fini();
 }

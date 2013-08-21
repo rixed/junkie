@@ -391,6 +391,7 @@ void capfile_fini(void)
 {
     if (--inited) return;
 
+#   ifdef DELETE_ALL_AT_EXIT
     mutex_lock(&capfiles_lock);
     if (! LIST_EMPTY(&capfiles)) {
         SLOG(LOG_WARNING, "Some capture files are still opened (first is '%s')", LIST_FIRST(&capfiles)->path);
@@ -398,6 +399,8 @@ void capfile_fini(void)
     mutex_unlock(&capfiles_lock);
 
     mutex_dtor(&capfiles_lock);
+#   endif
+
     ext_param_max_capture_files_fini();
     log_category_capfile_fini();
 

@@ -218,6 +218,7 @@ void cnxtrack_fini(void)
 {
     if (--inited) return;
 
+#   ifdef DELETE_ALL_AT_EXIT
     struct cnxtrack_ip *ct;
     mutex_lock(&cnxtracker_lock);
     while (NULL != (ct = TAILQ_FIRST(&cnxtrack_ips))) {
@@ -228,6 +229,8 @@ void cnxtrack_fini(void)
     HASH_DEINIT(&cnxtrack_ips_h);
 
     mutex_dtor(&cnxtracker_lock);
+#   endif
+
     ext_param_cnxtrack_timeout_fini();
     log_category_cnxtrack_fini();
 

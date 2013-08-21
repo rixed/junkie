@@ -165,6 +165,8 @@ void rtp_init(void)
 
 void rtp_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     uniq_proto_dtor(&uniq_proto_rtp);
+#   endif
     log_category_proto_rtp_fini();
 }

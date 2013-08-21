@@ -429,12 +429,14 @@ void digest_fini(void)
 {
     if (--inited) return;
 
+#   ifdef DELETE_ALL_AT_EXIT
     hook_dtor(&dup_hook);
 
     doomer_run();
     if (! LIST_EMPTY(&digest_queues)) {
         SLOG(LOG_WARNING, "Stopping deduplication service while some digest_queues are still alive!?");
     }
+#   endif
 
     ext_param_max_dup_delay_fini();
     log_category_digest_fini();

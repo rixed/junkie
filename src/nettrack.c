@@ -958,12 +958,14 @@ void nettrack_fini(void)
 {
     if (--inited) return;
 
+#   ifdef DELETE_ALL_AT_EXIT
     struct nt_graph *graph;
     while (NULL != (graph = LIST_FIRST(&started_graphs))) {
         /* We cannot delete the graph or the smob will be pointing to garbage.
          * Not that it's very important since we are quitting, but still. */
         nt_graph_stop(graph);
     }
+#   endif
 
     objalloc_fini();
     mallocer_fini();

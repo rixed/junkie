@@ -441,7 +441,9 @@ void tns_init(void)
 
 void tns_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     port_muxer_dtor(&tns_tcp_muxer, &tcp_port_muxers);
     proto_dtor(&proto_tns_);
+#   endif
     log_category_proto_tns_fini();
 }

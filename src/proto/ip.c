@@ -574,12 +574,15 @@ void ip_init(void)
 
 void ip_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     assert(LIST_EMPTY(&ip_subprotos));
     eth_subproto_dtor(&ip_eth_subproto);
     mux_proto_dtor(&mux_proto_ip);
     pkt_wl_config_dtor(&ip_reassembly_config);
     mutex_dtor(&ip_subprotos_mutex);
-    ext_param_reassembly_enabled_fini();
-    log_category_proto_ip_fini();
     mutex_pool_dtor(&ip_locks);
+#   endif
+    ext_param_reassembly_enabled_fini();
+
+    log_category_proto_ip_fini();
 }

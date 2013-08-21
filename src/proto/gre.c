@@ -137,6 +137,7 @@ static struct gre_subparser *gre_subparser_new(uint16_t protocol, struct parser 
     return gre_subparser;
 }
 
+#ifdef DELETE_ALL_AT_EXIT
 static void gre_subparser_dtor(struct gre_subparser *gre_subparser)
 {
     mutex_lock(&gre_subparsers_mutex);
@@ -150,6 +151,7 @@ static void gre_subparser_del(struct gre_subparser *gre_subparser)
     gre_subparser_dtor(gre_subparser);
     objfree(gre_subparser);
 }
+#endif
 
 /*
  * Parse
@@ -263,6 +265,7 @@ void gre_init(void)
 
 void gre_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     ip6_subproto_dtor(&ip6_subproto);
     ip_subproto_dtor(&ip_subproto);
 
@@ -273,5 +276,7 @@ void gre_fini(void)
 
     uniq_proto_dtor(&uniq_proto_gre);
     mutex_dtor(&gre_subparsers_mutex);
+#   endif
+
     log_category_proto_gre_fini();
 }

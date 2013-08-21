@@ -230,6 +230,8 @@ static struct pkt_wait *pkt_wait_new(unsigned offset, unsigned next_offset, bool
 static SLIST_HEAD(pkt_wl_configs, pkt_wl_config) pkt_wl_configs = SLIST_HEAD_INITIALIZER(pkt_wls_configs);
 static struct mutex pkt_wl_configs_mutex;
 
+static struct bench_event timeouting_wl;
+
 // Timeouter thread (one per wl_config)
 static void *pkt_wl_config_timeouter_thread_(void *config_)
 {
@@ -241,7 +243,6 @@ static void *pkt_wl_config_timeouter_thread_(void *config_)
 
     while (1) {
         enter_mono_region();
-        static struct bench_event timeouting_wl = BENCH("timeout waiting lists");
         uint64_t start = bench_event_start();
         for (unsigned h = 0; h < NB_ELEMS(config->lists); h++) {
             struct pkt_wl_config_list *list = config->lists + h;
@@ -764,6 +765,7 @@ void pkt_wait_list_init(void)
 {
     log_category_pkt_wait_list_init();
     mutex_ctor(&pkt_wl_configs_mutex, "pkt_wls_list");
+    bench_event_ctor(&timeouting_wl, "timeout waiting lists");
 
     timeout_sym        = scm_permanent_object(scm_from_latin1_symbol("timeout"));
     max_payload_sym    = scm_permanent_object(scm_from_latin1_symbol("max-payload"));
@@ -801,6 +803,9 @@ void pkt_wait_list_init(void)
 
 void pkt_wait_list_fini(void)
 {
+    bench_event_dtor(&timeouting_wl);
     log_category_pkt_wait_list_fini();
+#   ifdef DELETE_ALL_AT_EXIT
     mutex_dtor(&pkt_wl_configs_mutex);
+#   endif
 }

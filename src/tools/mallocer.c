@@ -389,7 +389,9 @@ void mallocer_fini(void)
 {
     if (--inited) return;
 
+#   ifdef DELETE_ALL_AT_EXIT
     mutex_dtor(&mallocers_lock);
+#   endif
     ext_param_overweight_fini();
     ext_param_malloced_tot_size_max_fini();
     ext_param_malloced_tot_size_fini();

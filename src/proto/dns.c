@@ -290,11 +290,13 @@ void dns_init(void)
 
 void dns_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     port_muxer_dtor(&llmnr_port_muxer, &udp_port_muxers);
     port_muxer_dtor(&nbns_port_muxer, &udp_port_muxers);
     port_muxer_dtor(&mdns_port_muxer, &udp_port_muxers);
     port_muxer_dtor(&dns_port_muxer, &udp_port_muxers);
     uniq_proto_dtor(&uniq_proto_dns);
+#   endif
     log_category_proto_dns_fini();
 }
 

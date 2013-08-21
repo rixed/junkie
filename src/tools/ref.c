@@ -128,7 +128,9 @@ void ref_init(void)
 {
     if (inited++) return;
     mutex_init();
+    bench_init();
 
+    bench_event_ctor(&dooming, "del doomed objs");
     mutex_ctor(&death_row_mutex, "death row");
     SLIST_INIT(&death_row);
     log_category_ref_init();
@@ -145,10 +147,14 @@ void ref_fini(void)
 {
     if (--inited) return;
 
+#   ifdef DELETE_ALL_AT_EXIT
     rwlock_dtor(&rwlock);
     mutex_dtor(&death_row_mutex);
+#   endif
     log_category_ref_fini();
+    bench_event_dtor(&dooming);
 
+    bench_fini();
     mutex_fini();
 }
 

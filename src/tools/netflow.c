@@ -213,4 +213,3 @@ void netflow_fini(void)
     sock_fini();
     log_category_netflow_fini();
 }
-

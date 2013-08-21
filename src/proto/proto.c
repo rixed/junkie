@@ -382,7 +382,9 @@ static void dummy_init(void)
 
 static void dummy_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     proto_dtor(&static_proto_dummy);
+#   endif
 }
 
 /*
@@ -1158,7 +1160,9 @@ void proto_fini(void)
     (void)pthread_cancel(timeouter_pth);
     (void)pthread_join(timeouter_pth, NULL);
 
+#   ifdef DELETE_ALL_AT_EXIT
     hook_dtor(&pkt_hook);
+#   endif
 
     dummy_fini();
     ext_param_denied_parsers_fini();

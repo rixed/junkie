@@ -17,6 +17,7 @@
 #ifdef WITH_BENCH
 static inline uint64_t rdtsc(void)
 {
+    // rdtscp would give better results but is even slower
 #   if defined(__GNUC__) && defined(__x86_64__)
         uint32_t hi, lo;
         __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
@@ -85,6 +86,7 @@ void bench_event_ctor(struct bench_event *e, char const *name);
 #   define BENCH(n) {}
 #endif
 
+// In any case you must destruct your bench_event:
 void bench_event_dtor(struct bench_event *);
 
 #ifdef WITH_BENCH

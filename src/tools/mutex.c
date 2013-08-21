@@ -501,7 +501,9 @@ void mutex_fini(void)
 #       endif
     ) return;
 
+#   ifdef DELETE_ALL_AT_EXIT
     mutex_dtor(&supermutex_meta_lock);
+#   endif
     log_category_mutex_fini();
 
     log_init();

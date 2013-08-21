@@ -608,11 +608,14 @@ void tcp_init(void)
 
 void tcp_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     port_muxer_list_dtor(&tcp_port_muxers);
     ip_subproto_dtor(&ip_subproto);
     ip6_subproto_dtor(&ip6_subproto);
     mux_proto_dtor(&mux_proto_tcp);
     pkt_wl_config_dtor(&tcp_wl_config);
-    log_category_proto_tcp_fini();
     mutex_pool_dtor(&tcp_locks);
+#   endif
+
+    log_category_proto_tcp_fini();
 }

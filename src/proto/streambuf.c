@@ -261,7 +261,8 @@ void streambuf_init(void)
 
 void streambuf_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     mutex_pool_dtor(&streambuf_locks);
+#   endif
     mutex_fini();
 }
-

@@ -85,10 +85,11 @@ void dns_tcp_init(void)
 
 void dns_tcp_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     port_muxer_dtor(&llmnr_tcp_port_muxer, &tcp_port_muxers);
     port_muxer_dtor(&nbns_tcp_port_muxer, &tcp_port_muxers);
     port_muxer_dtor(&mdns_tcp_port_muxer, &tcp_port_muxers);
     port_muxer_dtor(&dns_tcp_port_muxer, &tcp_port_muxers);
+#   endif
     uniq_proto_dtor(&uniq_proto_dns_tcp);
 }
-

@@ -482,7 +482,9 @@ void mysql_init(void)
 
 void mysql_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     port_muxer_dtor(&mysql_tcp_muxer, &tcp_port_muxers);
     proto_dtor(&proto_mysql_);
+#   endif
     log_category_proto_mysql_fini();
 }

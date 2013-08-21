@@ -300,9 +300,11 @@ void eth_init(void)
 
 void eth_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     assert(LIST_EMPTY(&eth_subprotos));
     mux_proto_dtor(&mux_proto_eth);
     mutex_dtor(&eth_subprotos_mutex);
+#   endif
     ext_param_collapse_vlans_fini();
     log_category_proto_eth_fini();
 }

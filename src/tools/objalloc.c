@@ -268,6 +268,7 @@ void objalloc_fini(void)
 {
     if (--inited) return;
 
+#   ifdef DELETE_ALL_AT_EXIT
     // Destruct all precalc objalloc
     for (unsigned f = 0; f < NB_ELEMS(fixed_objallocs); f++) {
         redim_array_dtor(&fixed_objallocs[f].ra);
@@ -286,6 +287,7 @@ void objalloc_fini(void)
         mutex_dtor(spec_objallocs_mutex+m);
     }
 
+#   endif
     ext_param_max_preset_size_fini();
     ext_param_min_preset_size_fini();
     ext_param_chunk_size_fini();
@@ -295,4 +297,3 @@ void objalloc_fini(void)
     redim_array_fini();
     ext_fini();
 }
-

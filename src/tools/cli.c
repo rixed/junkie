@@ -341,8 +341,10 @@ void cli_fini(void)
 {
     if (--inited) return;
 
+#   ifdef DELETE_ALL_AT_EXIT
     cli_unregister(help_opts);
     mutex_dtor(&cli_mutex);
+#   endif
 
     objalloc_fini();
     mutex_fini();

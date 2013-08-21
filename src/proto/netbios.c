@@ -111,6 +111,8 @@ void netbios_init(void)
 
 void netbios_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     uniq_proto_dtor(&uniq_proto_netbios);
+#   endif
     log_category_proto_netbios_fini();
 }

@@ -218,4 +218,3 @@ enum proto_parse_status ber_foreach(struct cursor *c, foreach_fn *f, void *d)
 
     return status;
 }
-

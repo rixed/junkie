@@ -338,9 +338,10 @@ void icmp_init(void)
 
 void icmp_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     ip_subproto_dtor(&icmp_ip_subproto);
     ip6_subproto_dtor(&icmp_ip6_subproto);
     uniq_proto_dtor(&uniq_proto_icmp);
+#   endif
     log_category_proto_icmp_fini();
 }
-

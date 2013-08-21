@@ -852,10 +852,12 @@ void http_init(void)
 
 void http_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     port_muxer_dtor(&tcp_port_muxer, &tcp_port_muxers);
     hook_dtor(&http_body_hook);
     hook_dtor(&http_head_hook);
-
     proto_dtor(&proto_http_);
+#   endif
+
     log_category_proto_http_fini();
 }

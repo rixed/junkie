@@ -103,6 +103,8 @@ static char const *pkt_source_guile_name(struct pkt_source *pkt_source)
  * For now both iface and files are treated the same.
  */
 
+static struct bench_event waiting_for_multi;
+
 static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, const u_char *packet)
 {
     if (want_exit) return;
@@ -144,12 +146,12 @@ static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, 
     mutex_lock(&giant_lock);
 #   endif
 
-    static struct bench_event waiting_for_multi = BENCH("parser waiting for multi region");
+    assert(cap_parser);
+
     uint64_t start_wait = bench_event_start();
     enter_multi_region();
     bench_event_stop(&waiting_for_multi, start_wait);
 
-    assert(cap_parser);
     (void)proto_parse(cap_parser, NULL, 0, (uint8_t *)&frame, frame.cap_len, frame.wire_len, &frame.tv, frame.cap_len, frame.data);
 
     leave_protected_region();
@@ -195,20 +197,19 @@ static void *sniffer(struct pkt_source *pkt_source, pcap_handler callback)
             if (nb_packets != -2) {
                 SLOG(LOG_ALERT, "Cannot pcap_dispatch on pkt_source %s: %s", pkt_source_name(pkt_source), pcap_geterr(pkt_source->pcap_handle));
             }
-            SLOG(LOG_INFO, "Stop sniffing on packet source %s (%"PRIuLEAST64" packets received)", pkt_source_name(pkt_source), pkt_source->nb_packets);
             break;
         } else if (nb_packets == 0) {
             if (pkt_source->is_file) {
                 if (pkt_source->loop) {
                     rewind_file(pkt_source);
                 } else {
-                    SLOG(LOG_INFO, "Stop sniffing from file %s (%"PRIuLEAST64" packets read)", pkt_source_name(pkt_source), pkt_source->nb_packets);
                     break;
                 }
             }
         }
     } while (! want_exit);
 
+    SLOG(LOG_INFO, "Stop sniffing on packet source %s (%"PRIuLEAST64" packets received)", pkt_source_name(pkt_source), pkt_source->nb_packets);
     pkt_source_del(pkt_source);
     return NULL;
 }
@@ -255,7 +256,6 @@ static void *sniffer_rt(struct pkt_source *pkt_source, pcap_handler callback)
                     timeval_set_now(&replay_start);
                     continue;
                 } else {
-                    SLOG(LOG_INFO, "Stop sniffing from %s (%"PRIuLEAST64" packets read)", pkt_source_name(pkt_source), pkt_source->nb_packets);
                     break;
                 }
             } else { // error
@@ -271,7 +271,7 @@ static void *sniffer_rt(struct pkt_source *pkt_source, pcap_handler callback)
         callback((void *)pkt_source, pkt_hdr, packet);
     } while (1);
 
-    SLOG(LOG_INFO, "Stop sniffing on packet source %s (%"PRIuLEAST64" packets received)", pkt_source_name(pkt_source), pkt_source->nb_packets);
+    SLOG(LOG_INFO, "Stop sniffing on packet source %s (realtime) (%"PRIuLEAST64" packets received)", pkt_source_name(pkt_source), pkt_source->nb_packets);
     pkt_source_del(pkt_source);
     return NULL;
 }
@@ -436,9 +436,7 @@ static void may_quit(void)
     if (want_exit) {
         do_exit = true;
     } else if (LIST_EMPTY(&pkt_sources)) {
-        EXT_LOCK(quit_when_done);
-        do_exit = quit_when_done;
-        EXT_UNLOCK(quit_when_done);
+        WITH_EXT_LOCK(quit_when_done, do_exit = quit_when_done);
     }
 
     if (do_exit) {
@@ -567,6 +565,7 @@ static void pkt_source_terminate(struct pkt_source *pkt_source)
     pcap_breakloop(pkt_source->pcap_handle);
 }
 
+#ifdef DELETE_ALL_AT_EXIT
 // Caller must own pkt_sources_lock
 static void pkt_source_terminate_all(void)
 {
@@ -575,6 +574,7 @@ static void pkt_source_terminate_all(void)
         pkt_source_terminate(pkt_source);
     }
 }
+#endif
 
 /*
  * Guile access functions
@@ -740,6 +740,7 @@ void pkt_source_init(void)
     digest_init();
 
     timeval_set_now(&sniffing_start);
+    bench_event_ctor(&waiting_for_multi, "parser waiting for multi region");
 
 #   define IFACE_ALL 255
     global_digests = digest_queue_get(IFACE_ALL);
@@ -821,6 +822,7 @@ void pkt_source_fini(void)
 {
     if (--inited) return;
 
+#   ifdef DELETE_ALL_AT_EXIT
     mutex_lock(&pkt_sources_lock);
     terminating = want_exit = 1;
     pkt_source_terminate_all();
@@ -852,12 +854,16 @@ void pkt_source_fini(void)
             tot_dropped, (tot_dropped * 100.)/tot_recved);
     }
 
+    digest_queue_unref(&global_digests);
+#   endif   // DELETE_ALL_AT_EXIT
+
+    bench_event_dtor(&waiting_for_multi);
+
     log_category_pkt_sources_fini();
     ext_param_quit_when_done_fini();
     ext_param_default_bpf_filter_fini();
 
-    digest_queue_unref(&global_digests);
-
+    bench_fini();
     digest_fini();
     ref_fini();
     mutex_fini();

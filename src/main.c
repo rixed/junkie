@@ -137,14 +137,11 @@ static void all_fini(void)
         initers[--i].fini();
     }
 
-    bench_display();
-
-#   ifndef DELETE_ALL_AT_EXIT
-    return;
-#   else
+#   ifdef DELETE_ALL_AT_EXIT
     /* This is sometime usefull to clean all allocated ressources
      * at exit to help valgrind help us find memory leaks. */
     ERR_free_strings();
+#   endif
 
     redim_array_fini();
     hash_fini();
@@ -154,7 +151,6 @@ static void all_fini(void)
     ext_fini();
     files_fini();
     log_fini();
-#   endif
 }
 
 /*

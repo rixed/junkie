@@ -196,6 +196,8 @@ void rtcp_init(void)
 
 void rtcp_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     uniq_proto_dtor(&uniq_proto_rtcp);
+#   endif
     log_category_proto_rtcp_fini();
 }

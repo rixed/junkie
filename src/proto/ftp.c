@@ -171,8 +171,9 @@ void ftp_init(void)
 
 void ftp_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     port_muxer_dtor(&tcp_port_muxer, &tcp_port_muxers);
     uniq_proto_dtor(&uniq_proto_ftp);
+#   endif
     log_category_proto_ftp_fini();
 }
-

@@ -561,7 +561,9 @@ void pgsql_init(void)
 
 void pgsql_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     port_muxer_dtor(&pg_tcp_muxer, &tcp_port_muxers);
     proto_dtor(&proto_pgsql_);
+#   endif
     log_category_proto_pgsql_fini();
 }

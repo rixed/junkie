@@ -149,7 +149,9 @@ void cap_init(void)
 
 void cap_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     mux_proto_dtor(&mux_proto_cap);
+#   endif
     ext_param_collapse_ifaces_fini();
     log_category_proto_capture_fini();
 }

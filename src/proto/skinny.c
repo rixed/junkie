@@ -494,8 +494,10 @@ void skinny_init(void)
 
 void skinny_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     port_muxer_dtor(&tcp_port_muxer, &tcp_port_muxers);
     proto_dtor(&proto_skinny_);
+#   endif
     log_category_proto_skinny_fini();
 }
 

@@ -287,9 +287,11 @@ void log_fini(void)
 
     log_category_guile_fini();
     log_category_global_fini();
+#   ifdef DELETE_ALL_AT_EXIT
     if (! SLIST_EMPTY(&log_categories)) {
         SLOG(LOG_DEBUG, "Log catagory %s remains", SLIST_FIRST(&log_categories)->name);
     }
+#   endif
 
     ext_fini();
     files_fini();

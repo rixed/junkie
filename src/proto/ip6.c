@@ -175,9 +175,11 @@ void ip6_init(void)
 
 void ip6_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     assert(LIST_EMPTY(&ip6_subprotos));
     ip_subproto_dtor(&ip6_ip_subproto);
     eth_subproto_dtor(&ip6_eth_subproto);
     mutex_dtor(&ip6_subprotos_mutex);
     mux_proto_dtor(&mux_proto_ip6);
+#   endif
 }

@@ -242,9 +242,12 @@ void udp_init(void)
 
 void udp_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     port_muxer_list_dtor(&udp_port_muxers);
     ip_subproto_dtor(&ip_subproto);
     ip6_subproto_dtor(&ip6_subproto);
     mux_proto_dtor(&mux_proto_udp);
+#   endif
+
     log_category_proto_udp_fini();
 }

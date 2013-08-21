@@ -217,7 +217,9 @@ void arp_init(void)
 
 void arp_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     eth_subproto_dtor(&arp_eth_subproto);
     uniq_proto_dtor(&uniq_proto_arp);
+#   endif
     log_category_proto_arp_fini();
 }

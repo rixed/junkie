@@ -177,8 +177,10 @@ void erspan_init(void)
 
 void erspan_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     eth_subproto_dtor(&erspan_eth_subproto);
     parser_unref(&erspan_subparser);
     uniq_proto_dtor(&uniq_proto_erspan);
+#   endif
     log_category_proto_erspan_fini();
 }

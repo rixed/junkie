@@ -141,4 +141,3 @@ void fuzzing_fini(void)
     printf("\tNumber of protocols fuzzed: %u\n", f_stat.nb_fuzzed_proto);
     printf("\tMaximal number of fuzzing event for a protocol: %u\n", f_stat.max_fuzzed_pkt_proto);
 }
-

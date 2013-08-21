@@ -447,9 +447,10 @@ void mgcp_init(void)
 
 void mgcp_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     port_muxer_dtor(&udp_port_muxer_agent, &udp_port_muxers);
     port_muxer_dtor(&udp_port_muxer_gw, &udp_port_muxers);
     proto_dtor(&proto_mgcp_);
+#   endif
     log_category_proto_mgcp_fini();
 }
-

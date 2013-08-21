@@ -188,9 +188,12 @@ void plugins_fini(void)
 {
     if (--inited) return;
 
+#   ifdef DELETE_ALL_AT_EXIT
     mutex_dtor(&plugins_mutex);
-    ext_param_really_unload_plugins_fini();
     lt_dlexit();
+#   endif
+
+    ext_param_really_unload_plugins_fini();
 
     objalloc_fini();
     mutex_fini();

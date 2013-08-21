@@ -144,6 +144,7 @@ void bench_event_dtor_(struct bench_event *e)
 #   endif
 }
 
+#ifdef DELETE_ALL_AT_EXIT
 static void report_dtor(struct report *report)
 {
     SLOG(LOG_DEBUG, "Destruct report for %s", report_name(report));
@@ -165,6 +166,7 @@ static void report_del(struct report *report)
     report_dtor(report);
     free(report);
 }
+#endif
 
 // Caller must own report_lock
 #ifdef WITH_BENCH
@@ -317,6 +319,9 @@ void bench_fini(void)
 
     SLOG(LOG_DEBUG, "Fini bench...");
 
+    bench_display();
+
+#   ifdef DELETE_ALL_AT_EXIT
     struct report *report;
 
     // Dell all reports
@@ -324,7 +329,9 @@ void bench_fini(void)
         report_del(report);
     }
 
-    log_category_bench_fini();
     (void)pthread_mutex_destroy(&report_lock);
+#   endif
+
+    log_category_bench_fini();
 }
 

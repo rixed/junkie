@@ -1566,6 +1566,7 @@ void sock_fini(void)
 
     ext_param_bind_v6_as_v6_fini();
     log_category_sock_fini();
+
     mallocer_fini();
     ext_fini();
     bench_fini();

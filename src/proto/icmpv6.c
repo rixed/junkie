@@ -207,7 +207,9 @@ void icmpv6_init(void)
 
 void icmpv6_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     ip6_subproto_dtor(&icmpv6_ip6_subproto);
     uniq_proto_dtor(&uniq_proto_icmpv6);
+#   endif
     log_category_proto_icmpv6_fini();
 }

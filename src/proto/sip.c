@@ -523,11 +523,13 @@ void sip_init(void)
 
 void sip_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     port_muxer_dtor(&tcp_port_muxer, &tcp_port_muxers);
     port_muxer_dtor(&udp_port_muxer, &udp_port_muxers);
     uniq_proto_dtor(&uniq_proto_sip);
-    log_category_proto_sip_fini();
     HASH_DEINIT(&callids_2_sdps);
     mutex_dtor(&callids_2_sdps_mutex);
+#   endif
+    log_category_proto_sip_fini();
     hash_fini();
 }

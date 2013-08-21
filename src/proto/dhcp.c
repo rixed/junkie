@@ -209,7 +209,7 @@ static enum proto_parse_status dhcp_parse(struct parser *parser, struct proto_in
         SLOG(LOG_DEBUG, "DHCP msg without msg type");
         return PROTO_PARSE_ERR;
     }
-    
+
     return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
 
@@ -240,7 +240,9 @@ void dhcp_init(void)
 
 void dhcp_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     port_muxer_dtor(&dhcp_port_muxer, &udp_port_muxers);
     uniq_proto_dtor(&uniq_proto_dhcp);
+#   endif
     log_category_proto_dhcp_fini();
 }

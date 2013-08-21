@@ -105,4 +105,3 @@ void term_fini(void)
 
     tcsetattr(0, TCSANOW, &termios_orig);
 }
-

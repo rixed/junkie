@@ -1420,6 +1420,7 @@ void tls_init(void)
 
 void tls_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     port_muxer_dtor(&tcp_port_muxer_skinny, &tcp_port_muxers);
     port_muxer_dtor(&tcp_port_muxer_https, &tcp_port_muxers);
 
@@ -1430,6 +1431,7 @@ void tls_fini(void)
         tls_keyfile_del(keyfile);
     }
     mutex_dtor(&tls_keyfiles_lock);
+#   endif
 
     ext_param_max_sessions_per_key_fini();
 
