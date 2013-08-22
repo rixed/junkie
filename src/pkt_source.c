@@ -738,6 +738,7 @@ void pkt_source_init(void)
     objalloc_init();
     ref_init();
     digest_init();
+    bench_init();
 
     timeval_set_now(&sniffing_start);
     bench_event_ctor(&waiting_for_multi, "parser waiting for multi region");

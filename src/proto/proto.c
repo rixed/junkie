@@ -1086,6 +1086,7 @@ static SCM g_set_proto_enabled(SCM name_, SCM flag_)
 
 void proto_init(void)
 {
+    bench_init();
     log_category_proto_init();
     mutex_init();
     ext_param_nb_fuzzed_bits_init();
@@ -1170,4 +1171,5 @@ void proto_fini(void)
     ext_param_nb_fuzzed_bits_fini();
     log_category_proto_fini();
     mutex_fini();
+    bench_fini();
 }

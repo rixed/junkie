@@ -763,6 +763,8 @@ static SCM g_wait_list_set_timeout(SCM name_, SCM timeout_)
 
 void pkt_wait_list_init(void)
 {
+    bench_init();
+
     log_category_pkt_wait_list_init();
     mutex_ctor(&pkt_wl_configs_mutex, "pkt_wls_list");
     bench_event_ctor(&timeouting_wl, "timeout waiting lists");
@@ -808,4 +810,5 @@ void pkt_wait_list_fini(void)
 #   ifdef DELETE_ALL_AT_EXIT
     mutex_dtor(&pkt_wl_configs_mutex);
 #   endif
+    bench_fini();
 }
