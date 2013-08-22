@@ -495,7 +495,7 @@ struct proto *proto_of_scm_name(SCM name);
  *
  * @note Remember to add the packed_ attribute to your keys ! */
 struct mux_subparser {
-    struct ref ref;
+    struct ref ref;                         ///< Note that being stored in parent's hash does count as a reference
     TAILQ_ENTRY(mux_subparser) to_entry;    ///< Its entry in its timeout queue (sorted in least recently used first)
     STAILQ_ENTRY(mux_subparser) h_entry;    ///< Its entry in the hash (sorted in more recently used first - so that lookups are faster)
     struct parser *parser;                  ///< The actual parser

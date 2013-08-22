@@ -57,26 +57,30 @@ static pthread_t doomer_pth;
 extern struct refs death_row;
 extern struct mutex death_row_mutex;
 
-static void delete_doomed(void)
+static struct bench_event dooming;
+
+void doomer_run(void)
 {
-    static struct bench_event dooming = BENCH("del doomed objs");
-    uint64_t start = bench_event_start();
+    enter_mono_region();
 
     SLOG(LOG_DEBUG, "Deleting doomed objects...");
     unsigned nb_dels = 0, nb_rescued = 0;
 
-    // No need to take the mutex since other threads are not allowed to reenter unsafe region until we are done
+    // Bench time spent scanning death_row
+    uint64_t start = bench_event_start();
 
+    // Rescue from death_row the objects which ref count is > 0,
+    // and queue into kill_list the one no longer accessible (they can not even reach each others)
+    struct refs to_kill;
+    SLIST_INIT(&to_kill);
     struct ref *r;
     while (NULL != (r = SLIST_FIRST(&death_row))) {
-        // Beware that r->del() may doom further objects, which will be added at the beginning of the list.
-        SLOG(LOG_DEBUG, "Delete next object on doom list: %p", r);
         SLIST_REMOVE_HEAD(&death_row, entry);
-        r->entry.sle_next = NOT_IN_DEATH_ROW;
         if (r->count == 0) {
-            r->del(r);
+            SLIST_INSERT_HEAD(&to_kill, r, entry);
             nb_dels ++;
         } else {
+            r->entry.sle_next = NOT_IN_DEATH_ROW;
             nb_rescued ++;
         }
     }
@@ -84,19 +88,32 @@ static void delete_doomed(void)
     SLOG(nb_dels + nb_rescued > 0 ? LOG_INFO:LOG_DEBUG, "Deleted %u objects, rescued %u", nb_dels, nb_rescued);
 
     bench_event_stop(&dooming, start);
-}
 
-void doomer_run(void)
-{
-    enter_mono_region();
-    delete_doomed();
+    // No need to block parsing any more since the selected objects are not accessible
     leave_protected_region();
+
+    // Delete all selected objects
+    while (NULL != (r = SLIST_FIRST(&to_kill))) {
+        // Beware that r->del() may doom further objects, which will be added in the death_row for next run
+        SLOG(LOG_DEBUG, "Delete next object on kill list: %p", r);
+        SLIST_REMOVE_HEAD(&to_kill, entry);
+        r->entry.sle_next = NULL;   // the deletor must not care about the ref (since the decision to del the object was already taken)
+        r->del(r);
+    }
 }
 
 static void *doomer_thread_(void unused_ *dummy)
 {
     set_thread_name("J-doomer");
-
+    int old_state;
+    if (0 != pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &old_state)) {
+        SLOG(LOG_CRIT, "Cannot set cancelstate of Doomer-thread");
+    }
+    assert(old_state == PTHREAD_CANCEL_ENABLE);
+    if (0 != pthread_setcanceltype(PTHREAD_CANCEL_DEFERRED, &old_state)) {
+        SLOG(LOG_CRIT, "Cannot set canceltype of Doomer-thread");
+    }
+    assert(old_state == PTHREAD_CANCEL_DEFERRED);
     while (1) {
         doomer_run();
         sleep(1);
@@ -116,10 +133,13 @@ extern inline void unref(struct ref *);
 
 void doomer_stop(void)
 {
-    rwlock_acquire(&rwlock, false);    // wait for doomer-thread to finish its run
-    (void)pthread_cancel(doomer_pth);
-    (void)pthread_join(doomer_pth, NULL);
-    rwlock_release(&rwlock);
+    SLOG(LOG_DEBUG, "Cancelling doomer-thread");
+    if (0 != pthread_cancel(doomer_pth)) {
+        SLOG(LOG_CRIT, "Cannot cancel doomer thread!");
+    }
+    if (0 != pthread_join(doomer_pth, NULL)) {
+        SLOG(LOG_CRIT, "Cannot join doomer thread!");
+    }
     SLOG(LOG_DEBUG, "doomer thread was cancelled");
 }
 

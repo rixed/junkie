@@ -94,14 +94,10 @@ static inline void unref(struct ref *ref)
 #   endif
 
     if (unreachable) {
-        /* The thread that downs the count to 0 is responsible for queuing the object onto the death row.
-         * But two threads may try to perform this at the same time for the same object !
-         * (ex: thread 1 unref to 0, thread 2 ref from 0 to 1, then unref from 1 to 0, so queue the object,
-         * then thread 1 is scheduled by and queue again the object onto the death row...)
-         * Or we merely unref a thing already on the death row (for instance while cascading deletion).
-         * To handle this we merely check for NOT_IN_DEATH_ROW. */
+        // The thread that downs the count to 0 is responsible for queuing the object onto the death row.
         mutex_lock(&death_row_mutex);
-        if (ref->entry.sle_next == NOT_IN_DEATH_ROW) SLIST_INSERT_HEAD(&death_row, ref, entry);
+        assert(ref->entry.sle_next == NOT_IN_DEATH_ROW);    // If it was already on the death row, then where did this ref come from?
+        SLIST_INSERT_HEAD(&death_row, ref, entry);
         assert(ref->entry.sle_next != NOT_IN_DEATH_ROW);
         mutex_unlock(&death_row_mutex);
     }

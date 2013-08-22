@@ -6,6 +6,15 @@ NEW in 2.6.0 (since 2.5.0)
 
 * Delayogram plugin
 
+* New option -f to set next capture filters from command line
+
+* Support for Eth QinQ
+
+* DHCP protocol
+
+* Autodiscovery of IRC, jabber, VNC, CIFS, PCanywhere, citrix,
+  telnet, BGP, IMAP, POP, NTP
+
 
 NEW in 2.5.0 (since 2.4.0)
 --------------------------
