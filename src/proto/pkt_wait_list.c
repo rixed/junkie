@@ -263,7 +263,6 @@ static void *pkt_wl_config_timeouter_thread_(void *config_)
 
         // Wait
         (void)pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &dummy_oldstate);
-        pthread_testcancel();
         sleep(1);
         (void)pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &dummy_oldstate);
     }

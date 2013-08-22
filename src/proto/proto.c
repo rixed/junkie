@@ -913,6 +913,8 @@ static void mux_proto_timeout(struct mux_proto *mux_proto)
 static void *timeouter_thread(void unused_ *dummy)
 {
     set_thread_name("J-timeouter");
+    int dummy_oldstate;
+    (void)pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &dummy_oldstate);
 
     while (1) {
         struct mux_proto *mux_proto;
@@ -920,7 +922,9 @@ static void *timeouter_thread(void unused_ *dummy)
             mux_proto_timeout(mux_proto);
         }
 
+        (void)pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &dummy_oldstate);
         sleep(1);
+        (void)pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &dummy_oldstate);
     }
     return NULL;
 }

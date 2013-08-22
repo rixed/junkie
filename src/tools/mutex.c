@@ -414,6 +414,7 @@ static void acquire(int (*f)(pthread_rwlock_t *), struct rwlock *lock)
 void rwlock_acquire(struct rwlock *lock, bool write)
 {
     uint64_t const start = bench_event_start();
+    pthread_testcancel();
     if (write) {
         acquire(pthread_rwlock_wrlock, lock);
         bench_event_stop(&lock->acquiring_write_lock, start);
