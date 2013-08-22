@@ -273,7 +273,7 @@ static int report_cmp(void const *a_, void const *b_)
 
 static uint64_t program_start;
 
-void bench_display(void)
+static void bench_display(void)
 {
 #   ifdef WITH_BENCH
     int64_t const tot_cycles = rdtsc() - program_start;
