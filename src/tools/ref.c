@@ -93,6 +93,7 @@ void doomer_run(void)
 
     // Delete all selected objects
     while (NULL != (r = SLIST_FIRST(&to_kill))) {
+        assert(r->count == 0);
         // Beware that r->del() may doom further objects, which will be added in the death_row for next run
         SLOG(LOG_DEBUG, "Delete next object on kill list: %p", r);
         SLIST_REMOVE_HEAD(&to_kill, entry);
