@@ -31,8 +31,7 @@
 
 struct ref {
     unsigned count;             ///< The count itself
-#   define NOT_IN_DEATH_ROW ((void *)1)
-    SLIST_ENTRY(ref) entry;     ///< If already on the death row, or NOT_IN_DEATH_ROW
+    SLIST_ENTRY(ref) entry;
 #   ifndef __GNUC__
     struct mutex mutex;         ///< In dire circumstances when we can't use atomic operations
 #   endif
@@ -42,7 +41,6 @@ struct ref {
 static inline void ref_ctor(struct ref *ref, void (*del)(struct ref *))
 {
     ref->count = 1; // for the caller
-    ref->entry.sle_next = NOT_IN_DEATH_ROW;
     ref->del = del;
 #   ifndef __GNUC__
     mutex_ctor(&ref->mutex, "ref");
@@ -96,9 +94,7 @@ static inline void unref(struct ref *ref)
     if (unreachable) {
         // The thread that downs the count to 0 is responsible for queuing the object onto the death row.
         mutex_lock(&death_row_mutex);
-        assert(ref->entry.sle_next == NOT_IN_DEATH_ROW);    // If it was already on the death row, then where did this ref come from?
         SLIST_INSERT_HEAD(&death_row, ref, entry);
-        assert(ref->entry.sle_next != NOT_IN_DEATH_ROW);
         mutex_unlock(&death_row_mutex);
     }
 }
