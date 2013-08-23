@@ -80,6 +80,7 @@ void doomer_run(void)
             SLIST_INSERT_HEAD(&to_kill, r, entry);
             nb_dels ++;
         } else {
+            r->entry.sle_next = NOT_IN_DEATH_ROW;
             nb_rescued ++;
         }
     }
