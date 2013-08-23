@@ -19,7 +19,6 @@
  */
 #include <stdlib.h>
 #include "junkie/tools/objalloc.h"
-#include "junkie/tools/files.h"
 #include "junkie/netmatch.h"
 
 int netmatch_filter_ctor(struct netmatch_filter *netmatch, char const *libname)
@@ -34,7 +33,6 @@ int netmatch_filter_ctor(struct netmatch_filter *netmatch, char const *libname)
         SLOG(LOG_CRIT, "Cannot load netmatch shared object %s: %s", libname, lt_dlerror());
         goto err1;
     }
-    (void)file_unlink(libname);
 
     netmatch->match_fun = lt_dlsym(netmatch->handle, "match");
     if (! netmatch->match_fun) {
@@ -94,3 +92,6 @@ void netmatch_filter_dtor(struct netmatch_filter *netmatch)
         netmatch->handle = NULL;
     }
 }
+
+
+
