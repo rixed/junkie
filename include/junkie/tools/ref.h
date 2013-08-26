@@ -31,13 +31,32 @@
 
 struct ref {
     unsigned count;             ///< The count itself
+    /** NOT_IN_DEATH_ROW:
+     * entry.sle_next is set to NOT_IN_DEATH_ROW at creation and will be set to a proper value only
+     * when the object is queued for deletion. It is then guaranteed that it will never be set to
+     * NOT_IN_DEATH_ROW again, except in mono_region, when the object is rescued by doomer_thread.
+     * You can make some limited use of this to know if an object, on which you have no ref yourself,
+     * is still referenced by others. Imagine you want an index on all living foo objects (but don't
+     * want the index itself stores a ref on the object so that it's deleted (and deindexed) when the
+     * last user drops its ref). The problem is: when looking up this index, you can return a new ref
+     * on a object that's already on the death row (objects on the death row are now deleted in the
+     * unsafe region, ie. while other threads are parsing), with catastrophic results.
+     * Using this NOT_IN_DEATH_ROW, your lookup function can check that the object is not on the death
+     * row before returning a new ref on it. Of course, the last user may drops its ref in the same
+     * time, which will queue the obj on the (preliminary) death row, from where the doomer_thread
+     * (from the mono_region) will rescue it since a new ref was returned by the lookup. This is what
+     * rescuing is for.
+     *
+     * Note: We Cannot use 0 as the magic value since sle_next will be NULL at end of list. */
 #   define NOT_IN_DEATH_ROW ((void *)1)
-    SLIST_ENTRY(ref) entry;     ///< If already on the death row, or NOT_IN_DEATH_ROW
+    SLIST_ENTRY(ref) entry;     ///< If already on the (preliminary or definitive) death row, or NOT_IN_DEATH_ROW
 #   ifndef __GNUC__
     struct mutex mutex;         ///< In dire circumstances when we can't use atomic operations
 #   endif
     void (*del)(struct ref *);  ///< The delete function to finally get rid of the object
 };
+
+#define REF_IS_ALIVE(ref) ((ref)->entry.sle_next == NOT_IN_DEATH_ROW)
 
 static inline void ref_ctor(struct ref *ref, void (*del)(struct ref *))
 {
