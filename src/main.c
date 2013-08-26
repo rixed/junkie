@@ -69,6 +69,7 @@
 #include "junkie/proto/serialize.h"
 #include "junkie/proto/os-detect.h"
 #include "junkie/proto/discovery.h"
+#include "junkie/proto/cifs.h"
 #include "proto/fuzzing.h"
 #include "pkt_source.h"
 #include "plugins.h"
@@ -91,7 +92,7 @@ static struct {
     I(udp),           I(icmpv6),      I(tcp),
     I(icmp),          I(sip),
     I(http),          I(rtp),         I(netbios),
-    I(dns),           I(rtcp),
+    I(dns),           I(rtcp),        I(cifs),
     I(dns_tcp),       I(ftp),         I(mgcp),
     I(sdp),           I(pgsql),       I(mysql),
     I(tns),           I(tls),         I(erspan),

@@ -155,12 +155,11 @@
 
 (add-proto-signature "CIFS" 14 'low
                      (nm:compile
-                       type:bool '(tcp) '(and ((nb-bytes rest) >= 13)
-                                              ((rest @ 0) == 0) ; NB session msg
-                                              ((rest @ 4) == #xff)
-                                              ((rest @ 5) == 83) ; S
-                                              ((rest @ 6) == 77) ; M
-                                              ((rest @ 7) == 66)))) ; B
+                       type:bool '(tcp) '(and ((nb-bytes rest) >= 32)
+                                              ((rest @ 0) == #xff)
+                                              ((rest @ 1) == #x53) ; S
+                                              ((rest @ 2) == #x4d) ; M
+                                              ((rest @ 3) == #x42)))) ; B
 
 (add-proto-signature "PCanywhere" 15 'medium
                      (nm:compile
@@ -223,3 +222,7 @@
                        type:bool '(tcp) '(and (str-in-bytes rest "rdpdr")
                                               (str-in-bytes rest "cliprdr"))))
 
+(add-proto-signature "NetBIOS" 23 'low
+                     (nm:compile
+                       type:bool '(tcp) '(and ((nb-bytes rest) > 4)
+                                              ((rest @ 0) == #x00))))

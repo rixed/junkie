@@ -13,9 +13,12 @@ PIPI: head_len=0, payload=33, protocol=17(telnet), trust=low
 PIPI: head_len=0, payload=12, protocol=17(telnet), trust=low
 PIPI: head_len=0, payload=45, protocol=17(telnet), trust=low
 -- pcap/misc/samba.pcap --
-PIPI: head_len=0, payload=78, protocol=14(CIFS), trust=low
-PIPI: head_len=0, payload=164, protocol=14(CIFS), trust=low
-PIPI: head_len=0, payload=88, protocol=14(CIFS), trust=low
+NetBIOS: head_len=4, payload=74
+CIFS: head_len=32, payload=42, command=0x32, status=0x00000000
+NetBIOS: head_len=4, payload=160
+CIFS: head_len=32, payload=128, command=0x32, status=0x00000000
+NetBIOS: head_len=4, payload=84
+CIFS: head_len=32, payload=52, command=0x32, status=0x00000000
 -- pcap/misc/irc.pcap --
 PIPI: head_len=0, payload=12, protocol=11(IRC), trust=low
 -- pcap/misc/rdp.pcap --
