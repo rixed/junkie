@@ -25,7 +25,6 @@
 #include "junkie/proto/proto.h"
 #include "junkie/proto/netbios.h"
 #include "junkie/proto/cifs.h"
-#include <arpa/inet.h>  // for ntohl()
 #include "junkie/proto/tcp.h"
 
 #undef LOG_CAT
@@ -38,7 +37,7 @@ LOG_CATEGORY_DEF(proto_netbios);
 
 static int packet_is_netbios(uint8_t const *packet, size_t next_len)
 {
-    uint32_t len = ntohl(*((uint32_t*) packet)) & 0x00ffffff;
+    uint32_t len = READ_U32N((uint32_t*) packet) & 0x00ffffff;
     return len == (next_len - NETBIOS_HEADER_SIZE);
 }
 
@@ -79,7 +78,8 @@ static enum proto_parse_status netbios_parse(struct parser *parser, struct proto
     if (status == PROTO_OK) return PROTO_OK;
 
 fallback:
-    return proto_parse(NULL, &info.info, way, next_packet, cap_len - NETBIOS_HEADER_SIZE, wire_len - NETBIOS_HEADER_SIZE, now, tot_cap_len, tot_packet);
+    (void)proto_parse(NULL, &info.info, way, next_packet, cap_len - NETBIOS_HEADER_SIZE, wire_len - NETBIOS_HEADER_SIZE, now, tot_cap_len, tot_packet);
+    return PROTO_OK;
 }
 
 
@@ -102,7 +102,7 @@ void netbios_init(void)
         .info_2_str = proto_info_2_str,
         .info_addr  = netbios_info_addr,
     };
-    uniq_proto_ctor(&uniq_proto_netbios, &ops, "NetBIOS", PROTO_CODE_NETBIOS);
+    uniq_proto_ctor(&uniq_proto_netbios, &ops, "Netbios", PROTO_CODE_NETBIOS);
     port_muxer_ctor(&tcp_port_muxer, &tcp_port_muxers, 445, 445, proto_netbios);
 }
 

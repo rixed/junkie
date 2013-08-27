@@ -12,9 +12,6 @@ extern struct proto *proto_netbios;
 
 struct netbios_proto_info {
     struct proto_info info;
-    enum netbios_mode {
-        NETBIOS_CIFS,
-    } mode;
 };
 
 void netbios_init(void);

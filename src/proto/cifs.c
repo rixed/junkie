@@ -26,7 +26,44 @@
 
 LOG_CATEGORY_DEF(proto_cifs);
 
-#define CIFS_HEADER_SIZE 32
+#define CIFS_HEADER_SIZE sizeof(struct cifs_hdr)
+
+struct cifs_hdr {
+    uint32_t code;
+    uint8_t  command;
+    uint32_t status;
+
+    // flags
+    unsigned request:1;
+    unsigned notify:1;
+    unsigned oplocks:1;
+    unsigned canonicalized:1;
+    unsigned case_sensitivity:1;
+    unsigned receive_buffer_posted:1;
+    unsigned lock_and_read:1;
+
+    // flags 2
+
+    unsigned unicode:1;
+    unsigned error_code_type:1;
+    unsigned execute_only_reads:1;
+    unsigned dfs:1;
+    unsigned reparse_path:1;
+    unsigned long_names:1;
+    unsigned security_signatures_required:1;
+    unsigned compressed:1;
+    unsigned extended_attributes:1;
+    unsigned long_names_allowed:1;
+
+    uint16_t process_id_high;
+    uint64_t signature;
+    uint16_t reserved;
+    uint16_t tree_id;
+    uint16_t process_id;
+    uint16_t user_id;
+    uint16_t multiplex_id;
+} packed_;
+
 
 static void const *cifs_info_addr(struct proto_info const *info_, size_t *size)
 {
@@ -38,8 +75,7 @@ static void const *cifs_info_addr(struct proto_info const *info_, size_t *size)
 static char const *cifs_info_2_str(struct proto_info const *info_)
 {
     struct cifs_proto_info const *info = DOWNCAST(info_, info, cifs_proto_info);
-    char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, command=%#04x, status=0x%08x",
+    char *str = tempstr_printf("%s, command=%#04x, status=0x%08"PRIx32,
             proto_info_2_str(info_),
             info->command,
             info->status);
@@ -48,7 +84,7 @@ static char const *cifs_info_2_str(struct proto_info const *info_)
 
 static int packet_is_cifs(struct cifs_hdr const *cifshdr)
 {
-    return ntohl(cifshdr->code) == 0xff534d42; // 0xff + SMB
+    return READ_U32N(&cifshdr->code) == 0xff534d42; // 0xff + SMB
 }
 
 static void cifs_proto_info_ctor(struct cifs_proto_info *info, struct parser *parser, struct proto_info *parent, size_t header, size_t payload, struct cifs_hdr const * cifshdr)
