@@ -464,6 +464,33 @@ struct mutex *mutex_pool_anyone(struct mutex_pool *p)
 }
 
 
+/*
+ * Misc
+ */
+
+void disable_cancel(void)
+{
+    int dummy_oldstate;
+    if (0 != pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &dummy_oldstate)) {
+        SLOG(LOG_ERR, "Cannot pthread_setcancelstate()");
+        // so be it
+    }
+}
+
+void enable_cancel(void)
+{
+    int dummy_oldstate;
+    if (0 != pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &dummy_oldstate)) {
+        SLOG(LOG_ERR, "Cannot pthread_setcancelstate()");
+    }
+}
+
+void cancellable_sleep(int t)
+{
+    enable_cancel();
+    sleep(t);
+    disable_cancel();
+}
 
 /*
  * Init

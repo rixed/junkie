@@ -121,4 +121,10 @@ void rwlock_release_(void *);   ///< Same as rwlock_release but comply to scm_dy
     rwlock_acquire(lock, true); \
     for (bool first__ = true ; first__ || (rwlock_release(lock), false) ; first__ = false)
 
+void disable_cancel(void);
+void enable_cancel(void);
+/// Like sleep, but allow a not cancellable thread to be killed in its sleep
+/// (Hint: do not go in bed with a lock)
+void cancellable_sleep(int);
+
 #endif

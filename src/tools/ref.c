@@ -106,18 +106,10 @@ void doomer_run(void)
 static void *doomer_thread_(void unused_ *dummy)
 {
     set_thread_name("J-doomer");
-    int old_state;
-    if (0 != pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &old_state)) {
-        SLOG(LOG_CRIT, "Cannot set cancelstate of Doomer-thread");
-    }
-    assert(old_state == PTHREAD_CANCEL_ENABLE);
-    if (0 != pthread_setcanceltype(PTHREAD_CANCEL_DEFERRED, &old_state)) {
-        SLOG(LOG_CRIT, "Cannot set canceltype of Doomer-thread");
-    }
-    assert(old_state == PTHREAD_CANCEL_DEFERRED);
+    disable_cancel();
     while (1) {
         doomer_run();
-        sleep(1);
+        cancellable_sleep(1);
     }
     return NULL;
 }

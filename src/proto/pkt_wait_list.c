@@ -238,8 +238,7 @@ static void *pkt_wl_config_timeouter_thread_(void *config_)
     struct pkt_wl_config *config = config_;
 
     set_thread_name(tempstr_printf("J-TO-%s", config->name));
-    int dummy_oldstate;
-    (void)pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &dummy_oldstate);
+    disable_cancel();
 
     while (1) {
         enter_mono_region();
@@ -262,9 +261,7 @@ static void *pkt_wl_config_timeouter_thread_(void *config_)
         leave_protected_region();
 
         // Wait
-        (void)pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &dummy_oldstate);
-        sleep(1);
-        (void)pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &dummy_oldstate);
+        cancellable_sleep(1);
     }
     return NULL;
 }
