@@ -19,7 +19,6 @@
  */
 
 #include "junkie/proto/cifs.h"
-#include <arpa/inet.h>  // for ntohl()
 
 #undef LOG_CAT
 #define LOG_CAT proto_cifs_log_category
