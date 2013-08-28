@@ -130,6 +130,8 @@ void cifs_init(void)
 
 void cifs_fini(void)
 {
+#   ifdef DELETE_ALL_AT_EXIT
     uniq_proto_dtor(&uniq_proto_cifs);
+#   endif
     log_category_proto_cifs_fini();
 }
