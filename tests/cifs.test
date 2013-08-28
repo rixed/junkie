@@ -1,0 +1,10 @@
+#!/bin/sh
+
+NAME="CIFS"
+PCAPS="pcap/smb/smb.pcap"
+filter() {
+    grep -E '^(Netbios|CIFS)'
+}
+OUTPUT="cifs.out"
+
+. "$srcdir/dump_test"

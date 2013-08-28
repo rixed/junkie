@@ -20,7 +20,7 @@ dist_check_SCRIPTS = \
 	http-truncation.test \
 	pkt_source_stats.scm eth_padding.test \
 	pkt_source_dev_id.scm ftp.test gre.test \
-	ip.test timeout.scm eth.test sip.test \
+	ip.test timeout.scm eth.test cifs.test sip.test \
 	serialize_check writer_check.scm \
 	dedup_conf1.test dedup_conf2.test \
 	http.test http-chunked.test http-multiline.test \
