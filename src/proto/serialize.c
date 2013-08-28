@@ -80,6 +80,7 @@ void serialize_proto_stack(uint8_t **buf, struct proto_info const *last, struct 
 #include "junkie/proto/erspan.h"
 #include "junkie/proto/skinny.h"
 #include "junkie/proto/dhcp.h"
+#include "junkie/proto/cifs.h"
 #include "junkie/proto/discovery.h"
 
 static void deserialize_proto_info_rec(unsigned depth, uint8_t const **buf, struct proto_info *last, struct timeval const *now)
@@ -124,6 +125,7 @@ static void deserialize_proto_info_rec(unsigned depth, uint8_t const **buf, stru
         struct erspan_proto_info erspan;
         struct skinny_proto_info skinny;
         struct dhcp_proto_info dhcp;
+        struct cifs_proto_info cifs;
         struct discovery_proto_info discovery;
     } i;
     struct proto_info *info = NULL;
@@ -144,7 +146,7 @@ static void deserialize_proto_info_rec(unsigned depth, uint8_t const **buf, stru
         CASE(PGSQL, pgsql); CASE(MYSQL, mysql);
         CASE(NETBIOS, netbios); CASE(TLS, tls) ;
         CASE(ERSPAN, erspan); CASE(SKINNY, skinny);
-        CASE(DHCP, dhcp);
+        CASE(DHCP, dhcp); CASE(CIFS, cifs);
         CASE(DISCOVERY, discovery);
 #       undef CASE
         case PROTO_CODE_DUMMY:

@@ -153,14 +153,15 @@
                                               ((rest @ 10) <= 57) ; to 9
                                               ((rest @ 11) == 10)))) ; then \n
 
-(add-proto-signature "CIFS" 14 'low
+; Detection of Netbios session for smb over tcp
+(add-proto-signature "Netbios" 14 'low
                      (nm:compile
-                       type:bool '(tcp) '(and ((nb-bytes rest) >= 13)
-                                              ((rest @ 0) == 0) ; NB session msg
+                       type:bool '(tcp) '(and ((nb-bytes rest) >= 36)
+                                              ((rest @ 0) == #x00)
                                               ((rest @ 4) == #xff)
-                                              ((rest @ 5) == 83) ; S
-                                              ((rest @ 6) == 77) ; M
-                                              ((rest @ 7) == 66)))) ; B
+                                              ((rest @ 5) == #x53) ; S
+                                              ((rest @ 6) == #x4d) ; M
+                                              ((rest @ 7) == #x42)))) ; B
 
 (add-proto-signature "PCanywhere" 15 'medium
                      (nm:compile
@@ -222,4 +223,3 @@
                      (nm:compile
                        type:bool '(tcp) '(and (str-in-bytes rest "rdpdr")
                                               (str-in-bytes rest "cliprdr"))))
-

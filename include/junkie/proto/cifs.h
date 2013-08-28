@@ -10,8 +10,13 @@
 
 extern struct proto *proto_cifs;
 
-struct proto_info_cifs {
+struct cifs_proto_info {
     struct proto_info info;
+    unsigned command;
+    uint32_t status;
 };
+
+void cifs_init(void);
+void cifs_fini(void);
 
 #endif
