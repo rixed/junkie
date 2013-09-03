@@ -309,7 +309,9 @@ void redim_array_fini(void)
 
     log_category_redim_array_fini();
     mallocer_fini();
+#   ifdef DELETE_ALL_AT_EXIT
     mutex_dtor(&redim_arrays_mutex);
+#   endif
     mutex_fini();
     ext_fini();
 }

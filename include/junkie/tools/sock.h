@@ -43,14 +43,14 @@
 struct sock;
 
 /// The callback function on reception
-typedef int sock_receiver(struct sock *, size_t, uint8_t const *, struct ip_addr const *sender, void *user_data);
+typedef int sock_receiver(struct sock *, size_t, uint8_t const *, struct ip_addr const *sender);
 
 /// Generic type for sockets
 struct sock {
     struct sock_ops {
         int (*send)(struct sock *, void const *, size_t);
         /// sender will be set to 127.0.0.1 for UNIX domain/files sockets.
-        int (*recv)(struct sock *, fd_set *, sock_receiver *, void *user_data);
+        int (*recv)(struct sock *, fd_set *);
         /// add all selectable fds in this set, return the max
         int (*set_fd)(struct sock *, fd_set *);
         /// tells if a future send/recv is expected to work (useful to take any kind of action like reconnect)
@@ -58,13 +58,15 @@ struct sock {
         void (*del)(struct sock *);
     } const *ops;
     char name[64];
+    sock_receiver *receiver;    // Set this before calling recv!
+    void *user_data;            // whatever extension you want
     struct bench_event sending;
 };
 
 // Constructors
 
 struct sock *sock_tcp_client_new(char const *host, char const *service, size_t buf_size);
-struct sock *sock_tcp_server_new(char const *service, size_t buf_size);
+struct sock *sock_tcp_server_new(char const *service, size_t buf_size, bool threaded);
 
 struct sock *sock_udp_client_new(char const *host, char const *service, size_t buf_size);
 struct sock *sock_udp_server_new(char const *service, size_t buf_size);

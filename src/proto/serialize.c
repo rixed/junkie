@@ -259,9 +259,9 @@ static struct deserializer_source *deserializer_source_lookup(struct deserialize
     return source;
 }
 
-static int deserializer_receiver(struct sock unused_ *sock, size_t len, uint8_t const *buf, struct ip_addr const unused_ *sender, void *deser_)
+static int deserializer_receiver(struct sock unused_ *sock, size_t len, uint8_t const *buf, struct ip_addr const unused_ *sender)
 {
-    struct deserializer *deser = deser_;
+    struct deserializer *deser = sock->user_data;
     uint8_t const *ptr = buf;
     uint32_t src_id;
     struct deserializer_source *source;
@@ -305,7 +305,7 @@ static void *deserializer_thread(void *deser_)
     while (deser->sock) {
         fd_set set;
         if (0 != sock_select_single(deser->sock, &set)) break;
-        if (0 != deser->sock->ops->recv(deser->sock, &set, deserializer_receiver, deser)) break;
+        if (0 != deser->sock->ops->recv(deser->sock, &set)) break;
     }
 
     deser->running = false;
@@ -387,9 +387,11 @@ static SCM g_open_deserializer(SCM port_)
     }
 
     struct sock *sock = sock_udp_server_new(service, 0);
+    sock->receiver = deserializer_receiver;
     struct deserializer *deser = deserializer_new(sock);
     if (deser) {
         ret = scm_from_latin1_string(deser->sock->name);
+        sock->user_data = deser;
     }
 
     scm_dynwind_end();

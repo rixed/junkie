@@ -151,10 +151,8 @@ ssize_t netflow_decode_msg(struct nf_msg *msg, void const *src, size_t size)
 
 #define MAX_NETFLOW_PDU 8096
 
-static int netflow_receive(struct sock unused_ *sock, size_t len, uint8_t const *buf, struct ip_addr const *sender, void *cb_)
+static int netflow_receive(struct sock unused_ *sock, size_t len, uint8_t const *buf, struct ip_addr const *sender)
 {
-    netflow_callback *cb = cb_;
-
     if (len == sizeof(buf)) {
         SLOG(LOG_ERR, "Received a PDU that's bigger than expected. Bailing out!");
         return -1;
@@ -165,6 +163,8 @@ static int netflow_receive(struct sock unused_ *sock, size_t len, uint8_t const 
         SLOG(LOG_DEBUG, "Skipping netflow msg");
         return 0;
     }
+
+    netflow_callback *cb = sock->user_data;
 
     for (unsigned f = 0; f < msg.nb_flows; f++) {
         if (0 > cb(sender, &msg, msg.flows+f)) return -1;
@@ -179,11 +179,13 @@ int netflow_listen(char const *service, netflow_callback *cb)
 
     struct sock *sock = sock_udp_server_new(service, 0);
     if (! sock) return -1;
+    sock->receiver = netflow_receive;
+    sock->user_data = cb;
 
     while (sock) {
         fd_set set;
         if (0 != sock_select_single(sock, &set)) goto quit;
-        if (0 != sock->ops->recv(sock, &set, netflow_receive, cb)) goto quit;
+        if (0 != sock->ops->recv(sock, &set)) goto quit;
     }
 
     err = 0;
