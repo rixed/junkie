@@ -92,7 +92,9 @@ struct sock_inet {
 static void sock_inet_disconnect_all(struct sock_inet *s)
 {
     for (unsigned f = 0; f < s->nb_fds; f++) {
+        SLOG(LOG_DEBUG, "Closing fd %d", s->fd[f]);
         file_close(s->fd[f]);
+        s->fd[f] = -1;
     }
     s->nb_fds = 0;
 }
@@ -247,6 +249,7 @@ static int sock_inet_server_ctor(struct sock_inet *s, char const *service, size_
             continue;
         } else {
             if (buf_size) set_rcvbuf(s->fd[s->nb_fds], buf_size);
+            SLOG(LOG_DEBUG, "Bound TCP sock on fd %d", s->fd[s->nb_fds]);
             s->nb_fds ++;
             continue;
         }
@@ -583,7 +586,7 @@ static int sock_tcp_recv(struct sock *s_, fd_set *set)
         s->clients[new_c].fd = fd;
         ip_addr_ctor_from_sockaddr(&s->clients[new_c].addr, &addr.a, addrlen);
         s->clients[new_c].prev_read = 0;
-        SLOG(LOG_NOTICE, "New connection from %s to %s", ip_addr_2_str(&s->clients[new_c].addr), s_->name);
+        SLOG(LOG_NOTICE, "New connection from %s to %s on fd %d", ip_addr_2_str(&s->clients[new_c].addr), s_->name, fd);
         if (s->threaded) {  // spawn a new thread to read this one
             int err = pthread_create(&s->clients[new_c].pth, NULL, start_guile_reader, s->clients+new_c);
             if (! err) {
@@ -618,7 +621,9 @@ static int sock_tcp_set_fd(struct sock *s_, fd_set *set)
     struct sock_inet *i_ = DOWNCAST(s_, sock, sock_inet);
     struct sock_tcp *s = DOWNCAST(i_, inet, sock_tcp);
     int max = -1;
+    SLOG(LOG_DEBUG, "Setting TCP fds (%u listeners)", i_->nb_fds);
     for (unsigned fdi = 0; fdi < i_->nb_fds; fdi++) {
+        SLOG(LOG_DEBUG, "Setting TCP listener fd %d", i_->fd[fdi]);
         max = MAX(max, i_->fd[fdi]);
         FD_SET(i_->fd[fdi], set);
     }
@@ -705,6 +710,7 @@ static int sock_tcp_server_ctor(struct sock_tcp *s, char const *service, size_t 
     if (err) return err;
 
     for (unsigned fds = 0; fds < s->inet.nb_fds; fds++) {
+        SLOG(LOG_DEBUG, "listen on fd %d", s->inet.fd[fds]);
         if (listen(s->inet.fd[fds], 3) < 0) {
             SLOG(LOG_ERR, "Cannot listen on socket %s: %s", s->inet.sock.name, strerror(errno));
             return -1;
