@@ -348,12 +348,12 @@ static void ip_subparser_del(struct mux_subparser *mux_subparser)
 static struct pkt_wl_config ip_reassembly_config;
 
 // Really construct the waiting list
-static int ip_reassembly_ctor(struct ip_reassembly *reassembly, struct parser *parser, uint16_t id)
+static int ip_reassembly_ctor(struct ip_reassembly *reassembly, struct ip_subparser *ip_subparser, struct parser *parser, uint16_t id)
 {
     SLOG(LOG_DEBUG, "Constructing ip_reassembly@%p for parser %s", reassembly, parser_name(parser));
     assert(! reassembly->constructed);
 
-    if (0 != pkt_wait_list_ctor(&reassembly->wl, 0, &ip_reassembly_config, parser, NULL)) return -1;
+    if (0 != pkt_wait_list_ctor(&reassembly->wl, 0, &ip_reassembly_config, parser, NULL, &ip_subparser->mux_subparser.ref)) return -1;
     reassembly->id = id;
     reassembly->got_last = 0;
     reassembly->constructed = 1;
@@ -373,7 +373,7 @@ static struct ip_reassembly *ip_reassembly_lookup(struct ip_subparser *ip_subpar
             if (reassembly->id != id) continue;
             SLOG(LOG_DEBUG, "Found id at index %u in ip_reassembly@%p", r, reassembly);
             if (! reassembly->constructed) {
-                if (0 != ip_reassembly_ctor(reassembly, parser, id)) return NULL;
+                if (0 != ip_reassembly_ctor(reassembly, ip_subparser, parser, id)) return NULL;
             }
             return reassembly;
         } else {
@@ -389,7 +389,7 @@ static struct ip_reassembly *ip_reassembly_lookup(struct ip_subparser *ip_subpar
 
     struct ip_reassembly *const reassembly = ip_subparser->reassembly + last_unused;
     assert(! reassembly->in_use);
-    if (0 != ip_reassembly_ctor(reassembly, parser, id)) return NULL;
+    if (0 != ip_reassembly_ctor(reassembly, ip_subparser, parser, id)) return NULL;
     return reassembly;
 }
 

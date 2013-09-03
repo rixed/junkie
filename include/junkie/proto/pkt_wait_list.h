@@ -159,6 +159,9 @@ struct pkt_wait_list {
     struct parser *parser;
     /// Optionally, the other pkt_wait_list we may wait.
     struct pkt_wait_list *sync_with;
+    /// Now, a pkt_wait_list often belongs to an ref counted object,
+    /// which liveness we want to check when timeouting. Thus this backlink.
+    struct ref *controlling_ref;
 };
 
 /// Construct a pkt_wait_list
@@ -168,7 +171,8 @@ int pkt_wait_list_ctor(
     struct pkt_wl_config *config,   ///< Where we store the pkt_wait_list created with these parameters (useful for timeouting) as well as global conf
     struct parser *parser,          ///< The parser that's supposed to parse this packet whenever possible
     /// If <> NULL, synchronize this pkt_wait_list with another one (ie. packets from this one may wait for the other waiting list to advance)
-    struct pkt_wait_list *restrict sync_with
+    struct pkt_wait_list *restrict sync_with,
+    struct ref *ref                 ///< The ref controlling the liveness of this pkt_wait_list, or NULL
 );
 
 /// Destruct a pkt_wait_list, calling the subscribers for every pending packets.
