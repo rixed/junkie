@@ -245,21 +245,23 @@ static enum proto_parse_status discovery_parse(struct parser *parser, struct pro
                 break;
         }
         if (subparser) {
+            assert(! actual_parser);
             actual_parser = parser_ref(subparser->parser);
         }
         if (actual_parser) {
             enum proto_parse_status status = proto_parse(actual_parser, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
+            parser_unref(&actual_parser);
             if (status != PROTO_OK) {
-                // delete the subparser if we created one
+                // remove the subparser if we added one
                 if (subparser) {
                     SLOG(LOG_DEBUG, "Destroy the dedicated subparser since it does not fit the payload");
                     mux_subparser_deindex(subparser);
-                    mux_subparser_unref(&subparser);
                 }
             }
-            parser_unref(&actual_parser);
+            mux_subparser_unref(&subparser);
             return status;
         }
+        assert(!subparser && !actual_parser);
     }
 
     struct discovery_proto_info info;

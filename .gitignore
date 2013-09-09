@@ -79,3 +79,4 @@ config/.index
 .tarball-version
 instvars.scm
 module-deps.dot
+.gdb_history
