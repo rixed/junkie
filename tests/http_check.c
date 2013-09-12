@@ -337,15 +337,29 @@ void build_url_check(void)
     static struct url_test {
         int version;
         char const *server, *host, *url;
+        uint16_t port;
         char const *expected;
     } tests[] = {
-        { 4, "1.2.3.4", "google.com",    "/index.html", "google.com/index.html" },
-        { 4, "1.2.3.4", "google.com",    NULL,          "google.com" },
-        { 4, "1.2.3.4", NULL,            NULL,          "1.2.3.4" },
-        { 4, "1.2.3.4", NULL,            "/index.html", "1.2.3.4/index.html" },
-        { 4, "1.2.3.4", NULL,            "index.html",  "1.2.3.4/index.html" },
-        { 4, "1.2.3.4", "google.com:80", "/index.html", "google.com/index.html" },
-        { 4, "1.2.3.4", "google.com:80", NULL,          "google.com" },
+        { 4, "1.2.3.4", "google.com",      "/index.html",  0, "google.com/index.html" },
+        { 4, "1.2.3.4", "google.com",      NULL,           0, "google.com" },
+        { 4, "1.2.3.4", "google.com",      "/index.html", 80, "google.com/index.html" },
+        { 4, "1.2.3.4", "google.com",      NULL,          80, "google.com" },
+        { 4, "1.2.3.4", "google.com",      "/index.html", 90, "google.com:90/index.html" },
+        { 4, "1.2.3.4", "google.com",      NULL,          90, "google.com:90" },
+        { 4, "1.2.3.4", NULL,              NULL,           0, "1.2.3.4" },
+        { 4, "1.2.3.4", NULL,              "/index.html",  0, "1.2.3.4/index.html" },
+        { 4, "1.2.3.4", NULL,              "index.html",   0, "1.2.3.4/index.html" },
+        { 4, "1.2.3.4", "google.com:80",   "/index.html",  0, "google.com/index.html" },
+        { 4, "1.2.3.4", "google.com:80",   NULL,          90, "google.com" },   // notice port in host prevail
+        { 4, "1.2.3.4", "google.com:0080", NULL,           0, "google.com" },
+        { 4, "1.2.3.4", "google.com:1080", NULL,           0, "google.com:1080" },
+        { 4, "1.2.3.4", "google.com:0180", "/index",       0, "google.com:180/index" },
+        { 4, "1.2.3.4", "google.com:80",   "http://google.com:80/bla",
+                                                           0, "google.com/bla" },
+        { 4, "1.2.3.4", "google.com:0",    "http://google.com:0/bla",
+                                                           0, "google.com/bla" },
+        { 4, "1.2.3.4", "google.com:180",  "http://google.com:180/bla",
+                                                           0, "google.com:180/bla" },
     };
 
     for (unsigned t = 0; t < NB_ELEMS(tests); t++) {
@@ -353,7 +367,7 @@ void build_url_check(void)
         struct url_test const *test = tests+t;
         struct ip_addr ip_addr;
         assert(0 == ip_addr_ctor_from_str(&ip_addr, test->server, strlen(test->server), test->version));
-        char const *url = http_build_url(&ip_addr, test->host, test->url);
+        char const *url = http_build_url(&ip_addr, test->host, test->url, test->port != 0 ? (uint16_t*)&test->port : NULL);
         printf("(%s == %s)... ", test->expected, url);
         assert(0 == strcmp(test->expected, url));
         printf("Ok\n");

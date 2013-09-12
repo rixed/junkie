@@ -67,14 +67,16 @@ struct hook http_body_hook;    // at every piece of body
 /// @return the name of an HTTP method
 char const *http_method_2_str(enum http_method);
 
-/// Helper to build a host/url string from host, url and server ip.
-/** @return a tempstr or a pointer to url, none of which ought to be freed. */
-char const *http_build_url(struct ip_addr const *server, char const *host, char const *url);
+/// Helper to build a host/url string from host, url, server ip and port.
+/** @return a tempstr or a pointer to url, none of which ought to be freed.
+ * @note host, url and port may be NULL. */
+char const *http_build_url(struct ip_addr const *server, char const *host, char const *url, uint16_t const *port);
 
-/// Helper to build the domainname from the ip, host and/or url components.
+/// Helper to build the domainname from the ip/port, host and/or url components.
 /** @return a tempstr or host, with just the domainname without URL nor "http://" nor ports.
+ * @note host, url and port may be NULL.
  * @note IP address are written in v6 format. */
-char const *http_build_domain(struct ip_addr const *server, char const *host, char const *url, int version);
+char const *http_build_domain(struct ip_addr const *server, char const *host, char const *url, uint16_t const *port, int version);
 
 void http_init(void);
 void http_fini(void);

@@ -50,12 +50,49 @@ struct hook http_body_hook;    // at every piece of body
 #define HTTP_SEL "http://"
 #define HTTP_SEL_LEN 7
 
-static bool end_of_host(int c)
+static bool end_of_host(char c)
 {
     return c == '\0' || c == '/' || c == ':';
 }
 
-char const *http_build_domain(struct ip_addr const *server, char const *host, char const *url, int version)
+/* Force the port to appear before the first '/' (or at the end) of thing,
+ * or strip it if it's 80. In case port is present in thing don't
+ * consider port. */
+static char const *handle_port(char const *thing, uint16_t const *port)
+{
+    // locate start and end of port
+    char const *colon = thing;
+    while (! end_of_host(*colon)) colon ++;
+    if (*colon != ':') {
+        if (port && *port != 80) {
+            return tempstr_printf("%s:%"PRIu16, thing, *port);
+        } else {
+            return thing;
+        }
+    }
+    char const *start_port = colon + 1;
+    while (*start_port == '0') start_port ++;
+    char const *end_port = start_port;
+    while (! end_of_host(*end_port)) end_port ++;
+    if (*end_port == ':') return thing; // ?
+    assert(*end_port == '/' || *end_port == '\0');
+    // if port is "80" or "0", skip it
+    if (
+        end_port == start_port ||   // as in "http://host:000/..."
+        (
+            end_port - start_port == 2 &&   // as in "http://host:80/..."
+            start_port[0] == '8' &&
+            start_port[1] == '0'
+        )
+    ) {
+        return tempstr_printf("%.*s%s", (int)(colon-thing), thing, end_port);
+    } else {
+        // just skip the initial 0s
+        return tempstr_printf("%.*s:%s", (int)(colon-thing), thing, start_port);
+    }
+}
+
+char const *http_build_domain(struct ip_addr const *server, char const *host, char const *url, uint16_t const *port, int version)
 {
     char const *src = NULL;
     if (host) {
@@ -64,36 +101,27 @@ char const *http_build_domain(struct ip_addr const *server, char const *host, ch
         src = url + HTTP_SEL_LEN;
     }
 
-    if (! src) return (version == 6 ? ip_addr_2_strv6:ip_addr_2_str)(server);
+    if (! src) src = (version == 6 ? ip_addr_2_strv6:ip_addr_2_str)(server);
 
-    // takes everything from url+HTTP_SEL_LEN up to '\0', ':' or '/'
-    char *str = tempstr();
-    unsigned c;
-    for (c = 0; c < TEMPSTR_SIZE-1 && !end_of_host(src[c]); c++) {
-        str[c] = src[c];
+    char const *str = handle_port(src, port);
+    // return everything up to first '/'
+    char const *end = strchr(str, '/');
+    if (end) {
+        return tempstr_printf("%.*s", (int)(end-str), str);
+    } else {
+        return str;
     }
-    str[c] = '\0';
-    return str;
 }
 
-char const *http_build_url(struct ip_addr const *server, char const *host, char const *url)
+// We strip the port only when it's 80. Otherwise we add it.
+char const *http_build_url(struct ip_addr const *server, char const *host, char const *url, uint16_t const *port)
 {
     if (url && 0 == strncasecmp(url, HTTP_SEL, HTTP_SEL_LEN)) {
-        url += HTTP_SEL_LEN;
-        // Remove port from url
-        char const *colon = url;
-        while (! end_of_host(*colon)) colon ++;
-        if (*colon != ':') return url;
-        char *str = tempstr();
-        char const *end_port = colon;
-        while (! end_of_host(*end_port)) end_port ++;
-        if (*end_port == ':') return url; // ?
-        snprintf(str, TEMPSTR_SIZE, "%.*s%s", (int)(colon-url), url, end_port != '\0' ? end_port+1:end_port);
-        return str;
+        return handle_port(url + HTTP_SEL_LEN, port);
     } else {    // url does not include host
         char *str = tempstr();
         snprintf(str, TEMPSTR_SIZE, "%s%s%s",
-            http_build_domain(server, host, url, 4),
+            http_build_domain(server, host, url, port, 4),
             !url || url[0] == '/' ? "" : "/",
             url ? url : "");
         return str;
