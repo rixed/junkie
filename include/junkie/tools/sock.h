@@ -34,6 +34,8 @@
  * For TCP and files, which are stream oriented, a header is prepended to each messages
  * to indicate their length.
  *
+ * Beware that writing in most of these socks is not thread safe.
+ *
  * Along with these functions come guile wrappers to create named links between two hosts
  * (see (help "sock")).
  */
