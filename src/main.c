@@ -36,6 +36,7 @@
 #include "junkie/tools/hash.h"
 #include "junkie/tools/redim_array.h"
 #include "junkie/tools/objalloc.h"
+#include "junkie/tools/timebound.h"
 #include "junkie/cpp.h"
 // For initers/finiters
 #include "junkie/proto/streambuf.h"
@@ -87,6 +88,7 @@ static struct {
     I(objalloc),      I(plugins),     I(nettrack),
     I(cnxtrack),      I(proto),       I(fuzzing),
     I(pkt_wait_list), I(port_muxer),  I(streambuf),
+    I(timebound),
     I(cap),           I(eth),         I(arp),
     I(ip),            I(ip6),         I(gre),
     I(udp),           I(icmpv6),      I(tcp),
