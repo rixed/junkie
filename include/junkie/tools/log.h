@@ -54,7 +54,7 @@ void slog_hex(int priority, char const *filename, char const *funcname, unsigned
 
 #define DIE(fmt, ...) do { \
         slog(LOG_EMERG, NULL, NULL, fmt, ##__VA_ARGS__); \
-        exit(EXIT_FAILURE); \
+        _exit(EXIT_FAILURE); \
     } while (0)
 
 #define FAIL(fmt, ...) do { \
