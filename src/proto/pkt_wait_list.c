@@ -247,12 +247,9 @@ static void *pkt_wl_config_timeouter_thread_(void *config_)
             struct pkt_wl_config_list *list = config->lists + h;
             if (! timeval_is_set(&list->last_used)) break;
             if (0 == supermutex_lock(&list->mutex)) {
-                /* WARNING: doomer_thread may be deleting these pkt_wait_list
-                 * right now, if they were put on the definitive death row!  */
                 struct pkt_wait_list *wl;
                 // Timeout only next_to
                 LIST_FOREACH(wl, &list->list[config->next_to], entry) {
-                    if (wl->controlling_ref && ! REF_IS_ALIVE(wl->controlling_ref)) continue;
                     enum proto_parse_status status;
                     (void)pkt_wait_list_try_both(wl, &status, &list->last_used, overweight);
                 }
@@ -318,7 +315,7 @@ enum proto_parse_status pkt_wait_list_flush(struct pkt_wait_list *pkt_wl, uint8_
     return last_status;
 }
 
-int pkt_wait_list_ctor(struct pkt_wait_list *pkt_wl, unsigned next_offset, struct pkt_wl_config *config, struct parser *parser, struct pkt_wait_list *restrict sync_with, struct ref *ref)
+int pkt_wait_list_ctor(struct pkt_wait_list *pkt_wl, unsigned next_offset, struct pkt_wl_config *config, struct parser *parser, struct pkt_wait_list *restrict sync_with)
 {
     SLOG(LOG_DEBUG, "Construct pkt_wait_list @%p", pkt_wl);
 
@@ -330,7 +327,6 @@ int pkt_wait_list_ctor(struct pkt_wait_list *pkt_wl, unsigned next_offset, struc
     pkt_wl->config = config;
     pkt_wl->sync_with = sync_with;
     pkt_wl->list = config->lists + (config->list_seqnum % NB_ELEMS(config->lists));
-    pkt_wl->controlling_ref = ref;
     config->list_seqnum ++; // No need for atomicity for this usage
     if (0 != supermutex_lock(&pkt_wl->list->mutex)) return -1;
     LIST_INSERT_HEAD(&pkt_wl->list->list[config->next_to], pkt_wl, entry); // construct on the next to timeout list

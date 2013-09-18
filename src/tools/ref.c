@@ -92,6 +92,8 @@ void doomer_run(void)
     // No need to block parsing any more since the selected objects are not accessible
     leave_protected_region();
 
+    enter_multi_region();   // should not compete with mono_region anyway.
+
     // Delete all selected objects
     while (NULL != (r = SLIST_FIRST(&to_kill))) {
         assert(r->count == 0);
@@ -101,6 +103,8 @@ void doomer_run(void)
         r->entry.sle_next = NULL;   // the deletor must not care about the ref (since the decision to del the object was already taken)
         r->del(r);
     }
+
+    leave_protected_region();
 }
 
 static void *doomer_thread_(void unused_ *dummy)
