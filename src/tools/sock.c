@@ -482,7 +482,7 @@ static int tcp_read(struct sock_tcp_client *client, bool threaded)
     if (client->prev_read < sizeof(msg_len)) {
         // We still have not read the msg length
         if (threaded) enable_cancel();
-        ssize_t const r = read(client->fd, client->read_buf + client->prev_read, sizeof(msg_len));
+        ssize_t const r = read(client->fd, client->read_buf + client->prev_read, sizeof(msg_len) - client->prev_read);
         if (threaded) disable_cancel();
         if (r < 0) {
             SLOG(LOG_ERR, "Cannot read a message size from %d: %s", client->fd, strerror(errno));
