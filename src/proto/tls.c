@@ -848,14 +848,14 @@ static int decrypt_master_secret(struct tls_parser *parser, unsigned way, struct
             SLOG(LOG_DEBUG, "No reusable session, give up decryption");
             goto quit1;
         }
-        SLOG(LOG_DEBUG, "Reuing session for session_id %"PRIu32" (hash)", session->key_hash);
+        SLOG(LOG_DEBUG, "Reusing session for session_id %"PRIu32" (hash)", session->key_hash);
         tls_session_promote(session, keyfile);
         master_secret = session->master_secret;  // TODO: a ref?
     }
 
     if (clt_next_spec->cipher >= NB_ELEMS(tls_cipher_infos)) {
 unknown_cipher:
-        SLOG(LOG_DEBUG, "Don't know the caracteristics of cipher %s", tls_cipher_suite_2_str(clt_next_spec->cipher));
+        SLOG(LOG_DEBUG, "Don't know the characteristics of cipher %s", tls_cipher_suite_2_str(clt_next_spec->cipher));
         goto quit1;
     }
     struct tls_cipher_info const *cipher_info = tls_cipher_infos + clt_next_spec->cipher;
