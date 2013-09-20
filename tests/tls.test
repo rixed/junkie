@@ -6,6 +6,9 @@ filter() {
 	grep -e '^\(TLS\|HTTP\)'
 }
 OUTPUT="tls.out"
-CMDLINE='(tls-add-key "pcap/https/mycorp.pem" "192.168.10.211" "255.255.255.255" #t"http")(tls-add-key "pcap/https/mycorp_with_sessions.pem" "192.168.10.9" "255.255.255.255" #t "http")'
+CMDLINE='
+(tls-add-key "pcap/https/mycorp.pem" "192.168.10.211" "255.255.255.255" #t "http")
+(tls-add-key "pcap/https/mycorp_with_sessions.pem" "192.168.10.9" "255.255.255.255" #t "http")
+'
 
 . "$srcdir/dump_test"
