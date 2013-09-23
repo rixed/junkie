@@ -88,6 +88,7 @@ char const *eth_proto_2_str(unsigned protocol)
         case ETH_PROTO_8021QinQ:
         case ETH_PROTO_8021QinQ_alt:
                                  return "QinQ";
+        case ETH_PROTO_FCOE:     return "FCoE";
         case ETH_PROTO_ERSPAN:   return "ERSPAN";
         default:
             return tempstr_printf("0x%x", protocol);

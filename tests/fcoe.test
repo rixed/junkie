@@ -1,0 +1,10 @@
+#!/bin/sh
+
+NAME="FCOE"
+PCAPS="pcap/fcoe/fcoe-pre-t11.pcap pcap/fcoe/fcoe-t11.pcap pcap/fcoe/fcoe-t11-short.pcap"
+filter() {
+	grep '^FCoE' | cut -d' ' -f 2-
+}
+OUTPUT="fcoe.out"
+
+. "$srcdir/dump_test"

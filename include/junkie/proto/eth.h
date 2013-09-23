@@ -23,6 +23,7 @@ extern struct proto *proto_eth;
 #define ETH_PROTO_8021Q    0x8100
 #define ETH_PROTO_8021QinQ 0x88A8
 #define ETH_PROTO_8021QinQ_alt 0x9100
+#define ETH_PROTO_FCOE     0x8906
 #define ETH_PROTO_ERSPAN   0x88BE
 
 /// Ethernet frame

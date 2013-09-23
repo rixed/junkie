@@ -228,6 +228,7 @@
          ('dns-IN 1) ('dns-CS 2) ('dns-CH 3) ('dns-HS 4)
          ((or 'eth-ip 'eth-ipv4 'eth-ip4) #x0800)
          ((or 'eth-ip6 'eth-ipv6) #x86dd)
+         ('eth-fcoe #x8906)
          ('eth-arp #x0806) ('eth-ieee-802.1q #x8100) ('eth-unset -1)
          ('http-get 0) ('http-head 1) ('http-post 2) ('http-connect 3)
          ('http-put 4) ('http-options 5) ('http-trace 6) ('http-delete 7)

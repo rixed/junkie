@@ -63,6 +63,7 @@
 #include "junkie/proto/sql.h"
 #include "junkie/proto/tls.h"
 #include "junkie/proto/erspan.h"
+#include "junkie/proto/fcoe.h"
 #include "junkie/proto/skinny.h"
 #include "junkie/proto/dhcp.h"
 #include "junkie/proto/port_muxer.h"
@@ -98,7 +99,7 @@ static struct {
     I(dns_tcp),       I(ftp),         I(mgcp),
     I(sdp),           I(pgsql),       I(mysql),
     I(tns),           I(tls),         I(erspan),
-    I(skinny),        I(dhcp),
+    I(skinny),        I(dhcp),        I(fcoe),
     I(discovery),
     I(pkt_source),    I(capfile),     I(serialize)
 #   undef I
