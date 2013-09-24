@@ -1,7 +1,7 @@
 #!/bin/sh
 
 NAME="TLS"
-PCAPS="pcap/https/mycorp.pcap pcap/https/certificate.pcap pcap/https/tlsv1.pcap pcap/https/mycorp_with_sessions.pcap"
+PCAPS="pcap/https/mycorp.pcap pcap/https/certificate.pcap pcap/https/tlsv1.pcap pcap/https/mycorp_with_sessions.pcap pcap/https/dokuwiki.pcap"
 filter() {
 	grep -e '^\(TLS\|HTTP\)'
 }
@@ -9,6 +9,7 @@ OUTPUT="tls.out"
 CMDLINE='
 (tls-add-key "pcap/https/mycorp.pem" "192.168.10.211" "255.255.255.255" #t "http")
 (tls-add-key "pcap/https/mycorp_with_sessions.pem" "192.168.10.9" "255.255.255.255" #t "http")
+(tls-add-key "pcap/https/dokuwiki.pem" "10.1.0.18" "255.255.255.255" #t "http")
 '
 
 . "$srcdir/dump_test"

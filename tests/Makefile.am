@@ -30,7 +30,7 @@ dist_check_SCRIPTS = \
 	netmatch_check4.scm netmatch_check5.scm \
 	netmatch_check6.scm netmatch_check7.scm \
 	sock-check.scm \
-	discovery.test tls.test tls2.test dhcp.test fcoe.test
+	discovery.test tls.test dhcp.test fcoe.test
 
 TESTS = $(check_PROGRAMS) $(dist_check_SCRIPTS)
 
@@ -139,7 +139,6 @@ EXTRA_DIST = \
 	tcp.out \
 	http.out \
 	tls.out \
-	tls2.out \
 	netmatch_check_lib.scm \
 	fcoe.out \
 	pcap

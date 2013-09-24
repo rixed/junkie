@@ -1004,7 +1004,7 @@ skip:
     }
 
     SLOG(LOG_DEBUG, "read %zd bytes out of %s", r, s->sock.name);
-    return s_->receiver ? 
+    return s_->receiver ?
         s_->receiver(s_, len, buf, &local_ip) : 0;
 }
 
