@@ -61,20 +61,21 @@ struct tls_keyfile {
     struct ip_addr net, mask;
     bool is_mask;   // is false, then mask is actually the end of a range
     struct proto *proto;
-    struct mutex lock;  // to protect the folowing lists
-    HASH_TABLE(tls_sessions, tls_session) sessions;
-    TAILQ_HEAD(tls_sessions_lru, tls_session) sessions_lru;
+    struct mutex lock;  // to protect the following lists
+    HASH_TABLE(tls_sessions, tls_session) sessions; // index on session id and/or session tickets
+    TAILQ_HEAD(tls_sessions_lru, tls_session) sessions_lru; // list of used sessions (ie. at least one of their hash is set)
 };
 
 static LIST_HEAD(tls_keyfiles, tls_keyfile) tls_keyfiles;
 static struct mutex tls_keyfiles_lock;
 
 struct tls_session {
-    HASH_ENTRY(tls_session) h_entry;
-    TAILQ_ENTRY(tls_session) lru_entry;
-#   define MAX_SESSION_ID_LEN 32
+    HASH_ENTRY(tls_session) h_entry_id; // only indexed if id_hash & KEY_HASH_SET
+    HASH_ENTRY(tls_session) h_entry_ticket; // only indexed if ticket_hash & KEY_HASH_SET
 #   define KEY_HASH_SET 0x80000000U // bit 31 used as a set flag
-    uint32_t key_hash;
+    uint32_t id_hash;
+    uint32_t ticket_hash;
+    TAILQ_ENTRY(tls_session) lru_entry; // only listed if id_hash & KEY_HASH_SET or ticket_hash & KEY_HASH_SET
 #   define SECRET_LEN 48
     uint8_t master_secret[SECRET_LEN];
 };
@@ -933,6 +934,7 @@ static enum proto_parse_status look_for_cname(struct cursor *cur, void *info_)
         SLOG(LOG_DEBUG, "Found commonName!!");
         cursor_drop(cur, 5);
         if (PROTO_OK != (status = ber_decode_string(cur, sizeof(info->u.handshake.server_common_name), info->u.handshake.server_common_name))) return status;
+        SLOG(LOG_DEBUG, "CN: %s", info->u.handshake.server_common_name);
         info->set_values |= SERVER_COMMON_NAME_SET;
     } else {
         SLOG(LOG_DEBUG, "Not the commonName...");
@@ -964,6 +966,7 @@ static enum proto_parse_status tls_parse_certificate(struct tls_proto_info *info
     if (PROTO_OK != (status = ber_skip(cur))) return status;  // skip the validity
     SLOG(LOG_DEBUG, "iter over all RelativeDistinguishedName");
     if (PROTO_OK != (status = ber_foreach(cur, look_for_cname, info))) return status; // iter over all RelativeDistinguishedName and look for the common name
+    SLOG(LOG_DEBUG, "Successively parsed certificate");
     return PROTO_OK;
 }
 
@@ -972,7 +975,7 @@ static enum proto_parse_status copy_session(uint32_t *key_hash, size_t len, stru
     if (cur->cap_len < len) return PROTO_TOO_SHORT;
     if (len > 0) {
         *key_hash = tls_session_key_hash(len, cur->head) | KEY_HASH_SET;
-        SLOG(LOG_DEBUG, "Found session which digest is %"PRIu32, *key_hash);
+        SLOG(LOG_DEBUG, "Saving session ticket which hash is %"PRIu32, *key_hash);
         cursor_drop(cur, len);
     }
     return PROTO_OK;
@@ -983,7 +986,6 @@ static enum proto_parse_status copy_session_id(uint32_t *key_hash, struct cursor
 {
     if (cur->cap_len < 1) return PROTO_TOO_SHORT;
     uint8_t const id_len = cursor_read_u8(cur);
-    if (id_len > MAX_SESSION_ID_LEN) return PROTO_PARSE_ERR;
     return copy_session(key_hash, id_len, cur);
 }
 
@@ -1131,7 +1133,8 @@ quit_parse:
             if (cert_len > wire_len) return PROTO_PARSE_ERR;
             struct cursor cert = tcur;
             cert.cap_len = MIN(cert.cap_len, cert_len);
-            return tls_parse_certificate(info, &cert);    // parse only the first
+            (void)tls_parse_certificate(info, &cert);    // best effort only, as our BER decoder is not perfect
+            break;
         case tls_client_key_exchange:   // where the client sends us the pre master secret, niam niam!
             // fix c2s_way
             parser->c2s_way = way;

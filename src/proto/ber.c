@@ -38,12 +38,21 @@ static char const *ber_class_2_str(enum ber_class c)
 }
 
 enum ber_type {
-    BER_INTEGER = 2, BER_BIT_STRING = 3,
-    BER_OCTET_STRING = 4, BER_NULL = 5,
-    BER_OBJECT_IDENTIFIER = 6, BER_SEQUENCE = 16,
-    BER_SET = 17, BER_PRINTABLE_STRING = 19,
-    BER_T61_STRING = 20, BER_IA5_STRING = 22,
+    BER_INTEGER = 2,
+    BER_BIT_STRING = 3,
+    BER_OCTET_STRING = 4,
+    BER_NULL = 5,
+    BER_OBJECT_IDENTIFIER = 6,
+    BER_UTF8STRING = 12,
+    BER_SEQUENCE = 16,
+    BER_SET = 17,
+    BER_PRINTABLE_STRING = 19,
+    BER_T61_STRING = 20,
+    BER_VIDEOTEXT_STRING = 21,
+    BER_IA5_STRING = 22,
     BER_UTC_TIME = 23,
+    BER_VISIBLE_STRING = 26,
+    BER_UNIVERSAL_STRING = 28,
 };
 
 struct ber_tag {
@@ -65,12 +74,16 @@ static char const *ber_tag_2_str(struct ber_tag *t)
             [BER_OCTET_STRING] = "octet string",
             [BER_NULL] = "null",
             [BER_OBJECT_IDENTIFIER] = "object identifier",
+            [BER_UTF8STRING] = "UTF8 string",
             [BER_SEQUENCE] = "sequence",
             [BER_SET] = "set",
             [BER_PRINTABLE_STRING] = "printable string",
             [BER_T61_STRING] = "T61 string",
+            [BER_VIDEOTEXT_STRING] = "videotext string",
             [BER_IA5_STRING] = "IA5 string",
             [BER_UTC_TIME] = "UTC time",
+            [BER_VISIBLE_STRING] = "visible string",
+            [BER_UNIVERSAL_STRING] = "universal string",
         };
         if (t->tag < NB_ELEMS(universal_tagnames) && universal_tagnames[t->tag] != NULL) {
             tagname = universal_tagnames[t->tag];
@@ -177,9 +190,13 @@ err:    SLOG(LOG_DEBUG, "BER tag %s is not a string", ber_tag_2_str(&t));
     if (t.length > c->cap_len) return PROTO_TOO_SHORT;
 
     switch (t.tag) {
+        case BER_UTF8STRING:
         case BER_PRINTABLE_STRING:
         case BER_T61_STRING:
         case BER_IA5_STRING:
+        case BER_VIDEOTEXT_STRING:
+        case BER_VISIBLE_STRING:
+        case BER_UNIVERSAL_STRING:
             out_sz = MIN(t.length, out_sz-1);
             memcpy(out, c->head, out_sz);
             out[out_sz] = '\0';
