@@ -29,7 +29,6 @@
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/objalloc.h"
 #include "junkie/tools/ext.h"
-#include "junkie/proto/serialize.h"
 #include "junkie/proto/proto.h"
 #include "junkie/proto/eth.h"
 #include "junkie/proto/ip.h"
@@ -179,36 +178,6 @@ char const *ip_info_2_str(struct proto_info const *info_)
         info->version == 4 ? info->id : 0,
         traffic_class_2_str(info->traffic_class));
     return str;
-}
-
-void ip_serialize(struct proto_info const *info_, uint8_t **buf)
-{
-    struct ip_proto_info const *info = DOWNCAST(info_, info, ip_proto_info);
-    proto_info_serialize(info_, buf);
-    ip_addr_serialize(info->key.addr+0, buf);
-    ip_addr_serialize(info->key.addr+1, buf);
-    serialize_1(buf, info->key.protocol);
-    serialize_1(buf, info->version);
-    serialize_1(buf, info->ttl);
-    serialize_1(buf, info->way);    // Not really useful to serialize this but we want to be able to compare the output to test serializer
-    serialize_1(buf, info->fragmentation);
-    serialize_2(buf, info->id);
-    serialize_1(buf, info->traffic_class);
-}
-
-void ip_deserialize(struct proto_info *info_, uint8_t const **buf)
-{
-    struct ip_proto_info *info = DOWNCAST(info_, info, ip_proto_info);
-    proto_info_deserialize(info_, buf);
-    ip_addr_deserialize(info->key.addr+0, buf);
-    ip_addr_deserialize(info->key.addr+1, buf);
-    info->key.protocol = deserialize_1(buf);
-    info->version = deserialize_1(buf);
-    info->ttl = deserialize_1(buf);
-    info->way = deserialize_1(buf);
-    info->fragmentation = deserialize_1(buf);
-    info->id = deserialize_2(buf);
-    info->traffic_class = deserialize_1(buf);
 }
 
 static void ip_proto_info_ctor(struct ip_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, struct ip_hdr const *iphdr)
@@ -560,9 +529,7 @@ void ip_init(void)
         .parser_new  = mux_parser_new,
         .parser_del  = mux_parser_del,
         .info_2_str  = ip_info_2_str,
-        .info_addr   = ip_info_addr,
-        .serialize   = ip_serialize,
-        .deserialize = ip_deserialize,
+        .info_addr   = ip_info_addr
     };
     static struct mux_proto_ops const mux_ops = {
         .subparser_new = ip_subparser_new,

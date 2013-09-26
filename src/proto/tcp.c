@@ -29,7 +29,6 @@
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/log.h"
 #include "junkie/tools/queue.h"
-#include "junkie/proto/serialize.h"
 #include "junkie/proto/cnxtrack.h"
 #include "junkie/proto/pkt_wait_list.h"
 #include "junkie/proto/ip.h"
@@ -91,55 +90,6 @@ static char const *tcp_info_2_str(struct proto_info const *info_)
         info->urg_ptr,
         tcp_options_2_str(info));
     return str;
-}
-
-static void tcp_serialize(struct proto_info const *info_, uint8_t **buf)
-{
-    struct tcp_proto_info const *info = DOWNCAST(info_, info, tcp_proto_info);
-    proto_info_serialize(info_, buf);
-    serialize_2(buf, info->key.port[0]);
-    serialize_2(buf, info->key.port[1]);
-    serialize_1(buf, info->syn + (info->ack<<1) + (info->rst<<2) + (info->fin<<3) + (info->urg<<4) + (info->psh<<5) + (info->to_srv<<6));
-    serialize_2(buf, info->window);
-    serialize_2(buf, info->urg_ptr);
-    serialize_4(buf, info->ack_num);
-    serialize_4(buf, info->seq_num);
-    serialize_4(buf, info->rel_seq_num);
-    serialize_1(buf, info->set_values);
-    serialize_2(buf, info->mss);
-    serialize_1(buf, info->wsf);
-    serialize_1(buf, info->nb_options);
-    for (unsigned o = 0; o < info->nb_options; o++) {
-        serialize_1(buf, info->options[o]);
-    }
-}
-
-static void tcp_deserialize(struct proto_info *info_, uint8_t const **buf)
-{
-    struct tcp_proto_info *info = DOWNCAST(info_, info, tcp_proto_info);
-    proto_info_deserialize(info_, buf);
-    info->key.port[0] = deserialize_2(buf);
-    info->key.port[1] = deserialize_2(buf);
-    unsigned flags = deserialize_1(buf);
-    info->syn = !!(flags & 0x01);
-    info->ack = !!(flags & 0x02);
-    info->rst = !!(flags & 0x04);
-    info->fin = !!(flags & 0x08);
-    info->urg = !!(flags & 0x10);
-    info->psh = !!(flags & 0x20);
-    info->to_srv = !!(flags & 0x40);
-    info->window = deserialize_2(buf);
-    info->urg_ptr = deserialize_2(buf);
-    info->ack_num = deserialize_4(buf);
-    info->seq_num = deserialize_4(buf);
-    info->rel_seq_num = deserialize_4(buf);
-    info->set_values = deserialize_1(buf);
-    info->mss = deserialize_2(buf);
-    info->wsf = deserialize_1(buf);
-    info->nb_options = deserialize_1(buf);
-    for (unsigned o = 0; o < info->nb_options; o++) {
-        info->options[o] = deserialize_1(buf);
-    }
 }
 
 static void tcp_proto_info_ctor(struct tcp_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, uint16_t sport, uint16_t dport, struct tcp_hdr const *tcphdr)
@@ -577,9 +527,7 @@ void tcp_init(void)
         .parser_new  = mux_parser_new,
         .parser_del  = mux_parser_del,
         .info_2_str  = tcp_info_2_str,
-        .info_addr   = tcp_info_addr,
-        .serialize   = tcp_serialize,
-        .deserialize = tcp_deserialize,
+        .info_addr   = tcp_info_addr
     };
     static struct mux_proto_ops const mux_ops = {
         .subparser_new = tcp_subparser_new,

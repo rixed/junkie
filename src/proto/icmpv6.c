@@ -197,9 +197,7 @@ void icmpv6_init(void)
         .parser_new  = uniq_parser_new,
         .parser_del  = uniq_parser_del,
         .info_2_str  = icmpv6_info_2_str,
-        .info_addr   = icmpv6_info_addr,
-        .serialize   = icmp_serialize,
-        .deserialize = icmp_deserialize,
+        .info_addr   = icmpv6_info_addr
     };
     uniq_proto_ctor(&uniq_proto_icmpv6, &ops, "ICMPv6", PROTO_CODE_ICMP /* since we share the same info struct */);
     ip6_subproto_ctor(&icmpv6_ip6_subproto, IPPROTO_ICMPV6, proto_icmpv6);

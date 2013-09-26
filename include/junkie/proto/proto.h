@@ -172,10 +172,6 @@ struct proto {
         char const *(*info_2_str)(struct proto_info const *);
         /// Return the start address and size of an overloaded proto_info (used to copy it, see pkt_wait_list)
         void const *(*info_addr)(struct proto_info const *, size_t *);
-        /// Serialize its info into a buffer (that's sufficiently large) (see tools/serialize.h for helpers)
-        void (*serialize)(struct proto_info const *, uint8_t **);
-        /// Deserialize from buf (supposed large enought) to info (supposed pointing to the correct subtype)
-        void (*deserialize)(struct proto_info *, uint8_t const **);
     } const *ops;
     char const *name;       ///< Protocol name, used mainly for pretty-printing
     bool enabled;           ///< so that we can disable/enable a protocol at runtime
@@ -269,12 +265,6 @@ char const *proto_info_2_str(struct proto_info const *);
 /// Base implementation for info_addr method.
 /** Use it if you do not overload proto_info (?) */
 void const *proto_info_addr(struct proto_info const *, size_t *);
-
-/// Serializer for base proto_info struct.
-void proto_info_serialize(struct proto_info const *, uint8_t **);
-
-/// Deserializer for base proto_info struct.
-void proto_info_deserialize(struct proto_info *, uint8_t const **);
 
 /// Helper for metric modules.
 /** @returns the last proto_info owned by the given proto, or NULL if not found.

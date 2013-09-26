@@ -472,9 +472,7 @@ void mysql_init(void)
         .parser_new  = mysql_parser_new,
         .parser_del  = mysql_parser_del,
         .info_2_str  = sql_info_2_str,
-        .info_addr   = sql_info_addr,
-        .serialize   = sql_serialize,
-        .deserialize = sql_deserialize,
+        .info_addr   = sql_info_addr
     };
     proto_ctor(&proto_mysql_, &ops, "MySQL", PROTO_CODE_MYSQL);
     port_muxer_ctor(&mysql_tcp_muxer, &tcp_port_muxers, 3306, 3306, proto_mysql);

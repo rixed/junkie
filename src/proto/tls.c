@@ -699,21 +699,6 @@ static char const *tls_info_2_str(struct proto_info const *info_)
         tls_info_spec_2_str(info));
 }
 
-static void tls_serialize(struct proto_info const *info_, uint8_t **buf)
-{
-    struct tls_proto_info const *info = DOWNCAST(info_, info, tls_proto_info);
-    proto_info_serialize(&info->info, buf);
-    // TODO
-}
-
-static void tls_deserialize(struct proto_info *info_, uint8_t const **buf)
-{
-    struct tls_proto_info *info = DOWNCAST(info_, info, tls_proto_info);
-    proto_info_deserialize(&info->info, buf);
-    // TODO
-}
-
-
 /*
  * Parsing
  */
@@ -1476,9 +1461,7 @@ void tls_init(void)
         .parser_new  = tls_parser_new,
         .parser_del  = tls_parser_del,
         .info_2_str  = tls_info_2_str,
-        .info_addr   = tls_info_addr,
-        .serialize   = tls_serialize,
-        .deserialize = tls_deserialize,
+        .info_addr   = tls_info_addr
     };
     proto_ctor(&proto_tls_, &ops, "TLS", PROTO_CODE_TLS);
     port_muxer_ctor(&tcp_port_muxer_https, &tcp_port_muxers, 443, 443, proto_tls);

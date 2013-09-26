@@ -23,7 +23,6 @@
 #include <inttypes.h>
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/proto.h"
-#include "junkie/proto/serialize.h"
 #include "junkie/proto/proto.h"
 #include "junkie/proto/cnxtrack.h"
 #include "junkie/proto/rtcp.h"
@@ -82,26 +81,6 @@ static char const *rtp_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-static void rtp_serialize(struct proto_info const *info_, uint8_t **buf)
-{
-    struct rtp_proto_info const *info = DOWNCAST(info_, info, rtp_proto_info);
-    proto_info_serialize(info_, buf);
-    serialize_4(buf, info->sync_src);
-    serialize_2(buf, info->seq_num);
-    serialize_1(buf, info->payload_type);
-    serialize_4(buf, info->timestamp);
-}
-
-static void rtp_deserialize(struct proto_info *info_, uint8_t const **buf)
-{
-    struct rtp_proto_info *info = DOWNCAST(info_, info, rtp_proto_info);
-    proto_info_deserialize(info_, buf);
-    info->sync_src = deserialize_4(buf);
-    info->seq_num = deserialize_2(buf);
-    info->payload_type = deserialize_1(buf);
-    info->timestamp = deserialize_4(buf);
-}
-
 static void rtp_proto_info_ctor(struct rtp_proto_info *info, struct parser *parser, struct proto_info *parent, struct rtp_hdr const *rtph, size_t head_len, size_t payload)
 {
     proto_info_ctor(&info->info, parser, parent, head_len, payload);
@@ -156,9 +135,7 @@ void rtp_init(void)
         .parser_new  = uniq_parser_new,
         .parser_del  = uniq_parser_del,
         .info_2_str  = rtp_info_2_str,
-        .info_addr   = rtp_info_addr,
-        .serialize   = rtp_serialize,
-        .deserialize = rtp_deserialize,
+        .info_addr   = rtp_info_addr
     };
     uniq_proto_ctor(&uniq_proto_rtp, &ops, "RTP", PROTO_CODE_RTP);
 }

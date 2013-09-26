@@ -27,7 +27,6 @@
 #include "junkie/tools/objalloc.h"
 #include "junkie/tools/mutex.h"
 #include "junkie/tools/queue.h"
-#include "junkie/proto/serialize.h"
 #include "junkie/proto/proto.h"
 #include "junkie/proto/ip.h"
 #include "junkie/proto/eth.h"
@@ -71,30 +70,6 @@ static char const *erspan_info_2_str(struct proto_info const *info_)
         info->truncated ? "yes":"no",
         info->span_id);
     return str;
-}
-
-static void erspan_serialize(struct proto_info const *info_, uint8_t **buf)
-{
-    struct erspan_proto_info const *info = DOWNCAST(info_, info, erspan_proto_info);
-    proto_info_serialize(info_, buf);
-    serialize_2(buf, info->vlan);
-    serialize_2(buf, info->span_id);
-    serialize_1(buf, info->version);
-    serialize_1(buf, info->priority);
-    serialize_1(buf, info->direction);
-    serialize_1(buf, info->truncated);
-}
-
-static void erspan_deserialize(struct proto_info *info_, uint8_t const **buf)
-{
-    struct erspan_proto_info *info = DOWNCAST(info_, info, erspan_proto_info);
-    proto_info_deserialize(info_, buf);
-    info->vlan = deserialize_2(buf);
-    info->span_id = deserialize_2(buf);
-    info->version = deserialize_1(buf);
-    info->priority = deserialize_1(buf);
-    info->direction = deserialize_1(buf);
-    info->truncated = deserialize_1(buf);
 }
 
 static void erspan_proto_info_ctor(struct erspan_proto_info *info, struct parser *parser, struct proto_info *parent, size_t payload, uint16_t vlan, uint16_t span_id, uint8_t version, uint8_t priority, enum erspan_direction dir, bool truncated)
@@ -167,9 +142,7 @@ void erspan_init(void)
         .parser_new  = uniq_parser_new,
         .parser_del  = uniq_parser_del,
         .info_2_str  = erspan_info_2_str,
-        .info_addr   = erspan_info_addr,
-        .serialize   = erspan_serialize,
-        .deserialize = erspan_deserialize,
+        .info_addr   = erspan_info_addr
     };
     uniq_proto_ctor(&uniq_proto_erspan, &ops, "ERSPAN", PROTO_CODE_ERSPAN);
     eth_subproto_ctor(&erspan_eth_subproto, ETH_PROTO_ERSPAN, proto_erspan);

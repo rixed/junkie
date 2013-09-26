@@ -37,6 +37,7 @@
 #include "junkie/tools/redim_array.h"
 #include "junkie/tools/objalloc.h"
 #include "junkie/tools/timebound.h"
+#include "junkie/tools/sock.h"
 #include "junkie/cpp.h"
 // For initers/finiters
 #include "junkie/proto/streambuf.h"
@@ -68,7 +69,6 @@
 #include "junkie/proto/dhcp.h"
 #include "junkie/proto/port_muxer.h"
 #include "junkie/proto/cnxtrack.h"
-#include "junkie/proto/serialize.h"
 #include "junkie/proto/os-detect.h"
 #include "junkie/proto/discovery.h"
 #include "junkie/proto/cifs.h"
@@ -101,7 +101,7 @@ static struct {
     I(tns),           I(tls),         I(erspan),
     I(skinny),        I(dhcp),        I(fcoe),
     I(discovery),
-    I(pkt_source),    I(capfile),     I(serialize)
+    I(pkt_source),    I(capfile),     I(sock),
 #   undef I
 };
 

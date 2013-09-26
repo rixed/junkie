@@ -25,7 +25,6 @@
 #include "junkie/tools/ext.h"
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/log.h"
-#include "junkie/proto/serialize.h"
 #include "junkie/proto/cnxtrack.h"
 #include "junkie/proto/ip.h"
 #include "junkie/proto/udp.h"
@@ -57,22 +56,6 @@ static char const *udp_info_2_str(struct proto_info const *info_)
         proto_info_2_str(info_),
         info->key.port[0], info->key.port[1]);
     return str;
-}
-
-static void udp_serialize(struct proto_info const *info_, uint8_t **buf)
-{
-    struct udp_proto_info const *info = DOWNCAST(info_, info, udp_proto_info);
-    proto_info_serialize(info_, buf);
-    serialize_2(buf, info->key.port[0]);
-    serialize_2(buf, info->key.port[1]);
-}
-
-static void udp_deserialize(struct proto_info *info_, uint8_t const **buf)
-{
-    struct udp_proto_info *info = DOWNCAST(info_, info, udp_proto_info);
-    proto_info_deserialize(info_, buf);
-    info->key.port[0] = deserialize_2(buf);
-    info->key.port[1] = deserialize_2(buf);
 }
 
 static void udp_proto_info_ctor(struct udp_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, uint16_t sport, uint16_t dport)
@@ -214,9 +197,7 @@ void udp_init(void)
         .parser_new  = mux_parser_new,
         .parser_del  = mux_parser_del,
         .info_2_str  = udp_info_2_str,
-        .info_addr   = udp_info_addr,
-        .serialize   = udp_serialize,
-        .deserialize = udp_deserialize,
+        .info_addr   = udp_info_addr
     };
     mux_proto_ctor(&mux_proto_udp, &ops, &mux_proto_ops, "UDP", PROTO_CODE_UDP, sizeof(struct port_key), UDP_HASH_SIZE);
     port_muxer_list_ctor(&udp_port_muxers, "UDP muxers");

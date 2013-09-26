@@ -54,8 +54,6 @@ struct mux_subparser *ip_subparser_lookup(struct parser *parser, struct proto *p
 void const *ip_info_addr(struct proto_info const *, size_t *);
 char const *ip_info_2_str(struct proto_info const *);
 char const *ip_proto_2_str(unsigned protocol);
-void ip_serialize(struct proto_info const *, uint8_t **);
-void ip_deserialize(struct proto_info *, uint8_t const **);
 unsigned ip_key_ctor(struct ip_key *, unsigned protocol, struct ip_addr const *, struct ip_addr const *);
 
 /// A proto that wants to register itself for receiving IP payload for some protocol must define this

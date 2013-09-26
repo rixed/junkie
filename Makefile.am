@@ -11,7 +11,6 @@ SUBDIRS = \
 	plugins/writer \
 	plugins/rater \
 	plugins/arpgraph \
-	plugins/serializer \
 	plugins/os-detect \
 	plugins/packetogram \
 	plugins/duplicogram \

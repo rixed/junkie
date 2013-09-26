@@ -24,7 +24,6 @@
 #include "junkie/cpp.h"
 #include "junkie/tools/log.h"
 #include "junkie/proto/cursor.h"
-#include "junkie/proto/serialize.h"
 #include "junkie/proto/udp.h"
 #include "junkie/proto/dhcp.h"
 
@@ -99,31 +98,6 @@ static char const *dhcp_info_2_str(struct proto_info const *info_)
         info->server_name[0] != '\0' ? info->server_name : "unset");
 
     return str;
-}
-
-static void dhcp_serialize(struct proto_info const *info_, uint8_t **buf)
-{
-    struct dhcp_proto_info const *info = DOWNCAST(info_, info, dhcp_proto_info);
-    proto_info_serialize(info_, buf);
-    serialize_1(buf, info->hw_addr_is_eth + (info->opcode << 1U));
-    serialize_4(buf, info->xid);
-    serialize_1(buf, info->set_values);
-    if (info->set_values & DHCP_CLIENT_SET) ip_addr_serialize(&info->client, buf);
-    serialize_n(buf, info->client_mac, sizeof(info->client_mac));
-    serialize_str(buf, info->server_name);
-}
-
-static void dhcp_deserialize(struct proto_info *info_, uint8_t const **buf)
-{
-    struct dhcp_proto_info *info = DOWNCAST(info_, info, dhcp_proto_info);
-    proto_info_deserialize(info_, buf);
-    unsigned u = deserialize_1(buf);
-    info->hw_addr_is_eth = u & 1U;
-    info->opcode = u >> 1U;
-    info->set_values = deserialize_1(buf);
-    if (info->set_values & DHCP_CLIENT_SET) ip_addr_deserialize(&info->client, buf);
-    deserialize_n(buf, info->client_mac, sizeof(info->client_mac));
-    deserialize_str(buf, info->server_name, sizeof(info->server_name));
 }
 
 static enum proto_parse_status dhcp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
@@ -230,9 +204,7 @@ void dhcp_init(void)
         .parser_new  = uniq_parser_new,
         .parser_del  = uniq_parser_del,
         .info_2_str  = dhcp_info_2_str,
-        .info_addr   = dhcp_info_addr,
-        .serialize   = dhcp_serialize,
-        .deserialize = dhcp_deserialize,
+        .info_addr   = dhcp_info_addr
     };
     uniq_proto_ctor(&uniq_proto_dhcp, &ops, "DHCP", PROTO_CODE_DHCP);
     port_muxer_ctor(&dhcp_port_muxer, &udp_port_muxers, BOOTPS_PORT, BOOTPS_PORT, proto_dhcp);

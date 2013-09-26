@@ -27,7 +27,6 @@
 #include "junkie/tools/ip_addr.h"
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/objalloc.h"
-#include "junkie/proto/serialize.h"
 #include "junkie/proto/rtcp.h"
 #include "junkie/proto/sdp.h"
 #include "junkie/proto/udp.h"
@@ -77,28 +76,6 @@ static char const *sdp_info_2_str(struct proto_info const *info_)
              info->set_values & SDP_PORT_SET ? tempstr_printf("%u", info->port) : "unset");
 
     return str;
-}
-
-static void sdp_serialize(struct proto_info const *info_, uint8_t **buf)
-{
-    struct sdp_proto_info const *info = DOWNCAST(info_, info, sdp_proto_info);
-    proto_info_serialize(info_, buf);
-    serialize_1(buf, info->set_values);
-    if (info->set_values & SDP_HOST_SET)
-        ip_addr_serialize(&info->host, buf);
-    if (info->set_values & SDP_PORT_SET)
-        serialize_2(buf, info->port);
-}
-
-static void sdp_deserialize(struct proto_info *info_, uint8_t const **buf)
-{
-    struct sdp_proto_info *info = DOWNCAST(info_, info, sdp_proto_info);
-    proto_info_deserialize(info_, buf);
-    info->set_values = deserialize_1(buf);
-    if (info->set_values & SDP_HOST_SET)
-        ip_addr_deserialize(&info->host, buf);
-    if (info->set_values & SDP_PORT_SET)
-        info->port = deserialize_2(buf);
 }
 
 static void sdp_proto_info_ctor(struct sdp_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload)
@@ -296,9 +273,7 @@ void sdp_init(void)
         .parser_new  = sdp_parser_new,
         .parser_del  = sdp_parser_del,
         .info_2_str  = sdp_info_2_str,
-        .info_addr   = sdp_info_addr,
-        .serialize   = sdp_serialize,
-        .deserialize = sdp_deserialize,
+        .info_addr   = sdp_info_addr
     };
     proto_ctor(&proto_sdp_, &ops, "SDP", PROTO_CODE_SDP);
 }

@@ -27,7 +27,6 @@
 #include "junkie/tools/objalloc.h"
 #include "junkie/tools/mutex.h"
 #include "junkie/tools/queue.h"
-#include "junkie/proto/serialize.h"
 #include "junkie/proto/proto.h"
 #include "junkie/proto/ip.h"
 #include "junkie/proto/eth.h"
@@ -74,26 +73,6 @@ static char const *gre_info_2_str(struct proto_info const *info_)
         info->protocol,
         info->set_values & GRE_KEY_SET ? tempstr_printf("%"PRIu32, info->key) : "None");
     return str;
-}
-
-static void gre_serialize(struct proto_info const *info_, uint8_t **buf)
-{
-    struct gre_proto_info const *info = DOWNCAST(info_, info, gre_proto_info);
-    proto_info_serialize(info_, buf);
-    serialize_1(buf, info->set_values);
-    if (info->set_values & GRE_KEY_SET) serialize_4(buf, info->key);
-    serialize_2(buf, info->protocol);
-    serialize_1(buf, info->version);
-}
-
-static void gre_deserialize(struct proto_info *info_, uint8_t const **buf)
-{
-    struct gre_proto_info *info = DOWNCAST(info_, info, gre_proto_info);
-    proto_info_deserialize(info_, buf);
-    info->set_values = deserialize_1(buf);
-    if (info->set_values & GRE_KEY_SET) info->key = deserialize_4(buf);
-    info->protocol = deserialize_2(buf);
-    info->version = deserialize_1(buf);
 }
 
 static void gre_proto_info_ctor(struct gre_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, uint16_t proto, uint8_t version, bool key_set, uint32_t key)
@@ -254,9 +233,7 @@ void gre_init(void)
         .parser_new  = uniq_parser_new,
         .parser_del  = uniq_parser_del,
         .info_2_str  = gre_info_2_str,
-        .info_addr   = gre_info_addr,
-        .serialize   = gre_serialize,
-        .deserialize = gre_deserialize,
+        .info_addr   = gre_info_addr
     };
     uniq_proto_ctor(&uniq_proto_gre, &ops, "GRE", PROTO_CODE_GRE);
     ip_subproto_ctor(&ip_subproto, IPPROTO_GRE, proto_gre);

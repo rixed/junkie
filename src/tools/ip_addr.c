@@ -29,7 +29,6 @@
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/ip_addr.h"
 #include "junkie/tools/log.h"
-#include "junkie/tools/serialization.h"
 
 void ip_addr_ctor_from_ip4(struct ip_addr *ip_addr, uint32_t ip4)
 {
@@ -292,33 +291,4 @@ SCM scm_from_eth_addr(unsigned char const addr[ETH_ADDR_LEN])
     uint64_t const v = A(0,5) | A(1,4) | A(2,3) | A(3,2) | A(4,1) | A(5,0);
     return scm_from_uint64(v);
 #   undef A
-}
-
-void ip_addr_serialize(struct ip_addr const *addr, uint8_t **buf)
-{
-	if (addr->family == AF_INET) {
-		serialize_1(buf, 4);
-		serialize_4(buf, addr->u.v4.s_addr);
-	} else if (addr->family == AF_INET6) {
-		serialize_1(buf, 6);
-		serialize_n(buf, &addr->u.v6, sizeof(addr->u.v6));
-	} else {
-		SLOG(LOG_ERR, "Cannot serialize ip_addr of unknown type");
-	}
-}
-
-void ip_addr_deserialize(struct ip_addr *addr, uint8_t const **buf)
-{
-    unsigned version = deserialize_1(buf);
-    if (version == 4) {
-        addr->family = AF_INET;
-        addr->u.v4.s_addr = deserialize_4(buf);
-    } else if (version == 6) {
-        addr->family = AF_INET6;
-        deserialize_n(buf, &addr->u.v6, sizeof(addr->u.v6));
-    } else {
-        SLOG(LOG_ERR, "Cannot deserialize ip_addr of version %u", version);
-        addr->family = AF_INET; // run forest, run!
-        addr->u.v4.s_addr = 0U;
-    }
 }

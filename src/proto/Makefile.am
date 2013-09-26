@@ -22,7 +22,6 @@ libproto_la_SOURCES = \
 	streambuf.c \
 	cursor.c \
 	cnxtrack.c \
-	serialize.c \
 	capfile.c \
 	os-detect.c \
 	discovery.c \

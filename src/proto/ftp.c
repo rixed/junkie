@@ -161,9 +161,7 @@ void ftp_init(void)
         .parser_new  = uniq_parser_new,
         .parser_del  = uniq_parser_del,
         .info_2_str  = proto_info_2_str,
-        .info_addr   = proto_info_addr,
-        .serialize   = proto_info_serialize,
-        .deserialize = proto_info_deserialize,
+        .info_addr   = proto_info_addr
     };
     uniq_proto_ctor(&uniq_proto_ftp, &ops, "FTP", PROTO_CODE_FTP);
     port_muxer_ctor(&tcp_port_muxer, &tcp_port_muxers, 21, 21, proto_ftp);

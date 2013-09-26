@@ -34,8 +34,6 @@ struct icmp_proto_info {
 // Used by ICMPv6
 char *icmp_err_2_str(struct icmp_err const *, unsigned set_values);
 int icmp_extract_err_ports(struct icmp_err *, uint8_t const *packet);
-void icmp_serialize(struct proto_info const *, uint8_t **buf);
-void icmp_deserialize(struct proto_info *, uint8_t const **buf);
 
 void icmp_init(void);
 void icmp_fini(void);

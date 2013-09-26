@@ -164,9 +164,7 @@ void ip6_init(void)
         .parser_new  = mux_parser_new,
         .parser_del  = mux_parser_del,
         .info_2_str  = ip_info_2_str,
-        .info_addr   = ip_info_addr,
-        .serialize   = ip_serialize,
-        .deserialize = ip_deserialize,
+        .info_addr   = ip_info_addr
     };
     mux_proto_ctor(&mux_proto_ip6, &ops, &mux_proto_ops, "IPv6", PROTO_CODE_IP6, sizeof(struct ip_key), IP6_HASH_SIZE);
     eth_subproto_ctor(&ip6_eth_subproto, ETH_PROTO_IPv6, proto_ip6);

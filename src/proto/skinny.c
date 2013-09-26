@@ -23,7 +23,6 @@
 #include <ctype.h>
 #include "junkie/tools/objalloc.h"
 #include "junkie/proto/cursor.h"
-#include "junkie/proto/serialize.h"
 #include "junkie/proto/streambuf.h"
 #include "junkie/proto/tcp.h"
 #include "junkie/proto/rtp.h"
@@ -226,20 +225,6 @@ static char const *skinny_info_2_str(struct proto_info const *info_)
         info->set_values & SKINNY_MEDIA_CNX     ? tempstr_printf(", MediaIp:%s:%"PRIu16, ip_addr_2_str(&info->media_ip), info->media_port):"",
         info->set_values & SKINNY_CALLING_PARTY ? tempstr_printf(", CallingParty:%s",    info->calling_party):"",
         info->set_values & SKINNY_CALLED_PARTY  ? tempstr_printf(", CalledParty:%s",     info->called_party):"");
-}
-
-static void skinny_serialize(struct proto_info const *info_, uint8_t **buf)
-{
-    struct skinny_proto_info const *info = DOWNCAST(info_, info, skinny_proto_info);
-    proto_info_serialize(&info->info, buf);
-    // TODO
-}
-
-static void skinny_deserialize(struct proto_info *info_, uint8_t const **buf)
-{
-    struct skinny_proto_info *info = DOWNCAST(info_, info, skinny_proto_info);
-    proto_info_deserialize(&info->info, buf);
-    // TODO
 }
 
 static void skinny_proto_info_ctor(struct skinny_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, enum skinny_msgid msg_id)
@@ -484,9 +469,7 @@ void skinny_init(void)
         .parser_new  = skinny_parser_new,
         .parser_del  = skinny_parser_del,
         .info_2_str  = skinny_info_2_str,
-        .info_addr   = skinny_info_addr,
-        .serialize   = skinny_serialize,
-        .deserialize = skinny_deserialize,
+        .info_addr   = skinny_info_addr
     };
     proto_ctor(&proto_skinny_, &ops, "SKINNY", PROTO_CODE_SKINNY);
     port_muxer_ctor(&tcp_port_muxer, &tcp_port_muxers, SKINNY_PORT, SKINNY_PORT, proto_skinny);

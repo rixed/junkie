@@ -112,16 +112,6 @@ static void const *fcoe_info_addr(struct proto_info const *info_, size_t *size)
     return info;
 }
 
-static void fcoe_serialize(struct proto_info const unused_ *info_, uint8_t unused_ **buf)
-{
-    assert(!"Not implemented");
-}
-
-static void fcoe_deserialize(struct proto_info unused_ *info_, uint8_t const unused_ **buf)
-{
-    assert(!"Not implemented");
-}
-
 /* Init */
 
 static struct uniq_proto uniq_proto_fcoe;
@@ -137,9 +127,7 @@ void fcoe_init(void)
         .parser_new  = uniq_parser_new,
         .parser_del  = uniq_parser_del,
         .info_2_str  = fcoe_info_2_str,
-        .info_addr   = fcoe_info_addr,
-        .serialize   = fcoe_serialize,
-        .deserialize = fcoe_deserialize,
+        .info_addr   = fcoe_info_addr
     };
     uniq_proto_ctor(&uniq_proto_fcoe, &ops, "FCoE", PROTO_CODE_FCOE);
     eth_subproto_ctor(&fcoe_eth_subproto, ETH_PROTO_FCOE, proto_fcoe);

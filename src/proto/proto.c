@@ -277,22 +277,6 @@ char const *proto_info_2_str(struct proto_info const *info)
     return str;
 }
 
-void proto_info_serialize(struct proto_info const *info, uint8_t **buf)
-{
-    serialize_2(buf, info->head_len);
-    serialize_2(buf, info->payload);
-}
-
-void proto_info_deserialize(struct proto_info *info, uint8_t const **buf)
-{
-    info->parent = NULL;
-    info->parser = NULL;
-    info->head_len = deserialize_2(buf);
-    info->payload = deserialize_2(buf);
-    info->proto_sbc_called = false;
-    info->pkt_sbc_called = false;
-}
-
 /*
  * Parsers
  */

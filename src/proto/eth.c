@@ -30,7 +30,6 @@
 #include "junkie/tools/miscmacs.h"
 #include "junkie/tools/ip_addr.h"
 #include "junkie/tools/ext.h"
-#include "junkie/proto/serialize.h"
 #include "junkie/proto/proto.h"
 #include "junkie/proto/ip.h"
 #include "junkie/proto/arp.h"
@@ -113,27 +112,6 @@ static char const *eth_info_2_str(struct proto_info const *info_)
         eth_addr_2_str(info->addr[1]),
         eth_proto_2_str(info->protocol));
     return str;
-}
-
-static void eth_serialize(struct proto_info const *info_, uint8_t **buf)
-{
-    struct eth_proto_info const *info = DOWNCAST(info_, info, eth_proto_info);
-    proto_info_serialize(info_, buf);
-    serialize_3(buf, info->vlan_id);    // 16 bits for vlan itself, +we need to handle -1 for UNSET
-    serialize_n(buf, info->addr[0], ETH_ADDR_LEN);
-    serialize_n(buf, info->addr[1], ETH_ADDR_LEN);
-    serialize_2(buf, info->protocol);
-}
-
-static void eth_deserialize(struct proto_info *info_, uint8_t const **buf)
-{
-    struct eth_proto_info *info = DOWNCAST(info_, info, eth_proto_info);
-    proto_info_deserialize(info_, buf);
-    info->vlan_id = deserialize_3(buf);
-    if (info->vlan_id == 0xffffff) info->vlan_id = -1;
-    deserialize_n(buf, info->addr[0], ETH_ADDR_LEN);
-    deserialize_n(buf, info->addr[1], ETH_ADDR_LEN);
-    info->protocol = deserialize_2(buf);
 }
 
 static void eth_proto_info_ctor(struct eth_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, uint16_t proto, int vlan_id, struct eth_hdr const *ethhdr)
@@ -291,9 +269,7 @@ void eth_init(void)
         .parser_new  = mux_parser_new,
         .parser_del  = mux_parser_del,
         .info_2_str  = eth_info_2_str,
-        .info_addr   = eth_info_addr,
-        .serialize   = eth_serialize,
-        .deserialize = eth_deserialize,
+        .info_addr   = eth_info_addr
     };
     mux_proto_ctor(&mux_proto_eth, &ops, &mux_proto_ops, "Ethernet", PROTO_CODE_ETH, sizeof(vlan_unset) /* vlan_id */, 11);
     LIST_INIT(&eth_subprotos);

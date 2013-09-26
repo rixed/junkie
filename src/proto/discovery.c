@@ -26,7 +26,6 @@
 #include "junkie/tools/log.h"
 #include "junkie/tools/objalloc.h"
 #include "junkie/netmatch.h"
-#include "junkie/proto/serialize.h"
 #include "junkie/proto/cnxtrack.h"
 #include "junkie/proto/tcp.h"
 #include "junkie/proto/udp.h"
@@ -67,24 +66,6 @@ static char const *discovery_info_2_str(struct proto_info const *info_)
         info->protocol.id, info->protocol.name,
         discovery_trust_2_str(info->protocol.trust));
     return str;
-}
-
-static void discovery_serialize(struct proto_info const *info_, uint8_t **buf)
-{
-    struct discovery_proto_info const *info = DOWNCAST(info_, info, discovery_proto_info);
-    proto_info_serialize(info_, buf);
-    serialize_1(buf, info->protocol.trust);
-    serialize_2(buf, info->protocol.id);
-    serialize_str(buf, info->protocol.name);
-}
-
-static void discovery_deserialize(struct proto_info *info_, uint8_t const **buf)
-{
-    struct discovery_proto_info *info = DOWNCAST(info_, info, discovery_proto_info);
-    proto_info_deserialize(info_, buf);
-    info->protocol.trust = deserialize_1(buf);
-    info->protocol.id = deserialize_2(buf);
-    deserialize_str(buf, info->protocol.name, sizeof(info->protocol.name));
 }
 
 /*
@@ -291,9 +272,7 @@ void discovery_init(void)
         .parser_new  = uniq_parser_new,
         .parser_del  = uniq_parser_del,
         .info_2_str  = discovery_info_2_str,
-        .info_addr   = discovery_info_addr,
-        .serialize   = discovery_serialize,
-        .deserialize = discovery_deserialize,
+        .info_addr   = discovery_info_addr
     };
     uniq_proto_ctor(&uniq_proto_discovery, &ops, "PIPI", PROTO_CODE_DISCOVERY);
     port_muxer_ctor(&tcp_port_muxer, &tcp_port_muxers, 1024, 65535, proto_discovery);

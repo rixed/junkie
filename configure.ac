@@ -84,7 +84,6 @@ AC_CONFIG_FILES([
 	plugins/writer/Makefile
 	plugins/rater/Makefile
 	plugins/arpgraph/Makefile
-	plugins/serializer/Makefile
 	plugins/os-detect/Makefile
 	plugins/packetogram/Makefile
 	plugins/duplicogram/Makefile

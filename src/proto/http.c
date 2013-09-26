@@ -26,7 +26,6 @@
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/objalloc.h"
 #include "junkie/tools/miscmacs.h"
-#include "junkie/proto/serialize.h"
 #include "junkie/proto/tcp.h"
 #include "junkie/proto/http.h"
 #include "junkie/proto/streambuf.h"
@@ -280,59 +279,6 @@ static char const *http_info_2_str(struct proto_info const *info_)
         info->pkts,
         info->ajax                           ? ", ajax":"",
         info->compressed                     ? ", compressed":"");
-}
-
-static void http_serialize(struct proto_info const *info_, uint8_t **buf)
-{
-    struct http_proto_info const *info = DOWNCAST(info_, info, http_proto_info);
-    proto_info_serialize(info_, buf);
-    serialize_1(buf, info->set_values);
-    serialize_4(buf, info->pkts);
-    timeval_serialize(&info->first, buf);
-    if (info->set_values & HTTP_METHOD_SET) serialize_1(buf, info->method);
-    if (info->set_values & HTTP_CODE_SET) serialize_2(buf, info->code);
-    if (info->set_values & HTTP_LENGTH_SET) serialize_4(buf, info->content_length);
-    if (info->set_values & HTTP_TRANSFERT_ENCODING_SET) serialize_1(buf, info->chunked_encoding);
-    if (info->set_values & HTTP_MIME_SET) serialize_str(buf, info->strs+info->mime_type);
-    if (info->set_values & HTTP_HOST_SET) serialize_str(buf, info->strs+info->host);
-    if (info->set_values & HTTP_USER_AGENT_SET) serialize_str(buf, info->strs+info->user_agent);
-    if (info->set_values & HTTP_REFERRER_SET) serialize_str(buf, info->strs+info->referrer);
-    if (info->set_values & HTTP_SERVER_SET) serialize_str(buf, info->strs+info->server);
-    if (info->set_values & HTTP_URL_SET) serialize_str(buf, info->strs+info->url);
-    serialize_1(buf, info->ajax);
-    serialize_1(buf, info->have_body);
-    serialize_1(buf, info->compressed);
-}
-
-// Deserialize a string in strs, setting the offset of the result in offset
-static void deserialize_in_strs(uint8_t const **buf, unsigned *offset, struct http_proto_info *info)
-{
-    *offset = info->free_strs;
-    /* We must pass to deserialize_str the total size of the buffer, it will null term the string.
-     * The returned values is the length of the resulting string (not including terminator zero) */
-    info->free_strs += 1 + deserialize_str(buf, info->strs+info->free_strs, sizeof(info->strs) - info->free_strs);
-}
-
-static void http_deserialize(struct proto_info *info_, uint8_t const **buf)
-{
-    struct http_proto_info *info = DOWNCAST(info_, info, http_proto_info);
-    proto_info_deserialize(info_, buf);
-    info->pkts = deserialize_4(buf);
-    timeval_deserialize(&info->first, buf);
-    info->set_values = deserialize_1(buf);
-    if (info->set_values & HTTP_METHOD_SET) info->method = deserialize_1(buf);
-    if (info->set_values & HTTP_CODE_SET) info->code = deserialize_2(buf);
-    if (info->set_values & HTTP_LENGTH_SET) info->content_length = deserialize_4(buf);
-    if (info->set_values & HTTP_TRANSFERT_ENCODING_SET) info->chunked_encoding = deserialize_1(buf);
-    if (info->set_values & HTTP_MIME_SET) deserialize_in_strs(buf, &info->mime_type, info);
-    if (info->set_values & HTTP_HOST_SET) deserialize_in_strs(buf, &info->host, info);
-    if (info->set_values & HTTP_USER_AGENT_SET) deserialize_in_strs(buf, &info->user_agent, info);
-    if (info->set_values & HTTP_REFERRER_SET) deserialize_in_strs(buf, &info->referrer, info);
-    if (info->set_values & HTTP_SERVER_SET) deserialize_in_strs(buf, &info->server, info);
-    if (info->set_values & HTTP_URL_SET) deserialize_in_strs(buf, &info->url, info);
-    info->ajax = deserialize_1(buf);
-    info->have_body = deserialize_1(buf);
-    info->compressed = deserialize_1(buf);
 }
 
 static void http_proto_info_ctor(struct http_proto_info *http, struct timeval const *first, unsigned pkts)
@@ -870,9 +816,7 @@ void http_init(void)
         .parser_new  = http_parser_new,
         .parser_del  = http_parser_del,
         .info_2_str  = http_info_2_str,
-        .info_addr   = http_info_addr,
-        .serialize   = http_serialize,
-        .deserialize = http_deserialize,
+        .info_addr   = http_info_addr
     };
     proto_ctor(&proto_http_, &ops, "HTTP", PROTO_CODE_HTTP);
     port_muxer_ctor(&tcp_port_muxer, &tcp_port_muxers, 80, 80, proto_http);

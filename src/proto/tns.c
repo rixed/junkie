@@ -431,9 +431,7 @@ void tns_init(void)
         .parser_new  = tns_parser_new,
         .parser_del  = tns_parser_del,
         .info_2_str  = sql_info_2_str,
-        .info_addr   = sql_info_addr,
-        .serialize   = sql_serialize,
-        .deserialize = sql_deserialize,
+        .info_addr   = sql_info_addr
     };
     proto_ctor(&proto_tns_, &ops, "TNS", PROTO_CODE_TNS);
     port_muxer_ctor(&tns_tcp_muxer, &tcp_port_muxers, 1521, 1521, proto_tns);

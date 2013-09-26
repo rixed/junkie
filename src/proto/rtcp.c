@@ -24,7 +24,6 @@
 #include <arpa/inet.h>
 #include "junkie/cpp.h"
 #include "junkie/tools/tempstr.h"
-#include "junkie/proto/serialize.h"
 #include "junkie/proto/rtcp.h"
 
 #undef LOG_CAT
@@ -79,28 +78,6 @@ static char const *rtcp_info_2_str(struct proto_info const *info_)
         info->cumul_lost, info->jitter, info->lsr, info->dlsr, info->ntp_ts);
 
     return str;
-}
-
-static void rtcp_serialize(struct proto_info const *info_, uint8_t **buf)
-{
-    struct rtcp_proto_info const *info = DOWNCAST(info_, info, rtcp_proto_info);
-    proto_info_serialize(info_, buf);
-    serialize_4(buf, info->cumul_lost);
-    serialize_4(buf, info->jitter);
-    serialize_4(buf, info->lsr);
-    serialize_4(buf, info->dlsr);
-    serialize_4(buf, info->ntp_ts);
-}
-
-static void rtcp_deserialize(struct proto_info *info_, uint8_t const **buf)
-{
-    struct rtcp_proto_info *info = DOWNCAST(info_, info, rtcp_proto_info);
-    proto_info_deserialize(info_, buf);
-    info->cumul_lost = deserialize_4(buf);
-    info->jitter = deserialize_4(buf);
-    info->lsr = deserialize_4(buf);
-    info->dlsr = deserialize_4(buf);
-    info->ntp_ts = deserialize_4(buf);
 }
 
 static void rtcp_proto_info_ctor(struct rtcp_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, int32_t packet_lost, uint32_t jitter, uint32_t lst, uint32_t dlsr, uint32_t ntp_ts)
@@ -186,9 +163,7 @@ void rtcp_init(void)
         .parser_new  = uniq_parser_new,
         .parser_del  = uniq_parser_del,
         .info_2_str  = rtcp_info_2_str,
-        .info_addr   = rtcp_info_addr,
-        .serialize   = rtcp_serialize,
-        .deserialize = rtcp_deserialize,
+        .info_addr   = rtcp_info_addr
     };
 
     uniq_proto_ctor(&uniq_proto_rtcp, &ops, "RTCP", PROTO_CODE_RTCP);

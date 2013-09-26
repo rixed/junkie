@@ -23,7 +23,6 @@
 #include <time.h>
 #include "junkie/tools/timeval.h"
 #include "junkie/tools/tempstr.h"
-#include "junkie/tools/serialization.h"
 
 struct timeval const timeval_unset = TIMEVAL_INITIALIZER;
 
@@ -79,16 +78,4 @@ void timeval_set_now(struct timeval *now)
 #   else
     gettimeofday(now, NULL);
 #   endif
-}
-
-void timeval_serialize(struct timeval const *tv, uint8_t **buf)
-{
-    serialize_4(buf, tv->tv_sec);
-    serialize_4(buf, tv->tv_usec);
-}
-
-void timeval_deserialize(struct timeval *tv, uint8_t const **buf)
-{
-    tv->tv_sec = deserialize_4(buf);
-    tv->tv_usec = deserialize_4(buf);
 }
