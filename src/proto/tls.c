@@ -319,6 +319,7 @@ static SCM g_tls_del_key(SCM file_)
 
 static bool cipher_uses_rsa(enum tls_cipher_suite cipher)
 {
+    SLOG(LOG_DEBUG, "Does cipher %u uses RSA?", cipher);
     switch (cipher) {
         case TLS_RSA_WITH_NULL_MD5:
         case TLS_RSA_WITH_NULL_SHA:
@@ -335,20 +336,30 @@ static bool cipher_uses_rsa(enum tls_cipher_suite cipher)
         case TLS_RSA_WITH_NULL_SHA256:
         case TLS_RSA_WITH_AES_128_CBC_SHA256:
         case TLS_RSA_WITH_AES_256_CBC_SHA256:
+        case TLS_RSA_WITH_CAMELLIA_128_CBC_SHA:
+        case TLS_RSA_WITH_CAMELLIA_256_CBC_SHA:
+        case TLS_RSA_WITH_CAMELLIA_128_CBC_SHA256:
+        case TLS_RSA_WITH_CAMELLIA_256_CBC_SHA256:
+            SLOG(LOG_DEBUG, " ...yep!");
             return true;
         default:
+            SLOG(LOG_DEBUG, " ...noooo... :'(");
             return false;
     }
 }
 
 static bool rsa_cipher_is_ephemeral(enum tls_cipher_suite cipher)
 {
+    SLOG(LOG_DEBUG, "Is cipher %u ephemeral?", cipher);
+
     switch (cipher) {
         case TLS_RSA_EXPORT_WITH_RC4_40_MD5:
         case TLS_RSA_EXPORT_WITH_RC2_CBC_40_MD5:
         case TLS_RSA_EXPORT_WITH_DES40_CBC_SHA:
+            SLOG(LOG_DEBUG, " ...yes... :'(");
             return true;
         default:
+            SLOG(LOG_DEBUG, " ...and no!");
             return false;
     }
 }
