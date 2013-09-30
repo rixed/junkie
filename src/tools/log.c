@@ -65,7 +65,7 @@ static void a_la_printf_(2,3) system_log(int priority, char const *fmt, ...)
 int log_set_file(char const *filename)
 {
     // First close what was opened
-    if (log_fd != -1) {
+    if (log_fd >= 0) {
         (void)close(log_fd);
         log_fd = -1;
     }
@@ -90,7 +90,7 @@ int log_set_file(char const *filename)
 
 char const *log_get_file(void)
 {
-    if (log_fd == -1) return NULL;
+    if (log_fd < 0) return NULL;
     return log_filename;
 }
 
@@ -106,7 +106,7 @@ void slog(int priority, char const *filename, char const *funcname, char *fmt, .
         vsystem_log(priority, fmt, aq);
     }
 
-    if (log_fd != -1) {
+    if (log_fd >= 0) {
         char str[4096];
 
         time_t now = time(NULL);

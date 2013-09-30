@@ -160,6 +160,7 @@ static int sock_inet_client_connect(struct sock_inet *s)
 
         // try to connect
         if (0 != connect(s->fd[0], &srv_addr.a, srv_addrlen)) {
+            file_close(s->fd[0]);
             SLOG(LOG_WARNING, "Cannot connect(): %s", strerror(errno));
             continue;
         }
@@ -244,7 +245,7 @@ static int sock_inet_server_ctor(struct sock_inet *s, char const *service, size_
 
         if (0 != bind(s->fd[s->nb_fds], &srv_addr.a, srv_addrlen)) {
             SLOG(LOG_WARNING, "Cannot bind(%s): %s", service, strerror(errno));
-            (void)file_close(s->fd[s->nb_fds]);
+            file_close(s->fd[s->nb_fds]);
             s->fd[s->nb_fds] = -1;
             continue;
         } else {
@@ -541,7 +542,7 @@ static void *reader_thread(void *client_)
     // Just read until EOF or any other error
     while (client->fd >= 0) {
         if (0 != tcp_read(client, true)) {
-            (void)file_close(client->fd);
+            file_close(client->fd);
             client->fd = -1;
         }
     }
