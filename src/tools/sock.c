@@ -581,6 +581,7 @@ static int sock_tcp_recv(struct sock *s_, fd_set *set)
         }
         if (new_c == NB_ELEMS(s->clients)) {
             SLOG(LOG_ERR, "Cannot accept new connection to %s: no more available slots", s_->name);
+            file_close(fd);
             continue;
         }
         // construct the client
