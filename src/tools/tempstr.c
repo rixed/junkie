@@ -32,6 +32,7 @@ static __thread char bufs[256][TEMPSTR_SIZE];
 char *tempstr(void)
 {
     if (++next >= NB_ELEMS(bufs)) next = 0;
+    bufs[next][0] = '\0';
     return bufs[next];
 }
 
