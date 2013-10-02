@@ -50,6 +50,27 @@ static unsigned max_sessions_per_key = 1000;
 EXT_PARAM_RW(max_sessions_per_key, "tls-max-sessions-per-key", uint, "For each TLS key, remember only this number of sessions (keep the most recently used)")
 
 /*
+ * Errors
+ */
+
+char const *openssl_errors_2_str(void)
+{
+    char *str = tempstr();
+    int len = 0;
+    bool first = true;
+    unsigned err;
+    while (0 != (err = ERR_get_error())) {
+        snprintf(str+len, TEMPSTR_SIZE-len, "%scode:0x%x:%s:%s:%s",
+            first ? "":", ",
+            err,
+            ERR_lib_error_string(err),
+            ERR_func_error_string(err),
+            ERR_reason_error_string(err));
+    }
+    return str;
+}
+
+/*
  * Keyfiles & sessions Management
  */
 
@@ -164,7 +185,7 @@ static int tls_keyfile_ctor(struct tls_keyfile *keyfile, char const *path, char 
     // Initialize our only SSL_CTX, with a single private key, that we will use for everything
     keyfile->ssl_ctx = SSL_CTX_new(SSLv23_server_method());
     if (! keyfile->ssl_ctx) {
-        SLOG(LOG_ERR, "SSL error while initializing keyfile %s: %s", path, ERR_error_string(ERR_get_error(), NULL));
+        SLOG(LOG_ERR, "SSL error while initializing keyfile %s: %s", path, openssl_errors_2_str());
         goto err0;
     }
     // Load private key file
@@ -311,7 +332,6 @@ static SCM g_tls_del_key(SCM file_)
     tls_keyfile_del(keyfile);
     return SCM_BOOL_T;
 }
-
 
 /*
  * TLS Protocol Parser
@@ -811,12 +831,12 @@ static int decrypt_master_secret(struct tls_parser *parser, unsigned way, struct
 
     SSL *ssl = SSL_new(keyfile->ssl_ctx);
     if (! ssl) {
-        SLOG(LOG_ERR, "Cannot create SSL from SSL_CTX: %s", ERR_error_string(ERR_get_error(), NULL));
+        SLOG(LOG_ERR, "Cannot create SSL from SSL_CTX: %s", openssl_errors_2_str());
         goto quit0;
     }
     EVP_PKEY *pk = SSL_get_privatekey(ssl);
     if (! pk) {
-        SLOG(LOG_ERR, "Cannot get private key from SSL object: %s", ERR_error_string(ERR_get_error(), NULL));
+        SLOG(LOG_ERR, "Cannot get private key from SSL object: %s", openssl_errors_2_str());
         goto quit1;
     }
     if (pk->type != EVP_PKEY_RSA) {
@@ -922,7 +942,11 @@ unknown_cipher:
             EVP_CIPHER_CTX_cleanup(&clt_next_spec->decoder[dir].evp);
         }
         EVP_CIPHER_CTX_init(&clt_next_spec->decoder[dir].evp);
-        EVP_CipherInit(&clt_next_spec->decoder[dir].evp, cipher_info->ciph, clt_next_spec->decoder[dir].write_key, clt_next_spec->decoder[dir].init_vector, 0);
+        if (1 != EVP_CipherInit(&clt_next_spec->decoder[dir].evp, cipher_info->ciph, clt_next_spec->decoder[dir].write_key, clt_next_spec->decoder[dir].init_vector, 0)) {
+            // Error
+            SLOG(LOG_INFO, "Cannot initialize cipher suite 0x%x: %s", clt_next_spec->cipher, openssl_errors_2_str());
+            goto quit1;
+        }
     }
     clt_next_spec->decoder_ready = true;
 
@@ -1294,7 +1318,7 @@ static int tls_decrypt(struct tls_cipher_spec *spec, unsigned way, size_t cap_le
 
     if (1 != EVP_Cipher(&spec->decoder[way].evp, out, payload, cap_len)) {
         if (cap_len == wire_len) {
-            SLOG(LOG_DEBUG, "Failed to decrypt record");
+            SLOG(LOG_INFO, "Cannot decrypt record: %s", openssl_errors_2_str());
             return -1;
         }
         // Otherwise this is understandable. Let's proceed then.
@@ -1452,8 +1476,12 @@ void tls_init(void)
     for (unsigned c = 0; c < NB_ELEMS(tls_cipher_infos); c++) {
         struct tls_cipher_info *info = tls_cipher_infos+c;
         if (! info->defined) continue;
-        info->ciph = info->enc == ENC_NULL ?
-            EVP_enc_null() : EVP_get_cipherbyname(cipher_name_of_enc(info->enc));
+        if (info->enc == ENC_NULL) {
+            info->ciph = EVP_enc_null();
+        } else {
+            info->ciph = EVP_get_cipherbyname(cipher_name_of_enc(info->enc));
+            if (! info->ciph) SLOG(LOG_ERR, "Cannot initialize cipher for suite 0x%x, enc %u, name %s: %s", c, info->enc, cipher_name_of_enc(info->enc), openssl_errors_2_str());
+        }
     }
 
     static struct proto_ops const ops = {
