@@ -1,2 +1,2 @@
 -- pcap/eth/various_vlans.pcap --
-Ethernet: head_len=18, payload=151, vlan_id=-1, source=12:34:56:78:90:ab, dest=ab:09:87:65:43:21, proto=IPv4
+Ethernet: head_len=18, payload=151, vlan_id=unset, source=12:34:56:78:90:ab, dest=ab:09:87:65:43:21, proto=IPv4

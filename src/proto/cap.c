@@ -39,7 +39,7 @@ LOG_CATEGORY_DEF(proto_capture);
 
 bool collapse_ifaces = true;
 EXT_PARAM_RW(collapse_ifaces, "collapse-ifaces", bool, "Set to true if packets from distinct ifaces share the same address range");
-static const uint8_t zero = 0; // When collapsing devices we use this fake device id
+static const uint8_t iface_unset = IFACE_UNSET; // When collapsing devices we use this fake device id
 
 /*
  * Proto Infos
@@ -56,9 +56,9 @@ static char const *cap_info_2_str(struct proto_info const *info_)
 {
     struct cap_proto_info const *info = DOWNCAST(info_, info, cap_proto_info);
     char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, dev_id=%u, tv=%s",
+    snprintf(str, TEMPSTR_SIZE, "%s, dev_id=%s, tv=%s",
         proto_info_2_str(info_),
-        info->dev_id,
+        info->dev_id == IFACE_UNSET? "unset" : tempstr_printf("%u", info->dev_id),
         timeval_2_str(&info->tv));
     return str;
 }
@@ -67,7 +67,7 @@ static void cap_proto_info_ctor(struct cap_proto_info *info, struct parser *pars
 {
     proto_info_ctor(&info->info, parser, parent, sizeof(*frame), frame->wire_len);
 
-    info->dev_id = collapse_ifaces ? zero : frame->pkt_source->dev_id;
+    info->dev_id = collapse_ifaces ? iface_unset : frame->pkt_source->dev_id;
     info->tv = frame->tv;
 }
 
@@ -78,7 +78,7 @@ static void cap_proto_info_ctor(struct cap_proto_info *info, struct parser *pars
 struct mux_subparser *cap_subparser_and_parser_new(struct parser *parser, struct proto *proto, struct proto *requestor, uint8_t dev_id, struct timeval const *now)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
-    return mux_subparser_and_parser_new(mux_parser, proto, requestor, collapse_ifaces ? &zero : &dev_id, now);
+    return mux_subparser_and_parser_new(mux_parser, proto, requestor, collapse_ifaces ? &iface_unset : &dev_id, now);
 }
 
 // cap_len is not the length of the actual packet but the size of the data we receive, ie struct frame + what we captured from the wire.
@@ -92,7 +92,7 @@ static enum proto_parse_status cap_parse(struct parser *parser, struct proto_inf
     cap_proto_info_ctor(&info, parser, parent, frame);
 
     // Get an eth parser for this dev_id, or create one
-    struct mux_subparser *subparser = mux_subparser_lookup(mux_parser, proto_eth, NULL, collapse_ifaces ? &zero : &frame->pkt_source->dev_id, now);
+    struct mux_subparser *subparser = mux_subparser_lookup(mux_parser, proto_eth, NULL, collapse_ifaces ? &iface_unset : &frame->pkt_source->dev_id, now);
 
     if (! subparser) goto fallback;
 
@@ -125,7 +125,7 @@ void cap_init(void)
         .info_2_str  = cap_info_2_str,
         .info_addr   = cap_info_addr
     };
-    mux_proto_ctor(&mux_proto_cap, &ops, &mux_proto_ops, "Capture", PROTO_CODE_CAP, sizeof(zero)/* device_id */, 11);
+    mux_proto_ctor(&mux_proto_cap, &ops, &mux_proto_ops, "Capture", PROTO_CODE_CAP, sizeof(iface_unset)/* device_id */, 11);
 }
 
 void cap_fini(void)

@@ -105,9 +105,9 @@ static char const *eth_info_2_str(struct proto_info const *info_)
 {
     struct eth_proto_info const *info = DOWNCAST(info_, info, eth_proto_info);
     char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, vlan_id=%d, source=%s, dest=%s, proto=%s",
+    snprintf(str, TEMPSTR_SIZE, "%s, vlan_id=%s, source=%s, dest=%s, proto=%s",
         proto_info_2_str(info_),
-        info->vlan_id,
+        info->vlan_id == VLAN_UNSET? "unset" : tempstr_printf("%u", info->vlan_id),
         eth_addr_2_str(info->addr[0]),
         eth_addr_2_str(info->addr[1]),
         eth_proto_2_str(info->protocol));
