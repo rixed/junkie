@@ -533,11 +533,23 @@ fail:
     return 0;
 }
 
+static void guile_thread_cleanup(void *client_)
+{
+    struct sock_tcp_client *client = client_;
+    if (client->fd >= 0) {
+        file_close(client->fd);
+        client->fd = -1;
+    }
+}
+
 static void *reader_thread(void *client_)
 {
     struct sock_tcp_client *client = client_;
     set_thread_name(tempstr_printf("J-read%d-%s", client->fd, ip_addr_2_str(&client->addr)));
     disable_cancel();
+
+    scm_dynwind_begin(0);
+    scm_dynwind_unwind_handler(guile_thread_cleanup, client, SCM_F_WIND_EXPLICITLY);
 
     // Just read until EOF or any other error
     while (client->fd >= 0) {
@@ -546,6 +558,8 @@ static void *reader_thread(void *client_)
             client->fd = -1;
         }
     }
+
+    scm_dynwind_end();
 
     return NULL;
 }
