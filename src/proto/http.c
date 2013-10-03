@@ -46,9 +46,6 @@ struct hook http_body_hook;    // at every piece of body
  * Utilities
  */
 
-#define HTTP_SEL "http://"
-#define HTTP_SEL_LEN 7
-
 static bool end_of_host(char c)
 {
     return c == '\0' || c == '/' || c == ':';
@@ -91,13 +88,32 @@ static char const *handle_port(char const *thing, uint16_t const *port)
     }
 }
 
+static unsigned selector_prefix_length(char const *url)
+{
+    if (! url) return 0;
+    if (
+        url[0] != 'h' ||
+        url[1] != 't' ||
+        url[2] != 't' ||
+        url[3] != 'p'
+    ) return 0;
+    unsigned i = 4;
+    if (url[i] == 's') i++;
+    if (
+        url[i++] != ':' ||
+        url[i++] != '/' ||
+        url[i++] != '/'
+    ) return 0;
+    return i;
+}
+
 char const *http_build_domain(struct ip_addr const *server, char const *host, char const *url, uint16_t const *port, int version)
 {
     char const *src = NULL;
     if (host) {
         src = host;
-    } else if (url && 0 == strncasecmp(url, HTTP_SEL, HTTP_SEL_LEN)) {
-        src = url + HTTP_SEL_LEN;
+    } else {
+        src += selector_prefix_length(url);
     }
 
     if (! src) src = (version == 6 ? ip_addr_2_strv6:ip_addr_2_str)(server);
@@ -115,8 +131,9 @@ char const *http_build_domain(struct ip_addr const *server, char const *host, ch
 // We strip the port only when it's 80. Otherwise we add it.
 char const *http_build_url(struct ip_addr const *server, char const *host, char const *url, uint16_t const *port)
 {
-    if (url && 0 == strncasecmp(url, HTTP_SEL, HTTP_SEL_LEN)) {
-        return handle_port(url + HTTP_SEL_LEN, port);
+    unsigned sel_len = selector_prefix_length(url);
+    if (sel_len > 0) {
+        return handle_port(url + sel_len, port);
     } else {    // url does not include host
         char *str = tempstr();
         snprintf(str, TEMPSTR_SIZE, "%s%s%s",
