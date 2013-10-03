@@ -52,8 +52,9 @@ static bool end_of_host(char c)
 }
 
 /* Force the port to appear before the first '/' (or at the end) of thing,
- * or strip it if it's 80. In case port is present in thing don't
- * consider port. */
+ * or strip it if it's the default http port 80.
+ * Note that we also add 443, because we do not include "https://" in the build string.
+ * In case port is present in thing don't consider the given port. */
 static char const *handle_port(char const *thing, uint16_t const *port)
 {
     // locate start and end of port
@@ -61,7 +62,7 @@ static char const *handle_port(char const *thing, uint16_t const *port)
     while (! end_of_host(*colon)) colon ++;
     if (*colon != ':') {
         if (port && *port != 80) {
-            return tempstr_printf("%s:%"PRIu16, thing, *port);
+            return tempstr_printf("%.*s:%"PRIu16"%s", (int)(colon-thing), thing, *port, colon);
         } else {
             return thing;
         }
@@ -88,8 +89,9 @@ static char const *handle_port(char const *thing, uint16_t const *port)
     }
 }
 
-static unsigned selector_prefix_length(char const *url)
+static unsigned selector_prefix_length(char const *url, uint16_t *expected_port)
 {
+    uint16_t ep = 80;
     if (! url) return 0;
     if (
         url[0] != 'h' ||
@@ -98,22 +100,30 @@ static unsigned selector_prefix_length(char const *url)
         url[3] != 'p'
     ) return 0;
     unsigned i = 4;
-    if (url[i] == 's') i++;
+    if (url[i] == 's') {
+        i++;
+        ep = 443;
+    }
     if (
         url[i++] != ':' ||
         url[i++] != '/' ||
         url[i++] != '/'
     ) return 0;
+
+    // We know the scheme, set expected port
+    *expected_port = ep;
     return i;
 }
 
 char const *http_build_domain(struct ip_addr const *server, char const *host, char const *url, uint16_t const *port, int version)
 {
     char const *src = NULL;
+    uint16_t expected_port = 80;
     if (host) {
         src = host;
     } else {
-        src += selector_prefix_length(url);
+        src += selector_prefix_length(url, &expected_port);
+        if (! port) port = &expected_port;
     }
 
     if (! src) src = (version == 6 ? ip_addr_2_strv6:ip_addr_2_str)(server);
@@ -131,7 +141,9 @@ char const *http_build_domain(struct ip_addr const *server, char const *host, ch
 // We strip the port only when it's 80. Otherwise we add it.
 char const *http_build_url(struct ip_addr const *server, char const *host, char const *url, uint16_t const *port)
 {
-    unsigned sel_len = selector_prefix_length(url);
+    uint16_t expected_port = 80;
+    unsigned sel_len = selector_prefix_length(url, &expected_port);
+    if (! port) port = &expected_port;
     if (sel_len > 0) {
         return handle_port(url + sel_len, port);
     } else {    // url does not include host

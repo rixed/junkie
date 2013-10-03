@@ -360,6 +360,10 @@ void build_url_check(void)
                                                            0, "google.com/bla" },
         { 4, "1.2.3.4", "google.com:180",  "http://google.com:180/bla",
                                                            0, "google.com:180/bla" },
+        { 4, "1.2.3.4", "google.com",      "https://google.com/",   // show port on https
+                                                         443, "google.com:443/" },
+        { 4, "1.2.3.4", "google.com",      "https://google.com/",   // even if not given
+                                                           0, "google.com:443/" },
     };
 
     for (unsigned t = 0; t < NB_ELEMS(tests); t++) {
