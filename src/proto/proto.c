@@ -1135,7 +1135,8 @@ void proto_init(void)
     ext_function_ctor(&sg_set_proto_enabled,
         "set-proto-enabled", 2, 0, 0, g_set_proto_enabled,
         "(set-proto-enabled \"TCP\" #f): disable TCP protocol.\n"
-        "See also (? 'proto-names) for a list of protocols.\n");
+        "See also (? 'proto-names) for a list of protocols,\n"
+        "         (? 'proto-stats) for getting current status.\n");
 
     dummy_init();
 }
