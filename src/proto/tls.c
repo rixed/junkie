@@ -1480,7 +1480,12 @@ void tls_init(void)
             info->ciph = EVP_enc_null();
         } else {
             info->ciph = EVP_get_cipherbyname(cipher_name_of_enc(info->enc));
-            if (! info->ciph) SLOG(LOG_ERR, "Cannot initialize cipher for suite 0x%x, enc %u, name %s: %s", c, info->enc, cipher_name_of_enc(info->enc), openssl_errors_2_str());
+            /* Note regarding IDEA: RFC5469 suggest IDEA should be retired from TLS
+             * on the ground that it's not well tested. It's not implemented by
+             * openssl (and probably many others). So don't bark if it's missing. */
+            if (! info->ciph && info->enc != ENC_IDEA) {
+                SLOG(LOG_ERR, "Cannot initialize cipher for suite 0x%x, enc %u, name %s: %s", c, info->enc, cipher_name_of_enc(info->enc), openssl_errors_2_str());
+            }
         }
     }
 
