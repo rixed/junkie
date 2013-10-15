@@ -35,4 +35,5 @@ thisinclude_HEADERS = \
 	erspan.h \
 	ber.h \
 	skinny.h \
-	dhcp.h
+	dhcp.h \
+	fcoe.h
