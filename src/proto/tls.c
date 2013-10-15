@@ -878,7 +878,7 @@ static int decrypt_master_secret(struct tls_parser *parser, unsigned way, struct
         // We do not bother coming here with no usable session_id
         assert((clt_next_decoder->session_id_hash & KEY_HASH_SET) && (srv_next_decoder->session_id_hash & KEY_HASH_SET));
         // Look for this session_id in keyfile
-        struct tls_session *session;
+        struct tls_session *session = NULL;
         WITH_LOCK(&keyfile->lock) {
             if (clt_next_decoder->session_id_hash & KEY_HASH_SET) {
                 HASH_LOOKUP(session, &keyfile->sessions, &clt_next_decoder->session_id_hash, id_hash, h_entry_id);
