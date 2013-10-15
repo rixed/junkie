@@ -12,7 +12,7 @@ is deemed appropriate.
 Compared to previously available tools junkie lies in between tcpdump and
 wireshark. Unlike tcpdump, its purpose is to parse protocols of any depth;
 unlike wireshark, through, junkie is designed to analyze traffic in real-time
-and so cannot parse traffic as completely as wireshark does.
+and so cannot parse traffic as exhaustively as wireshark does.
 
 In addition, junkie's design encompasses extendability and speed:
 

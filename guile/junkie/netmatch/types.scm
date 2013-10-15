@@ -1039,7 +1039,7 @@
                (make-stub
                  (string-append
                    (stub-code str)
-                   "    uint32_t " res " = hashlittle((void *)" (stub-result str) ", strlen(" (stub-result str) "), 0x432317F5U);\n")
+                   "    uint32_t " res " = hashfun((void *)" (stub-result str) ", strlen(" (stub-result str) "));\n")
                  res
                  (stub-regnames str))))))
 
@@ -1052,7 +1052,7 @@
                (make-stub
                  (bytesing-append
                    (stub-code bytes)
-                   "    uint32_t " res " = hashlittle((void *)" (stub-result bytes) ".value, " (stub-result bytes) ".size, 0x432317F5U);\n")
+                   "    uint32_t " res " = hashfun((void *)" (stub-result bytes) ".value, " (stub-result bytes) ".size);\n")
                  res
                  (stub-regnames bytes))))))
 
@@ -1065,7 +1065,7 @@
                (make-stub
                  (string-append
                    (stub-code timestamp)
-                   "    uint32_t " res " = hashlittle((void *)" (stub-result timestamp) ", sizeof(struct timeval), 0x432317F5U);\n")
+                   "    uint32_t " res " = hashfun((void *)" (stub-result timestamp) ", sizeof(struct timeval));\n")
                  res
                  (stub-regnames timestamp))))))
 
@@ -1078,7 +1078,7 @@
                (make-stub
                  (string-append
                    (stub-code ip)
-                   "    uint32_t " res " = hashlittle((void *)" (stub-result ip) ", sizeof(struct ip_addr), 0x432317F5U);\n")
+                   "    uint32_t " res " = hashfun((void *)" (stub-result ip) ", sizeof(struct ip_addr));\n")
                  res
                  (stub-regnames ip))))))
 
@@ -1091,7 +1091,7 @@
                (make-stub
                  (string-append
                    (stub-code subnet)
-                   "    uint32_t " res " = hashlittle((void *)" (stub-result subnet) ", sizeof(struct ip_addr) * 2, 0x432317F5U);\n")
+                   "    uint32_t " res " = hashfun((void *)" (stub-result subnet) ", sizeof(struct ip_addr) * 2);\n")
                  res
                  (stub-regnames subnet))))))
 
@@ -1104,7 +1104,7 @@
                (make-stub
                  (string-append
                    (stub-code mac)
-                   "    uint32_t " res " = hashlittle((void *)" (stub-result mac) ", ETH_ADDR_LEN, 0x432317F5U);\n")
+                   "    uint32_t " res " = hashfun((void *)" (stub-result mac) ", ETH_ADDR_LEN);\n")
                  res
                  (stub-regnames mac))))))
 

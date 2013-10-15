@@ -1,4 +1,4 @@
-// vim:filetype=asciidoc expandtab
+// vim:filetype=asciidoc expandtab spell spelllang=en
 = Junkie The Network Sniffer
 :toc:
 :website: http://github.com/securactive/junkie
