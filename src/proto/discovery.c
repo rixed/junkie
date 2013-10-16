@@ -203,7 +203,7 @@ static enum proto_parse_status discovery_parse(struct parser *parser, struct pro
     // iter on all filters until one matches
     struct proto_signature *sig;
     struct npc_register rest = { .size = cap_len, .value = (uintptr_t)packet };
-    LIST_LOOKUP(sig, &proto_signatures, entry, 0 != sig->filter.match_fun(parent, rest, NULL, NULL));
+    LIST_LOOKUP(sig, &proto_signatures, entry, 0 != sig->filter.match_fun(parent, rest, sig->filter.regfile, sig->filter.regfile));
 
     if (! sig) return PROTO_PARSE_ERR;
     SLOG(LOG_DEBUG, "Discovered protocol %s (which actual parser is %s)", sig->protocol.name, sig->actual_proto ? sig->actual_proto->name : "unknown");
