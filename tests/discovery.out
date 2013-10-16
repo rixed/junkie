@@ -23,6 +23,10 @@ CIFS: head_len=32, payload=52, command=0x32, status=0x00000000
 PIPI: head_len=0, payload=12, protocol=11(IRC), trust=low
 -- pcap/misc/rdp.pcap --
 PIPI: head_len=0, payload=418, protocol=22(RDP), trust=high
+-- pcap/dns/dns.pcap --
+DNS: head_len=32, payload=0, QUERY, tx_id=3804, err_code=0, request_type=A, dns_class=IN, name=www.google.com
+DNS: head_len=32, payload=0, QUERY, tx_id=51952, err_code=0, request_type=AAAA, dns_class=IN, name=www.google.com
+DNS: head_len=284, payload=0, ANSWER, tx_id=3804, err_code=0, request_type=A, dns_class=IN, name=www.google.com
 -- pcap/http/on-alt-port.pcap --
 HTTP: head_len=95, payload=0, method=GET, code=unset, content_length=unset, transfert_encoding=unset, mime_type=unset, host=192.168.1.1:8080, user_agent=RobiNet, referrer=unset, server=unset, url=/, pkts=1
 HTTP: head_len=67, payload=0, method=unset, code=200, content_length=1011, transfert_encoding=unset, mime_type=text/plain, host=unset, user_agent=unset, referrer=unset, server=unset, url=unset, pkts=1

@@ -223,3 +223,19 @@
                      (nm:compile
                        type:bool '(tcp) '(and (str-in-bytes rest "rdpdr")
                                               (str-in-bytes rest "cliprdr"))))
+
+(add-proto-signature "DNS" 23 'medium
+                     (nm:compile
+                       type:bool '(udp) '(do
+                                           (endname := (index-of-bytes rest 0,0 12 250 999)) ; Search for the end of a qname and the begin of the dns type
+                                           (or
+                                             (and
+                                               ((rest @ (endname + 2) ) >= 1)
+                                               ((rest @ (endname + 2) ) <= 16))
+                                             ((rest @ (endname + 2) ) == #x1c)
+                                             ((rest @ (endname + 2) ) == #x20)
+                                             ((rest @ (endname + 2) ) == #x21)
+                                             ((rest @ (endname + 2) ) == #x26)
+                                             ((rest @ (endname + 2) ) == #xfb)
+                                             ((rest @ (endname + 2) ) == #xfc)
+                                             ((rest @ (endname + 2) ) == #xff)))))

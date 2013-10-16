@@ -312,7 +312,8 @@
             (tmp   (gensymC "bytes_tmp"))
             (Cinit (string-join (map (lambda (s)
                                        (string-append "0x" s))
-                                     (string-split (symbol->string v) #\,))
+                                     (filter (lambda (n) (not (string-null? n))) ; Handle case like "05,"
+                                             (string-split (symbol->string v) #\,)))
                                 ",")))
         (make-stub
           (string-append
@@ -346,11 +347,10 @@
 
 (export bytes)
 
-; Is this symbol a mac address?
+; Is this symbol a list of bytes?
 (define (looks-like-bytes? s)
   (let ((s (symbol->string s)))
-    (or (string-match "^[0-9a-f]+$" s)
-        (string-match "^[0-9a-f]+,[0-9a-f,]*[0-9a-f]$" s))))
+    (string-match "^[0-9a-f]+,[0-9a-f,]*$" s)))
 
 (export looks-like-bytes?)
 
@@ -963,6 +963,31 @@
                  (append (stub-regnames n) (stub-regnames b)))))))
 
 (add-operator 'firsts firsts)
+
+(define index-of-bytes
+  (make-op 'index-of-bytes uint (list bytes bytes uint uint uint)
+           (lambda (haystack needle offset maxlen default) ; FIXME We should return a better type than uint to get rid of default
+             (let ((res (gensymC "index_of_bytes_res"))
+                   (tmp (gensymC "mem_ptr")))
+               (make-stub
+                 (string-append
+                   (stub-code haystack)
+                   (stub-code needle)
+                   (stub-code offset)
+                   (stub-code maxlen)
+                   (stub-code default)
+                   "    uint_least64_t " res " = " (stub-result default) " ;\n"
+                   "    if ( " (stub-result haystack) ".size >= " (stub-result offset) " ) {\n"
+                   "        void *" tmp " = memmem((char const *)" (stub-result haystack) ".value + " (stub-result offset) ","
+                   "MIN(" (stub-result haystack) ".size - " (stub-result offset) ", " (stub-result maxlen) " + " (stub-result needle) ".size ) "
+                   "   , (void *)" (stub-result needle) ".value, " (stub-result needle) ".size);\n"
+                   "        if ( " tmp " ) " res " = " tmp " - ((void *)" (stub-result haystack) ".value);\n"
+                   "    }\n"
+                   )
+                 res
+                 (append (stub-regnames haystack) (stub-regnames needle)))))))
+
+(add-operator 'index-of-bytes index-of-bytes)
 
 (define str-in-bytes
   (make-op 'str-in-bytes bool (list bytes str)
