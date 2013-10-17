@@ -43,6 +43,9 @@ LOG_CATEGORY_DEF(global)
 
 static int log_fd = -1;
 static char log_filename[PATH_MAX];
+static char *log_ts_format = NULL; // will be malloced in init
+
+EXT_PARAM_STRING_RW(log_ts_format, "log-time-format", "Set the format used for printing timestamp (strftime syntax)")
 
 static void vsystem_log(int priority, char const *fmt, va_list ap)
 {
@@ -113,8 +116,9 @@ void slog(int priority, char const *filename, char const *funcname, char *fmt, .
         struct tm tm;
         localtime_r(&now, &tm);
 
-        int len = strftime(str, sizeof(str), "%Y-%m-%d %H:%M:%S: ", &tm);
-        len += snprintf(str + len, sizeof(str) - len, "%s: ", get_thread_name());
+        int len = 0;
+        if (log_ts_format) len += strftime(str, sizeof(str), log_ts_format, &tm);
+        len += snprintf(str + len, sizeof(str) - len, ": %s: ", get_thread_name());
         if (filename && funcname) len += snprintf(str + len, sizeof(str) - len, "%s/%s: ", filename, funcname);
         len += vsnprintf(str + len, sizeof(str) - len, fmt, ap);
         len += snprintf(str + len, sizeof(str) - len, "\n");
@@ -243,9 +247,10 @@ void log_init(void)
     SLIST_INIT(&log_categories);
     log_category_global_init();
     log_category_guile_init();
+    ext_param_log_ts_format_init();
     files_init();
     ext_init();
-
+    log_ts_format = strdup("%Y-%m-%d %H:%M:%S");
     log_set_file("/dev/stderr");
 
     ext_function_ctor(&sg_set_log_level, "set-log-level", 1, 1, 0, g_set_log_level,
@@ -295,4 +300,10 @@ void log_fini(void)
 
     ext_fini();
     files_fini();
+
+    ext_param_log_ts_format_fini();
+    if (log_ts_format) {
+        free(log_ts_format);
+        log_ts_format = NULL;
+    }
 }
