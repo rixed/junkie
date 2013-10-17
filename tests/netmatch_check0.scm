@@ -12,6 +12,8 @@
 (display "Testing netmatch tools\n")
 
 (assert (type:looks-like-subnet? '192.168.10.0/255.255.255.0))
+(assert (type:looks-like-bytes? #(1 2 3 4 5)))
+(assert (type:looks-like-bytes? #(1)))
 
 ;; good enough!
 (exit 0)

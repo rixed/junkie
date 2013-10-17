@@ -30,9 +30,9 @@
                      (nm:compile
                        type:bool '(tcp) '(or
                                            (and ((nb-bytes rest) >= 6)
-                                                ((firsts 6 rest) == 00,00,00,0d,06,00))
+                                                ((firsts 6 rest) == #(#x00 #x00 #x00 #x0d #x06 #x00)))
                                            (and ((nb-bytes rest) >= 8)
-                                                ((firsts 8 rest) == 00,00,40,09,07,00,00,00))
+                                                ((firsts 8 rest) == #(#x00 #x00 #x40 #x09 #x07 #x00 #x00 #x00)))
                                            (str-in-bytes rest "BitTorrent Protocol")
                                            (str-in-bytes rest "/announce"))))
 
@@ -40,18 +40,18 @@
 
 ; Small tool to convert string to bytes:
 ; (define (string->numbers s) (map char->integer (string->list s)))
-; (define (string->hexstr s) (string-join (map (lambda (n) (format #f "~2,'0x" n)) (string->numbers s)) ",") )
+; (define (string->bytes s) (list->vector (string->numbers s)))
 
 (add-proto-signature "gnutella" 5 'low ; until proven otherwise
                      (nm:compile
                        type:bool '(tcp) '(or
                                            (and ((nb-bytes rest) >= 4)
-                                                ((firsts 3 rest) == 67,6e,64)
+                                                ((firsts 3 rest) == #(#x67 #x6e #x64))
                                                 (or ((rest @ 3) == 1)
                                                     ((rest @ 3) == 2)))
                                            (and ((nb-bytes rest) >= 22)
                                                 ; "gnutella connect/[012]\.[0-9]\x0d\x0a"
-                                                ((firsts 17 rest) == 67,6e,75,74,65,6c,6c,61,20,63,6f,6e,6e,65,63,74,2f)
+                                                ((firsts 17 rest) == #(#x67 #x6e #x75 #x74 #x65 #x6c #x6c #x61 #x20 #x63 #x6f #x6e #x6e #x65 #x63 #x74 #x2f))
                                                 ((rest @ 17) >= 48)
                                                 ((rest @ 17) <= 50)
                                                 ((rest @ 19) >= 48)
@@ -60,13 +60,13 @@
                                                 ((rest @ 21) == 10))
                                            (and ((nb-bytes rest) >= 26)
                                                 ; "get /uri-res/n2r\?urn:sha1:"
-                                                ((firsts 26 rest) == 67,65,74,20,2f,75,72,69,2d,72,65,73,2f,6e,32,72,3f,75,72,6e,3a,73,68,61,31,3a))
+                                                ((firsts 26 rest) == #(#x67 #x65 #x74 #x20 #x2f #x75 #x72 #x69 #x2d #x72 #x65 #x73 #x2f #x6e #x32 #x72 #x3f #x75 #x72 #x6e #x3a #x73 #x68 #x61 #x31 #x3a)))
                                            (and ((nb-bytes rest) >= 44)
                                                 ; gnutella.*content-type: application/x-gnutella
-                                                ((firsts 8 rest) == 67,6e,75,74,65,6c,6c,61)
+                                                ((firsts 8 rest) == #(#x67 #x6e #x75 #x74 #x65 #x6c #x6c #x61))
                                                 (str-in-bytes rest "content-type: application/x-gnutella"))
                                            (and ((nb-bytes rest) >= 5)
-                                                ((firsts 5 rest) == 67,65,74,20,2f)
+                                                ((firsts 5 rest) == #(#x67 #x65 #x74 #x20 #x2f))
                                                 (or (str-in-bytes rest "content-type: application/x-gnutella-packets")
                                                     (str-in-bytes rest "user-agent: gtk-gnutella")
                                                     (str-in-bytes rest "user-agent: bearshare")
@@ -131,19 +131,19 @@
 (add-proto-signature "IRC" 11 'low
                      (nm:compile
                        type:bool '(tcp) '(and ((nb-bytes rest) >= 8)
-                                              ((firsts 5 rest) == 4e,49,43,4b,20)))) ; "NICK "
+                                              ((firsts 5 rest) == #(#x4e #x49 #x43 #x4b #x20))))) ; "NICK "
 
 (add-proto-signature "jabber" 12 'low
                      (nm:compile
                        type:bool '(tcp) '(and ((nb-bytes rest) >= 14)
-                                              ((firsts 14 rest) == 3c,73,74,72,65,61,6d,3a,73,74,72,65,61,6d))))
+                                              ((firsts 14 rest) == #(#x3c #x73 #x74 #x72 #x65 #x61 #x6d #x3a #x73 #x74 #x72 #x65 #x61 #x6d)))))
 
 
 ; Other, mostly windows related
 (add-proto-signature "VNC" 13 'high
                      (nm:compile
                        type:bool '(tcp) '(and ((nb-bytes rest) >= 12)
-                                              ((firsts 6 rest) == 52,46,42,20,30,30)
+                                              ((firsts 6 rest) == #(#x52 #x46 #x42 #x20 #x30 #x30))
                                               ((rest @ 6) >= 49) ; from 1
                                               ((rest @ 6) <= 57) ; to 9
                                               ((rest @ 7) == 46) ; then .00
@@ -166,8 +166,8 @@
 (add-proto-signature "PCanywhere" 15 'medium
                      (nm:compile
                        type:bool '() '(and ((nb-bytes rest) == 2)
-                                           (or ((firsts 2 rest) == 6e,71)
-                                               ((firsts 2 rest) == 73,74)))))
+                                           (or ((firsts 2 rest) == #(#x6e #x71))
+                                               ((firsts 2 rest) == #(#x73 #x74))))))
 
 (add-proto-signature "citrix" 16 'medium
                      (nm:compile
@@ -227,7 +227,7 @@
 (add-proto-signature "DNS" 23 'medium
                      (nm:compile
                        type:bool '(udp) '(do
-                                           (endname := (index-of-bytes rest 0,0 12 250 999)) ; Search for the end of a qname and the begin of the dns type
+                                           (endname := (index-of-bytes rest #(0 0) 12 250 999)) ; Search for the end of a qname and the begin of the dns type
                                            (or
                                              (and
                                                ((rest @ (endname + 2) ) >= 1)

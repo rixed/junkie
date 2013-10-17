@@ -190,6 +190,20 @@
             "" bytes)
       " }")))
 
+(define (fold-vector i f v)
+  (let loop ((n 0)
+             (p i))
+    (if (>= n (vector-length v))
+        p
+        (loop (1+ n) (f p (vector-ref v n))))))
+
+(define (bytes->C-byte-array v)
+  (string-append
+    "{ " (fold-vector "" (lambda (str x)
+                           (string-append str (number->string x) ", "))
+                      v)
+    " }"))
+
 ;;; The unit type
 
 ;(define ignored #f)
@@ -307,17 +321,12 @@
 (define bytes
   (make-type
     'bytes
-    (lambda (v) ; imm, v is a symbol like 12,34,56,72,fc,5a,90
+    (lambda (v) ; imm, v is a numeric vector
       (let ((res   (gensymC "bytes"))
-            (tmp   (gensymC "bytes_tmp"))
-            (Cinit (string-join (map (lambda (s)
-                                       (string-append "0x" s))
-                                     (filter (lambda (n) (not (string-null? n))) ; Handle case like "05,"
-                                             (string-split (symbol->string v) #\,)))
-                                ",")))
+            (tmp   (gensymC "bytes_tmp")))
         (make-stub
           (string-append
-            "    static unsigned char " tmp "[] = { " Cinit " };\n"
+            "    static unsigned char " tmp "[] = " (bytes->C-byte-array v) ";\n"
             "    struct npc_register " res " = { .value = (uintptr_t)" tmp ", .size = sizeof(" tmp ") };\n")
           res
           '())))
@@ -336,7 +345,7 @@
           "    memcpy(&new_regfile[nm_reg_" regname "__], &" (stub-result value) ", sizeof(new_regfile[0]));\n"
         (string-append "new_regfile[nm_reg_" regname "__]")
         (cons regname (stub-regnames value)))))
-    (lambda (stub) ; to SCM
+    (lambda (stub) ; to SCM (as a string) (TODO: as a vector of numbers?)
       (let ((res (gensymC "to_scm_res")))
         (make-stub
           (string-append
@@ -348,9 +357,11 @@
 (export bytes)
 
 ; Is this symbol a list of bytes?
-(define (looks-like-bytes? s)
-  (let ((s (symbol->string s)))
-    (string-match "^[0-9a-f]+,[0-9a-f,]*$" s)))
+(define (looks-like-bytes? v)
+  (and (vector? v)
+       (fold-vector #t (lambda (p x)
+                         (and p (number? x)))
+                    v)))
 
 (export looks-like-bytes?)
 
