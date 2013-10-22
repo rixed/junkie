@@ -274,15 +274,6 @@ static bool ip_match_keyfile(struct ip_addr const *ip, struct tls_keyfile const 
     }
 }
 
-static struct tls_keyfile *tls_keyfile_lookup(struct ip_addr const *ip, uint16_t unused_ port)
-{
-    struct tls_keyfile *keyfile;
-    WITH_LOCK(&tls_keyfiles_lock) {
-        LIST_LOOKUP(keyfile, &tls_keyfiles, entry, ip_match_keyfile(ip, keyfile));
-    }
-    return keyfile;
-}
-
 static struct tls_keyfile *tls_keyfile_of_scm_name(SCM name_)
 {
     char *name = scm_to_tempstr(name_);
@@ -810,24 +801,11 @@ static int prf(struct tls_version version, SSL *ssl, uint8_t *secret, char const
 // decrypt the pre_master_secret using server's private key (or saved session_id).
 // Note: we follow ssldump footpath from there!
 // Note2: way is clt->srv way
-static int decrypt_master_secret(struct tls_parser *parser, unsigned way, struct tls_proto_info const *info, size_t enc_pms_len, uint8_t const *encrypted_pms)
+static int decrypt_master_secret_with_keyfile(struct tls_keyfile *keyfile, struct tls_parser *parser, size_t enc_pms_len, uint8_t const *encrypted_pms)
 {
     int err = -1;
 
-    unsigned const srv_idx = way == parser->c2s_way ? 1 : 0;
-    SLOG(LOG_DEBUG, "way=%u, parser->c2s_way=%u -> srv_idx=%u", way, parser->c2s_way, srv_idx);
-
-    // find the relevant keyfile
-    ASSIGN_INFO_OPT(tcp, &info->info);
-    if (! tcp) goto quit0;
-    ASSIGN_INFO_OPT(ip, &tcp->info);
-    if (! ip) goto quit0;
-    struct tls_keyfile *keyfile = tls_keyfile_lookup(&ip->key.addr[srv_idx], tcp->key.port[srv_idx]);
-    if (! keyfile) {
-        SLOG(LOG_DEBUG, "No keyfile found for %s:%"PRIu16, ip_addr_2_str(&ip->key.addr[srv_idx]), tcp->key.port[srv_idx]);
-        goto quit0;
-    }
-    SLOG(LOG_DEBUG, "Will decrypt MS using keyfile %s", keyfile->path);
+    SLOG(LOG_DEBUG, "Try to decrypt Master Secret using keyfile %s", keyfile->path);
 
     SSL *ssl = SSL_new(keyfile->ssl_ctx);
     if (! ssl) {
@@ -965,6 +943,34 @@ quit1:
     SSL_free(ssl);
 quit0:
     return err;
+}
+
+static int decrypt_master_secret(struct tls_parser *parser, unsigned way, struct tls_proto_info const *info, size_t enc_pms_len, uint8_t const *encrypted_pms)
+{
+    unsigned const srv_idx = way == parser->c2s_way ? 1 : 0;
+    SLOG(LOG_DEBUG, "way=%u, parser->c2s_way=%u -> srv_idx=%u", way, parser->c2s_way, srv_idx);
+
+    // find the relevant(s) keyfile(s)
+    ASSIGN_INFO_OPT(tcp, &info->info);
+    if (! tcp) return -1;
+    ASSIGN_INFO_OPT(ip, &tcp->info);
+    if (! ip) return -1;
+    struct tls_keyfile *keyfile;
+    WITH_LOCK(&tls_keyfiles_lock) {
+        LIST_FOREACH(keyfile, &tls_keyfiles, entry) {
+            if (! ip_match_keyfile(&ip->key.addr[srv_idx], keyfile)) continue;
+            if (0 == decrypt_master_secret_with_keyfile(keyfile, parser, enc_pms_len, encrypted_pms)) {
+                break;
+            }
+        }
+    }
+
+    if (! keyfile) {
+        SLOG(LOG_DEBUG, "No (working) keyfile found for %s:%"PRIu16, ip_addr_2_str(&ip->key.addr[srv_idx]), tcp->key.port[srv_idx]);
+        return -1;
+    }
+
+    return 0;
 }
 
 static enum proto_parse_status look_for_cname(struct cursor *cur, void *info_)
