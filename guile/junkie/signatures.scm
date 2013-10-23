@@ -100,9 +100,13 @@
 ; Discovery of FTP payload
 (add-proto-signature "FTP" 8 'medium
                      (nm:compile
-                       type:bool '(tcp) '(or (starts-with rest "220-")
-                                             (starts-with rest "220 ")
+                       type:bool '(tcp) '(or ;(starts-with rest "220-") conflicts with SMTP
+                                             ;(starts-with rest "220 ")
                                              ;(starts-with rest "USER ") conflicts with IRC
+                                             (starts-with rest "PASV ")
+                                             (starts-with rest "RETR ")
+                                             (starts-with rest "STOR ")
+                                             (starts-with rest "STOU ")
                                              (starts-with rest "FEAT ")
                                              (starts-with rest "OPTS "))))
 
@@ -239,3 +243,15 @@
                                              ((rest @ (endname + 2) ) == #xfb)
                                              ((rest @ (endname + 2) ) == #xfc)
                                              ((rest @ (endname + 2) ) == #xff)))))
+
+; Discovery of SMTP payload
+(add-proto-signature "SMTP" 24 'medium
+                     (nm:compile
+                       type:bool '(tcp) '(or (and (rel-seq-num == 0)
+                                                  (or (starts-with rest "HELO ")
+                                                      (starts-with rest "EHLO ")))
+                                             (starts-with rest "MAIL FROM:")
+                                             (starts-with rest "RCPT TO:")
+                                             (starts-with rest "VRFY "))))
+
+

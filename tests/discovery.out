@@ -31,11 +31,6 @@ DNS: head_len=284, payload=0, ANSWER, tx_id=3804, err_code=0, request_type=A, dn
 HTTP: head_len=95, payload=0, method=GET, code=unset, content_length=unset, transfert_encoding=unset, mime_type=unset, host=192.168.1.1:8080, user_agent=RobiNet, referrer=unset, server=unset, url=/, pkts=1
 HTTP: head_len=67, payload=0, method=unset, code=200, content_length=1011, transfert_encoding=unset, mime_type=text/plain, host=unset, user_agent=unset, referrer=unset, server=unset, url=unset, pkts=1
 -- pcap/ftp/on-alt-port.pcap --
-FTP: head_len=0, payload=20
-FTP: head_len=0, payload=16
-FTP: head_len=0, payload=34
-FTP: head_len=0, payload=21
-FTP: head_len=0, payload=23
 FTP: head_len=0, payload=14
 FTP: head_len=0, payload=26
 FTP: head_len=0, payload=7
@@ -55,3 +50,21 @@ SIP: head_len=399, payload=0, cmd=CANCEL, cseq=50328871, via=UDP 212.27.52.5:506
 SIP: head_len=352, payload=0, cmd=unset, cseq=50328871, via=UDP 212.27.52.5:5060, code=200, mime_type=unset, content-length=0, call-id=20812-KJ-030ff678-1ebf056e3@freephonie.net, from="Sebastien Douche" <sip:0178090721@freephonie.net;user=phone>;tag=20812-TF-030ff679-135e3e8b5, to=<sip:0950652801@172.17.20.241;user=phone>;tag=2Xg1tg75j8gDH
 SIP: head_len=521, payload=0, cmd=unset, cseq=50328871, via=UDP 212.27.52.5:5060, code=487, mime_type=unset, content-length=0, call-id=20812-KJ-030ff678-1ebf056e3@freephonie.net, from="Sebastien Douche" <sip:0178090721@freephonie.net;user=phone>;tag=20812-TF-030ff679-135e3e8b5, to=<sip:0950652801@172.17.20.241;user=phone>;tag=2Xg1tg75j8gDH
 -- pcap/http/not-http.pcap --
+-- pcap/email/smtp.pcap --
+PIPI: head_len=0, payload=34, protocol=24(SMTP), trust=medium
+TLS: head_len=117, payload=0, version=3.0, content-type=handshake
+TLS: head_len=86, payload=0, version=3.1, content-type=handshake, cipher_suite=DHE_RSA_WITH_AES_128_CBC_SHA, compression_algo=none
+TLS: head_len=139, payload=0, version=3.1, content-type=handshake
+TLS: head_len=6, payload=0, version=3.1, content-type=change_cipher_spec
+TLS: head_len=197, payload=0, version=3.1, content-type=handshake
+TLS: head_len=6, payload=0, version=3.1, content-type=change_cipher_spec
+TLS: head_len=245, payload=0, version=3.1, content-type=data
+TLS: head_len=165, payload=0, version=3.1, content-type=data
+TLS: head_len=149, payload=0, version=3.1, content-type=data
+TLS: head_len=101, payload=0, version=3.1, content-type=data
+TLS: head_len=661, payload=0, version=3.1, content-type=data
+TLS: head_len=69, payload=0, version=3.1, content-type=data
+TLS: head_len=53, payload=0, version=3.1, content-type=data
+TLS: head_len=149, payload=0, version=3.1, content-type=alert
+TLS: head_len=53, payload=0, version=3.1, content-type=data
+TLS: head_len=37, payload=0, version=3.1, content-type=alert

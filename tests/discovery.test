@@ -10,6 +10,8 @@ PCAPS="pcap/https/tlsv1.pcap pcap/voip/single-rtp.pcap pcap/misc/telnet.pcap pca
 PCAPS="$PCAPS pcap/http/on-alt-port.pcap pcap/ftp/on-alt-port.pcap pcap/sip/on-alt-port.pcap"
 # This one match the signature but the proper parser should fail
 PCAPS="$PCAPS pcap/http/not-http.pcap"
+# Check SMTP signature
+PCAPS="$PCAPS pcap/email/smtp.pcap"
 
 filter() {
 	grep -E '^(PIPI|TLS|RTP|HTTP|FTP|SIP|CIFS|DNS|Netbios)'
