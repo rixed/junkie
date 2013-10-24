@@ -161,10 +161,6 @@ static void *ext_rebind_from_guile(void *dummy)
 
 static void init_scm_extensions_(void unused_ *dummy)
 {
-    // junkie-parameters: a list of parameter names
-    scm_c_define("junkie-parameters", g_parameter_names());
-    scm_c_export("junkie-parameters", NULL);
-
     // junkie-version: a mere string to query the current junkie version
     scm_c_define("junkie-version", scm_from_latin1_string(version_string));
     scm_c_export("junkie-version", NULL);
