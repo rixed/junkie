@@ -30,6 +30,7 @@ struct http_proto_info {
 #   define HTTP_USER_AGENT_SET         0x80
 #   define HTTP_REFERRER_SET           0x100
 #   define HTTP_SERVER_SET             0x200
+#   define HTTP_ORIG_CLIENT_SET        0x400
     uint32_t set_values;            ///< Mask of the fields that are actually set in this struct
     enum http_method {
         HTTP_METHOD_GET, HTTP_METHOD_HEAD, HTTP_METHOD_POST, HTTP_METHOD_CONNECT,
@@ -37,6 +38,7 @@ struct http_proto_info {
     } method;                       ///< The method used
     unsigned code;                  ///< The response code, if the message is a response
     unsigned content_length;        ///< The Content-Length, if present
+    struct ip_addr orig_client;     ///< The address of the original client (as set by proxy)
     bool chunked_encoding;          ///< Set if the transfert encoding is chunked (only relevant if set_values&HTTP_TRANSFERT_ENCODING_SET)
     bool ajax;                      ///< Set whenever the message is suspected to be some sort of Ajax
     bool have_body;                 ///< Only relevant if HTTP_METHOD_SET or HTTP_CODE_SET

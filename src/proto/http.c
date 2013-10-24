@@ -291,7 +291,7 @@ static void const *http_info_addr(struct proto_info const *info_, size_t *size)
 static char const *http_info_2_str(struct proto_info const *info_)
 {
     struct http_proto_info const *info = DOWNCAST(info_, info, http_proto_info);
-    return tempstr_printf("%s, method=%s, code=%s, content_length=%s, transfert_encoding=%s, mime_type=%s, host=%s, user_agent=%s, referrer=%s, server=%s, url=%s, pkts=%u%s%s",
+    return tempstr_printf("%s, method=%s, code=%s, content_length=%s, transfert_encoding=%s, mime_type=%s, host=%s, user_agent=%s, referrer=%s, server=%s, orig_ip=%s, url=%s, pkts=%u%s%s",
         proto_info_2_str(info_),
         HTTP_IS_QUERY(info)                  ? http_method_2_str(info->method)            : "unset",
         info->set_values & HTTP_CODE_SET     ? tempstr_printf("%u", info->code)           : "unset",
@@ -304,6 +304,8 @@ static char const *http_info_2_str(struct proto_info const *info_)
                                                info->strs+info->user_agent                : "unset",
         info->set_values & HTTP_REFERRER_SET ? info->strs+info->referrer                  : "unset",
         info->set_values & HTTP_SERVER_SET   ? info->strs+info->server                    : "unset",
+        info->set_values & HTTP_ORIG_CLIENT_SET ?
+                                               ip_addr_2_str(&info->orig_client)          : "unset",
         info->set_values & HTTP_URL_SET      ? info->strs+info->url                       : "unset",
         info->pkts,
         info->ajax                           ? ", ajax":"",
@@ -472,6 +474,29 @@ static int http_extract_content_encoding(unsigned unused_ field, struct liner *l
     return 0;
 }
 
+static int http_extract_client_ip(unsigned unused_ field, struct liner *liner, void *info_)
+{
+    struct http_proto_info *info = info_;
+    /* We are supposed to have a list of IPs, coma separated, first one being
+     * the original client (Cf. http://en.wikipedia.org/wiki/X-Forwarded-For) */
+
+    // if this list comes in several header lines, keep only the first one
+    if (info->set_values & HTTP_ORIG_CLIENT_SET) return 0;
+
+    // look for end of IP
+    size_t const tot_len = liner_tok_length(liner);
+    size_t ip_len;
+    for (ip_len = 0; ip_len < tot_len; ip_len++) {
+        uint8_t const c = liner->start[ip_len];
+        if (',' == c || ' ' == c) break;
+    }
+
+    if (0 == ip_addr_ctor_from_str(&info->orig_client, liner->start, ip_len, 0)) {
+        info->set_values |= HTTP_ORIG_CLIENT_SET;
+    }
+    return 0;
+}
+
 static enum proto_parse_status http_parse_header(struct http_parser *http_parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     assert(http_parser->state[way].phase == HEAD);
@@ -502,6 +527,8 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
         { STRING_AND_LEN("accept"),            http_extract_accept },
         { STRING_AND_LEN("origin"),            http_extract_origin },
         { STRING_AND_LEN("content-encoding"),  http_extract_content_encoding },
+        { STRING_AND_LEN("x-forwarded-for"),   http_extract_client_ip },
+        { STRING_AND_LEN("x-real-ip"),         http_extract_client_ip },
     };
     static struct httper const httper = {
         .nb_commands = NB_ELEMS(commands),

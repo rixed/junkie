@@ -24,7 +24,8 @@ struct ip_addr {
 /// MACRO to define a struct ip_addr for IPv4 (for instance, IP4(192, 168, 1, 2))
 #define IP4(a, b, c, d) { .family = AF_INET, .u.v4.s_addr = (a)|(b<<8)|(c<<16)|(d<<24) }
 
-int ip_addr_ctor_from_str(struct ip_addr *, char const *, size_t, int);
+/// @param version is 4, 6, or 0 (try both)
+int ip_addr_ctor_from_str(struct ip_addr *, char const *, size_t, int version);
 int ip_addr_ctor_from_str_any(struct ip_addr *, char const *);
 void ip_addr_ctor_from_ip4(struct ip_addr *, uint32_t);
 void ip_addr_ctor_from_ip6(struct ip_addr *, struct in6_addr const *);

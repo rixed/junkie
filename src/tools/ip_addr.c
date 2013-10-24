@@ -44,10 +44,12 @@ void ip_addr_ctor_from_ip6(struct ip_addr *ip_addr, struct in6_addr const *ip6)
     ip_addr->u.v6 = *ip6;
 }
 
+// Note: if version is 0 then try both v4 and v6
 int ip_addr_ctor_from_str(struct ip_addr *ip, char const *str, size_t len, int version)
 {
     memset(ip, 0, sizeof *ip);
 
+    // Copy the string to add the null terminator
     char dup[len+1];
     strncpy(dup, str, len);
     dup[len] = 0;
@@ -61,6 +63,14 @@ int ip_addr_ctor_from_str(struct ip_addr *ip, char const *str, size_t len, int v
     case 6:
         ip->family = AF_INET6;
         err = inet_pton(AF_INET6, dup, &ip->u.v6);
+        break;
+    case 0:
+        ip->family = AF_INET;
+        err = inet_pton(AF_INET, dup, &ip->u.v4);
+        if (err != 1) {
+            ip->family = AF_INET6;
+            err = inet_pton(AF_INET6, dup, &ip->u.v6);
+        }
         break;
     default:
         SLOG(LOG_DEBUG, "invalid mode (%d)", version);
