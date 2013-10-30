@@ -7,7 +7,7 @@ check_PROGRAMS = \
 	digest_queue_check timeval_check files_check \
 	hash_check liner_check ip_addr_check \
 	log_check redim_array_check mallocer_check \
-	ip_check udp_check tcp_check http_check sip_check \
+	ip_check udp_check tcp_check http_check skinny_check sip_check \
 	sdp_check mgcp_check dns_check cnxtrack_check \
 	icmp_check rtcp_check flood_check port_range_check \
 	arp_check pkt_wait_list_check ip_reassembly_check \
@@ -75,6 +75,8 @@ tcp_check_SOURCES = tcp_check.c lib.c lib.h
 tcp_check_LDADD = ../src/tools/libjunkietools.la ../src/proto/libproto.la
 http_check_SOURCES = http_check.c lib.c lib.h
 http_check_LDADD = ../src/tools/libjunkietools.la ../src/proto/libproto.la
+skinny_check_SOURCES = skinny_check.c lib.c lib.h
+skinny_check_LDADD = ../src/tools/libjunkietools.la ../src/proto/libproto.la
 sip_check_SOURCES = sip_check.c lib.c lib.h
 sip_check_LDADD = ../src/tools/libjunkietools.la ../src/proto/libproto.la
 sdp_check_SOURCES = sdp_check.c lib.c lib.h

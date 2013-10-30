@@ -177,6 +177,7 @@ enum skinny_call_state {
 struct skinny_proto_info {
     struct proto_info info;
     enum skinny_msgid msgid;
+    enum skinny_header_version header_ver;
 #   define SKINNY_NEW_KEY_PAD   0x0001
 #   define SKINNY_LINE_INSTANCE 0x0002
 #   define SKINNY_CALL_ID       0x0004

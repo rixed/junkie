@@ -47,6 +47,17 @@ static void const *skinny_info_addr(struct proto_info const *info_, size_t *size
     return info;
 }
 
+static char const *skinny_header_version_2_str(enum skinny_header_version ver)
+{
+    switch (ver) {
+        case SKINNY_BASIC: return "Basic";
+        case SKINNY_CM7_TYPE_A: return "CM7 type A";
+        case SKINNY_CM7_TYPE_B: return "CM7 type B";
+        case SKINNY_CM7_TYPE_C: return "CM7 type C";
+    }
+    return tempstr_printf("Unknown header ver 0x%X", ver);
+}
+
 static char const *skinny_msgid_2_str(enum skinny_msgid id)
 {
     switch (id) {
@@ -213,8 +224,9 @@ static char const *skinny_call_state_2_str(enum skinny_call_state st) {
 static char const *skinny_info_2_str(struct proto_info const *info_)
 {
     struct skinny_proto_info const *info = DOWNCAST(info_, info, skinny_proto_info);
-    return tempstr_printf("%s, MsgId:%s%s%s%s%s%s%s%s%s%s",
+    return tempstr_printf("%s, HeaderVer:%s, MsgId:%s%s%s%s%s%s%s%s%s%s",
         proto_info_2_str(&info->info),
+        skinny_header_version_2_str(info->header_ver),
         skinny_msgid_2_str(info->msgid),
         info->set_values & SKINNY_NEW_KEY_PAD   ? tempstr_printf(", Key:%"PRIu32,        info->new_key_pad):"",
         info->set_values & SKINNY_LINE_INSTANCE ? tempstr_printf(", Line:%"PRIu32,       info->line_instance):"",
@@ -227,11 +239,12 @@ static char const *skinny_info_2_str(struct proto_info const *info_)
         info->set_values & SKINNY_CALLED_PARTY  ? tempstr_printf(", CalledParty:%s",     info->called_party):"");
 }
 
-static void skinny_proto_info_ctor(struct skinny_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, enum skinny_msgid msg_id)
+static void skinny_proto_info_ctor(struct skinny_proto_info *info, struct parser *parser, struct proto_info *parent, size_t head_len, size_t payload, enum skinny_msgid msg_id, uint32_t header_ver)
 {
     proto_info_ctor(&info->info, parser, parent, head_len, payload);
     info->set_values = 0;
     info->msgid = msg_id;
+    info->header_ver = header_ver;
 }
 
 /*
@@ -301,18 +314,34 @@ static enum proto_parse_status read_channel(struct skinny_parser *parser, unsign
 {
     assert(from == FROM_MGR || from == FROM_STATION);
     if (curs->cap_len < 4+16+4) return PROTO_TOO_SHORT;
-    uint32_t ip_version = cursor_read_u32le(curs);
+
+    uint32_t ip_version = 0;
+    // The ip field has a 16 byte lenght on CM7 headers. We
+    // need to drop some bytes before parsing remote port
+    short offset_ip_port = 0;
+    switch (info->header_ver) {
+        case SKINNY_BASIC:
+            break;
+        case SKINNY_CM7_TYPE_A:
+        case SKINNY_CM7_TYPE_B:
+        case SKINNY_CM7_TYPE_C:
+            ip_version = cursor_read_u32le(curs);
+            // We drop (16 - 4) for ipv4 and (16 - 8) for ipv6
+            offset_ip_port = ip_version ? 8 : 12;
+            break;
+    }
+
     if (ip_version == 0) {  // v4
         uint32_t ip = cursor_read_u32(curs);
         ip_addr_ctor_from_ip4(&parser->peer[from], ip);
-        cursor_drop(curs, 12);    // this field is 16 bytes in length
-    } else if (ip_version == 1) {    // v16
+    } else if (ip_version == 1) {    // v6
         ip_addr_ctor_from_ip6(&parser->peer[from], (struct in6_addr const *)curs->head);
-        cursor_drop(curs, 16);
     } else {
         SLOG(LOG_DEBUG, "Invalid IP version (%d)", ip_version);
         return PROTO_PARSE_ERR;
     }
+
+    cursor_drop(curs, offset_ip_port);
     parser->port[from] = cursor_read_u32le(curs);
     parser->media_set[from] = true;
     try_cnxtrack(parser, now);
@@ -346,26 +375,26 @@ static enum proto_parse_status skinny_sbuf_parse(struct parser *parser, struct p
 {
     struct skinny_parser *skinny_parser = DOWNCAST(parser, parser, skinny_parser);
 
-#   define SKINNY_MIN_HDR_SIZE 12
-    if (wire_len < SKINNY_MIN_HDR_SIZE) {
+#   define SKINNY_HDR_SIZE 8
+#   define SKINNY_MIN_MSG_SIZE 12
+    if (wire_len < SKINNY_MIN_MSG_SIZE) {
         streambuf_set_restart(&skinny_parser->sbuf, way, packet, true); // wait for more
         return PROTO_OK;
     }
-    if (cap_len < SKINNY_MIN_HDR_SIZE) return PROTO_TOO_SHORT;
+    if (cap_len < SKINNY_MIN_MSG_SIZE) return PROTO_TOO_SHORT;
 
     struct cursor curs;
     cursor_ctor(&curs, packet, cap_len);
     uint32_t msg_len = cursor_read_u32le(&curs);
-    uint32_t header_ver = cursor_read_u32le(&curs);
+    enum skinny_header_version header_ver = cursor_read_u32le(&curs);
     enum skinny_msgid msg_id = cursor_read_u32le(&curs);
     SLOG(LOG_DEBUG, "New SKINNY msg of size %"PRIu32", msgid=0x%"PRIx32, msg_len, msg_id);
     if (header_ver != SKINNY_BASIC && header_ver != SKINNY_CM7_TYPE_A && header_ver != SKINNY_CM7_TYPE_B && header_ver != SKINNY_CM7_TYPE_C) return PROTO_PARSE_ERR;
     if (msg_len < 4 || msg_len > SKINNY_MAX_HDR_SIZE /* guestimated */) return PROTO_PARSE_ERR;
-    msg_len -= 4;   // since the msg_id was counted
-    if (wire_len < msg_len) return PROTO_TOO_SHORT; // wait for the message to be complete
+    if (wire_len < msg_len + SKINNY_HDR_SIZE) return PROTO_TOO_SHORT; // wait for the message to be complete
     // Ok we have what looks like a skinny message in there
     struct skinny_proto_info info;
-    skinny_proto_info_ctor(&info, parser, parent, SKINNY_MIN_HDR_SIZE, msg_len, msg_id);
+    skinny_proto_info_ctor(&info, parser, parent, SKINNY_HDR_SIZE, msg_len, msg_id, header_ver);
     switch (msg_id) {
         case SKINNY_STATION_KEY_PAD_BUTTON:
             if (curs.cap_len < 12) return PROTO_TOO_SHORT;
@@ -432,7 +461,9 @@ static enum proto_parse_status skinny_sbuf_parse(struct parser *parser, struct p
             cursor_drop(&curs, 4 + 5*4);  // drop Call Type and 5 unknown fields
             // From now on, informations are nul terminated strings
             if (PROTO_OK != (status = read_string(info.calling_party, sizeof(info.calling_party), &curs))) return status; // Calling party
-            if (PROTO_OK != (status = read_string(info.called_party,  sizeof(info.called_party),  &curs))) return status; // Calling party voice mailbox, skip it
+            if (header_ver == SKINNY_CM7_TYPE_A || header_ver == SKINNY_CM7_TYPE_B || header_ver == SKINNY_CM7_TYPE_C) {
+                    cursor_read_string(&curs, NULL, 24); // Drop calling party voice mailbox
+            }
             if (PROTO_OK != (status = read_string(info.called_party,  sizeof(info.called_party),  &curs))) return status; // Called party
             // discard the rest of informations
             break;
@@ -441,7 +472,7 @@ static enum proto_parse_status skinny_sbuf_parse(struct parser *parser, struct p
     }
     (void)proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 
-    streambuf_set_restart(&skinny_parser->sbuf, way, packet + SKINNY_MIN_HDR_SIZE + msg_len, false); // go to next msg
+    streambuf_set_restart(&skinny_parser->sbuf, way, packet + SKINNY_HDR_SIZE + msg_len, false); // go to next msg
 
     return PROTO_OK;
 }
