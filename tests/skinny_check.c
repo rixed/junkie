@@ -40,6 +40,7 @@ static struct parse_test {
         .expected = {
             .info = { .head_len = 8, .payload = 12 },
             .msgid = SKINNY_STATION_OFF_HOOK,
+            .set_values = 0,
         },
         .ret = PROTO_OK,
     },
@@ -67,7 +68,9 @@ static struct parse_test {
         .expected = {
             .info = { .head_len = 8, .payload = 120 },
             .msgid = SKINNY_MGR_START_MEDIA_TRANSMIT,
+            .set_values = SKINNY_CONFERENCE_ID | SKINNY_MEDIA_CNX | SKINNY_PASS_THRU_ID,
             .conf_id = 38333930,
+            .pass_thru_id = 33895928,
             .media_ip = IP4(10, 161, 202, 64),
             .media_port = 29866,
         },
@@ -99,7 +102,9 @@ static struct parse_test {
         .expected = {
             .info = { .head_len = 8, .payload = 136 },
             .msgid = SKINNY_MGR_START_MEDIA_TRANSMIT,
+            .set_values = SKINNY_CONFERENCE_ID | SKINNY_MEDIA_CNX | SKINNY_PASS_THRU_ID,
             .conf_id = 27551497,
+            .pass_thru_id = 16777567,
             .media_ip = IP4(192, 168, 11, 3),
             .media_port = 17154,
         },
@@ -121,6 +126,8 @@ static struct parse_test {
         .expected = {
             .info = { .head_len = 8, .payload = 104 },
             .msgid = SKINNY_MGR_CALL_INFO,
+            .set_values = SKINNY_CALL_ID | SKINNY_CALLED_PARTY | SKINNY_CALLING_PARTY | SKINNY_LINE_INSTANCE,
+            .line_instance = 1,
             .call_id = 27551497,
             .called_party = "065768111",
             .calling_party = "042599246",
@@ -144,6 +151,8 @@ static struct parse_test {
         .expected = {
             .info = { .head_len = 8, .payload = 112 },
             .msgid = SKINNY_MGR_CALL_INFO,
+            .set_values = SKINNY_CALL_ID | SKINNY_CALLED_PARTY | SKINNY_CALLING_PARTY | SKINNY_LINE_INSTANCE,
+            .line_instance = 1,
             .call_id = 38334036,
             .called_party = "00153461533",
             .calling_party = "10401",
@@ -163,8 +172,11 @@ static void skinny_info_check(struct proto_subscriber unused_ *s, struct proto_i
 
     assert(info->info.head_len == expected->info.head_len);
     assert(info->info.payload == expected->info.payload);
+    assert(info->set_values == expected->set_values);
     if (info->set_values & SKINNY_CALL_ID) assert(info->call_id == expected->call_id);
     if (info->set_values & SKINNY_CONFERENCE_ID) assert(info->conf_id == expected->conf_id);
+    if (info->set_values & SKINNY_PASS_THRU_ID) assert(info->pass_thru_id == expected->pass_thru_id);
+    if (info->set_values & SKINNY_LINE_INSTANCE) assert(info->line_instance == expected->line_instance);
     if (info->set_values & SKINNY_MEDIA_CNX) {
         assert(ip_addr_eq(&info->media_ip, &expected->media_ip));
         assert(info->media_port == expected->media_port);
