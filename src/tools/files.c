@@ -224,7 +224,7 @@ int file_writev(int fd, struct iovec *iov, int iovcnt)
                 return -1;
             }
         }
-        while ((size_t)ret >= iov->iov_len && iovcnt > 0) {
+        while (iovcnt > 0 && (size_t)ret >= iov->iov_len) {
             ret -= iov->iov_len;
             iov ++;
             iovcnt --;
