@@ -467,7 +467,7 @@ static void nt_graph_start(struct nt_graph *graph)
 }
 
 static struct npc_register empty_rest = { .size = 0, .value = (uintptr_t)NULL };
-static void edge_ageing(struct nt_edge *, struct timeval const *);
+static void edge_aging(struct nt_edge *, struct timeval const *);
 
 static void nt_graph_stop(struct nt_graph *graph)
 {
@@ -478,11 +478,11 @@ static void nt_graph_stop(struct nt_graph *graph)
 
     struct timeval end_of_time = END_OF_TIME;
 
-    // age out all states capable of ageing
+    // age out all states capable of aging
     struct nt_edge *edge;
     LIST_FOREACH(edge, &graph->edges, same_graph) {
         SLOG(LOG_DEBUG, "Pass all states from %s to %s", edge->from->name, edge->to->name);
-        edge_ageing(edge, &end_of_time);
+        edge_aging(edge, &end_of_time);
     }
     // timeout all states capable of timeouting
     struct nt_vertex *vertex;
@@ -700,8 +700,8 @@ hell:
     return true;
 }
 
-// Move all states along this edge if they match the ageing rule
-static void edge_ageing(struct nt_edge *edge, struct timeval const *now)
+// Move all states along this edge if they match the aging rule
+static void edge_aging(struct nt_edge *edge, struct timeval const *now)
 {
     if (! edge->min_age) return;
 
@@ -718,7 +718,7 @@ static void edge_ageing(struct nt_edge *edge, struct timeval const *now)
         if (edge->to->entry_fn) {
             SLOG(LOG_DEBUG, "Calling entry function for vertex '%s'", edge->to->name);
             // Entry function is not supposed to bind anything... for now (FIXME).
-            // Additionally, since we are ageing, then it's not allowed to use
+            // Additionally, since we are aging, then it's not allowed to use
             // packet data as well (logical,although not enforced).
             edge->to->entry_fn(NULL, empty_rest, state->regfile, NULL);
         }
@@ -783,7 +783,7 @@ static void parser_hook(struct proto_subscriber *subscriber, struct proto_info c
     }
 
     LIST_FOREACH(edge, &hook->edges, same_hook) {
-        edge_ageing(edge, now);
+        edge_aging(edge, now);
     }
 }
 
