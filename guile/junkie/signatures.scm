@@ -232,6 +232,13 @@
                      (nm:compile
                        type:bool '(udp) '(do
                                            (endname := (index-of-bytes rest #(0 0) 12 250 999)) ; Search for the end of a qname and the begin of the dns type
+                                         (and
+                                           (endname != 999) ; a bytes #(0 0) has been found
+                                           ((rest @ 4) == #x00) ; Check that number of questions is < 255
+                                           ((rest @ 6) == #x00) ; Check that number of answers is < 255
+                                           ((rest @ 8) == #x00) ; Check that number of authority RR is < 255
+                                           ((rest @ 10) == #x00) ; Check that number of additional RR is < 255
+                                           ((nb-bytes rest) > (endname + 2)) ; Check that we have place for a dns type after
                                            (or
                                              (and
                                                ((rest @ (endname + 2) ) >= 1)
@@ -242,7 +249,7 @@
                                              ((rest @ (endname + 2) ) == #x26)
                                              ((rest @ (endname + 2) ) == #xfb)
                                              ((rest @ (endname + 2) ) == #xfc)
-                                             ((rest @ (endname + 2) ) == #xff)))))
+                                             ((rest @ (endname + 2) ) == #xff))))))
 
 ; Discovery of SMTP payload
 (add-proto-signature "SMTP" 24 'medium

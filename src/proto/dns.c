@@ -144,7 +144,9 @@ static ssize_t extract_qname(char *name, size_t name_len, uint8_t const *buf, si
     // read length
     uint8_t len = *buf++;
     buf_len--;
-    if (len > buf_len || len > 64) return -1;   // FIXME: handle name compression (if 2 higher bits are set)
+    // Consider a name pointer as valid. We advance of the size of pointer (2 bytes) which finish the name
+    if ((len & 0xc0) == 0xc0) return 2;
+    if (len > buf_len || len > 64) return -1;
 
     if (len == 0) {
         if (name_len > 0) *name = '\0';
@@ -160,7 +162,8 @@ static ssize_t extract_qname(char *name, size_t name_len, uint8_t const *buf, si
     size_t const copy_len = MIN(name_len, len);
     memcpy(name, buf, copy_len);
 
-    return len + 1 + extract_qname(name + copy_len, name_len - copy_len, buf+len, buf_len-len, true);
+    ssize_t ret = extract_qname(name + copy_len, name_len - copy_len, buf+len, buf_len-len, true);
+    return ret < 0 ? ret : len + 1 + ret;
 }
 
 static void strmove(char *d, char *s)
@@ -192,9 +195,15 @@ static enum proto_parse_status dns_parse(struct parser *parser, struct proto_inf
     uint16_t const flags = READ_U16N(&dnshdr->flags);
     uint16_t const transaction_id = READ_U16N(&dnshdr->transaction_id);
     uint16_t const nb_questions = READ_U16N(&dnshdr->nb_questions);
+    uint16_t const nb_answers = READ_U16N(&dnshdr->nb_answers);
+    uint16_t const nb_auths = READ_U16N(&dnshdr->nb_auths);
+    uint16_t const nb_adds = READ_U16N(&dnshdr->nb_adds);
 
     struct dns_proto_info info;
     dns_proto_info_ctor(&info, parser, parent, wire_len, transaction_id, flags);
+
+    // Improbable number of questions and answers
+    if (nb_questions > 255 || nb_answers > 255 || nb_auths > 255 || nb_adds > 255) return PROTO_PARSE_ERR;
 
     char tmp_name[sizeof(info.name)];    // to skip all but first names
 
