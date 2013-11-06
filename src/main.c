@@ -100,7 +100,7 @@ static struct {
     I(sdp),           I(pgsql),       I(mysql),
     I(tns),           I(tls),         I(erspan),
     I(skinny),        I(dhcp),        I(fcoe),
-    I(discovery),
+    I(tds),           I(discovery),
     I(pkt_source),    I(capfile),     I(sock),
 #   undef I
 };

@@ -30,7 +30,8 @@ libproto_la_SOURCES = \
 	ber.c \
 	skinny.c \
 	dhcp.c \
-	fcoe.c
+	fcoe.c \
+	tds.c
 
 libproto_la_LIBADD = ../tools/libjunkietools.la
 libproto_la_LDFLAGS = -export-dynamic
