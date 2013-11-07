@@ -42,6 +42,36 @@ struct tds_parser {
     struct streambuf sbuf;
 };
 
+enum tds_packet_type {
+    TDS_PKT_TYPE_SQL_BATCH = 1,
+    TDS_PKT_TYPE_LOGIN,
+    TDS_PKT_TYPE_RPC,
+    TDS_PKT_TYPE_RESULT,
+    TDS_PKT_TYPE_ATTENTION = 6,
+    TDS_PKT_TYPE_BULK_LOAD,
+    TDS_PKT_TYPE_MANAGER_REQ = 14,
+    TDS_PKT_TYPE_TDS7_LOGIN = 16,
+    TDS_PKT_TYPE_SSPI,
+    TDS_PKT_TYPE_PRELOGIN,
+};
+
+static char const *tds_packet_type_2_str(enum tds_packet_type type)
+{
+    switch (type) {
+        case TDS_PKT_TYPE_SQL_BATCH:   return "SQL batch";
+        case TDS_PKT_TYPE_LOGIN:       return "Login";
+        case TDS_PKT_TYPE_RPC:         return "RPC";
+        case TDS_PKT_TYPE_RESULT:      return "Tabular result";
+        case TDS_PKT_TYPE_ATTENTION:   return "Attention signal";
+        case TDS_PKT_TYPE_BULK_LOAD:   return "Bulk load data";
+        case TDS_PKT_TYPE_MANAGER_REQ: return "Transaction manager request";
+        case TDS_PKT_TYPE_TDS7_LOGIN:  return "TDS7 login";
+        case TDS_PKT_TYPE_SSPI:        return "SSPI";
+        case TDS_PKT_TYPE_PRELOGIN:    return "Pre-login";
+    }
+    return tempstr_printf("Unknown TDS packet type %u", (unsigned)type);
+}
+
 static parse_fun tds_sbuf_parse;
 
 static int tds_parser_ctor(struct tds_parser *tds_parser, struct proto *proto)
@@ -86,6 +116,41 @@ static void tds_parser_del(struct parser *parser)
  * Parse
  */
 
+static enum proto_parse_status cursor_read_packet_header(struct cursor *cursor, enum tds_packet_type *pkt_type, uint8_t *pkt_status, size_t *pkt_len)
+{
+    CHECK_LEN(cursor, 8, 0);    // check we have at least 8 bytes (packet header size)
+    *pkt_type = cursor_read_u8(cursor);
+    *pkt_status = cursor_read_u8(cursor);
+    *pkt_len = cursor_read_u16n(cursor);
+    SLOG(LOG_DEBUG, "Reading new TDS packet of type %s, status %"PRIu8", length %zu", tds_packet_type_2_str(*pkt_type), *pkt_status, *pkt_len);
+    // skip rest of packet header, which is of no value
+    cursor_drop(cursor, 4);
+    // sanity check
+    if (*pkt_len < 8) {
+        return PROTO_PARSE_ERR;
+    }
+    switch (*pkt_type) {
+        case TDS_PKT_TYPE_SQL_BATCH:
+        case TDS_PKT_TYPE_LOGIN:
+        case TDS_PKT_TYPE_RPC:
+        case TDS_PKT_TYPE_RESULT:
+        case TDS_PKT_TYPE_ATTENTION:
+        case TDS_PKT_TYPE_BULK_LOAD:
+        case TDS_PKT_TYPE_MANAGER_REQ:
+        case TDS_PKT_TYPE_TDS7_LOGIN:
+        case TDS_PKT_TYPE_SSPI:
+        case TDS_PKT_TYPE_PRELOGIN:
+            break;
+        default:
+            return PROTO_PARSE_ERR;
+    }
+    // Check data are already there
+    *pkt_len -= 8;
+    CHECK_LEN(cursor, *pkt_len, 8);
+
+    return PROTO_OK;
+}
+
 static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct tds_parser *tds_parser = DOWNCAST(parser, parser, tds_parser);
@@ -103,8 +168,15 @@ static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct prot
     info.msg_type = SQL_UNKNOWN;
     info.set_values = 0;
 
-    (void)payload;
-    (void)cap_len;
+    struct cursor cursor;
+    cursor_ctor(&cursor, payload, cap_len);
+
+    enum tds_packet_type pkt_type;
+    uint8_t pkt_status;
+    size_t pkt_len;
+    enum proto_parse_status status = cursor_read_packet_header(&cursor, &pkt_type, &pkt_status, &pkt_len);
+    if (status != PROTO_OK) return status;
+
     return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
 
