@@ -11,7 +11,7 @@
  */
 
 /// We use a dedicated log category (@see log.h) for everything related to this proto
-LOG_CATEGORY_DEC(proto_http)
+LOG_CATEGORY_DEC(proto_http);
 
 extern struct proto *proto_http;
 

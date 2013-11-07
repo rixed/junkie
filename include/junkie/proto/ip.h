@@ -13,7 +13,7 @@
  */
 
 /// We use a dedicated log category for all IP parsing related messages (@see log.h)
-LOG_CATEGORY_DEC(proto_ip)
+LOG_CATEGORY_DEC(proto_ip);
 
 extern struct proto *proto_ip;
 extern struct proto *proto_ip6;

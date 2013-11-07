@@ -643,7 +643,7 @@ struct parser *uniq_parser_new(struct proto *);
 void uniq_parser_del(struct parser *);
 
 /// The log category used for all log messages related to packet inspection
-LOG_CATEGORY_DEC(proto)
+LOG_CATEGORY_DEC(proto);
 
 void proto_init(void);
 void proto_fini(void);
