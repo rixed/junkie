@@ -72,6 +72,7 @@
 #include "junkie/proto/os-detect.h"
 #include "junkie/proto/discovery.h"
 #include "junkie/proto/cifs.h"
+#include "junkie/proto/tds.h"
 #include "proto/fuzzing.h"
 #include "pkt_source.h"
 #include "plugins.h"
@@ -100,7 +101,8 @@ static struct {
     I(sdp),           I(pgsql),       I(mysql),
     I(tns),           I(tls),         I(erspan),
     I(skinny),        I(dhcp),        I(fcoe),
-    I(tds),           I(discovery),
+    // Note: tds must be inited before tds_msg (since they share the same log facility)
+    I(tds),           I(tds_msg),     I(discovery),
     I(pkt_source),    I(capfile),     I(sock),
 #   undef I
 };

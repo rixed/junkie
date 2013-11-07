@@ -13,12 +13,12 @@
 extern struct proto *proto_pgsql;
 extern struct proto *proto_mysql;
 extern struct proto *proto_tns;
-extern struct proto *proto_tds;
+extern struct proto *proto_tds_msg;
 
 #define pgsql_proto_info sql_proto_info
 #define mysql_proto_info sql_proto_info
 #define tns_proto_info sql_proto_info
-#define tds_proto_info sql_proto_info
+#define tds_msg_proto_info sql_proto_info
 
 #define SQL_ERROR_SQL_STATUS_SIZE 5 // Size of generic sql error code
 
@@ -90,7 +90,7 @@ void mysql_init(void);
 void mysql_fini(void);
 void tns_init(void);
 void tns_fini(void);
-void tds_init(void);
-void tds_fini(void);
+void tds_msg_init(void);
+void tds_msg_fini(void);
 
 #endif

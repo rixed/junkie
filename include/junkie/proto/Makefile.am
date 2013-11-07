@@ -36,4 +36,5 @@ thisinclude_HEADERS = \
 	ber.h \
 	skinny.h \
 	dhcp.h \
-	fcoe.h
+	fcoe.h \
+	tds.h
