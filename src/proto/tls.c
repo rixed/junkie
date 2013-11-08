@@ -1465,6 +1465,7 @@ static struct proto proto_tls_;
 struct proto *proto_tls = &proto_tls_;
 static struct port_muxer tcp_port_muxer_https;
 static struct port_muxer tcp_port_muxer_skinny;
+static struct port_muxer tcp_port_muxer_ftps;
 
 void tls_init(void)
 {
@@ -1505,6 +1506,7 @@ void tls_init(void)
     proto_ctor(&proto_tls_, &ops, "TLS", PROTO_CODE_TLS);
     port_muxer_ctor(&tcp_port_muxer_https, &tcp_port_muxers, 443, 443, proto_tls);
     port_muxer_ctor(&tcp_port_muxer_skinny, &tcp_port_muxers, 2443, 2443, proto_tls);
+    port_muxer_ctor(&tcp_port_muxer_ftps, &tcp_port_muxers, 989, 990, proto_tls);
 
     // Extension functions to add keyfiles
     ext_function_ctor(&sg_tls_keys,
@@ -1526,6 +1528,7 @@ void tls_init(void)
 void tls_fini(void)
 {
 #   ifdef DELETE_ALL_AT_EXIT
+    port_muxer_dtor(&tcp_port_muxer_ftps, &tcp_port_muxers);
     port_muxer_dtor(&tcp_port_muxer_skinny, &tcp_port_muxers);
     port_muxer_dtor(&tcp_port_muxer_https, &tcp_port_muxers);
 
