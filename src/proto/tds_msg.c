@@ -40,6 +40,15 @@ struct tds_msg_parser {
     struct parser parser;
     unsigned c2s_way;       // The way when traffic is going from client to server (or UNSET)
     enum sql_msg_type last_client_msg_type;
+    // A flag giving precious information on how to decode some values (see MSTDS, 2.2.6.3)
+#   define F_BYTEORDER 0x01
+#   define F_CHAR      0x02
+#   define F_FLOAT     0x0C // 2 bits
+#   define F_DUMPLOAD  0x10
+#   define F_USE_DB    0x20
+#   define F_DATABASE  0x40
+#   define F_SET_LANG  0x80
+    uint8_t option_flag_1;
     struct streambuf sbuf;  // yep, one more level of buffering
 };
 
@@ -52,6 +61,7 @@ static int tds_msg_parser_ctor(struct tds_msg_parser *tds_msg_parser, struct pro
     if (0 != parser_ctor(&tds_msg_parser->parser, proto)) return -1;
     tds_msg_parser->c2s_way = UNSET;
     tds_msg_parser->last_client_msg_type = SQL_UNKNOWN;
+    tds_msg_parser->option_flag_1 = 0;  // ASCII + LittleEndian by default
     if (0 != streambuf_ctor(&tds_msg_parser->sbuf, tds_msg_sbuf_parse, 30000)) return -1;
 
     return 0;
@@ -121,13 +131,10 @@ static uint_least64_t tds_ulonglonglen(struct cursor *cursor) { return cursor_re
 static enum proto_parse_status tds_prelogin(struct cursor *cursor, struct sql_proto_info *info)
 {
     SLOG(LOG_DEBUG, "Parsing PRE-LOGIN");
-
     assert(info->msg_type == SQL_STARTUP);
-
-    /* TODO: prelogin messages can also be TLS handshake. */
-
     enum proto_parse_status status = PROTO_PARSE_ERR;
 
+    /* TODO: prelogin messages can also be TLS handshake. */
     enum tds_pl_option_token {
         TDS_VERSION = 0,
         TDS_ENCRYPTION,
@@ -157,8 +164,10 @@ static enum proto_parse_status tds_prelogin(struct cursor *cursor, struct sql_pr
         struct cursor value;
         cursor_ctor(&value, msg_start + offset, size);
         // Sanity checks
-        if (value.head <= cursor->head || /* <= since we have not read the terminator yet */
-            value.head + value.cap_len > msg_end) break;
+        if (size > 0) {
+            if (value.head <= cursor->head || /* <= since we have not read the terminator yet */
+                value.head + value.cap_len > msg_end) break;
+        }
         // Read value
         switch (token) {
             case TDS_VERSION:   // fetch version
@@ -195,6 +204,72 @@ static enum proto_parse_status tds_prelogin(struct cursor *cursor, struct sql_pr
                 break;
         }
     }
+
+    return status;
+}
+
+// TODO: one day, take into account option_flag_1 to decode EBCDIC and whether unicode chars are LE or BE?
+static enum proto_parse_status extract_string(char *dst, size_t max_sz, struct cursor *cursor, uint8_t const *msg_start, uint8_t const *msg_end)
+{
+    // We must read offset then length (LE)
+    CHECK(4);
+    size_t offset = cursor_read_u16le(cursor);
+    size_t size = cursor_read_u16le(cursor);
+    // Sanity check
+    if (size > 0) {
+        if ((ssize_t)offset < cursor->head - msg_start ||
+            msg_start + offset + size > msg_end) return PROTO_PARSE_ERR;
+    }
+    SLOG(LOG_DEBUG, "Extracting a string of size %zu", size);
+    if (size > max_sz-1) size = max_sz-1;   // so we will have space for the nul byte to terminate the string
+    // Read the string as UNICODE into ASCII
+    while (size -- > 0) *dst ++ = msg_start[offset++];
+    *dst = '\0';
+
+    return PROTO_OK;
+}
+
+static enum proto_parse_status tds_login7(struct tds_msg_parser *tds_msg_parser, struct cursor *cursor, struct sql_proto_info *info)
+{
+    SLOG(LOG_DEBUG, "Parsing PRE-LOGIN");
+    assert(info->msg_type == SQL_STARTUP);
+
+    // all option offsets are relative to this address (start of msg):
+    uint8_t const *msg_start = cursor->head;
+    uint8_t const *msg_end = cursor->head + cursor->cap_len;    // at most
+
+    /* Login requests starts with many several fixed size fields,
+     * first of which being the total length. Other interresting
+     * fields include:
+     * - OptionFlag1, which tells if client speak BE or LE, ASCII or EBCDIC,
+     * and so on,
+     * - UserName, Password, ServerName for the sql_startup infos
+     * We skip everything else.
+     * */
+    CHECK(4);
+    size_t length = cursor_read_u32le(cursor);
+    if (length < 36 || (ssize_t)length > msg_end-msg_start) return PROTO_PARSE_ERR;
+    // Note: no offset+len will be allowed after length
+
+    // Go for OptionFlag1
+    cursor_drop(cursor, 20);
+    tds_msg_parser->option_flag_1 = cursor_read_u8(cursor);
+
+    // Go for UserName
+    enum proto_parse_status status;
+    cursor_drop(cursor, 11 + 4 /* Skip HostName */);
+    if (PROTO_OK != (status = extract_string(info->u.startup.user, sizeof(info->u.startup.user), cursor, msg_start, msg_end))) return status;
+    info->set_values |= SQL_USER;
+    // Password
+    if (PROTO_OK != (status = extract_string(info->u.startup.passwd, sizeof(info->u.startup.passwd), cursor, msg_start, msg_end))) return status;
+    // TODO: unscramble it
+    info->set_values |= SQL_PASSWD;
+    // DBNAME
+    cursor_drop(cursor, 4 /* Skip AppName */);
+    if (PROTO_OK != (status = extract_string(info->u.startup.dbname, sizeof(info->u.startup.dbname), cursor, msg_start, msg_end))) return status;
+    info->set_values |= SQL_DBNAME;
+
+    SLOG(LOG_DEBUG, "LOGIN7 with user=%s, passwd=%s, dbname=%s", info->u.startup.user, info->u.startup.passwd, info->u.startup.dbname);
 
     return status;
 }
@@ -281,6 +356,9 @@ static enum proto_parse_status tds_msg_sbuf_parse(struct parser *parser, struct 
     enum proto_parse_status status = PROTO_PARSE_ERR;
 
     switch (tds->type) {
+        case TDS_PKT_TYPE_TDS7_LOGIN:
+            status = tds_login7(tds_msg_parser, &cursor, &info);
+            break;
         case TDS_PKT_TYPE_LOGIN:
         case TDS_PKT_TYPE_SQL_BATCH:
         case TDS_PKT_TYPE_RPC:
@@ -288,7 +366,6 @@ static enum proto_parse_status tds_msg_sbuf_parse(struct parser *parser, struct 
         case TDS_PKT_TYPE_ATTENTION:
         case TDS_PKT_TYPE_BULK_LOAD:
         case TDS_PKT_TYPE_MANAGER_REQ:
-        case TDS_PKT_TYPE_TDS7_LOGIN:
         case TDS_PKT_TYPE_SSPI:
             SLOG(LOG_DEBUG, "Don't know how to parse a TDS msg of type %s", tds_packet_type_2_str(tds->type));
             status = PROTO_OK;
