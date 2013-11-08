@@ -29,7 +29,7 @@ struct sql_proto_info {
     enum sql_msg_type {                 ///< The phase where the connection is at
         SQL_UNKNOWN,                    ///< When we do not understand the protocol, but know that it actually is this protocol
         SQL_STARTUP,                    ///< Connection establishment
-        SQL_QUERY,                      ///< Query
+        SQL_QUERY,                      ///< Query (or response)
         SQL_EXIT,                       ///< Terminating the connection
     } msg_type;
 #   define SQL_VERSION              0x0001

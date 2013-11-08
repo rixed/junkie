@@ -63,7 +63,7 @@ struct tds_parser {
     struct parser *msg_parser;
 };
 
-static char const *tds_packet_type_2_str(enum tds_packet_type type)
+char const *tds_packet_type_2_str(enum tds_packet_type type)
 {
     switch (type) {
         case TDS_PKT_TYPE_SQL_BATCH:   return "SQL batch";

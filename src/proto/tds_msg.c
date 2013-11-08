@@ -39,6 +39,7 @@
 struct tds_msg_parser {
     struct parser parser;
     unsigned c2s_way;       // The way when traffic is going from client to server (or UNSET)
+    enum sql_msg_type last_client_msg_type;
     struct streambuf sbuf;  // yep, one more level of buffering
 };
 
@@ -50,6 +51,7 @@ static int tds_msg_parser_ctor(struct tds_msg_parser *tds_msg_parser, struct pro
     assert(proto == proto_tds_msg);
     if (0 != parser_ctor(&tds_msg_parser->parser, proto)) return -1;
     tds_msg_parser->c2s_way = UNSET;
+    tds_msg_parser->last_client_msg_type = SQL_UNKNOWN;
     if (0 != streambuf_ctor(&tds_msg_parser->sbuf, tds_msg_sbuf_parse, 30000)) return -1;
 
     return 0;
@@ -84,15 +86,174 @@ static void tds_msg_parser_del(struct parser *parser)
 
 /*
  * Parse
+ *
+ * First we start by many small decoding function from cursor to custom types,
+ * mapping the names and types used by TDS specifications (so don't blame me
+ * for lack of consistency). All these functions depends on the data being
+ * available (check for lengths are performed struct by struct, which is more
+ * efficient for fixed sized messages/blocs).
+ *
+ * Then follow message parsing per se.
  */
+
+#define CHARBINLEN_MAX 8000
+static uint_least8_t tds_byte(struct cursor *cursor) { return cursor_read_u8(cursor); }
+static uint_least8_t tds_bytelen(struct cursor *cursor) { return cursor_read_u8(cursor); }
+static uint_least8_t tds_uchar(struct cursor *cursor) { return cursor_read_u8(cursor); }
+static uint_least8_t tds_precision(struct cursor *cursor) { return cursor_read_u8(cursor); }
+static uint_least8_t tds_scale(struct cursor *cursor) { return cursor_read_u8(cursor); }
+static uint_least8_t tds_gen_null(struct cursor *cursor) { return cursor_read_u8(cursor); } // caller must check it's 0
+static uint_least16_t tds_ushort(struct cursor *cursor) { return cursor_read_u16le(cursor); }
+static uint_least16_t tds_ushortlen(struct cursor *cursor) { return cursor_read_u16le(cursor); }
+static uint_least16_t tds_ushortcharbinlen(struct cursor *cursor) { return cursor_read_u16le(cursor); } // caller must check it's bellow CHARBINLEN_MAX
+static uint_least16_t tds_unicodechar(struct cursor *cursor) { return cursor_read_u16le(cursor); }
+static int_least32_t tds_longlen(struct cursor *cursor) { return cursor_read_u32le(cursor); }
+static int_least32_t tds_long(struct cursor *cursor) { return cursor_read_u32le(cursor); }
+static uint_least32_t tds_ulong(struct cursor *cursor) { return cursor_read_u32le(cursor); }
+static uint_least32_t tds_dword(struct cursor *cursor) { return cursor_read_u32le(cursor); }
+static int_least64_t tds_longlong(struct cursor *cursor) { return cursor_read_u64le(cursor); }
+static uint_least64_t tds_ulonglong(struct cursor *cursor) { return cursor_read_u64le(cursor); }
+static uint_least64_t tds_ulonglonglen(struct cursor *cursor) { return cursor_read_u64le(cursor); }
+
+
+#define CHECK(n) CHECK_LEN(cursor, n, 0)
+
+static enum proto_parse_status tds_prelogin(struct cursor *cursor, struct sql_proto_info *info)
+{
+    SLOG(LOG_DEBUG, "Parsing PRE-LOGIN");
+
+    assert(info->msg_type == SQL_STARTUP);
+
+    /* TODO: prelogin messages can also be TLS handshake. */
+
+    enum proto_parse_status status = PROTO_PARSE_ERR;
+
+    enum tds_pl_option_token {
+        TDS_VERSION = 0,
+        TDS_ENCRYPTION,
+        TDS_INSTOPT,
+        TDS_THREADID,
+        TDS_MARS,
+        TDS_TRACEID,
+        TDS_TERMINATOR = 0xff
+    };
+
+    // all option offsets are relative to this address (start of msg):
+    uint8_t const *msg_start = cursor->head;
+    uint8_t const *msg_end = cursor->head + cursor->cap_len;    // at most
+    while (1) {
+        // Read next option + fetch its data
+        CHECK(1);
+        enum tds_pl_option_token token = cursor_read_u8(cursor);
+        if (token == TDS_TERMINATOR) {
+            SLOG(LOG_DEBUG, "Found option terminator");
+            status = PROTO_OK;
+            break;
+        }
+        CHECK(4);
+        size_t offset = cursor_read_u16n(cursor);
+        size_t size = cursor_read_u16n(cursor);
+        SLOG(LOG_DEBUG, "Found option token %u, at offset %zu, size %zu", token, offset, size);
+        struct cursor value;
+        cursor_ctor(&value, msg_start + offset, size);
+        // Sanity checks
+        if (value.head <= cursor->head || /* <= since we have not read the terminator yet */
+            value.head + value.cap_len > msg_end) break;
+        // Read value
+        switch (token) {
+            case TDS_VERSION:   // fetch version
+                if (size != 6) return PROTO_PARSE_ERR;
+                info->version_maj = cursor_read_u8(&value);
+                info->version_min = cursor_read_u8(&value);
+                // The rest of version 'string' is not important
+                info->set_values |= SQL_VERSION;
+                break;
+            case TDS_ENCRYPTION:
+                if (size != 1) return PROTO_PARSE_ERR;
+                enum tds_encryption_option {
+                    TDS_ENCRYPT_OFF,
+                    TDS_ENCRYPT_ON,
+                    TDS_ENCRYPT_NOT_SUP,
+                    TDS_ENCRYPT_REQ,
+                };
+                // See MS-TDS 2.2.6.4
+                switch (*value.head) {
+                    case TDS_ENCRYPT_ON:
+                        info->u.startup.ssl_request = SQL_SSL_REQUESTED;
+                        info->set_values |= SQL_SSL_REQUEST;
+                        break;
+                    case TDS_ENCRYPT_OFF:
+                    case TDS_ENCRYPT_NOT_SUP:
+                        break;
+                    case TDS_ENCRYPT_REQ:
+                    default:
+                        return PROTO_PARSE_ERR;
+                }
+                break;
+            default:
+                SLOG(LOG_DEBUG, "Skipping token...");
+                break;
+        }
+    }
+
+    return status;
+}
+
+static enum sql_msg_type sql_msg_type_of_tds_msg(enum tds_packet_type type, enum sql_msg_type last_client_msg_type)
+{
+    switch (type) {
+        case TDS_PKT_TYPE_SQL_BATCH:
+        case TDS_PKT_TYPE_RPC:
+        case TDS_PKT_TYPE_BULK_LOAD:
+            return SQL_QUERY;
+        case TDS_PKT_TYPE_SSPI:
+        case TDS_PKT_TYPE_PRELOGIN:
+        case TDS_PKT_TYPE_LOGIN:
+        case TDS_PKT_TYPE_TDS7_LOGIN:
+            return SQL_STARTUP;
+        case TDS_PKT_TYPE_ATTENTION:
+        case TDS_PKT_TYPE_MANAGER_REQ:
+            return SQL_UNKNOWN;
+        case TDS_PKT_TYPE_RESULT:
+            /* Here we go: all msgs from server to clients are "result", which meaning depends on when it's encountered
+             * To sort this out we merely keep the last msg type from client to server and copy it for the response. */
+            return last_client_msg_type;
+    }
+
+    return SQL_UNKNOWN;
+}
+
+// return the direction for client->server
+static unsigned c2s_way_of_tds_msg_type(enum tds_packet_type type, unsigned current_way)
+{
+    switch (type) {
+        case TDS_PKT_TYPE_SQL_BATCH:
+        case TDS_PKT_TYPE_LOGIN:
+        case TDS_PKT_TYPE_RPC:
+        case TDS_PKT_TYPE_ATTENTION:
+        case TDS_PKT_TYPE_BULK_LOAD:
+        case TDS_PKT_TYPE_MANAGER_REQ:
+        case TDS_PKT_TYPE_TDS7_LOGIN:
+        case TDS_PKT_TYPE_SSPI:
+        case TDS_PKT_TYPE_PRELOGIN:
+            return current_way;
+        case TDS_PKT_TYPE_RESULT:
+            return !current_way;
+    }
+
+    return current_way; // in doubt, first packet is probably from client
+}
 
 static enum proto_parse_status tds_msg_sbuf_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct tds_msg_parser *tds_msg_parser = DOWNCAST(parser, parser, tds_msg_parser);
 
+    // Retrieve TDS infos
+    ASSIGN_INFO_CHK(tds, parent, PROTO_PARSE_ERR);
+
     // If this is the first time we are called, init c2s_way
     if (tds_msg_parser->c2s_way == UNSET) {
-        tds_msg_parser->c2s_way = way;
+        tds_msg_parser->c2s_way = c2s_way_of_tds_msg_type(tds->type, way);
         SLOG(LOG_DEBUG, "First packet, init c2s_way to %u", tds_msg_parser->c2s_way);
     }
 
@@ -100,23 +261,45 @@ static enum proto_parse_status tds_msg_sbuf_parse(struct parser *parser, struct 
     struct sql_proto_info info;
     proto_info_ctor(&info.info, parser, parent, wire_len, 0);
     info.is_query = way == tds_msg_parser->c2s_way;
-    info.msg_type = SQL_UNKNOWN;
+    info.msg_type = sql_msg_type_of_tds_msg(tds->type, tds_msg_parser->last_client_msg_type);
+    SLOG(LOG_DEBUG, "msg type = %u (last = %u, TDS type = %u)", info.msg_type, tds_msg_parser->last_client_msg_type, tds->type);
+    if (way == tds_msg_parser->c2s_way) tds_msg_parser->last_client_msg_type = info.msg_type;
     info.set_values = 0;
+
+    /* FIXME: We'd like a parser (here: TDS) to inform its subparsers (here: this parser) of PDU boundaries...
+     *        For instance, with an additional parse() argument 'boundaries' telling us if we are at the
+     *        start of a PDU (or not, or unknown) and if we are at the end. */
+    if (tds->tot_msg_size > wire_len || ! (tds->status & TDS_EOM)) {
+        // We have not the whole message yet
+        streambuf_set_restart(&tds_msg_parser->sbuf, way, payload, true);
+        return proto_parse(NULL, &info.info, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
+    }
 
     struct cursor cursor;
     cursor_ctor(&cursor, payload, cap_len);
 
-    // Retrieve TDS infos
-    ASSIGN_INFO_CHK(tds, parent, PROTO_PARSE_ERR);
-    // FIXME: we'd like a parser (here: TDS) to inform its subparsers (here: this parser) of PDU boundaries...
-    if (tds->tot_msg_size > wire_len || ! (tds->status & TDS_EOM)) {
-        // We have not the whole message yet
-        streambuf_set_restart(&tds_msg_parser->sbuf, way, payload, true);
-        return PROTO_OK;
+    enum proto_parse_status status = PROTO_PARSE_ERR;
+
+    switch (tds->type) {
+        case TDS_PKT_TYPE_LOGIN:
+        case TDS_PKT_TYPE_SQL_BATCH:
+        case TDS_PKT_TYPE_RPC:
+        case TDS_PKT_TYPE_RESULT:
+        case TDS_PKT_TYPE_ATTENTION:
+        case TDS_PKT_TYPE_BULK_LOAD:
+        case TDS_PKT_TYPE_MANAGER_REQ:
+        case TDS_PKT_TYPE_TDS7_LOGIN:
+        case TDS_PKT_TYPE_SSPI:
+            SLOG(LOG_DEBUG, "Don't know how to parse a TDS msg of type %s", tds_packet_type_2_str(tds->type));
+            status = PROTO_OK;
+            break;
+        case TDS_PKT_TYPE_PRELOGIN:
+            status = tds_prelogin(&cursor, &info);
+            break;
     }
 
-    // Notice: if the info struct is used for several packets in this payload, we are going to advertise the last one.
-    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
+    if (status != PROTO_OK) return status;
+    return proto_parse(NULL, &info.info, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
 }
 
 static enum proto_parse_status tds_msg_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)

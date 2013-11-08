@@ -43,6 +43,8 @@ struct tds_proto_info {
 char const *tds_info_2_str(struct proto_info const *);
 void const *tds_info_addr(struct proto_info const *, size_t *);
 
+char const *tds_packet_type_2_str(enum tds_packet_type);
+
 void tds_init(void);
 void tds_fini(void);
 
