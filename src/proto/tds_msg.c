@@ -274,6 +274,54 @@ static enum proto_parse_status tds_login7(struct tds_msg_parser *tds_msg_parser,
     return status;
 }
 
+static enum proto_parse_status skip_all_headers(struct cursor *cursor)
+{
+    SLOG(LOG_DEBUG, "Parsing ALL_HEADERS");
+
+    CHECK(4);
+    uint_least32_t tot_len = cursor_read_u32le(cursor);
+    if (tot_len < 4) return PROTO_PARSE_ERR;
+    CHECK(tot_len);
+
+    cursor_drop(cursor, tot_len - 4);
+    return PROTO_OK;
+}
+
+static void copy_from_unicode(char *dst, size_t max_sz, struct cursor *cursor, size_t byte_len)
+{
+    assert(max_sz > 0);
+    assert(! (byte_len & 1));
+
+    for (; byte_len > 0 && max_sz > 1; byte_len -= 2, max_sz --) { // keep space for nul terminator
+        *dst ++ = cursor_read_u8(cursor);
+        cursor_drop(cursor, 1);
+    }
+    *dst = '\0';
+}
+
+static enum proto_parse_status tds_sql_batch(struct tds_proto_info const *tds, struct cursor *cursor, struct sql_proto_info *info)
+{
+    SLOG(LOG_DEBUG, "Parsing SQL-Batch");
+    assert(info->msg_type == SQL_QUERY);
+
+    // Parse ALL_HEADERS header
+    uint8_t const *const msg_start = cursor->head;
+    enum proto_parse_status status = skip_all_headers(cursor);
+    if (status != PROTO_OK) return status;
+
+    size_t const all_header_size = cursor->head - msg_start;
+    size_t const sql_size = tds->tot_msg_size - all_header_size;
+    if (sql_size & 1) {
+        SLOG(LOG_DEBUG, "Dubious SQL string length %zu", sql_size);
+        return PROTO_PARSE_ERR;
+    }
+    CHECK(sql_size);
+    copy_from_unicode(info->u.query.sql, sizeof(info->u.query.sql), cursor, sql_size);
+    info->set_values |= SQL_SQL;
+
+    return PROTO_OK;
+}
+
 static enum sql_msg_type sql_msg_type_of_tds_msg(enum tds_packet_type type, enum sql_msg_type last_client_msg_type)
 {
     switch (type) {
@@ -359,8 +407,10 @@ static enum proto_parse_status tds_msg_sbuf_parse(struct parser *parser, struct 
         case TDS_PKT_TYPE_TDS7_LOGIN:
             status = tds_login7(tds_msg_parser, &cursor, &info);
             break;
-        case TDS_PKT_TYPE_LOGIN:
         case TDS_PKT_TYPE_SQL_BATCH:
+            status = tds_sql_batch(tds, &cursor, &info);
+            break;
+        case TDS_PKT_TYPE_LOGIN:
         case TDS_PKT_TYPE_RPC:
         case TDS_PKT_TYPE_RESULT:
         case TDS_PKT_TYPE_ATTENTION:
