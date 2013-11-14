@@ -259,7 +259,21 @@ static enum proto_parse_status skip_all_headers(struct cursor *cursor)
     SLOG(LOG_DEBUG, "Parsing ALL_HEADERS");
 
     CHECK(4);
+    // Peek the length (as we are not certain the header is actually present or not)
     uint_least32_t tot_len = cursor_read_u32le(cursor);
+    /* These headers are not always present.
+     * The specs says:
+     * "Stream headers MUST be present only in the first packet of requests", which is
+     * unclear. In practice, it seams these headers are sometime absent of single packet
+     * requests.
+     * See wireshark TDS parser implementation, packet-tds.c(dissect_tds_all_headers).
+     * We use the same heuristic here. */
+    if (tot_len > 0x100) {
+        SLOG(LOG_DEBUG, "ALL_HEADERS seams to be absent...");
+        cursor_rollback(cursor, 4);
+        return PROTO_OK;
+    }
+
     if (tot_len < 4) return PROTO_PARSE_ERR;
     CHECK(tot_len);
 
@@ -336,11 +350,9 @@ static enum proto_parse_status append_b_varchar(char *dst, size_t max_sz, size_t
     return PROTO_OK;
 }
 
-static enum proto_parse_status append_us_varchar(char *dst, size_t max_sz, size_t *len, struct cursor *cursor)
+static enum proto_parse_status append_us_varchar(char *dst, size_t max_sz, size_t *len, struct cursor *cursor, size_t str_len)
 {
-    CHECK(1);
-    size_t str_len = cursor_read_u16n(cursor);
-    SLOG(LOG_DEBUG, "Appending a US_VARCHAR of length %zu into '%s'", str_len, dst);
+    SLOG(LOG_DEBUG, "Appending a US_VARCHAR of length %zu chars into '%s'", str_len, dst);
     CHECK(str_len*2);
     append_from_unicode(dst, max_sz, len, cursor, str_len);
     return PROTO_OK;
@@ -479,7 +491,7 @@ static enum proto_parse_status rpc_req_batch(struct cursor *cursor, struct sql_p
 
     // NameLenProcID
     CHECK(2);
-    size_t name_len = cursor_read_u16n(cursor);
+    size_t name_len = cursor_read_u16le(cursor);
     size_t sql_len = 0;
     if (name_len == 0xffff) {
         // well known procedure name
@@ -512,7 +524,8 @@ static enum proto_parse_status rpc_req_batch(struct cursor *cursor, struct sql_p
         info->set_values |= SQL_SQL;
     } else {
         // name as us_varchar
-        if (PROTO_OK != (status = append_us_varchar(info->u.query.sql, sizeof(info->u.query.sql), &sql_len, cursor))) return status;
+        info->u.query.sql[0] = '\0';    // for the debug strings
+        if (PROTO_OK != (status = append_us_varchar(info->u.query.sql, sizeof(info->u.query.sql), &sql_len, cursor, name_len))) return status;
         info->set_values |= SQL_SQL;
     }
 
