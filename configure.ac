@@ -27,6 +27,8 @@ AC_PROG_LIBTOOL
 # Checks for libraries.
 PKG_CHECK_MODULES([OPENSSL], openssl)
 PKG_CHECK_MODULES([GUILE], guile-2.0)
+GUILE_MODULE_CHECK([agentx], [(agentx tools)], [current-endianness], [is installed])
+AM_CONDITIONAL([WITH_AGENTX], [test x$agentx = xyes])
 CPPFLAGS="$GUILE_CFLAGS $OPENSSL_CFLAGS $CPPFLAGS"
 LDFLAGS="$GUILE_LIBS $OPENSSL_LIBS $LDFLAGS"
 AC_CHECK_LIB(pcap, pcap_activate, , [exit 1])

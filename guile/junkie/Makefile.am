@@ -12,7 +12,11 @@ SCM = \
 	writer.scm \
 	duplicogram.scm
 
+if WITH_AGENTX
 GOBJECTS = $(SCM:%.scm=%.go)
+else
+GOBJECTS = $(filter-out snmp-subagt.go,$(SCM:%.scm=%.go))
+endif
 
 # In practice, automake will install files in this order, so .go files after .scm files (ie. no recompile needed)
 dist_guilelib_DATA = $(SCM)
