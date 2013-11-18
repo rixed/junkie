@@ -67,7 +67,7 @@ struct name_ { \
     for (unsigned __hash_l = 0; __hash_l < (hash)->base.nb_lists; __hash_l++) \
         LIST_FOREACH_SAFE(var, (hash)->lists+__hash_l, field, tvar)
 
-#define HASH_FUNC(key) hashlittle(key, sizeof(*(key)), 0x12345678U)
+#define HASH_FUNC(key) hashfun(key, sizeof(*(key)))
 #define HASH_LIST(hash, key) ((hash)->lists + (HASH_FUNC(key) % (hash)->base.nb_lists))
 
 #define HASH_FOREACH_SAME_KEY(var, hash, key, key_field, field) \
