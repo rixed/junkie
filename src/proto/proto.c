@@ -70,7 +70,7 @@ void proto_ctor(struct proto *proto, struct proto_ops const *ops, char const *na
     proto->fuzzed_times = 0;
     proto->nb_parsers = 0;
     hook_ctor(&proto->hook, name);
-    mutex_ctor_with_type(&proto->lock, name, PTHREAD_MUTEX_RECURSIVE);
+    mutex_ctor_recursive(&proto->lock, name);
     bench_event_ctor(&proto->parsing, tempstr_printf("parsing %s", name));
 
     LIST_INSERT_HEAD(&protos, proto, entry);
@@ -854,7 +854,7 @@ void mux_proto_ctor(struct mux_proto *mux_proto, struct proto_ops const *ops, st
     mux_proto->nb_timeouts = 0;
     mux_proto->last_used = 0;
     for (unsigned m = 0; m < NB_ELEMS(mux_proto->mutexes); m++) {
-        mutex_ctor_with_type(&mux_proto->mutexes[m].mutex, "subparsers", PTHREAD_MUTEX_RECURSIVE);
+        mutex_ctor_recursive(&mux_proto->mutexes[m].mutex, "subparsers");
         TAILQ_INIT(&mux_proto->mutexes[m].timeout_queue);
     }
     LIST_INSERT_HEAD(&mux_protos, mux_proto, entry);

@@ -129,6 +129,11 @@ void mutex_ctor_with_type(struct mutex *mutex, char const *name, int type)
     if (err) SLOG(LOG_ERR, "Cannot dispose of attr for mutex %s@%p: %s", name, mutex, strerror(err));
 }
 
+void mutex_ctor_recursive(struct mutex *mutex, char const *name)
+{
+    mutex_ctor_with_type(mutex, name, PTHREAD_MUTEX_RECURSIVE);
+}
+
 void mutex_ctor(struct mutex *mutex, char const *name)
 {
     mutex_ctor_with_type(mutex, name, PTHREAD_MUTEX_ERRORCHECK);

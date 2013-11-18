@@ -80,7 +80,7 @@ static char const *capfile_path(struct capfile *capfile)
 
 static int capfile_ctor(struct capfile *capfile, struct capfile_ops const *ops, char const *path, unsigned max_pkts, size_t max_size, unsigned max_secs, size_t cap_len, unsigned rotation, struct timeval const *now)
 {
-    mutex_ctor_with_type(&capfile->lock, "capfile", PTHREAD_MUTEX_RECURSIVE);
+    mutex_ctor_recursive(&capfile->lock, "capfile");
     capfile->ops       = ops;
     capfile->path      = objalloc_strdup(path);
     if (! capfile->path) goto err1;

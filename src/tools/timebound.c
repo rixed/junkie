@@ -52,7 +52,7 @@ void timebound_pool_ctor(struct timebound_pool *pool, char const *name, unsigned
     pool->next_bucket = 0;    // to please valgrind, but any value would do
     for (unsigned p = 0; p < NB_ELEMS(pool->buckets); p++) {
         struct timebound_bucket *const bucket = pool->buckets + p;
-        mutex_ctor_with_type(&bucket->mutex, "timebound_pool bucket", PTHREAD_MUTEX_RECURSIVE);
+        mutex_ctor_recursive(&bucket->mutex, "timebound_pool bucket");
         TAILQ_INIT(&bucket->list);
     }
     WITH_LOCK(&timebound_pools_mutex) {
