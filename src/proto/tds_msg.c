@@ -397,7 +397,7 @@ static void append_from_unicode(char *dst, size_t max_sz, size_t *len, struct cu
         uint16_t c = cursor_read_u16le(cursor);
         if ((*len)++ < max_sz-1) *d ++ = isprint(c) ? c:'.';
     }
-    *d = '\0';
+    if (*len < max_sz) *d = '\0';
 }
 
 static void append_string(char *dst, size_t max_sz, size_t *len, char const *str)
@@ -416,7 +416,7 @@ static void append_string_with_caution(char *dst, size_t max_sz, size_t *len, si
         uint8_t c = cursor_read_u16le(cursor);
         if ((*len)++ < max_sz-1) *d ++ = isprint(c) ? c:'.';
     }
-    *d = '\0';
+    if (*len < max_sz) *d = '\0';
 }
 
 static char hexdigit(int n)
@@ -439,7 +439,7 @@ static void append_hexstring(char *dst, size_t max_sz, size_t *len, size_t byte_
             *d ++ = hexdigit(c&15);
         }
     }
-    *d = '\0';
+    if (*len < max_sz) *d = '\0';
 }
 
 static enum proto_parse_status append_b_varchar(char *dst, size_t max_sz, size_t *len, struct cursor *cursor, char const *default_str)
@@ -521,7 +521,7 @@ static enum proto_parse_status rpc_parameter_data(struct tds_msg_parser const *t
 #   define BY_REF_VALUE 0x01
 #   define DEFAULT_VALUE 0x02
     append_string(dst, max_sz, len, status_flag & BY_REF_VALUE ? "*=":"=");
-    
+
     // Fetch type_info
     CHECK(1);
     enum tds_type_token tok = cursor_read_u8(cursor);
@@ -604,7 +604,7 @@ static enum proto_parse_status rpc_parameter_data(struct tds_msg_parser const *t
                 CHECK(8);
                 uint_least64_t tot_len = cursor_read_u64le(cursor);
                 SLOG(LOG_DEBUG, "Parsing Partially Length-Prefixed (PLP) Data of total length %"PRIu64, tot_len);
-                if (PLP_NULL == tot_len) {   // much ado about nothing. We merely 
+                if (PLP_NULL == tot_len) {   // much ado about nothing. We merely
                     length = 0; // NULL
                 } else {
                     /* We now have many chunks, which total length is supposed to equal this
@@ -869,7 +869,7 @@ static enum proto_parse_status skip_type_info(struct cursor *cursor, size_t *row
 
     SLOG(LOG_DEBUG, "%zu bytes of data associated with this column", data_length);
     *row_size += data_length;
- 
+
     // TODO: cf p49, some tok has additional components (PRECISION, SCALE) in case of NUMERIC, NUMERICN, DECIMNAL, DECIMALN
     return PROTO_OK;
 }
@@ -996,6 +996,7 @@ static enum proto_parse_status tds_result_token(struct tds_msg_parser *tds_msg_p
                 *skip = true;
             } else {    // We know row size
                 SLOG(LOG_DEBUG, "Skipping a ROW of size %zu bytes", tds_msg_parser->next_row_size);
+                CHECK(tds_msg_parser->next_row_size);
                 cursor_drop(cursor, tds_msg_parser->next_row_size);
                 add_rows(info, 1);
             }
@@ -1121,7 +1122,7 @@ static enum proto_parse_status tds_msg_sbuf_parse(struct parser *parser, struct 
     // Stop the cursor after this message, and restart after it
     struct cursor cursor;
     cursor_ctor(&cursor, payload, tds->tot_msg_size);
-    streambuf_set_restart(&tds_msg_parser->sbuf, way, payload + tds->tot_msg_size, true);
+    streambuf_set_restart(&tds_msg_parser->sbuf, way, payload + tds->tot_msg_size, true);   // Note: that's ok if tds->tot_msg_size > cap_len
 
     enum proto_parse_status status = PROTO_PARSE_ERR;
 
@@ -1160,6 +1161,7 @@ static enum proto_parse_status tds_msg_parse(struct parser *parser, struct proto
 {
     struct tds_msg_parser *tds_msg_parser = DOWNCAST(parser, parser, tds_msg_parser);
 
+    if (cap_len == 0 && wire_len > 0) return PROTO_TOO_SHORT;   // We do not know how to handle pure gaps
     enum proto_parse_status const status = streambuf_add(&tds_msg_parser->sbuf, parser, parent, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
 
     return status;
