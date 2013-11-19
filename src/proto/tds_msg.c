@@ -91,6 +91,18 @@ static char const *tds_msg_token_2_str(enum tds_msg_token tok)
 }
 
 enum tds_type_token {
+    NULLTYPE = 0x1F,
+    INT1TYPE = 0x30,
+    BITTYPE = 0x32,
+    INT2TYPE = 0x34,
+    INT4TYPE = 0x38,
+    DATETIM4TYPE = 0x3A,
+    FLT4TYPE = 0x3B,
+    MONEYTYPE = 0x3C,
+    DATETIMETYPE = 0x3D,
+    FLT8TYPE = 0x3E,
+    MONEY4TYPE = 0x7A,
+    INT8TYPE = 0x7F,
     GUIDTYPE = 0x24,
     INTNTYPE = 0x26,
     DECIMALTYPE = 0x37,
@@ -136,6 +148,8 @@ struct tds_msg_parser {
 #   define F_DATABASE  0x40
 #   define F_SET_LANG  0x80
     uint8_t option_flag_1;
+    bool pre_7_2;           // true if we run an old version of the protocol
+    size_t next_row_size;   // computed in COLMETADATA for following ROW
     struct streambuf sbuf;  // yep, one more level of buffering
 };
 
@@ -149,6 +163,8 @@ static int tds_msg_parser_ctor(struct tds_msg_parser *tds_msg_parser, struct pro
     tds_msg_parser->c2s_way = UNSET;
     tds_msg_parser->last_client_msg_type = SQL_UNKNOWN;
     tds_msg_parser->option_flag_1 = 0;  // ASCII + LittleEndian by default
+    tds_msg_parser->pre_7_2 = false;    // assume recent protocol version
+    tds_msg_parser->next_row_size = 0;
     if (0 != streambuf_ctor(&tds_msg_parser->sbuf, tds_msg_sbuf_parse, 30000)) return -1;
 
     return 0;
@@ -298,7 +314,7 @@ static enum proto_parse_status extract_string(char *dst, size_t max_sz, struct c
 
 static enum proto_parse_status tds_login7(struct tds_msg_parser *tds_msg_parser, struct cursor *cursor, struct sql_proto_info *info)
 {
-    SLOG(LOG_DEBUG, "Parsing PRE-LOGIN");
+    SLOG(LOG_DEBUG, "Parsing LOGIN7");
     assert(info->msg_type == SQL_STARTUP);
 
     // all option offsets are relative to this address (start of msg):
@@ -319,10 +335,12 @@ static enum proto_parse_status tds_login7(struct tds_msg_parser *tds_msg_parser,
     // Note: no offset+len will be allowed after length
 
     // Go for OptionFlag1
+    CHECK(21);
     cursor_drop(cursor, 20);
     tds_msg_parser->option_flag_1 = cursor_read_u8(cursor);
 
     // Go for UserName
+    CHECK(15);
     enum proto_parse_status status;
     cursor_drop(cursor, 11 + 4 /* Skip HostName */);
     if (PROTO_OK != (status = extract_string(info->u.startup.user, sizeof(info->u.startup.user), cursor, msg_start, msg_end))) return status;
@@ -332,6 +350,7 @@ static enum proto_parse_status tds_login7(struct tds_msg_parser *tds_msg_parser,
     // TODO: unscramble it
     info->set_values |= SQL_PASSWD;
     // DBNAME
+    CHECK(4);
     cursor_drop(cursor, 4 /* Skip AppName */);
     if (PROTO_OK != (status = extract_string(info->u.startup.dbname, sizeof(info->u.startup.dbname), cursor, msg_start, msg_end))) return status;
     info->set_values |= SQL_DBNAME;
@@ -445,6 +464,16 @@ static enum proto_parse_status append_us_varchar(char *dst, size_t max_sz, size_
     return PROTO_OK;
 }
 
+static enum proto_parse_status skip_b_varchar(struct cursor *cursor)
+{
+    CHECK(1);
+    size_t str_len = cursor_read_u8(cursor);
+    SLOG(LOG_DEBUG, "Skipping a B_VARCHAR of %zu chars", str_len);
+    CHECK(str_len*2);
+    cursor_drop(cursor, str_len*2);
+    return PROTO_OK;
+}
+
 static enum proto_parse_status tds_sql_batch(struct cursor *cursor, struct sql_proto_info *info)
 {
     SLOG(LOG_DEBUG, "Parsing SQL-Batch");
@@ -467,8 +496,19 @@ static enum proto_parse_status tds_sql_batch(struct cursor *cursor, struct sql_p
     return PROTO_OK;
 }
 
+#define COLLATION_LEN 5
+static bool type_has_collation(enum tds_type_token tok)
+{
+    /* Skip COLLATION?
+     * "COLLATION occurs only if the type is BIGCHARTYPE, BIGVARCHRTYPE, TEXTTYPE, NTEXTTYPE,
+     * NCHARTYPE, or NVARCHARTYPE." */
+    return
+        tok == BIGCHARTYPE || tok == BIGVARCHRTYPE || tok == TEXTTYPE ||
+        tok == NTEXTTYPE || tok == NCHARTYPE || tok == NVARCHARTYPE;
+}
+
 // read ParamMetaData and write param name+value in dst (sql string)
-static enum proto_parse_status rpc_parameter_data(char *dst, size_t max_sz, size_t *len, struct cursor *cursor)
+static enum proto_parse_status rpc_parameter_data(struct tds_msg_parser const *tds_msg_parser, char *dst, size_t max_sz, size_t *len, struct cursor *cursor)
 {
     SLOG(LOG_DEBUG, "Parsing RPCParameterData");
     enum proto_parse_status status;
@@ -518,8 +558,8 @@ static enum proto_parse_status rpc_parameter_data(char *dst, size_t max_sz, size
             if (tok == BIGVARBINTYPE || tok == BIGVARCHRTYPE || tok == BIGBINARYTYPE ||
                 tok == BIGCHARTYPE || tok == NVARCHARTYPE || tok == NCHARTYPE) {
                 len_o_len = 2;
-            } else if (tok == XMLTYPE || tok == IMAGETYPE || tok == TEXTTYPE ||
-                       tok == SSVARIANTTYPE || tok == NTEXTTYPE) {
+            } else if (tok == IMAGETYPE || tok == TEXTTYPE ||
+                       tok == SSVARIANTTYPE || tok == NTEXTTYPE) {  // "XMLTYPE is only a valid LONGLEN_TYPE for BulkLoadBCP." -- [MS-TDS]
                 len_o_len = 4;
             }
             size_t max_length;
@@ -530,30 +570,89 @@ static enum proto_parse_status rpc_parameter_data(char *dst, size_t max_sz, size
                 case 4: max_length = cursor_read_u32le(cursor); break;
             }
             SLOG(LOG_DEBUG, "...of max length %zu", max_length);
-            /* Skip COLLATION?
-             * "COLLATION occurs only if the type is BIGCHARTYPE, BIGVARCHRTYPE, TEXTTYPE, NTEXTTYPE,
-             * NCHARTYPE, or NVARCHARTYPE." */
-            bool const has_collation =
-                tok == BIGCHARTYPE || tok == BIGVARCHRTYPE || tok == TEXTTYPE ||
-                tok == NTEXTTYPE || tok == NCHARTYPE || tok == NVARCHARTYPE;
+            bool const has_collation = type_has_collation(tok);
             if (has_collation) {
-#               define COLLATION_LEN 5
                 CHECK(COLLATION_LEN);
-                cursor_drop(cursor, COLLATION_LEN); // TODO: use this for something?
+                cursor_drop(cursor, COLLATION_LEN);
             }
             // Read actual size
             size_t length;
             CHECK(len_o_len);
+            struct cursor data_start = *cursor; // save it to reread length in case of PLP (see below)
             switch (len_o_len) {    // TODO: factorize
-                case 1: length = cursor_read_u8(cursor); break;
-                case 2: length = cursor_read_u16le(cursor); break;
-                case 4: length = cursor_read_u32le(cursor); break;
+                case 1:
+                    length = cursor_read_u8(cursor);
+                    break;
+                case 2:
+                    length = cursor_read_u16le(cursor);
+                    if (0xffff == length) length = 0;   // NULL
+                    break;
+                case 4:
+                    length = cursor_read_u32le(cursor);
+                    if (0xffffffff == length) length = 0;   // NULL
+                    break;
             }
-            SLOG(LOG_DEBUG, "...and actual length %zu", length);
+            if (! tds_msg_parser->pre_7_2 && (
+                    ((tok == BIGVARCHRTYPE || tok == BIGVARBINTYPE || tok == NVARCHARTYPE) && length > 8000) ||
+                    (tok == XMLTYPE || tok == UDTTYPE)
+            )) {
+                /* Fear the dreadful addition of TDS 7.2: Partially Length-Prefixed Data type
+                 * So this length was only the 2 low bytes of a 8 bytes length (ULONGLONGLEN), or
+                 * of a NULL value.  */
+#               define PLP_NULL 0xFFFFFFFFFFFFFFFFULL // ...of ones
+                *cursor = data_start;
+                CHECK(8);
+                uint_least64_t tot_len = cursor_read_u64le(cursor);
+                SLOG(LOG_DEBUG, "Parsing Partially Length-Prefixed (PLP) Data of total length %"PRIu64, tot_len);
+                if (PLP_NULL == tot_len) {   // much ado about nothing. We merely 
+                    length = 0; // NULL
+                } else {
+                    /* We now have many chunks, which total length is supposed to equal this
+                     * 8 bytes lengths, and which must (at least in some cases, the specs
+                     * are unclear about other cases) end with a terminator (aka zero length
+                     * chunk).
+                     * So, are we going to trust the terminator or the total length?
+                     * The go for the total length, but stop if we encounter a null length
+                     * chunk. Notice that if we managed to buffer the whole message in our
+                     * streambuf then the actual total length is probably quite small anyway. */
+                    // Parse all chunks
+                    while (1) {
+                        if (tot_len == 0) {
+                            if (cursor->cap_len >= 4 &&
+                                cursor->head[0] == 0 && cursor->head[1] == 0 &&
+                                cursor->head[2] == 0 && cursor->head[3] == 0)
+                                cursor_drop(cursor, 4); // swallow the terminator
+                            break;  // in any cases, stop there
+                        }
+                        CHECK(4);
+                        length = cursor_read_u32le(cursor);
+                        SLOG(LOG_DEBUG, "Chunk is %zu bytes long", length);
+                        if (0 == length) {
+                            SLOG(LOG_DEBUG, "Hit a temrinator while still waiting for %zu bytes of total length, stopping there", tot_len);
+                            break;
+                        }
+                        if (length > tot_len) {
+                            SLOG(LOG_DEBUG, "chunk is bigger than total length");
+                            return PROTO_PARSE_ERR;
+                        }
+                        CHECK(length);
+                        if (!(length&1) && tok != BIGVARBINTYPE && tok != UDTTYPE) {
+                            append_string_with_caution(dst, max_sz, len, length/2, cursor);
+                        } else {
+                            append_hexstring(dst, max_sz, len, length, cursor);
+                        }
+                        tot_len -= length;
+                    }
+                    break;
+                }
+            }
+            SLOG(LOG_DEBUG, "...and actual length %zu (%zu remaining)", length, cursor->cap_len);
             // assert(length <= max_length); ??
             CHECK(length);
             // TODO: specific printer for more complex types
-            if (!(length&1) &&
+            if (0 == length) {
+                append_string(dst, max_sz, len, "NULL");
+            } else if (!(length&1) &&
                 (has_collation || tok == 0xad || tok == 0xa5)) {  // display all kind of texts + Binary + varBinary as text
                 append_string_with_caution(dst, max_sz, len, length/2, cursor);
             } else {    // rest as number
@@ -586,13 +685,14 @@ static enum proto_parse_status rpc_parameter_data(char *dst, size_t max_sz, size
     return PROTO_OK;
 }
 
-static enum proto_parse_status rpc_req_batch(struct cursor *cursor, struct sql_proto_info *info)
+static enum proto_parse_status rpc_req_batch(struct tds_msg_parser const *tds_msg_parser, struct cursor *cursor, struct sql_proto_info *info)
 {
     enum proto_parse_status status;
 
     // NameLenProcID
     CHECK(2);
     size_t name_len = cursor_read_u16le(cursor);
+    SLOG(LOG_DEBUG, "NameLenProc len=%zu", name_len);
     size_t sql_len = 0;
     if (name_len == 0xffff) {
         // well known procedure name
@@ -639,13 +739,13 @@ static enum proto_parse_status rpc_req_batch(struct cursor *cursor, struct sql_p
     bool first = true;
     while (! cursor_is_empty(cursor)) {
         uint8_t const next_byte = cursor->head[0];
-        if (next_byte == 0x80 || next_byte >= 0xfe) break;    // eof of ParameterData
+        if (next_byte == 0x80 || next_byte >= 0xfe) break;    // end of ParameterData
         if (first) {
             first = false;
         } else {
             append_string(info->u.query.sql, sizeof(info->u.query.sql), &sql_len, ",");
         }
-        if (PROTO_OK != (status = rpc_parameter_data(info->u.query.sql, sizeof(info->u.query.sql), &sql_len, cursor))) return status;
+        if (PROTO_OK != (status = rpc_parameter_data(tds_msg_parser, info->u.query.sql, sizeof(info->u.query.sql), &sql_len, cursor))) return status;
     }
 
     append_string(info->u.query.sql, sizeof(info->u.query.sql), &sql_len, ")");
@@ -657,11 +757,11 @@ static enum proto_parse_status rpc_flags(struct cursor *cursor)
 {
     if (cursor_is_empty(cursor)) return PROTO_OK;   // last flags are optional
     uint8_t flag = cursor_read_u8(cursor);
-    if (flag != 0x80 || flag != 0xff || flag != 0xfe) return PROTO_PARSE_ERR;
+    if (flag != 0x80 && flag != 0xff && flag != 0xfe) return PROTO_PARSE_ERR;
     return PROTO_OK;
 }
 
-static enum proto_parse_status tds_rpc(struct cursor *cursor, struct sql_proto_info *info)
+static enum proto_parse_status tds_rpc(struct tds_msg_parser const *tds_msg_parser, struct cursor *cursor, struct sql_proto_info *info)
 {
     SLOG(LOG_DEBUG, "Parsing RPC");
     assert(info->msg_type == SQL_QUERY);
@@ -671,19 +771,137 @@ static enum proto_parse_status tds_rpc(struct cursor *cursor, struct sql_proto_i
 
     // There are several RPCReqBatch+Flags in the message
     while (! cursor_is_empty(cursor)) {
-        if (PROTO_OK != (status = rpc_req_batch(cursor, info))) return status;
+        if (PROTO_OK != (status = rpc_req_batch(tds_msg_parser, cursor, info))) return status;
         if (PROTO_OK != (status = rpc_flags(cursor))) return status;
     }
 
     return status;
 }
 
+static enum proto_parse_status skip_type_info(struct cursor *cursor, size_t *row_size)
+{
+    CHECK(1);
+    enum tds_type_token tok = cursor_read_u8(cursor);
+
+    /* From MS-TDS, p50:
+        USHORTMAXLEN = %xFFFF
+        TYPE_INFO    = FIXEDLENTYPE /
+                       (VARLENTYPE TYPE_VARLEN [COLLATION]) /
+                       (VARLENTYPE TYPE_VARLEN [PRECISION SCALE]) /
+                       (VARLENTYPE SCALE) / ; (introduced in TDS 7.3)
+                       VARLENTYPE /         ; (introduced in TDS 7.3)
+                       (PARTLENTYPE [USHORTMAXLEN] [COLLATION] [XML_INFO] [UDT_INFO])
+     */
+    size_t data_length;
+    switch (tok) {
+        // FIXEDLENTYPE
+        case NULLTYPE:
+            data_length = 0;
+            break;
+        case INT1TYPE:
+        case BITTYPE:
+            data_length = 1;
+            break;
+        case INT2TYPE:
+            data_length = 2;
+            break;
+        case INT4TYPE:
+        case DATETIM4TYPE:
+        case FLT4TYPE:
+        case MONEY4TYPE:
+            data_length = 4;
+            break;
+        case MONEYTYPE:
+        case DATETIMETYPE:
+        case FLT8TYPE:
+        case INT8TYPE:
+            data_length = 8;
+            break;
+        // BYTELEN_TYPE
+        case GUIDTYPE:
+        case INTNTYPE:
+        case DECIMALTYPE:
+        case NUMERICTYPE:
+        case BITNTYPE:
+        case DECIMALNTYPE:
+        case NUMERICNTYPE:
+        case FLTNTYPE:
+        case MONEYNTYPE:
+        case DATETIMNTYPE:
+        case DATENTYPE:
+        case TIMENTYPE:
+        case DATETIME2NTYPE:
+        case DATETIMEOFFSETNTYPE:
+        case CHARTYPE:
+        case VARCHARTYPE:
+        case BINARYTYPE:
+        case VARBINARYTYPE:
+            CHECK(1);
+            data_length = 1 + cursor_read_u8(cursor);   // The type will be repeated in the ROW data
+            break;
+        // USHORTLEN_TYPE
+        case BIGVARBINTYPE:
+        case BIGVARCHRTYPE:
+        case BIGBINARYTYPE:
+        case BIGCHARTYPE:
+        case NVARCHARTYPE:
+        case NCHARTYPE:
+            CHECK(2);
+            data_length = 2 + cursor_read_u16le(cursor);    // idem (what a stupid protocol)
+            break;
+        // LONGLEN_TYPE
+        case IMAGETYPE:
+        case NTEXTTYPE:
+        case SSVARIANTTYPE:
+        case TEXTTYPE:
+        case XMLTYPE:
+            CHECK(4);
+            data_length = 4 + cursor_read_u32le(cursor);    // idem (no wonder MS bought this)
+            break;
+        default:
+            SLOG(LOG_DEBUG, "don't known how to skip TYPE_INFO for token %u", tok);
+            return PROTO_PARSE_ERR;
+    }
+    if (type_has_collation(tok)) {
+        CHECK(COLLATION_LEN);
+        cursor_drop(cursor, COLLATION_LEN);
+    }
+
+    SLOG(LOG_DEBUG, "%zu bytes of data associated with this column", data_length);
+    *row_size += data_length;
+ 
+    // TODO: cf p49, some tok has additional components (PRECISION, SCALE) in case of NUMERIC, NUMERICN, DECIMNAL, DECIMALN
+    return PROTO_OK;
+}
+
+static void add_rows(struct sql_proto_info *info, unsigned count)
+{
+    if (info->set_values & SQL_NB_ROWS) {
+        info->u.query.nb_rows += count;
+    } else {
+        info->set_values |= SQL_NB_ROWS;
+        info->u.query.nb_rows = count;
+    }
+}
+
+static void add_fields(struct sql_proto_info *info, unsigned count)
+{
+    if (info->set_values & SQL_NB_FIELDS) {
+        info->u.query.nb_fields += count;
+    } else {
+        info->set_values |= SQL_NB_FIELDS;
+        info->u.query.nb_fields = count;
+    }
+}
+
 // Parse a single token from a TDS result message
-static enum proto_parse_status tds_result_token(struct cursor *cursor, struct sql_proto_info *info, bool *skip)
+static enum proto_parse_status tds_result_token(struct tds_msg_parser *tds_msg_parser, struct cursor *cursor, struct sql_proto_info *info, bool *skip)
 {
     CHECK(1);
     enum tds_msg_token tok = cursor_read_u8(cursor);
-    SLOG(LOG_DEBUG, "Parsing Result Token (0x%x)", tok);
+    SLOG(LOG_DEBUG, "Parsing Result Token %s", tds_msg_token_2_str(tok));
+
+    enum proto_parse_status status;
 
     switch (tok) {
         case DONE_TOKEN:
@@ -698,26 +916,21 @@ static enum proto_parse_status tds_result_token(struct cursor *cursor, struct sq
 #               define DONE_ATTN       0x020
 #               define DONE_RPCINBATCH 0x080
 #               define DONE_SRVERROR   0x100
-                uint_least16_t const status = cursor_read_u16le(cursor);
+                uint_least16_t const msg_status = cursor_read_u16le(cursor);
                 uint_least16_t const unused_ curcmd = cursor_read_u16le(cursor);
-                // Only 32 bits prior to TDS 7.2. Sometime mixed :-/
+                // Only 32 bits prior to TDS 7.2. Sometime mixed? :-/
                 uint_least64_t rowcount;
-                if (cursor->cap_len >= 8) {
-                    rowcount = cursor_read_u64le(cursor);
-                } else if (cursor->cap_len >= 4) {
+                if (tds_msg_parser->pre_7_2) {
+                    CHECK(8);
                     rowcount = cursor_read_u32le(cursor);
                 } else {
-                    return PROTO_TOO_SHORT;
+                    CHECK(4);
+                    rowcount = cursor_read_u32le(cursor);
                 }
-                if (status & DONE_COUNT_SET) {
-                    if (info->set_values & SQL_NB_ROWS) {
-                        info->u.query.nb_rows += rowcount;
-                    } else {
-                        info->set_values |= SQL_NB_ROWS;
-                        info->u.query.nb_rows = rowcount;
-                    }
+                if (msg_status & DONE_COUNT_SET) {
+                    add_rows(info, rowcount);
                 }
-                if (! (status & DONE_MORE)) {
+                if (! (msg_status & DONE_MORE)) {
                     // done with query
                     info->set_values |= SQL_STATUS;
                     info->u.query.status = 0;   // No error -> status 0 ?
@@ -740,9 +953,67 @@ static enum proto_parse_status tds_result_token(struct cursor *cursor, struct sq
         case RETURNSTATUS_TOKEN:
             {
                 CHECK(4);
-                uint_least32_t const status = cursor_read_u32le(cursor);
+                info->u.query.status = cursor_read_u32le(cursor);
                 info->set_values |= SQL_STATUS;
-                info->u.query.status = status;
+            }
+            break;
+        case RETURNVALUE_TOKEN:
+            {
+                CHECK(2);
+                uint_least16_t unused_ param_ordinal = cursor_read_u16le(cursor);
+                if (PROTO_OK != (status = skip_b_varchar(cursor))) return status;
+                CHECK(1+4+2);
+                info->u.query.status = cursor_read_u8(cursor);
+                info->set_values |= SQL_STATUS;
+                cursor_drop(cursor, (tds_msg_parser->pre_7_2 ? 2:4) + 2); // skip user_type and flags
+                size_t data_size = 0;
+                if (PROTO_OK != (status = skip_type_info(cursor, &data_size))) return status;
+                CHECK(data_size);
+                cursor_drop(cursor, data_size);
+            }
+            break;
+        case COLMETADATA_TOKEN:
+            {
+                // We must fetch the data size for next row
+                CHECK(2);
+                unsigned count = cursor_read_u16le(cursor); // missing from specs but actually present (and required)
+#               define NO_METADATA 0xffffU
+                if (NO_METADATA == count) break;
+                SLOG(LOG_DEBUG, "Parsing COLMETADATA with %u columns", count);
+                add_fields(info, count);
+                tds_msg_parser->next_row_size = 0;
+                while (count-- > 0) {
+                    cursor_drop(cursor, (tds_msg_parser->pre_7_2 ? 2:4) + 2);   // skip user_type and flag
+                    if (PROTO_OK != (status = skip_type_info(cursor, &tds_msg_parser->next_row_size))) return status;
+                    // FIXME: we may have a tablename here for text, ntext and image columns, for some reason
+                    if (PROTO_OK != (status = skip_b_varchar(cursor))) return status;
+                }
+            }
+            break;
+        case ROW_TOKEN:
+            if (0 == tds_msg_parser->next_row_size) {
+                SLOG(LOG_DEBUG, "Don't know ROW size, skipping message");
+                *skip = true;
+            } else {    // We know row size
+                SLOG(LOG_DEBUG, "Skipping a ROW of size %zu bytes", tds_msg_parser->next_row_size);
+                cursor_drop(cursor, tds_msg_parser->next_row_size);
+                add_rows(info, 1);
+            }
+            break;
+        case LOGINACK_TOKEN:
+            {   // Here we get the protocol version that we are going to use (we are interested to know if we run below or above 7.2)
+                CHECK(2);
+                size_t length = cursor_read_u16le(cursor);
+                SLOG(LOG_DEBUG, "Parsing LOGINACK of length %zu", length);
+                if (length < 10) return PROTO_PARSE_ERR;
+                CHECK(length);
+                cursor_drop(cursor, 1+2); // INTERFACE+low bits of version that we don't care about
+                info->version_min = cursor_read_u8(cursor);
+                info->version_maj = cursor_read_u8(cursor);
+                info->set_values |= SQL_VERSION;
+                tds_msg_parser->pre_7_2 = info->version_maj < 7 || (info->version_maj == 7 && info->version_min < 2);
+                // ignore the rest
+                cursor_drop(cursor, length - 5);
             }
             break;
         default:
@@ -754,7 +1025,7 @@ static enum proto_parse_status tds_result_token(struct cursor *cursor, struct sq
     return PROTO_OK;
 }
 
-static enum proto_parse_status tds_result(struct cursor *cursor, struct sql_proto_info *info)
+static enum proto_parse_status tds_result(struct tds_msg_parser *tds_msg_parser, struct cursor *cursor, struct sql_proto_info *info)
 {
     SLOG(LOG_DEBUG, "Parsing Result");
 
@@ -762,7 +1033,7 @@ static enum proto_parse_status tds_result(struct cursor *cursor, struct sql_prot
 
     while (! cursor_is_empty(cursor)) {
         bool skip = false;
-        status = tds_result_token(cursor, info, &skip);
+        status = tds_result_token(tds_msg_parser, cursor, info, &skip);
         if (status != PROTO_OK) break;
         if (skip) break;
     }
@@ -861,10 +1132,10 @@ static enum proto_parse_status tds_msg_sbuf_parse(struct parser *parser, struct 
             status = tds_sql_batch(&cursor, &info);
             break;
         case TDS_PKT_TYPE_RPC:
-            status = tds_rpc(&cursor, &info);
+            status = tds_rpc(tds_msg_parser, &cursor, &info);
             break;
         case TDS_PKT_TYPE_RESULT:
-            status = tds_result(&cursor, &info);
+            status = tds_result(tds_msg_parser, &cursor, &info);
             break;
         case TDS_PKT_TYPE_LOGIN:
         case TDS_PKT_TYPE_ATTENTION:
@@ -878,6 +1149,7 @@ static enum proto_parse_status tds_msg_sbuf_parse(struct parser *parser, struct 
             status = tds_prelogin(&cursor, &info);
             break;
     }
+    SLOG(LOG_DEBUG, "Finished parsing %s, status = %s", tds_packet_type_2_str(tds->type), proto_parse_status_2_str(status));
 
     if (status != PROTO_OK) return status;
     return proto_parse(NULL, &info.info, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
