@@ -24,6 +24,11 @@
 #include "junkie/tools/objalloc.h"
 #include "junkie/proto/streambuf.h"
 
+#undef LOG_CAT
+#define LOG_CAT streambuf_log_category
+
+LOG_CATEGORY_DEF(streambuf);
+
 /*
  * Pool of mutexes
  */
@@ -130,7 +135,7 @@ static enum proto_parse_status streambuf_append(struct streambuf *sbuf, unsigned
                 assert(skip_size < cap_len);    // since new_size > 0
                 packet += skip_size;
                 cap_len -= skip_size;
-                assert(wire_len >= cap_len);
+                assert(wire_len >= cap_len);    // thus skip_size < wire_len too
                 wire_len -= skip_size;
             }
             memcpy(new_buffer + (keep_size > 0 ? keep_size:0), packet, cap_len);
@@ -141,7 +146,7 @@ static enum proto_parse_status streambuf_append(struct streambuf *sbuf, unsigned
             dir->buffer_is_malloced = true;
             dir->restart_offset = 0;
         } else {    // we restart after captured bytes
-            ssize_t new_restart_offset = dir->restart_offset - (dir->buffer_size + wire_len);
+            ssize_t const new_restart_offset = dir->restart_offset - (dir->buffer_size + wire_len);
             // check we don't want to restart within uncaptured bytes
             if (new_restart_offset < 0) return PROTO_TOO_SHORT;
             dir->restart_offset = new_restart_offset;
@@ -255,6 +260,7 @@ quit:
 
 void streambuf_init(void)
 {
+    log_category_streambuf_init();
     mutex_init();
     mutex_pool_ctor(&streambuf_locks, "streambuf");
 }
@@ -265,4 +271,5 @@ void streambuf_fini(void)
     mutex_pool_dtor(&streambuf_locks);
 #   endif
     mutex_fini();
+    log_category_streambuf_fini();
 }

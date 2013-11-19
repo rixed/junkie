@@ -218,7 +218,6 @@ next_hdr:
         tot_head_len += TDS_PKT_HDR_LEN;
     }
 
-    // Advertise this packet (in case it was not already)
     tot_payload += MIN(wire_len, tds_parser->data_left);
     struct tds_proto_info info;
     proto_info_ctor(&info.info, parser, parent, tot_head_len, tot_payload);
