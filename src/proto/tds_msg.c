@@ -1012,6 +1012,7 @@ static enum proto_parse_status tds_result_token(struct tds_msg_parser *tds_msg_p
                 info->version_maj = cursor_read_u8(cursor);
                 info->set_values |= SQL_VERSION;
                 tds_msg_parser->pre_7_2 = info->version_maj < 7 || (info->version_maj == 7 && info->version_min < 2);
+                SLOG(LOG_DEBUG, "Version set to %u.%u (%s 7.2)", info->version_maj, info->version_min, tds_msg_parser->pre_7_2 ? "pre":"post");
                 // ignore the rest
                 cursor_drop(cursor, length - 5);
             }

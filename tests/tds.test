@@ -1,0 +1,10 @@
+#!/bin/sh
+
+NAME="TDS"
+PCAPS="pcap/tds/ms-sql-tds-rpc-requests.pcap"
+filter() {
+	grep '^TDS'
+}
+OUTPUT="tds.out"
+
+. "$srcdir/dump_test"

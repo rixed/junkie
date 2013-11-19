@@ -16,7 +16,7 @@ check_PROGRAMS = \
 	cursor_check mutex_check tls_check tds_check
 
 dist_check_SCRIPTS = \
-	postgres.test mysql.test oracle.test dns.test \
+	postgres.test mysql.test oracle.test tds.test dns.test \
 	http-truncation.test \
 	pkt_source_stats.scm eth_padding.test \
 	pkt_source_dev_id.scm ftp.test gre.test \
