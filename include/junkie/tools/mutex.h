@@ -22,6 +22,7 @@ struct mutex {
 
 void mutex_lock(struct mutex *);
 void mutex_unlock(struct mutex *);
+void mutex_unlock_(void *);   ///< Same as mutex_unlock but comply to scm_dynwind_unwind_handler signature
 /// Grab the two mutexes, first the one with smaller address.
 /** Useful to avoid some deadlocks. */
 void mutex_lock2(struct mutex *restrict, struct mutex *restrict);

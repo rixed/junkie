@@ -86,6 +86,11 @@ void mutex_unlock(struct mutex *mutex)
     }
 }
 
+void mutex_unlock_(void *mutex)
+{
+    mutex_unlock(mutex);
+}
+
 void mutex_lock2(struct mutex *restrict m1, struct mutex *restrict m2)
 {
     if (m1 > m2) {
