@@ -7,22 +7,21 @@
 #include "junkie/tools/queue.h"
 #include "junkie/tools/log.h"
 #include "junkie/tools/timeval.h"
+#include "junkie/tools/mutex.h"
 #include "junkie/netmatch.h"
 
 LOG_CATEGORY_DEC(nettrack);
 
-// FIXME: some locks for all these lists
-
 struct nt_state {
-    LIST_ENTRY(nt_state) same_parent;
-    TAILQ_ENTRY(nt_state) same_index;
-    TAILQ_ENTRY(nt_state) same_vertex;
+    LIST_ENTRY(nt_state) same_parent;   // entry on children list
+    TAILQ_ENTRY(nt_state) same_index;   // entry on vertex index
+    TAILQ_ENTRY(nt_state) same_vertex;  // entry on age_list
     /* When a new state is spawned we keep a relationship with parent/children,
      * so that it's possible to terminate a whole family. */
     struct nt_state *parent;
     struct nt_vertex *vertex;
     unsigned h_value; // where I'm located on vertex->states[] (no modulo applied)
-    LIST_HEAD(nt_states, nt_state) children;
+    LIST_HEAD(nt_states, nt_state) children;    // protected by vertex->mutex
     struct npc_register *regfile;
     struct timeval last_used;   // states on same_index are ordered according to this filed (more recently used at head)
     struct timeval last_enter;  // used to find out the age of a state. states are ordered on same_vertex list according to this field (more recently entered at head)
@@ -37,6 +36,7 @@ struct nt_state {
 
 struct nt_vertex {
     char *name;
+    struct mutex mutex; // protects age_list & index & states children list
     LIST_ENTRY(nt_vertex) same_graph;
     LIST_HEAD(nt_edges, nt_edge) outgoing_edges;
     struct nt_edges incoming_edges;

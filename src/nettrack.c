@@ -135,17 +135,16 @@ static int nt_state_ctor(struct nt_state *state, struct nt_state *parent, struct
     state->parent = parent;
     state->vertex = vertex;
     state->h_value = h_value;
-    if (parent) LIST_INSERT_HEAD(&parent->children, state, same_parent);
-    TAILQ_INSERT_HEAD(&vertex->index[index], state, same_index);
-    TAILQ_INSERT_HEAD(&vertex->age_list, state, same_vertex);
     LIST_INIT(&state->children);
     state->last_used = state->last_enter = *now;
     state->last_moved_run = run_id;
-#   ifdef __GNUC__
-    __sync_fetch_and_add(&vertex->nb_states, 1);
-#   else
-    vertex->nb_states ++;
-#   endif
+
+    WITH_LOCK(&vertex->mutex) {
+        vertex->nb_states ++;
+        if (parent) LIST_INSERT_HEAD(&parent->children, state, same_parent);
+        TAILQ_INSERT_HEAD(&vertex->index[index], state, same_index);
+        TAILQ_INSERT_HEAD(&vertex->age_list, state, same_vertex);
+    }
 
     return 0;
 }
@@ -172,17 +171,15 @@ static void nt_state_dtor(struct nt_state *state, struct nt_graph *graph)
         nt_state_del(child, graph);
     }
 
-    if (state->parent) {
-        LIST_REMOVE(state, same_parent);
-        state->parent = NULL;
+    WITH_LOCK(&state->vertex->mutex) {
+        if (state->parent) {
+            LIST_REMOVE(state, same_parent);
+            state->parent = NULL;
+        }
+        TAILQ_REMOVE(&state->vertex->age_list, state, same_vertex);
+        TAILQ_REMOVE(&state->vertex->index[state->h_value % state->vertex->index_size], state, same_index);
+        state->vertex->nb_states --;
     }
-    TAILQ_REMOVE(&state->vertex->age_list, state, same_vertex);
-    TAILQ_REMOVE(&state->vertex->index[state->h_value % state->vertex->index_size], state, same_index);
-#   ifdef __GNUC__
-    __sync_fetch_and_sub(&state->vertex->nb_states, 1);
-#   else
-    state->vertex.nb_states --;
-#   endif
 
     if (state->regfile) {
         npc_regfile_del(state->regfile, graph->nb_registers);
@@ -196,40 +193,36 @@ static void nt_state_del(struct nt_state *state, struct nt_graph *graph)
     objfree(state);
 }
 
-static void nt_state_promote_age_list(struct nt_state *state, struct nt_vertex *to, struct timeval const *now)
+static void nt_state_promote_age_list(struct nt_state *state, struct timeval const *now)
 {
-    state->last_enter = *now;
-    state->vertex = to;
-    TAILQ_REMOVE(&state->vertex->age_list, state, same_vertex);
-    TAILQ_INSERT_HEAD(&to->age_list, state, same_vertex);
+    WITH_LOCK(&state->vertex->mutex) {
+        TAILQ_REMOVE(&state->vertex->age_list, state, same_vertex);
+        TAILQ_INSERT_HEAD(&state->vertex->age_list, state, same_vertex);
+        state->last_enter = *now;
+    }
 }
 
 static void nt_state_move(struct nt_state *state, struct nt_vertex *to, unsigned h_value, struct timeval const *now)
 {
-    state->last_used = *now;
-    struct nt_vertex *const from = state->vertex;
-    // Promote the state in index so that we find it faster next time we need it
-    TAILQ_REMOVE(&from->index[state->h_value % from->index_size], state, same_index);
-    TAILQ_INSERT_HEAD(&to->index[h_value % to->index_size], state, same_index);
+    SLOG(LOG_DEBUG, "Moving state@%p to vertex %s", state, to->name);
 
-    if (state->vertex == to) {
+    struct nt_vertex *const from = state->vertex;
+    if (from == to) {
         assert(state->h_value == h_value);
         return;
     }
-
-    SLOG(LOG_DEBUG, "Moving state@%p to vertex %s", state, to->name);
-
-#   ifdef __GNUC__
-    __sync_fetch_and_sub(&state->vertex->nb_states, 1);
-    __sync_fetch_and_add(&to->nb_states, 1);
-#   else
-    state->vertex->nb_states --;
+    mutex_lock2(&from->mutex, &to->mutex);
+    TAILQ_REMOVE(&from->age_list, state, same_vertex);
+    TAILQ_REMOVE(&from->index[state->h_value % from->index_size], state, same_index);
+    TAILQ_INSERT_HEAD(&to->age_list, state, same_vertex);
+    TAILQ_INSERT_HEAD(&to->index[h_value % to->index_size], state, same_index);
+    from->nb_states --;
     to->nb_states ++;
-#   endif
-
-    nt_state_promote_age_list(state, to, now);
-
+    state->last_used = *now;
+    state->last_enter = *now;
+    state->vertex = to;
     state->h_value = h_value;
+    mutex_unlock2(&from->mutex, &to->mutex);
 }
 
 /*
@@ -241,6 +234,7 @@ static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_
     SLOG(LOG_DEBUG, "Construct new vertex %s with %u buckets (timeout=%"PRId64"us)", name, index_size, timeout);
 
     vertex->name = objalloc_strdup(name);
+    mutex_ctor_recursive(&vertex->mutex, "nettrack vertices");
     vertex->index_size = index_size;
     assert(vertex->index_size >= 1);
     LIST_INIT(&vertex->outgoing_edges);
@@ -316,6 +310,8 @@ static void nt_vertex_dtor(struct nt_vertex *vertex, struct nt_graph *graph)
 
     objfree(vertex->name);
     vertex->name = NULL;
+
+    mutex_dtor(&vertex->mutex);
 }
 
 static void nt_vertex_del(struct nt_vertex *vertex, struct nt_graph *graph)
@@ -323,7 +319,6 @@ static void nt_vertex_del(struct nt_vertex *vertex, struct nt_graph *graph)
     nt_vertex_dtor(vertex, graph);
     FREE(vertex);
 }
-
 
 /*
  * Edges
@@ -400,6 +395,7 @@ static void nt_edge_del(struct nt_edge *edge)
  */
 
 static LIST_HEAD(nt_graphs, nt_graph) started_graphs;
+static struct mutex graphs_mutex;   // protects above list
 
 static int nt_graph_ctor(struct nt_graph *graph, char const *name, char const *libname)
 {
@@ -463,7 +459,9 @@ static void nt_graph_start(struct nt_graph *graph)
     if (graph->started) return;
     SLOG(LOG_DEBUG, "Starting nettracking with graph %s", graph->name);
     graph->started = true;
-    LIST_INSERT_HEAD(&started_graphs, graph, entry);
+    WITH_LOCK(&graphs_mutex) {
+        LIST_INSERT_HEAD(&started_graphs, graph, entry);
+    }
 }
 
 static struct npc_register empty_rest = { .size = 0, .value = (uintptr_t)NULL };
@@ -540,7 +538,6 @@ static void nt_graph_del(struct nt_graph *graph)
  * Update graph with proto_infos
  */
 
-
 static bool ensure_merged_regfile(struct npc_register **merged_regfile, struct npc_register *prev_regfile, struct npc_register *new_regfile, unsigned nb_registers, bool steal_from_prev)
 {
     if (*merged_regfile) return true;
@@ -580,6 +577,11 @@ static bool edge_matching(struct nt_edge *edge, struct proto_info const *last, s
         index_stop = index_start + 1;
         SLOG(LOG_DEBUG, "Using index at location %u", index_start);
     }
+
+    bool ret = false;
+    // Lock other threads out of this vertex states
+    mutex_lock(&edge->from->mutex);
+
     for (unsigned index = index_start; index < index_stop; index++) {
         static unsigned max_nb_collisions = 16;
         unsigned nb_collisions = 0;
@@ -689,7 +691,7 @@ static bool edge_matching(struct nt_edge *edge, struct proto_info const *last, s
                 }
 hell:
                 npc_regfile_dtor(tmp_regfile, edge->graph->nb_registers);
-                if (edge->grab) return false;
+                if (edge->grab) goto quit0;
             } else {
                 SLOG(LOG_DEBUG, "No match");
                 npc_regfile_dtor(tmp_regfile, edge->graph->nb_registers);
@@ -697,7 +699,10 @@ hell:
         } // loop on states
     } // loop on index
 
-    return true;
+    ret = true;
+quit0:
+    mutex_unlock(&edge->from->mutex);
+    return ret;
 }
 
 // Move all states along this edge if they match the aging rule
@@ -744,11 +749,11 @@ static void edge_aging(struct nt_edge *edge, struct timeval const *now)
             if (!LIST_EMPTY(&edge->to->outgoing_edges)) { // or we do not need to spawn anything
                 struct npc_register *copy = npc_regfile_copy(state->regfile, edge->graph->nb_registers);
                 if (! copy) goto hell;
-                if (NULL == (state = nt_state_new(state, edge->to, copy, now, new_h_value, edge->graph->run_id))) {
+                if (! nt_state_new(state, edge->to, copy, now, new_h_value, edge->graph->run_id)) {
                     npc_regfile_del(copy, edge->graph->nb_registers);
                 }
                 // reset the age of this state
-                nt_state_promote_age_list(state, edge->to, now);
+                nt_state_promote_age_list(state, now);
             }
         } else {    // move the whole state
             if (LIST_EMPTY(&edge->to->outgoing_edges)) {  // rather dispose of former state
@@ -932,6 +937,7 @@ void nettrack_init(void)
     mallocer_init();
     objalloc_init();
 
+    mutex_ctor(&graphs_mutex, "nettrackk graphs");
     LIST_INIT(&started_graphs);
 
     // Create a SMOB for nt_graph
@@ -965,6 +971,7 @@ void nettrack_fini(void)
          * Not that it's very important since we are quitting, but still. */
         nt_graph_stop(graph);
     }
+    mutex_dtor(&graphs_mutex);
 #   endif
 
     objalloc_fini();
