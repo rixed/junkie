@@ -199,14 +199,6 @@ static void tds_msg_parser_del(struct parser *parser)
 
 /*
  * Parse
- *
- * First we start by many small decoding function from cursor to custom types,
- * mapping the names and types used by TDS specifications (so don't blame me
- * for lack of consistency). All these functions depends on the data being
- * available (check for lengths are performed struct by struct, which is more
- * efficient for fixed sized messages/blocs).
- *
- * Then follow message parsing per se.
  */
 
 #define CHECK(n) CHECK_LEN(cursor, n, 0)
@@ -604,7 +596,7 @@ static enum proto_parse_status rpc_parameter_data(struct tds_msg_parser const *t
                 CHECK(8);
                 uint_least64_t tot_len = cursor_read_u64le(cursor);
                 SLOG(LOG_DEBUG, "Parsing Partially Length-Prefixed (PLP) Data of total length %"PRIu64, tot_len);
-                if (PLP_NULL == tot_len) {   // much ado about nothing. We merely
+                if (PLP_NULL == tot_len) {   // much ado about nothing. We merely rely on normal code path for NULL.
                     length = 0; // NULL
                 } else {
                     /* We now have many chunks, which total length is supposed to equal this
