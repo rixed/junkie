@@ -118,10 +118,10 @@ void slog(int priority, char const *filename, char const *funcname, char *fmt, .
 
         int len = 0;
         if (log_ts_format) len += strftime(str, sizeof(str), log_ts_format, &tm);
-        len += snprintf(str + len, sizeof(str) - len, ": %s: ", get_thread_name());
-        if (filename && funcname) len += snprintf(str + len, sizeof(str) - len, "%s/%s: ", filename, funcname);
-        len += vsnprintf(str + len, sizeof(str) - len, fmt, ap);
-        len += snprintf(str + len, sizeof(str) - len, "\n");
+        if (len < (int)sizeof(str)) len += snprintf(str + len, sizeof(str) - len, ": %s: ", get_thread_name());
+        if (len < (int)sizeof(str) && filename && funcname) len += snprintf(str + len, sizeof(str) - len, "%s/%s: ", filename, funcname);
+        if (len < (int)sizeof(str)) len += vsnprintf(str + len, sizeof(str) - len, fmt, ap);
+        if (len < (int)sizeof(str)) len += snprintf(str + len, sizeof(str) - len, "\n");
         len = MIN(len, (int)sizeof(str));
 
         if (write(log_fd, str, len)) {} // To clean gcc stupid warn_unused_result

@@ -59,8 +59,8 @@ char const *openssl_errors_2_str(void)
     int len = 0;
     bool first = true;
     unsigned err;
-    while (0 != (err = ERR_get_error())) {
-        snprintf(str+len, TEMPSTR_SIZE-len, "%scode:0x%x:%s:%s:%s",
+    while (0 != (err = ERR_get_error()) && len < TEMPSTR_SIZE) {
+        len += snprintf(str+len, TEMPSTR_SIZE-len, "%scode:0x%x:%s:%s:%s",
             first ? "":", ",
             err,
             ERR_lib_error_string(err),

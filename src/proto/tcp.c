@@ -56,17 +56,17 @@ static void const *tcp_info_addr(struct proto_info const *info_, size_t *size)
 static char const *tcp_options_2_str(struct tcp_proto_info const *info)
 {
     char *tmp = tempstr();
-    char *t = tmp;
-    for (unsigned o = 0; o < info->nb_options; o++) {
+    int len = 0;
+    for (unsigned o = 0; o < info->nb_options && len < TEMPSTR_SIZE; o++) {
         switch (info->options[o]) {
-            case 0:  t += snprintf(t, TEMPSTR_SIZE - (t-tmp), ",end"); break;
-            case 1:  t += snprintf(t, TEMPSTR_SIZE - (t-tmp), ",nop"); break;
-            case 2:  t += snprintf(t, TEMPSTR_SIZE - (t-tmp), ",MSS(%"PRIu16")", info->mss); break;
-            case 3:  t += snprintf(t, TEMPSTR_SIZE - (t-tmp), ",WSF(%"PRIu8")", info->wsf); break;
-            default: t += snprintf(t, TEMPSTR_SIZE - (t-tmp), ",%"PRIu8, info->options[o]); break;
+            case 0:  len += snprintf(tmp+len, TEMPSTR_SIZE-len, ",end"); break;
+            case 1:  len += snprintf(tmp+len, TEMPSTR_SIZE-len, ",nop"); break;
+            case 2:  len += snprintf(tmp+len, TEMPSTR_SIZE-len, ",MSS(%"PRIu16")", info->mss); break;
+            case 3:  len += snprintf(tmp+len, TEMPSTR_SIZE-len, ",WSF(%"PRIu8")", info->wsf); break;
+            default: len += snprintf(tmp+len, TEMPSTR_SIZE-len, ",%"PRIu8, info->options[o]); break;
         }
     }
-    return t > tmp ? tmp+1 : "none";    // skip the initial ','
+    return len > 0 ? tmp+1 : "none";    // skip the initial ','
 }
 
 static char const *tcp_info_2_str(struct proto_info const *info_)

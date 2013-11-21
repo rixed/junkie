@@ -65,6 +65,7 @@ char const *timeval_2_str(struct timeval const *tv)
     int len = 0;
     if (tv->tv_sec) len += snprintf(str, TEMPSTR_SIZE, "%"PRIu32"s", (uint32_t)tv->tv_sec);
     if (tv->tv_usec) snprintf(str+len, TEMPSTR_SIZE-len, "%s%"PRIu32"us", len > 0 ? " ":"", (uint32_t)tv->tv_usec);
+    assert(len < TEMPSTR_SIZE);
     return str;
 }
 

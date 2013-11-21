@@ -71,7 +71,7 @@ char const *eth_addr_2_str(unsigned char const addr[ETH_ADDR_LEN])
     char *str = tempstr();
     size_t len = 0;
     unsigned i;
-    for (i = 0; i < ETH_ADDR_LEN; i ++) {
+    for (i = 0; i < ETH_ADDR_LEN && len < TEMPSTR_SIZE; i ++) {
         len += snprintf(str+len, TEMPSTR_SIZE-len, "%s%.02x", len > 0 ? ":":"", addr[i]);
     }
     return str;

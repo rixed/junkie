@@ -233,7 +233,7 @@ static char const *nettop_key_2_str(struct nettop_key const *k, unsigned proto_l
         mac_proto_needed = false;
     }
 
-    if (src_o < src_len && use_mac_proto && mac_proto_needed && k->mac_proto != -1) {
+    if (proto_o < proto_len && use_mac_proto && mac_proto_needed && k->mac_proto != -1) {
         proto_o += snprintf(proto_str+proto_o, proto_len-proto_o, " %s", eth_proto_2_str(k->mac_proto));
     }
 
@@ -256,7 +256,7 @@ static char const *nettop_key_2_str(struct nettop_key const *k, unsigned proto_l
     }
 
     char const *bidir = bidirectional ? " <->":" ->";
-    o += snprintf(s+o, sz-o, "%*s %*s%s%-*s", (int)proto_len, proto_str, (int)src_len, src_str, src_str[0]!='\0' && dst_str[0]!='\0' ? bidir:"", (int)dst_len, dst_str);
+    if (o < sz) o += snprintf(s+o, sz-o, "%*s %*s%s%-*s", (int)proto_len, proto_str, (int)src_len, src_str, src_str[0]!='\0' && dst_str[0]!='\0' ? bidir:"", (int)dst_len, dst_str);
     return s;
 }
 
