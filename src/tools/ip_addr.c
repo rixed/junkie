@@ -50,9 +50,15 @@ int ip_addr_ctor_from_str(struct ip_addr *ip, char const *str, size_t len, int v
     memset(ip, 0, sizeof *ip);
 
     // Copy the string to add the null terminator
-    char dup[len+1];
+#   define MAX_IP_STR 128   // including null terminator
+    char dup[MAX_IP_STR];
+    if (len+1 >= MAX_IP_STR) {
+        SLOG(LOG_WARNING, "Dubious IP len (%zu)", len);
+        return -1;
+    }
+
     strncpy(dup, str, len);
-    dup[len] = 0;
+    dup[len] = '\0';
     int err;
 
     switch (version) {

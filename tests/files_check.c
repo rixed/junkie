@@ -5,7 +5,9 @@
 #include <assert.h>
 #include <stdio.h>
 #include <junkie/tools/miscmacs.h>
-#include "tools/files.c"
+#include <junkie/tools/files.h>
+#include <junkie/tools/tempstr.h>
+#include <junkie/tools/log.h>
 
 static void mkdir_all_check(void)
 {
@@ -26,7 +28,7 @@ static struct line_desc {
 } const lines_desc[] = {
     { 0, '\0', '\0', }, { 1, '1', '1' }, { 2, '2', 'a' }, { 3, '3', 'c' },
     { 0, '\0', '\0', }, { 1, '1', '1' }, { 0, '\0', '\0' },
-    { 2047, 'x', 'c', },
+    { 500, 'x', 'z', },
 };
 
 static int line_cb(char *line, size_t len, va_list ap)

@@ -632,7 +632,9 @@ static bool edge_matching(struct nt_edge *edge, struct proto_info const *last, s
             /* Freres humains, qui apres nous codez, N'ayez les coeurs contre nous endurcis,
              * Car, si pitie de nous pauvres avez, Dieu en aura plus tôt de vous mercis. */
 
-            struct npc_register tmp_regfile[edge->graph->nb_registers];
+#           define MAX_NB_REGISTERS 100
+            assert(edge->graph->nb_registers <= MAX_NB_REGISTERS);
+            struct npc_register tmp_regfile[MAX_NB_REGISTERS];
             npc_regfile_ctor(tmp_regfile, edge->graph->nb_registers);
 
             if (edge->match_fn(last, rest, state->regfile, tmp_regfile)) {

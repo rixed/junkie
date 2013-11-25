@@ -158,7 +158,7 @@ static int netflow_receive(struct sock unused_ *sock, size_t len, uint8_t const 
         return -1;
     }
 
-    struct nf_msg msg;
+    static __thread struct nf_msg msg;
     if (netflow_decode_msg(&msg, buf, len) < 0) {
         SLOG(LOG_DEBUG, "Skipping netflow msg");
         return 0;

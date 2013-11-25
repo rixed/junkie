@@ -116,13 +116,15 @@ unsigned long long liner_strtoull(struct liner *liner, char const **end, int bas
 
 static int look_for_delim(size_t *tok_len, size_t *delim_len, char const *start, size_t rem_size, struct liner_delimiter_set const *delims)
 {
+#   define NB_MAX_DELIMS 4
+    assert(delims->nb_delims <= NB_MAX_DELIMS);
     struct {
         unsigned matched;  // how many chars were already matched
         bool winner;
         size_t tok_len;
-    } matches[delims->nb_delims];
+    } matches[NB_MAX_DELIMS];
 
-    for (unsigned d = 0; d < NB_ELEMS(matches); d++) {
+    for (unsigned d = 0; d < delims->nb_delims; d++) {
         matches[d].matched = 0;
         matches[d].winner = false;
         assert(delims->delims[d].len > 0);  // or the following algo will fail

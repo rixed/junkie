@@ -117,7 +117,9 @@ int cli_parse(unsigned nb_args, char **args)
     char *eq = strchr(args[0], '=');
     if (eq) {
         *eq = '\0';
-        char *new_args[nb_args+1];
+#       define NB_ARGS_MAX 50
+        assert(nb_args+1 <= NB_ARGS_MAX);
+        char *new_args[NB_ARGS_MAX];
         new_args[0] = args[0];
         new_args[1] = eq+1;
         memcpy(new_args+2, args+1, (nb_args-1) * sizeof(*args));

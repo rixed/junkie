@@ -730,7 +730,9 @@ static int tls_P_hash(SSL unused_ *ssl, uint8_t const *restrict secret, size_t s
 {
     HMAC_CTX hm;
 
-    unsigned char A[MAX(EVP_MAX_MD_SIZE, seed_len)];
+#   define SEED_MAX_LEN 128
+    assert(seed_len <= SEED_MAX_LEN);
+    unsigned char A[MAX(EVP_MAX_MD_SIZE, SEED_MAX_LEN)];
     // A0 is the seed
     memcpy(A, seed, seed_len);
     unsigned A_len = seed_len;
@@ -763,18 +765,24 @@ static int tls_P_hash(SSL unused_ *ssl, uint8_t const *restrict secret, size_t s
 static int tls_prf(SSL *ssl, uint8_t *secret, char const *label, uint8_t const *restrict r1, uint8_t const *restrict r2, size_t out_len, uint8_t *restrict out)
 {
     int const label_len = strlen(label);
-    uint8_t seed[label_len + RANDOM_LEN + RANDOM_LEN];
+#   define MAX_LABEL_LEN 64
+    assert(label_len <= MAX_LABEL_LEN);
+    uint8_t seed[MAX_LABEL_LEN + RANDOM_LEN + RANDOM_LEN];
+    size_t const actual_seed_len = label_len + RANDOM_LEN + RANDOM_LEN;
     memcpy(seed, label, label_len);
     memcpy(seed + label_len, r1, RANDOM_LEN);
     memcpy(seed + label_len + RANDOM_LEN, r2, RANDOM_LEN);
 
+#   define MAX_OUT_LEN 256
     size_t const md5_out_len = MAX(out_len, 16);
-    uint8_t md5_out[md5_out_len];
+    assert(md5_out_len <= MAX_OUT_LEN);
+    uint8_t md5_out[MAX_OUT_LEN];
     size_t const sha_out_len = MAX(out_len, 20);
-    uint8_t sha_out[sha_out_len];
+    assert(sha_out_len <= MAX_OUT_LEN);
+    uint8_t sha_out[MAX_OUT_LEN];
 
-    if (0 != tls_P_hash(ssl, secret,                sizeof(seed), seed, EVP_get_digestbyname("MD5"),  md5_out_len, md5_out)) return -1;
-    if (0 != tls_P_hash(ssl, secret + SECRET_LEN/2, sizeof(seed), seed, EVP_get_digestbyname("SHA1"), sha_out_len, sha_out)) return -1;
+    if (0 != tls_P_hash(ssl, secret,                actual_seed_len, seed, EVP_get_digestbyname("MD5"),  md5_out_len, md5_out)) return -1;
+    if (0 != tls_P_hash(ssl, secret + SECRET_LEN/2, actual_seed_len, seed, EVP_get_digestbyname("SHA1"), sha_out_len, sha_out)) return -1;
 
     for (unsigned i=0; i < out_len; i++) out[i] = md5_out[i] ^ sha_out[i];
 
@@ -1371,7 +1379,7 @@ static enum proto_parse_status tls_parse_record(struct tls_parser *parser, unsig
     SLOG(LOG_DEBUG, "Parse new record, %zu bytes captured (%zu on the wire)%s", cap_len, wire_len, is_crypted ? ", crypted":"");
 
     if (is_crypted) {
-        unsigned char *decrypted = alloca(wire_len);
+        unsigned char *decrypted = alloca(wire_len);    // Cannot use buffer here since we want reentry
         size_t size_out = wire_len;
         if (0 != tls_decrypt(spec, way, cap_len, wire_len, payload, &size_out, decrypted)) return PROTO_OK;    // more luck next record?
         assert(size_out < wire_len);

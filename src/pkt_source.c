@@ -603,7 +603,7 @@ static SCM g_list_ifaces(void)
 // Caller must own pkt_sources_lock
 static struct pkt_source *pkt_source_of_scm(SCM ifname_)
 {
-    char name[PATH_MAX];
+    static __thread char name[PATH_MAX];
     char *ifname = scm_to_tempstr(ifname_);
 
     struct pkt_source *pkt_source;
@@ -659,7 +659,7 @@ static SCM g_close_iface(SCM ifname_)
 static struct ext_function sg_iface_names;
 static SCM g_iface_names(void)
 {
-    char name[PATH_MAX];
+    static __thread char name[PATH_MAX];
     SCM ret = SCM_EOL;
 
     struct pkt_source *pkt_source;

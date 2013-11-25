@@ -38,7 +38,7 @@ int mkdir_all(char const *path, bool is_filename)
 {
     SLOG(LOG_DEBUG, "mkdir %s", path);
 
-    char filename[PATH_MAX];    // not const
+    static __thread char filename[PATH_MAX];
     char *c;
     snprintf(filename, sizeof(filename), "%s", path);
     c = filename;
@@ -299,20 +299,20 @@ int file_foreach_line(char const *filename, int (*cb)(char *line, size_t len, va
     int fd = file_open(filename, O_RDONLY);
     if (fd < 0) goto quit;
 
-    char buff[2047+1];
+    static __thread char buf[2047+1];
     ssize_t read_len;
     size_t already_in = 0;
     bool skip = false;
     do {
-        read_len = file_read(fd, buff + already_in, sizeof(buff)-1 - already_in);
+        read_len = file_read(fd, buf + already_in, sizeof(buf)-1 - already_in);
         if (read_len + already_in == 0) break;
 
-        buff[already_in + read_len] = '\0';
-        char *nl = strchr(buff, '\n');
+        buf[already_in + read_len] = '\0';
+        char *nl = strchr(buf, '\n');
         bool skip_next = false;
         if (! nl) {
             SLOG(LOG_ERR, "Line too long, truncating");
-            nl = buff + already_in + read_len;
+            nl = buf + already_in + read_len;
             skip_next = true;
         } else {
             *nl = '\0';
@@ -321,13 +321,13 @@ int file_foreach_line(char const *filename, int (*cb)(char *line, size_t len, va
         if (! skip) {
             va_list aq;
             va_copy(aq, ap);
-            ret = cb(buff, nl - buff, aq);
+            ret = cb(buf, nl - buf, aq);
             va_end(aq);
             if (ret != 0) break;
         }
 
-        size_t mv_size = already_in + read_len - (nl+1-skip_next-buff);
-        memmove(buff, nl+1, mv_size);
+        size_t mv_size = already_in + read_len - (nl+1-skip_next-buf);
+        memmove(buf, nl+1, mv_size);
         already_in = mv_size;
         skip = skip_next;
     } while (1);

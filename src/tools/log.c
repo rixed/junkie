@@ -110,7 +110,7 @@ void slog(int priority, char const *filename, char const *funcname, char *fmt, .
     }
 
     if (log_fd >= 0) {
-        char str[4096];
+        char str[1024]; // longer lines are not supported nor desirable
 
         time_t now = time(NULL);
         struct tm tm;
@@ -122,6 +122,11 @@ void slog(int priority, char const *filename, char const *funcname, char *fmt, .
         if (len < (int)sizeof(str) && filename && funcname) len += snprintf(str + len, sizeof(str) - len, "%s/%s: ", filename, funcname);
         if (len < (int)sizeof(str)) len += vsnprintf(str + len, sizeof(str) - len, fmt, ap);
         if (len < (int)sizeof(str)) len += snprintf(str + len, sizeof(str) - len, "\n");
+        if (len > (int)sizeof(str)) {
+            str[sizeof(str)-1] = '.';
+            str[sizeof(str)-2] = '.';
+            str[sizeof(str)-3] = '.';
+        }
         len = MIN(len, (int)sizeof(str));
 
         if (write(log_fd, str, len)) {} // To clean gcc stupid warn_unused_result

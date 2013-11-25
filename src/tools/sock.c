@@ -342,7 +342,7 @@ static int sock_udp_recv(struct sock *s_, fd_set *set)
 
         SLOG(LOG_DEBUG, "Reading on socket %s (fd %d)", s_->name, i_->fd[fdi]);
 
-        uint8_t buf[SOCK_MAX_MSG_SIZE];
+        static __thread uint8_t buf[SOCK_MAX_MSG_SIZE];
         struct ip_addr sender;
         ssize_t r = my_recvfrom(i_->fd[fdi], buf, sizeof(buf), &sender);
         if (r < 0) {
@@ -781,7 +781,7 @@ static int sock_unix_recv(struct sock *s_, fd_set *set)
 
     SLOG(LOG_DEBUG, "Reading on socket %s (fd %d)", s->sock.name, s->fd);
 
-    uint8_t buf[SOCK_MAX_MSG_SIZE];
+    static __thread uint8_t buf[SOCK_MAX_MSG_SIZE];
     ssize_t r = recv(s->fd, buf, sizeof(buf), 0);
     if (r < 0) {
         TIMED_SLOG(LOG_ERR, "Cannot receive datagram from %s: %s", s->sock.name, strerror(errno));
@@ -1012,7 +1012,7 @@ skip:
         SLOG(LOG_ERR, "Message size from %s (%zu) bigger than max expected message size (" STRIZE(SOCK_MAX_MSG_SIZE) "), skip file!", s->sock.name, (size_t)len);
         goto skip;
     }
-    uint8_t buf[len];
+    static __thread uint8_t buf[SOCK_MAX_MSG_SIZE];
     r = file_read(s->fd, buf, len);
     if (r < 0) {
         SLOG(LOG_ERR, "Cannot read a message of %zd bytes from %s: skip file!", (size_t)len, s->sock.name);

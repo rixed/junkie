@@ -54,9 +54,9 @@ char *tempstr_printf(char const *fmt, ...)
 
 char const *strnstr(char const *haystack, char const *needle, size_t len)
 {
-    if (len > BUF_MAXSZ) return NULL;
+    if (len >= BUF_MAXSZ) return NULL;
 
-    char buf[len + 1];
+    static __thread char buf[BUF_MAXSZ];
     memcpy(buf, haystack, len);
     buf[len] = 0;
 

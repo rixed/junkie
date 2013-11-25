@@ -33,7 +33,7 @@ struct nf_msg {
     unsigned engine_type, engine_id;
     enum { NONE } sampling_mode;
     unsigned sample_rate;
-#   define MAX_NF_FLOWS 1024
+#   define MAX_NF_FLOWS 100
     struct nf_flow flows[MAX_NF_FLOWS];
 };
 
