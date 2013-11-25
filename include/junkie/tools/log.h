@@ -75,7 +75,7 @@ struct log_category {
 extern SLIST_HEAD(log_categories, log_category) log_categories;
 
 #define LOG_CATEGORY_DEC(cat_name) \
-struct log_category cat_name##_log_category \
+struct log_category cat_name##_log_category
 
 #define LOG_CATEGORY_DEF(cat_name) \
 struct log_category cat_name##_log_category = { .name = #cat_name, .level = LOG_WARNING }; \
