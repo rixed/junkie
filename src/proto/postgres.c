@@ -419,7 +419,7 @@ static enum proto_parse_status pg_parse_query(struct pgsql_parser *pg_parser, st
     size_t len;
 
     /* In this phase, we are looking for SimpleQuery from the client and Data from the server.
-     * This is very simplistic, to be completed later with more interresting query types.
+     * This is very simplistic, to be completed later with more interesting query types.
      * Also, the client can send a termination request. */
     if (info->is_query) {
         status = cursor_read_msg(&cursor, &type, &len);

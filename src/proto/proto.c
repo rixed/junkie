@@ -152,7 +152,7 @@ enum proto_parse_status proto_parse(struct parser *parser, struct proto_info *pa
 
     bool const go_deeper = parser && wire_len > 0;  // Don't we want to call subparsers on empty payload?
 
-    // Call per packet subsribers (also for gaps)
+    // Call per packet subscribers (also for gaps)
     if (parent) {
         proto_subscribers_call(parent->parser->proto, parent, tot_cap_len, tot_packet, now);
         if (! go_deeper) {

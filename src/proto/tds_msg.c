@@ -556,7 +556,7 @@ static enum proto_parse_status rpc_parameter_data(struct tds_msg_parser const *t
             }
             size_t max_length;
             CHECK(len_o_len);
-            switch (len_o_len) {    // TODO: factorize
+            switch (len_o_len) {
                 case 1: max_length = cursor_read_u8(cursor); break;
                 case 2: max_length = cursor_read_u16le(cursor); break;
                 case 4: max_length = cursor_read_u32le(cursor); break;
@@ -571,7 +571,7 @@ static enum proto_parse_status rpc_parameter_data(struct tds_msg_parser const *t
             size_t length;
             CHECK(len_o_len);
             struct cursor data_start = *cursor; // save it to reread length in case of PLP (see below)
-            switch (len_o_len) {    // TODO: factorize
+            switch (len_o_len) {
                 case 1:
                     length = cursor_read_u8(cursor);
                     break;
@@ -620,7 +620,7 @@ static enum proto_parse_status rpc_parameter_data(struct tds_msg_parser const *t
                         length = cursor_read_u32le(cursor);
                         SLOG(LOG_DEBUG, "Chunk is %zu bytes long", length);
                         if (0 == length) {
-                            SLOG(LOG_DEBUG, "Hit a temrinator while still waiting for %zu bytes of total length, stopping there", tot_len);
+                            SLOG(LOG_DEBUG, "Hit a terminator while still waiting for %zu bytes of total length, stopping there", tot_len);
                             break;
                         }
                         if (length > tot_len) {

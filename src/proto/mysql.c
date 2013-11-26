@@ -450,7 +450,7 @@ static enum proto_parse_status mysql_parse_query(struct mysql_parser *mysql_pars
                 if (packet_len != 4) return PROTO_PARSE_ERR;
                 mysql_parser->nb_eof ++;
             } else {    // result set/field set/row data packet
-                // We must re-read the field count since its actualy a varlen binary
+                // We must re-read the field count since it's actually a varlen binary
                 cursor_rollback(&cursor, 1);
                 packet_len ++;
                 uint_least64_t field_count;
