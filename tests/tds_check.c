@@ -27,6 +27,7 @@ static void str_check(void)
     cursor_ctor(&cursor, unicode_strings, sizeof(unicode_strings));
     size_t len = 0;
     char big[22+1];
+    memset(big, 'x', sizeof(big));
     append_from_unicode(big, sizeof(big), &len, &cursor, 5);
     assert(0 == strcmp(big, "etron"));
     append_from_unicode(big, sizeof(big), &len, &cursor, 5);
@@ -37,6 +38,7 @@ static void str_check(void)
     cursor_ctor(&cursor, unicode_strings, sizeof(unicode_strings));
     len = 0;
     char sht[10+1]; // place for two
+    memset(sht, 'x', sizeof(sht));
     append_from_unicode(sht, sizeof(sht), &len, &cursor, 5);
     append_from_unicode(sht, sizeof(sht), &len, &cursor, 5);
     append_from_unicode(sht, sizeof(sht), &len, &cursor, 12);
@@ -45,6 +47,7 @@ static void str_check(void)
     cursor_ctor(&cursor, unicode_strings, sizeof(unicode_strings));
     len = 0;
     char tny[2+1];
+    memset(tny, 'x', sizeof(tny));
     append_from_unicode(tny, sizeof(tny), &len, &cursor, 5);
     append_from_unicode(tny, sizeof(tny), &len, &cursor, 5);
     append_from_unicode(tny, sizeof(tny), &len, &cursor, 12);

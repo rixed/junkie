@@ -21,6 +21,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <ctype.h>
+#include <limits.h>
 #include "junkie/cpp.h"
 #include "junkie/tools/log.h"
 #include "junkie/tools/tempstr.h"
@@ -383,32 +384,20 @@ static enum proto_parse_status skip_all_headers(struct cursor *cursor)
 static void append_from_unicode(char *dst, size_t max_sz, size_t *len, struct cursor *cursor, size_t str_len)
 {
     assert(max_sz > 0);
+    SLOG(LOG_DEBUG, "Appending a unicode str of length %zu (current SQL = '%s') @%zu)", str_len, dst, *len);
 
     char *d = dst + *len;
     while (str_len-- > 0) {
-        uint16_t c = cursor_read_u16le(cursor);
-        if ((*len)++ < max_sz-1) *d ++ = isprint(c) ? c:'.';
+        uint16_t const c = cursor_read_u16le(cursor);
+        if ((*len)++ < max_sz-1) *d ++ = c < UCHAR_MAX && isprint(c) ? c:'.';
     }
-    if (*len < max_sz) *d = '\0';
+    if (d < dst+max_sz) *d = '\0';
 }
 
 static void append_string(char *dst, size_t max_sz, size_t *len, char const *str)
 {
     if (*len >= max_sz) return;
     *len += snprintf(dst + *len, max_sz - *len, "%s", str);
-}
-
-// same as above, but beware that value pointed by str may not be printable
-static void append_string_with_caution(char *dst, size_t max_sz, size_t *len, size_t str_len, struct cursor *cursor)
-{
-    SLOG(LOG_DEBUG, "Appending a string of length %zu (current SQL = '%s') @%zu)", str_len, dst, *len);
-
-    char *d = dst + *len;
-    while (str_len-- > 0) {
-        uint8_t c = cursor_read_u16le(cursor);
-        if ((*len)++ < max_sz-1) *d ++ = isprint(c) ? c:'.';
-    }
-    if (*len < max_sz) *d = '\0';
 }
 
 static char hexdigit(int n)
@@ -533,12 +522,12 @@ static enum proto_parse_status rpc_parameter_data(struct tds_msg_parser const *t
                     value = cursor_read_u8(cursor); break;
                 case 2:  // 2 bytes
                     value = cursor_read_u16le(cursor); break;
-                case 3:  // 4 bytes
+                case 4:  // 4 bytes
                     value = cursor_read_u32le(cursor); break;
-                case 4:  // 8 bytes
+                case 8:  // 8 bytes
                     value = cursor_read_u64le(cursor); break;
                 default:
-                    assert(!"Your computer register bits are used, go replace them");
+                    assert(!"Your computer register bits need servicing");
                     return PROTO_PARSE_ERR;
             }
             append_string(dst, max_sz, len, tempstr_printf("%"PRIu64, value));
@@ -577,11 +566,11 @@ static enum proto_parse_status rpc_parameter_data(struct tds_msg_parser const *t
                     break;
                 case 2:
                     length = cursor_read_u16le(cursor);
-                    if (0xffff == length) length = 0;   // NULL
+                    if (0xFFFFULL == length) length = 0;   // NULL
                     break;
                 case 4:
                     length = cursor_read_u32le(cursor);
-                    if (0xffffffff == length) length = 0;   // NULL
+                    if (0xFFFFFFFFULL == length) length = 0;   // NULL
                     break;
             }
             if (! tds_msg_parser->pre_7_2 && (
@@ -629,7 +618,7 @@ static enum proto_parse_status rpc_parameter_data(struct tds_msg_parser const *t
                         }
                         CHECK(length);
                         if (!(length&1) && tok != BIGVARBINTYPE && tok != UDTTYPE) {
-                            append_string_with_caution(dst, max_sz, len, length/2, cursor);
+                            append_from_unicode(dst, max_sz, len, cursor, length/2);
                         } else {
                             append_hexstring(dst, max_sz, len, length, cursor);
                         }
@@ -646,7 +635,7 @@ static enum proto_parse_status rpc_parameter_data(struct tds_msg_parser const *t
                 append_string(dst, max_sz, len, "NULL");
             } else if (!(length&1) &&
                 (has_collation || tok == 0xad || tok == 0xa5)) {  // display all kind of texts + Binary + varBinary as text
-                append_string_with_caution(dst, max_sz, len, length/2, cursor);
+                append_from_unicode(dst, max_sz, len, cursor, length/2);
             } else {    // rest as number
                 uint_least64_t value;
                 bool print_int = true;

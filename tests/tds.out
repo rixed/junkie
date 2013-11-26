@@ -56,16 +56,16 @@ TDS(msg): head_len=7292, payload=0, Clt->Srv, query
 TDS: head_len=0, payload=700, type=RPC, status=0x4, tot_msg_size=7992
 TDS(msg): head_len=7992, payload=0, Clt->Srv, query
 TDS: head_len=8, payload=331, type=RPC, status=0x1, tot_msg_size=8323
-TDS(msg): head_len=8323, payload=0, Clt->Srv, query, query='p_SaveExample(@LongParam=Studenckie KoBo Przewodnik.w Turystycznych w GdaDsku.zaprasza na:.XXXV Nocne Marsze na Orientacj. "Dar|lub".04/05 grudnia 2010..Wst.p..Nocne Marsze na Orientacj. "Dar|lub" s. turystyczn. imprez. na orientacj. (InO), w kt.rej uczes'
+TDS(msg): head_len=8323, payload=0, Clt->Srv, query, query='p_SaveExample(@LongParam=Studenckie Ko.o Przewodnik.w Turystycznych w Gda.sku.zaprasza na:.XXXV Nocne Marsze na Orientacj. "Dar.lub".04/05 grudnia 2010..Wst.p..Nocne Marsze na Orientacj. "Dar.lub" s. turystyczn. imprez. na orientacj. (InO), w kt.rej uczes'
 TDS: head_len=8, payload=363, type=RPC, status=0x9, tot_msg_size=363
 TDS(msg): head_len=363, payload=0, Clt->Srv, query, query='p_SetBogusSample(@BogusDetailsID=74565,@BogusStatusID=5,@ResultCode=NULL,@ResultMsg=NULL,@ErrorCode=NULL,@ErrorMsg=NULL,@ExampleBogusGeneratedID=NULL,@ExampleType=1)'
 TDS: head_len=8, payload=80, type=RPC, status=0x9, tot_msg_size=80
 TDS(msg): head_len=80, payload=0, Clt->Srv, query, query='p_GetMyExampleTableRowCount()'
 TDS: head_len=8, payload=210, type=RPC, status=0x1, tot_msg_size=210
-TDS(msg): head_len=210, payload=0, Clt->Srv, query, query='proc_GetMyExampleTableSampleMetaData(?=33221100554477668899aabbccddeeff,?=NULL,?=NULL,?=ACEGIKMOQSUWYacegi,?=1,?=45,?=.E....,?=108)'
+TDS(msg): head_len=210, payload=0, Clt->Srv, query, query='proc_GetMyExampleTableSampleMetaData(?=33221100554477668899aabbccddeeff,?=NULL,?=NULL,?=..................,?=1,?=45,?=......,?=108)'
 TDS: head_len=8, payload=191, type=RPC, status=0x9, tot_msg_size=191
-TDS(msg): head_len=191, payload=0, Clt->Srv, query, query='proc_GetMyExampleTableSampleMetaData(?=00112233445566778899aabbccddeeff,?=NULL,?=Bogus,?=NULL,?=1,?=45,?=.E....e!#g....,?=18)'
+TDS(msg): head_len=191, payload=0, Clt->Srv, query, query='proc_GetMyExampleTableSampleMetaData(?=00112233445566778899aabbccddeeff,?=NULL,?=Bogus,?=NULL,?=1,?=45,?=..............,?=18)'
 TDS: head_len=8, payload=260, type=RPC, status=0x9, tot_msg_size=260
-TDS(msg): head_len=260, payload=0, Clt->Srv, query, query='proc_FetchMyExampleData(?=0123456789abcdef0123456789abcdef,?=NULL,?=BOGUS,?=0,?=4294967294,?=0,?=0,?=NULL,?=NULL,?=NULL,?=0,?=.E...E...E...E,?=NULL,?=1,?=5242880,?=45,?=1,?=0,?=NULL,?*=NULL)'
+TDS(msg): head_len=260, payload=0, Clt->Srv, query, query='proc_FetchMyExampleData(?=0123456789abcdef0123456789abcdef,?=NULL,?=BOGUS,?=0,?=4294967294,?=0,?=0,?=NULL,?=NULL,?=NULL,?=0,?=..............,?=NULL,?=1,?=5242880,?=45,?=1,?=0,?=NULL,?*=NULL)'
 TDS: head_len=8, payload=312, type=RPC, status=0x9, tot_msg_size=312
 TDS(msg): head_len=312, payload=0, Clt->Srv, query, query='dbo.proc_GetMySampleDataItems(@SampleItemId=661ac34e14a25348a77ee7060fffff07,@DataId=NULL,@DataItemType=9b45b9bca8836445b1d3e9e198478f4e,@TableId=NULL,@MaxFetchSize=100,@SomeOtherSampleId=0)'
