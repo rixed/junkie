@@ -53,7 +53,7 @@ int ip_addr_ctor_from_str(struct ip_addr *ip, char const *str, size_t len, int v
 #   define MAX_IP_STR 128   // including null terminator
     char dup[MAX_IP_STR];
     if (len+1 >= MAX_IP_STR) {
-        SLOG(LOG_WARNING, "Dubious IP len (%zu)", len);
+        SLOG(LOG_NOTICE, "Dubious IP len (%zu)", len);
         return -1;
     }
 
@@ -84,10 +84,10 @@ int ip_addr_ctor_from_str(struct ip_addr *ip, char const *str, size_t len, int v
     }
 
     if (err == -1) {
-        SLOG(LOG_WARNING, "Cannot convert string to IP address: %s", strerror(errno));
+        SLOG(LOG_NOTICE, "Cannot convert string to IP address: %s", strerror(errno));
         return -1;
     } else if (err == 0) {
-        SLOG(LOG_WARNING, "Cannot convert string to IP address: Invalid string '%.*s'", (int)len, str);
+        SLOG(LOG_NOTICE, "Cannot convert string to IP address: Invalid string '%.*s'", (int)len, str);
         return -1;
     }
 
@@ -105,7 +105,7 @@ int ip_addr_ctor_from_str_any(struct ip_addr *ip, char const *str)
         return 0;
     }
 
-    SLOG(LOG_WARNING, "Cannot convert string to IP address: %s", strerror(errno));
+    SLOG(LOG_NOTICE, "Cannot convert string to IP address: %s", strerror(errno));
     return -1;
 }
 
