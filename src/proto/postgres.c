@@ -97,7 +97,7 @@ static char const *sql_ssl_2_str(enum sql_ssl ssl)
     return "INVALID";
 }
 
-static char const *sql_msg_type_2_str(enum sql_msg_type type)
+char const *sql_msg_type_2_str(enum sql_msg_type type)
 {
     switch (type) {
         case SQL_UNKNOWN: return "unknown";
@@ -106,6 +106,17 @@ static char const *sql_msg_type_2_str(enum sql_msg_type type)
         case SQL_EXIT:    return "exit";
     }
     assert(!"Unknown sql_msg_type");
+    return "INVALID";
+}
+
+static char const *sql_request_status_2_str(enum sql_request_status status)
+{
+    switch (status) {
+        case SQL_REQUEST_COMPLETE: return "Completed";
+        case SQL_REQUEST_INCOMPLETE: return "Not completed";
+        case SQL_REQUEST_ERROR: return "Error";
+    }
+    assert(!"Unknown sql_request_status");
     return "INVALID";
 }
 
@@ -124,9 +135,8 @@ static char const *startup_query_2_str(struct sql_proto_info const *info)
 // FIXME: a unsigned_if_set_2_str(info, set_mask, field_name, field_value) to replace various -1 for unset ints.
 static char const *startup_reply_2_str(struct sql_proto_info const *info)
 {
-    return tempstr_printf(", %s, AuthStatus=%d",
-        info->set_values & SQL_SSL_REQUEST ? sql_ssl_2_str(info->u.startup.ssl_request) : "No SSL",
-        info->set_values & SQL_AUTH_STATUS ? (int)info->u.startup.status : -1);
+    return tempstr_printf(", %s",
+        info->set_values & SQL_SSL_REQUEST ? sql_ssl_2_str(info->u.startup.ssl_request) : "No SSL");
 }
 
 static char const *query_query_2_str(struct sql_proto_info const *info)
@@ -139,8 +149,7 @@ static char const *query_query_2_str(struct sql_proto_info const *info)
 
 static char const *query_reply_2_str(struct sql_proto_info const *info)
 {
-    return tempstr_printf(", status=%d, nb_rows=%d, nb_fields=%d",
-        info->set_values & SQL_STATUS    ? (int)info->u.query.status : -1,
+    return tempstr_printf(", nb_rows=%d, nb_fields=%d",
         info->set_values & SQL_NB_ROWS   ? (int)info->u.query.nb_rows : -1,
         info->set_values & SQL_NB_FIELDS ? (int)info->u.query.nb_fields : -1);
 }
@@ -176,13 +185,20 @@ char const *sql_info_2_str(struct proto_info const *info_)
             break;
     }
 
-    snprintf(str, TEMPSTR_SIZE, "%s, %s%s, %s%s",
+    snprintf(str, TEMPSTR_SIZE, "%s, %s%s, %s%s%s%s%s%s%s%s%s%s",
         proto_info_2_str(info_),
         info->is_query ? "Clt->Srv" : "Srv->Clt",
         version_info_2_str(info),
         sql_msg_type_2_str(info->msg_type),
-        spec_info_2_str ? spec_info_2_str(info) : "");
-
+        spec_info_2_str ? spec_info_2_str(info) : "",
+        info->set_values & SQL_REQUEST_STATUS ? ", Status=" : "",
+        info->set_values & SQL_REQUEST_STATUS ? sql_request_status_2_str(info->request_status) : "",
+        info->set_values & SQL_ERROR_SQL_STATUS ? ", SqlCode=" : "",
+        info->set_values & SQL_ERROR_SQL_STATUS ? info->error_sql_status : "",
+        info->set_values & SQL_ERROR_CODE ? ", ErrorCode=" : "",
+        info->set_values & SQL_ERROR_CODE ? info->error_code : "",
+        info->set_values & SQL_ERROR_MESSAGE ? ", ErrorMessage=" : "",
+        info->set_values & SQL_ERROR_MESSAGE ? info->error_message : "");
     return str;
 }
 
@@ -196,6 +212,39 @@ void const *sql_info_addr(struct proto_info const *info_, size_t *size)
 /*
  * Parse
  */
+
+static enum proto_parse_status pg_parse_error(struct sql_proto_info *info, struct cursor *cursor, size_t len)
+{
+    enum proto_parse_status status;
+    info->set_values |= SQL_REQUEST_STATUS;
+    info->request_status = SQL_REQUEST_ERROR;
+
+    size_t size = 0;
+    char *str;
+
+    while (size <= len) {
+        size++;
+        if (size > len) return PROTO_PARSE_ERR;
+        char type = cursor_read_u8(cursor);
+        if (type == 0x00) {
+            break;
+        }
+        status = cursor_read_string(cursor, &str, len - size);
+        if (status != PROTO_OK) return status;
+        size += strlen(str) + 1;
+        switch (type) {
+            case 'C':
+                info->set_values |= SQL_ERROR_SQL_STATUS;
+                snprintf(info->error_sql_status, sizeof(info->error_sql_status), "%s", str);
+                break;
+            case 'M':
+                info->set_values |= SQL_ERROR_MESSAGE;
+                snprintf(info->error_message, sizeof(info->error_message), "%s", str);
+                break;
+        }
+    }
+    return PROTO_OK;
+}
 
 /* Read a message header, return type and msg length, and advance the cursor to the msg payload.
  * if type is NULL that means no type are read from the cursor.
@@ -316,15 +365,22 @@ static enum proto_parse_status pg_parse_startup(struct pgsql_parser *pg_parser, 
         info->set_values |= SQL_PASSWD;
         snprintf(info->u.startup.passwd, sizeof(info->u.startup.passwd), "%s", passwd);
     } else {    // Authentication request
-        if (type != 'R' || len < 4) return PROTO_PARSE_ERR;
-        // We don't care about the auth method, we just want to know when auth is complete
-        uint32_t auth_type = cursor_read_u32n(&cursor);
-        info->set_values |= SQL_AUTH_STATUS;
-        if (auth_type == 0) {   // AuthenticationOK
-            pg_parser->phase = QUERY;   // we don't wait for the ReadyForQuery msg since we are not interrested in following messages
-            info->u.startup.status = 0;
+        SLOG(LOG_DEBUG, "Authentification response from server with type %c", type);
+        if (len < 4) return PROTO_PARSE_ERR;
+        if (type == 'E') {
+            status = pg_parse_error(info, &cursor, len);
+            if (status != PROTO_OK) return status;
+        } else if (type == 'R' ) {
+            // We don't care about the auth method, we just want to know when auth is complete
+            uint32_t auth_type = cursor_read_u32n(&cursor);
+            if (auth_type == 0) {   // AuthenticationOK
+                pg_parser->phase = QUERY;   // we don't wait for the ReadyForQuery msg since we are not interrested in following messages
+                info->set_values |= SQL_REQUEST_STATUS;
+                info->request_status = SQL_REQUEST_COMPLETE;
+            }
         } else {
-            info->u.startup.status = -1;
+            SLOG(LOG_DEBUG, "Unknown startup message with type %c", type);
+            return PROTO_PARSE_ERR;
         }
     }
 
@@ -377,6 +433,8 @@ static enum proto_parse_status pg_parse_query(struct pgsql_parser *pg_parser, st
             snprintf(info->u.query.sql, sizeof(info->u.query.sql), "%s", sql);
         } else if (type == 'X') {
             info->msg_type = SQL_EXIT;
+            info->set_values |= SQL_REQUEST_STATUS;
+            info->request_status = SQL_REQUEST_COMPLETE;
             pg_parser->phase = EXIT;
         } else return PROTO_PARSE_ERR;
     } else {
@@ -407,6 +465,8 @@ static enum proto_parse_status pg_parse_query(struct pgsql_parser *pg_parser, st
                 SLOG(LOG_DEBUG, "Incrementing nb_rows (now %u)", info->u.query.nb_rows);
             } else if (type == 'C') {   // command complete (fetch nb rows)
                 char *result;
+                info->set_values |= SQL_REQUEST_STATUS;
+                info->request_status = SQL_REQUEST_COMPLETE;
                 status = cursor_read_string(&cursor, &result, len);
                 if (status != PROTO_OK) return status;
                 status = fetch_nb_rows(result, &info->u.query.nb_rows);
@@ -416,9 +476,8 @@ static enum proto_parse_status pg_parse_query(struct pgsql_parser *pg_parser, st
                     //return status;    // Do not use this as the actual protocol does not seam to implement the doc :-<
                 }
             } else if (type == 'E') {   // error
-                SLOG(LOG_DEBUG, "Ask for termination");
-                info->set_values |= SQL_STATUS;
-                info->u.query.status = -1;  // TODO: fetch an error code
+                status = pg_parse_error(info, &cursor, len);
+                if (status != PROTO_OK) return status;
             }
             // Skip what's left of this message and go for the next
             assert(msg_end >= cursor.head);

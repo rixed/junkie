@@ -42,6 +42,7 @@ struct mysql_parser {
     enum phase { NONE, STARTUP, QUERY, EXIT } phase;
     struct streambuf sbuf;
     unsigned nb_eof;        // count the Srv->Clt EOF packets (to parse result sets)
+    unsigned expected_eof;  // Expected EOF packets for response
 };
 
 static parse_fun mysql_sbuf_parse;
@@ -55,6 +56,7 @@ static int mysql_parser_ctor(struct mysql_parser *mysql_parser, struct proto *pr
     mysql_parser->c2s_way = UNSET;
     if (0 != streambuf_ctor(&mysql_parser->sbuf, mysql_sbuf_parse, 30000)) return -1;
     mysql_parser->nb_eof = 0;
+    mysql_parser->expected_eof = 2;
 
     return 0;
 }
@@ -146,7 +148,7 @@ static enum proto_parse_status cursor_read_le_string(struct cursor *cursor, char
     // We are supposed to have the whole packet at disposal
     if (cursor->cap_len < len) return PROTO_PARSE_ERR;
 
-    unsigned const l = MIN(TEMPSTR_SIZE, len);
+    unsigned const l = MIN(TEMPSTR_SIZE - 1, len);
     char *str = tempstr();
     memcpy(str, cursor->head, l);
     for (unsigned s = 0; s < l; s++) {
@@ -156,6 +158,21 @@ static enum proto_parse_status cursor_read_le_string(struct cursor *cursor, char
     cursor_drop(cursor, len);
 
     if (str_) *str_ = str;
+    return PROTO_OK;
+}
+
+// Read a fixed length string up
+static enum proto_parse_status cursor_read_fixed_string(struct cursor *cursor, char **str_, size_t len)
+{
+    if (cursor->cap_len < len) return PROTO_PARSE_ERR;
+    if (str_) {
+        char *str = tempstr();
+        unsigned const l = MIN(TEMPSTR_SIZE - 1, len);
+        memcpy(str, cursor->head, l);
+        str[l] = '\0';
+        *str_ = str;
+    }
+    cursor_drop(cursor, len);
     return PROTO_OK;
 }
 
@@ -206,6 +223,44 @@ static enum proto_parse_status mysql_parse_init(struct mysql_parser *mysql_parse
     return proto_parse(NULL, &info->info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
 
+// We expect
+// 2 bytes   Error code
+// 1 byte    # character
+// 5 bytes   Sql error state
+// Variable  Error message
+static enum proto_parse_status mysql_parse_error(struct sql_proto_info *info, struct cursor *cursor, size_t packet_len)
+{
+    #define MYSQL_ERROR_HEADER (2 + 1 + SQL_ERROR_SQL_STATUS_SIZE)
+    enum proto_parse_status status;
+    if (packet_len <= MYSQL_ERROR_HEADER) return PROTO_PARSE_ERR;
+    info->set_values |= SQL_REQUEST_STATUS;
+    info->request_status = SQL_REQUEST_ERROR;
+
+    uint16_t error_code = cursor_read_u16(cursor);
+    // Since protocol specific error code can contains characters, we need to
+    // transform it to string
+    snprintf(info->error_code, sizeof(info->error_code), "%d", error_code);
+    info->set_values |= SQL_ERROR_CODE;
+
+    // Drop the # after error code
+    cursor_drop(cursor, 1);
+
+    char *str;
+    status = cursor_read_fixed_string(cursor, &str, SQL_ERROR_SQL_STATUS_SIZE);
+    if (status != PROTO_OK) return status;
+    strncpy(info->error_sql_status, str, sizeof(info->error_sql_status));
+    info->set_values |= SQL_ERROR_SQL_STATUS;
+
+    // The end of message is the error message
+    size_t message_len = packet_len - MYSQL_ERROR_HEADER;
+    status = cursor_read_fixed_string(cursor, &str, message_len);
+    if (status != PROTO_OK) return status;
+    strncpy(info->error_message, str, sizeof(info->error_message));
+    info->set_values |= SQL_ERROR_MESSAGE;
+
+    return PROTO_OK;
+}
+
 static enum proto_parse_status mysql_parse_startup(struct mysql_parser *mysql_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     info->msg_type = SQL_STARTUP;
@@ -250,14 +305,14 @@ static enum proto_parse_status mysql_parse_startup(struct mysql_parser *mysql_pa
         }
         if (packet_len-- < 1) return PROTO_PARSE_ERR;
         unsigned res = cursor_read_u8(&cursor);
-        info->set_values |= SQL_AUTH_STATUS;
         if (res == 0) { // OK packet
-            info->u.startup.status = 0;
+            info->set_values |= SQL_REQUEST_STATUS;
+            info->request_status = SQL_REQUEST_COMPLETE;
             mysql_parser->phase = QUERY;
         } else { // Error packet
             if (res != 0xff) return PROTO_PARSE_ERR;
-            if (packet_len < 2) return PROTO_PARSE_ERR;
-            info->u.startup.status = cursor_read_u16(&cursor);
+            status = mysql_parse_error(info, &cursor, packet_len);
+            if (status != PROTO_OK) return status;
         }
     }
 
@@ -368,25 +423,29 @@ static enum proto_parse_status mysql_parse_query(struct mysql_parser *mysql_pars
                 mysql_parser->phase = EXIT;
                 info->msg_type = SQL_EXIT;
                 info->set_values ^= SQL_SQL;
+                info->set_values |= SQL_REQUEST_STATUS;
+                info->request_status = SQL_REQUEST_COMPLETE;
                 break;
             } else {
                 info->set_values ^= SQL_SQL;
+            }
+            if ( command == COM_FIELD_LIST ) {
+                mysql_parser->expected_eof = 1;
+            } else {
+                mysql_parser->expected_eof = 2;
             }
         } else {    // packet from server to client
             if (packet_len-- < 1) return PROTO_PARSE_ERR;
             unsigned field_count = cursor_read_u8(&cursor);
             if (field_count == 0) { // Ok packet
-                info->set_values |= SQL_STATUS;
-                info->u.query.status = 0;
                 uint_least64_t nb_rows;
                 status = cursor_read_varlen(&cursor, &nb_rows, packet_len);
                 if (status != PROTO_OK) return status;
                 info->set_values |= SQL_NB_ROWS;    // number of affected rows
                 info->u.query.nb_rows = nb_rows;
             } else if (field_count == 0xff) {   // Error packet
-                if (packet_len < 2) return PROTO_PARSE_ERR;
-                info->set_values |= SQL_STATUS;
-                info->u.query.status = cursor_read_u16(&cursor);
+                status = mysql_parse_error(info, &cursor, packet_len);
+                if (status != PROTO_OK) return status;
             } else if (field_count == 0xfe) {   // EOF packet
                 if (packet_len != 4) return PROTO_PARSE_ERR;
                 mysql_parser->nb_eof ++;
@@ -412,11 +471,15 @@ static enum proto_parse_status mysql_parse_query(struct mysql_parser *mysql_pars
                     } else return PROTO_PARSE_ERR;
                 }
             }
+            // An eof for field description and an eof for rows
+            if (mysql_parser->nb_eof == mysql_parser->expected_eof) {
+                SLOG(LOG_DEBUG, "Query is completed");
+                info->set_values |= SQL_REQUEST_STATUS;
+                info->request_status = SQL_REQUEST_COMPLETE;
+            }
         }
-
         cursor_drop(&cursor, msg_end - cursor.head);
     }
-
     return proto_parse(NULL, &info->info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
 

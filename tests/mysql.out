@@ -1,48 +1,48 @@
 -- pcap/mysql/cant_connect.pcap --
-head_len=68, payload=0, Srv->Clt, version=10.0, startup, No SSL, AuthStatus=-1
+head_len=68, payload=0, Srv->Clt, version=10.0, startup, No SSL
 head_len=68, payload=0, Clt->Srv, startup, No SSL, user=guest, dbname=test, passwd=U.i...ySe..D....'..{
-head_len=97, payload=0, Srv->Clt, startup, No SSL, AuthStatus=1045
+head_len=97, payload=0, Srv->Clt, startup, No SSL, Status=Error, SqlCode=28000, ErrorCode=1045, ErrorMessage=Access denied for user 'guest'@'dletournel.rd.securactive.lan' (using password: YES)
 -- pcap/mysql/command.pcap --
-head_len=68, payload=0, Srv->Clt, version=10.0, startup, No SSL, AuthStatus=-1
+head_len=68, payload=0, Srv->Clt, version=10.0, startup, No SSL
 head_len=68, payload=0, Clt->Srv, startup, No SSL, user=guest, dbname=test, passwd=S1.....0..R.=..'.{.W
-head_len=11, payload=0, Srv->Clt, startup, No SSL, AuthStatus=0
+head_len=11, payload=0, Srv->Clt, startup, No SSL, Status=Completed
 head_len=19, payload=0, Clt->Srv, query, query='show databases'
-head_len=108, payload=0, Srv->Clt, query, status=-1, nb_rows=2, nb_fields=1
+head_len=108, payload=0, Srv->Clt, query, nb_rows=2, nb_fields=1, Status=Completed
 head_len=16, payload=0, Clt->Srv, query, query='show tables'
-head_len=84, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=1
+head_len=84, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=1, Status=Completed
 head_len=37, payload=0, Clt->Srv, query, query='select @@version_comment limit 1'
-head_len=79, payload=0, Srv->Clt, query, status=-1, nb_rows=1, nb_fields=1
+head_len=79, payload=0, Srv->Clt, query, nb_rows=1, nb_fields=1, Status=Completed
 head_len=58, payload=0, Clt->Srv, query, query='create table testtable (foo integer, bar varchar(10))'
-head_len=11, payload=0, Srv->Clt, query, status=0, nb_rows=0, nb_fields=-1
-head_len=5, payload=0, Clt->Srv, exit
+head_len=11, payload=0, Srv->Clt, query, nb_rows=0, nb_fields=-1, Status=Completed
+head_len=5, payload=0, Clt->Srv, exit, Status=Completed
 -- pcap/mysql/insert.pcap --
-head_len=68, payload=0, Srv->Clt, version=10.0, startup, No SSL, AuthStatus=-1
+head_len=68, payload=0, Srv->Clt, version=10.0, startup, No SSL
 head_len=68, payload=0, Clt->Srv, startup, No SSL, user=guest, dbname=test, passwd=j.*...].O#..R...H!..
-head_len=11, payload=0, Srv->Clt, startup, No SSL, AuthStatus=0
+head_len=11, payload=0, Srv->Clt, startup, No SSL, Status=Completed
 head_len=19, payload=0, Clt->Srv, query, query='show databases'
-head_len=108, payload=0, Srv->Clt, query, status=-1, nb_rows=2, nb_fields=1
+head_len=108, payload=0, Srv->Clt, query, nb_rows=2, nb_fields=1, Status=Completed
 head_len=16, payload=0, Clt->Srv, query, query='show tables'
-head_len=98, payload=0, Srv->Clt, query, status=-1, nb_rows=1, nb_fields=1
+head_len=98, payload=0, Srv->Clt, query, nb_rows=1, nb_fields=1, Status=Completed
 head_len=15, payload=0, Clt->Srv, query, query='SHOW FIELDS FROM testtable'
-head_len=119, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=3
+head_len=119, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=3, Status=Completed
 head_len=37, payload=0, Clt->Srv, query, query='select @@version_comment limit 1'
-head_len=79, payload=0, Srv->Clt, query, status=-1, nb_rows=1, nb_fields=1
+head_len=79, payload=0, Srv->Clt, query, nb_rows=1, nb_fields=1, Status=Completed
 head_len=65, payload=0, Clt->Srv, query, query='insert into testtable (foo, bar) values (42, 'tirelipimpon')'
-head_len=11, payload=0, Srv->Clt, query, status=0, nb_rows=1, nb_fields=-1
-head_len=5, payload=0, Clt->Srv, exit
+head_len=11, payload=0, Srv->Clt, query, nb_rows=1, nb_fields=-1, Status=Completed
+head_len=5, payload=0, Clt->Srv, exit, Status=Completed
 -- pcap/mysql/select.pcap --
-head_len=68, payload=0, Srv->Clt, version=10.0, startup, No SSL, AuthStatus=-1
+head_len=68, payload=0, Srv->Clt, version=10.0, startup, No SSL
 head_len=68, payload=0, Clt->Srv, startup, No SSL, user=guest, dbname=test, passwd=......!.-[tTk+L...y.
-head_len=11, payload=0, Srv->Clt, startup, No SSL, AuthStatus=0
+head_len=11, payload=0, Srv->Clt, startup, No SSL, Status=Completed
 head_len=19, payload=0, Clt->Srv, query, query='show databases'
-head_len=108, payload=0, Srv->Clt, query, status=-1, nb_rows=2, nb_fields=1
+head_len=108, payload=0, Srv->Clt, query, nb_rows=2, nb_fields=1, Status=Completed
 head_len=16, payload=0, Clt->Srv, query, query='show tables'
-head_len=98, payload=0, Srv->Clt, query, status=-1, nb_rows=1, nb_fields=1
+head_len=98, payload=0, Srv->Clt, query, nb_rows=1, nb_fields=1, Status=Completed
 head_len=15, payload=0, Clt->Srv, query, query='SHOW FIELDS FROM testtable'
-head_len=119, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=3
+head_len=119, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=3, Status=Completed
 head_len=37, payload=0, Clt->Srv, query, query='select @@version_comment limit 1'
-head_len=79, payload=0, Srv->Clt, query, status=-1, nb_rows=1, nb_fields=1
+head_len=79, payload=0, Srv->Clt, query, nb_rows=1, nb_fields=1, Status=Completed
 head_len=28, payload=0, Clt->Srv, query, query='select * from testtable'
-head_len=1448, payload=0, Srv->Clt, query, status=-1, nb_rows=69, nb_fields=2
-head_len=66, payload=0, Srv->Clt, query, status=-1, nb_rows=3, nb_fields=-1
-head_len=5, payload=0, Clt->Srv, exit
+head_len=1448, payload=0, Srv->Clt, query, nb_rows=69, nb_fields=2
+head_len=66, payload=0, Srv->Clt, query, nb_rows=3, nb_fields=-1, Status=Completed
+head_len=5, payload=0, Clt->Srv, exit, Status=Completed

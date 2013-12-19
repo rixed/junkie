@@ -2,201 +2,201 @@
 head_len=213, payload=0, Clt->Srv, version=3.13, startup, No SSL, user=guest, dbname=XE
 head_len=8, payload=0, Srv->Clt, unknown
 head_len=213, payload=0, Clt->Srv, version=3.13, startup, No SSL, user=guest, dbname=XE
-head_len=32, payload=0, Srv->Clt, version=3.13, startup, No SSL, AuthStatus=0
+head_len=32, payload=0, Srv->Clt, version=3.13, startup, No SSL, Status=Completed
 head_len=156, payload=0, Clt->Srv, query
-head_len=127, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=127, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=38, payload=0, Clt->Srv, query
-head_len=239, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=239, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=1080, payload=0, Clt->Srv, query
-head_len=975, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=975, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=209, payload=0, Clt->Srv, query, query='AUTH_TERMINAL'
-head_len=195, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=195, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=485, payload=0, Clt->Srv, query, query='AUTH_SESSKEY'
-head_len=1161, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=1161, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=35, payload=0, Clt->Srv, query
-head_len=92, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=92, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=135, payload=0, Clt->Srv, query, query='SELECT USER FROM DUAL'
-head_len=258, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=258, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=21, payload=0, Clt->Srv, query
-head_len=102, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=102, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=156, payload=0, Clt->Srv, query, query='BEGIN DBMS_OUTPUT.DISABLE; END;'
-head_len=107, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=107, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=290, payload=0, Clt->Srv, query, query='SELECT ATTRIBUTE,SCOPE,NUMERIC_VALUE,CHAR_VALUE,DATE_VALUE FROM SYSTEM.PRODUCT_PRIVS WHERE (UPPER('SQL*Plus') LIKE UPPER(PRODUCT)) AND (UPPER(USER) LIKE USERID)'
-head_len=464, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=464, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=313, payload=0, Clt->Srv, query, query='SELECT CHAR_VALUE FROM SYSTEM.PRODUCT_PRIVS WHERE   (UPPER('SQL*Plus') LIKE UPPER(PRODUCT)) AND   ((UPPER(USER) LIKE USERID) OR (USERID = 'PUBLIC')) AND   (UPPER(ATTRIBUTE) = 'ROLES')'
-head_len=243, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=243, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=218, payload=0, Clt->Srv, query, query='BEGIN DBMS_APPLICATION_INFO.SET_MODULE(:1,NULL); END;'
-head_len=126, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=126, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=194, payload=0, Clt->Srv, query, query='SELECT DECODE('A','A','1','2') FROM DUAL'
-head_len=277, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=277, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=60, payload=0, Clt->Srv, query
-head_len=22, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=22, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=48, payload=0, Clt->Srv, query
-head_len=22, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=22, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=13, payload=0, Clt->Srv, query
-head_len=17, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=17, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=10, payload=0, Clt->Srv, exit
 -- pcap/oracle/create_table.pcap --
 head_len=213, payload=0, Clt->Srv, version=3.13, startup, No SSL, user=guest, dbname=XE
 head_len=8, payload=0, Srv->Clt, unknown
 head_len=213, payload=0, Clt->Srv, version=3.13, startup, No SSL, user=guest, dbname=XE
-head_len=32, payload=0, Srv->Clt, version=3.13, startup, No SSL, AuthStatus=0
+head_len=32, payload=0, Srv->Clt, version=3.13, startup, No SSL, Status=Completed
 head_len=156, payload=0, Clt->Srv, query
-head_len=127, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=127, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=38, payload=0, Clt->Srv, query
-head_len=239, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=239, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=1080, payload=0, Clt->Srv, query
-head_len=975, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=975, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=209, payload=0, Clt->Srv, query, query='AUTH_TERMINAL'
-head_len=195, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=195, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=485, payload=0, Clt->Srv, query, query='AUTH_SESSKEY'
-head_len=1160, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=1160, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=35, payload=0, Clt->Srv, query
-head_len=92, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=92, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=135, payload=0, Clt->Srv, query, query='SELECT USER FROM DUAL'
-head_len=258, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=258, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=21, payload=0, Clt->Srv, query
-head_len=102, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=102, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=156, payload=0, Clt->Srv, query, query='BEGIN DBMS_OUTPUT.DISABLE; END;'
-head_len=107, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=107, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=290, payload=0, Clt->Srv, query, query='SELECT ATTRIBUTE,SCOPE,NUMERIC_VALUE,CHAR_VALUE,DATE_VALUE FROM SYSTEM.PRODUCT_PRIVS WHERE (UPPER('SQL*Plus') LIKE UPPER(PRODUCT)) AND (UPPER(USER) LIKE USERID)'
-head_len=464, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=464, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=313, payload=0, Clt->Srv, query, query='SELECT CHAR_VALUE FROM SYSTEM.PRODUCT_PRIVS WHERE   (UPPER('SQL*Plus') LIKE UPPER(PRODUCT)) AND   ((UPPER(USER) LIKE USERID) OR (USERID = 'PUBLIC')) AND   (UPPER(ATTRIBUTE) = 'ROLES')'
-head_len=243, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=243, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=218, payload=0, Clt->Srv, query, query='BEGIN DBMS_APPLICATION_INFO.SET_MODULE(:1,NULL); END;'
-head_len=126, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=126, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=194, payload=0, Clt->Srv, query, query='SELECT DECODE('A','A','1','2') FROM DUAL'
-head_len=277, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=277, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=60, payload=0, Clt->Srv, query
-head_len=22, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=22, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=48, payload=0, Clt->Srv, query
-head_len=22, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=22, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=199, payload=0, Clt->Srv, query, query='CREATE TABLE regions (         region_id NUMBER,         region_name VARCHAR2(25) )'
-head_len=107, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=107, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=13, payload=0, Clt->Srv, query
-head_len=17, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=17, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=10, payload=0, Clt->Srv, exit
 -- pcap/oracle/delete.pcap --
 head_len=213, payload=0, Clt->Srv, version=3.13, startup, No SSL, user=guest, dbname=XE
 head_len=8, payload=0, Srv->Clt, unknown
 head_len=213, payload=0, Clt->Srv, version=3.13, startup, No SSL, user=guest, dbname=XE
-head_len=32, payload=0, Srv->Clt, version=3.13, startup, No SSL, AuthStatus=0
+head_len=32, payload=0, Srv->Clt, version=3.13, startup, No SSL, Status=Completed
 head_len=156, payload=0, Clt->Srv, query
-head_len=127, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=127, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=38, payload=0, Clt->Srv, query
-head_len=239, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=239, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=1080, payload=0, Clt->Srv, query
-head_len=975, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=975, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=209, payload=0, Clt->Srv, query, query='AUTH_TERMINAL'
-head_len=195, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=195, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=485, payload=0, Clt->Srv, query, query='AUTH_SESSKEY'
-head_len=1161, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=1161, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=35, payload=0, Clt->Srv, query
-head_len=92, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=92, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=135, payload=0, Clt->Srv, query, query='SELECT USER FROM DUAL'
-head_len=258, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=258, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=21, payload=0, Clt->Srv, query
-head_len=102, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=102, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=156, payload=0, Clt->Srv, query, query='BEGIN DBMS_OUTPUT.DISABLE; END;'
-head_len=107, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=107, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=290, payload=0, Clt->Srv, query, query='SELECT ATTRIBUTE,SCOPE,NUMERIC_VALUE,CHAR_VALUE,DATE_VALUE FROM SYSTEM.PRODUCT_PRIVS WHERE (UPPER('SQL*Plus') LIKE UPPER(PRODUCT)) AND (UPPER(USER) LIKE USERID)'
-head_len=464, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=464, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=313, payload=0, Clt->Srv, query, query='SELECT CHAR_VALUE FROM SYSTEM.PRODUCT_PRIVS WHERE   (UPPER('SQL*Plus') LIKE UPPER(PRODUCT)) AND   ((UPPER(USER) LIKE USERID) OR (USERID = 'PUBLIC')) AND   (UPPER(ATTRIBUTE) = 'ROLES')'
-head_len=243, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=243, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=218, payload=0, Clt->Srv, query, query='BEGIN DBMS_APPLICATION_INFO.SET_MODULE(:1,NULL); END;'
-head_len=126, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=126, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=194, payload=0, Clt->Srv, query, query='SELECT DECODE('A','A','1','2') FROM DUAL'
-head_len=277, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=277, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=60, payload=0, Clt->Srv, query
-head_len=22, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=22, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=48, payload=0, Clt->Srv, query
-head_len=22, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=22, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=153, payload=0, Clt->Srv, query, query='delete from regions where region_id > 90'
-head_len=121, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=121, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=13, payload=0, Clt->Srv, query
-head_len=17, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=17, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=10, payload=0, Clt->Srv, exit
 -- pcap/oracle/insert.pcap --
 head_len=213, payload=0, Clt->Srv, version=3.13, startup, No SSL, user=guest, dbname=XE
 head_len=8, payload=0, Srv->Clt, unknown
 head_len=213, payload=0, Clt->Srv, version=3.13, startup, No SSL, user=guest, dbname=XE
-head_len=32, payload=0, Srv->Clt, version=3.13, startup, No SSL, AuthStatus=0
+head_len=32, payload=0, Srv->Clt, version=3.13, startup, No SSL, Status=Completed
 head_len=156, payload=0, Clt->Srv, query
-head_len=127, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=127, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=38, payload=0, Clt->Srv, query
-head_len=239, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=239, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=1080, payload=0, Clt->Srv, query
-head_len=975, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=975, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=209, payload=0, Clt->Srv, query, query='AUTH_TERMINAL'
-head_len=195, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=195, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=485, payload=0, Clt->Srv, query, query='AUTH_SESSKEY'
-head_len=1160, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=1160, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=35, payload=0, Clt->Srv, query
-head_len=92, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=92, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=135, payload=0, Clt->Srv, query, query='SELECT USER FROM DUAL'
-head_len=258, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=258, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=21, payload=0, Clt->Srv, query
-head_len=102, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=102, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=156, payload=0, Clt->Srv, query, query='BEGIN DBMS_OUTPUT.DISABLE; END;'
-head_len=107, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=107, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=290, payload=0, Clt->Srv, query, query='SELECT ATTRIBUTE,SCOPE,NUMERIC_VALUE,CHAR_VALUE,DATE_VALUE FROM SYSTEM.PRODUCT_PRIVS WHERE (UPPER('SQL*Plus') LIKE UPPER(PRODUCT)) AND (UPPER(USER) LIKE USERID)'
-head_len=464, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=464, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=313, payload=0, Clt->Srv, query, query='SELECT CHAR_VALUE FROM SYSTEM.PRODUCT_PRIVS WHERE   (UPPER('SQL*Plus') LIKE UPPER(PRODUCT)) AND   ((UPPER(USER) LIKE USERID) OR (USERID = 'PUBLIC')) AND   (UPPER(ATTRIBUTE) = 'ROLES')'
-head_len=243, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=243, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=218, payload=0, Clt->Srv, query, query='BEGIN DBMS_APPLICATION_INFO.SET_MODULE(:1,NULL); END;'
-head_len=126, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=126, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=194, payload=0, Clt->Srv, query, query='SELECT DECODE('A','A','1','2') FROM DUAL'
-head_len=277, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=277, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=60, payload=0, Clt->Srv, query
-head_len=22, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=22, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=48, payload=0, Clt->Srv, query
-head_len=22, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=22, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=181, payload=0, Clt->Srv, query, query='INSERT INTO regions (region_id, region_name) VALUES (75, 'Paris')'
-head_len=121, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=121, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=13, payload=0, Clt->Srv, query
-head_len=17, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=17, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=10, payload=0, Clt->Srv, exit
 -- pcap/oracle/select.pcap --
 head_len=213, payload=0, Clt->Srv, version=3.13, startup, No SSL, user=guest, dbname=XE
 head_len=8, payload=0, Srv->Clt, unknown
 head_len=213, payload=0, Clt->Srv, version=3.13, startup, No SSL, user=guest, dbname=XE
-head_len=32, payload=0, Srv->Clt, version=3.13, startup, No SSL, AuthStatus=0
+head_len=32, payload=0, Srv->Clt, version=3.13, startup, No SSL, Status=Completed
 head_len=156, payload=0, Clt->Srv, query
-head_len=127, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=127, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=38, payload=0, Clt->Srv, query
-head_len=239, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=239, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=1080, payload=0, Clt->Srv, query
-head_len=975, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=975, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=209, payload=0, Clt->Srv, query, query='AUTH_TERMINAL'
-head_len=195, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=195, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=485, payload=0, Clt->Srv, query, query='AUTH_SESSKEY'
-head_len=1161, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=1161, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=35, payload=0, Clt->Srv, query
-head_len=92, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=92, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=135, payload=0, Clt->Srv, query, query='SELECT USER FROM DUAL'
-head_len=258, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=258, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=21, payload=0, Clt->Srv, query
-head_len=102, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=102, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=156, payload=0, Clt->Srv, query, query='BEGIN DBMS_OUTPUT.DISABLE; END;'
-head_len=107, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=107, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=290, payload=0, Clt->Srv, query, query='SELECT ATTRIBUTE,SCOPE,NUMERIC_VALUE,CHAR_VALUE,DATE_VALUE FROM SYSTEM.PRODUCT_PRIVS WHERE (UPPER('SQL*Plus') LIKE UPPER(PRODUCT)) AND (UPPER(USER) LIKE USERID)'
-head_len=464, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=464, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=313, payload=0, Clt->Srv, query, query='SELECT CHAR_VALUE FROM SYSTEM.PRODUCT_PRIVS WHERE   (UPPER('SQL*Plus') LIKE UPPER(PRODUCT)) AND   ((UPPER(USER) LIKE USERID) OR (USERID = 'PUBLIC')) AND   (UPPER(ATTRIBUTE) = 'ROLES')'
-head_len=243, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=243, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=218, payload=0, Clt->Srv, query, query='BEGIN DBMS_APPLICATION_INFO.SET_MODULE(:1,NULL); END;'
-head_len=126, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=126, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=194, payload=0, Clt->Srv, query, query='SELECT DECODE('A','A','1','2') FROM DUAL'
-head_len=277, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=277, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=60, payload=0, Clt->Srv, query
-head_len=22, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=22, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=48, payload=0, Clt->Srv, query
-head_len=22, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=22, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=134, payload=0, Clt->Srv, query, query='select * from regions'
-head_len=306, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=306, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=112, payload=0, Clt->Srv, query
-head_len=407, payload=0, Srv->Clt, query, status=-1, nb_rows=0, nb_fields=2
+head_len=407, payload=0, Srv->Clt, query, nb_rows=0, nb_fields=2
 head_len=21, payload=0, Clt->Srv, query
-head_len=221, payload=0, Srv->Clt, query, status=-1, nb_rows=0, nb_fields=2
+head_len=221, payload=0, Srv->Clt, query, nb_rows=0, nb_fields=2
 head_len=13, payload=0, Clt->Srv, query
-head_len=17, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
+head_len=17, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=10, payload=0, Clt->Srv, exit

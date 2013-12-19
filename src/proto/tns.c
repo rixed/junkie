@@ -219,8 +219,8 @@ static enum proto_parse_status tns_parse_accept(struct tns_parser unused_ *tns_p
     info->version_maj = version/100;
     info->version_min = version%100;
     info->set_values |= SQL_VERSION;
-    info->u.startup.status = 0;
-    info->set_values |= SQL_AUTH_STATUS;
+    info->set_values |= SQL_REQUEST_STATUS;
+    info->request_status = SQL_REQUEST_COMPLETE;
     return PROTO_OK;
 }
 
