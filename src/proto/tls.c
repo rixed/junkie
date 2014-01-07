@@ -1348,8 +1348,10 @@ static int tls_decrypt(struct tls_cipher_spec *spec, unsigned way, size_t cap_le
     // Strip off the padding
     if (cipher_info->block > 1) {
         assert(cap_len > 0);
+        // Padding length is the last byte of the record and give
+        // the size of the padding excluding the padding length field itself
         uint8_t pad_len = out[cap_len - 1];
-        if (pad_len > cap_len) {
+        if (pad_len + 1 > cap_len) {
             SLOG(LOG_DEBUG, "Invalid padding length (%"PRIu8" > %zu)", pad_len, cap_len);
             return -1;
         }
