@@ -79,6 +79,8 @@ struct sock *sock_unix_server_new(char const *file);
 struct sock *sock_file_client_new(char const *file, off_t max_file_size);
 struct sock *sock_file_server_new(char const *file, off_t max_file_size);
 
+struct sock *sock_buf_new(size_t mtu, struct sock *ll_sock);
+
 struct sock *scm_to_sock(SCM);
 
 /** Sometime we want to buffer app msgs into a single net msg to minimize
