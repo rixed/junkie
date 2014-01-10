@@ -576,6 +576,10 @@ static int sock_tcp_recv(struct sock *s_, fd_set *set)
     struct sock_tcp *s = DOWNCAST(i_, inet, sock_tcp);
     unsigned new_c = NB_ELEMS(s->clients);
 
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+
     // Note: a sock_inet listens on several sockets (for instance, ipv4 + ipv6)
     for (unsigned fdi = 0; fdi < i_->nb_fds; fdi++) {
         // Handle new connections
@@ -604,7 +608,7 @@ static int sock_tcp_recv(struct sock *s_, fd_set *set)
         s->clients[new_c].prev_read = 0;
         SLOG(LOG_NOTICE, "New connection from %s to %s on fd %d", ip_addr_2_str(&s->clients[new_c].addr), s_->name, fd);
         if (s->threaded) {  // spawn a new thread to read this one
-            int err = pthread_create(&s->clients[new_c].pth, NULL, start_guile_reader, s->clients+new_c);
+            int err = pthread_create(&s->clients[new_c].pth, &attr, start_guile_reader, s->clients+new_c);
             if (! err) {
                 // FIXME: proper ctor + mutex
                 s->clients[new_c].sock = s_;
@@ -615,6 +619,8 @@ static int sock_tcp_recv(struct sock *s_, fd_set *set)
             }
         }
     }
+
+    pthread_attr_destroy(&attr);
 
     if (!s->threaded) {
         // Now do we have actual incoming datas?
@@ -669,7 +675,6 @@ static void sock_tcp_dtor(struct sock_tcp *s)
             if (s->threaded) {
                 SLOG(LOG_DEBUG, "Cancelling reader thread");
                 (void)pthread_cancel(s->clients[c].pth);
-                (void)pthread_join(s->clients[c].pth, NULL);
             }
             file_close(s->clients[c].fd);
             s->clients[c].fd = -1;
