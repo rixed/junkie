@@ -262,3 +262,31 @@
                                              (starts-with rest "VRFY "))))
 
 
+; Sql signatures
+; FIXME: length checks should compare wire-length!
+(add-proto-signature "TNS" 25 'medium
+                     (nm:compile
+                       type:bool '(tcp) '(and
+                                           ((nb-bytes rest) >= 5)
+                                           ((rest @16n 0) == (nb-bytes rest)) ; Check length
+                                           ((rest @16n 2) == 0x0000) ; Checksum is generally to 0...
+                                           ((rest @ 4) >= #x01) ; Check data type
+                                           ((rest @ 4) <= #x19))))
+
+(add-proto-signature "PostgreSQL" 26 'medium
+                     (nm:compile
+                       type:bool '(tcp) '(and
+                                           ((nb-bytes rest) >= 5)
+                                           (or
+                                             ; Check for startup
+                                             ((rest @32n 0) == (nb-bytes rest)) ; Check length
+                                             (and
+                                               (or
+                                                 ((rest @ 0) == 81)  ; Q
+                                                 ((rest @ 0) == 82)  ; R
+                                                 ((rest @ 0) == 112) ; p
+                                                 ((rest @ 0) == 84)  ; T
+                                                 ((rest @ 0) == 68)  ; D
+                                                 ((rest @ 0) == 88)) ; X
+                                               ((rest @32n 1) >= (nb-bytes rest))))))) ; Check for length
+

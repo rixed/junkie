@@ -12,11 +12,13 @@ PCAPS="$PCAPS pcap/http/on-alt-port.pcap pcap/ftp/on-alt-port.pcap pcap/sip/on-a
 PCAPS="$PCAPS pcap/http/not-http.pcap"
 # Check SMTP signature
 PCAPS="$PCAPS pcap/email/smtp.pcap"
+# Check sql
+PCAPS="$PCAPS pcap/oracle/select.pcap pcap/postgres/connect.pcap pcap/postgres/long_select.pcap"
 
 filter() {
-	grep -E '^(PIPI|TLS|RTP|HTTP|FTP|SIP|CIFS|DNS|Netbios)'
+	grep -wE '^(PIPI|TLS|RTP|HTTP|FTP|SIP|CIFS|DNS|Netbios|TNS|PostgreSQL)'
 }
-CMDLINE='(use-modules (junkie signatures))(tcp-del-port "tls" 443)(tcp-del-port "Netbios" 445)(udp-del-port "DNS" 53)'
+CMDLINE='(use-modules (junkie signatures))(tcp-del-port "tns" 1521)(tcp-del-port "PostgreSQL" 5432)(tcp-del-port "tls" 443)(tcp-del-port "Netbios" 445)(udp-del-port "DNS" 53)'
 OUTPUT="discovery.out"
 
 . "$srcdir/dump_test"

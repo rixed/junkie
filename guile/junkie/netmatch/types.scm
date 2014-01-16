@@ -942,6 +942,34 @@
 
 (add-operator '@ byte-at)
 
+(define uint16n-at
+  (make-op 'uint16-at uint (list bytes uint)
+           (lambda (b i)
+             (let ((res (gensymC "uint16_at")))
+               (make-stub
+                 (string-append
+                   (stub-code i)
+                   (stub-code b)
+                   "    uint16_t " res " = READ_U16N(" (stub-result b) ".value + " (stub-result i) ");\n")
+                 res
+                 (append (stub-regnames i) (stub-regnames b)))))))
+
+(add-operator '@16n uint16n-at)
+
+(define uint32n-at
+  (make-op 'uint32-at uint (list bytes uint)
+           (lambda (b i)
+             (let ((res (gensymC "uint32_at")))
+               (make-stub
+                 (string-append
+                   (stub-code i)
+                   (stub-code b)
+                   "    uint32_t " res " = READ_U32N(" (stub-result b) ".value + " (stub-result i) ");\n")
+                 res
+                 (append (stub-regnames i) (stub-regnames b)))))))
+
+(add-operator '@32n uint32n-at)
+
 (define bytes-eq?
   (make-op 'bytes-eq? bool (list bytes bytes)
            (lambda (b1 b2)
