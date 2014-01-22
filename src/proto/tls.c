@@ -1348,7 +1348,10 @@ static int tls_decrypt(struct tls_cipher_spec *spec, unsigned way, size_t cap_le
 
     // Strip off the padding
     if (cipher_info->block > 1) {
-        assert(cap_len > 0);
+        if (0 == cap_len) {
+            SLOG(LOG_DEBUG, "Missing padding");
+            return -1;
+        }
         // Padding length is the last byte of the record and give
         // the size of the padding excluding the padding length field itself
         uint8_t pad_len = out[cap_len - 1];
