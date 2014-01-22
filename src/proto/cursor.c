@@ -127,10 +127,11 @@ enum proto_parse_status cursor_read_string(struct cursor *cursor, char **str_, s
 
 void cursor_copy(void *dst, struct cursor *cursor, size_t n)
 {
-    SLOG(LOG_DEBUG, "Skipping %zu bytes", n);
+    SLOG(LOG_DEBUG, "Copying %zu bytes", n);
     assert(cursor->cap_len >= n);
     memcpy(dst, cursor->head, n);
     cursor->head += n;
+    cursor->cap_len -= n;
 }
 
 void cursor_drop(struct cursor *cursor, size_t n)
