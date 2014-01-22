@@ -1208,6 +1208,7 @@ quit_parse:
             parser->c2s_way = !way;
             // This message is composed of: lifetime hint (4 bytes, big endian), length (2 bytes), then ticket
             if (length <= 6) return PROTO_PARSE_ERR;
+            if (cur->cap_len < length) return PROTO_TOO_SHORT;
             cursor_drop(&tcur, 4);  // we accept whatever type
             unsigned ticket_len = cursor_read_u16n(&tcur);
             if ((err = copy_session(&next_decoder->session_ticket_hash, ticket_len, &tcur)) != PROTO_OK) return err;
