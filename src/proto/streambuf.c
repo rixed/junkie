@@ -215,8 +215,7 @@ enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *par
             dir->buffer + offset,
             dir->buffer_size - offset,
             dir->buffer_size - offset + uncap_len,
-            now, dir->buffer_is_malloced ? dir->buffer_size : tot_cap_len,
-            dir->buffer_is_malloced ? dir->buffer : tot_packet);
+            now, tot_cap_len, tot_packet);
 
         assert(dir->restart_offset >= offset);
 
