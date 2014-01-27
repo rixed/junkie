@@ -520,11 +520,11 @@ struct tls_parser {
         enum tls_compress_algo compress;
         struct tls_version version;
         uint8_t key_block[136];     // max required size
-        bool decoder_ready;         // if true then decoders are inited
         struct tls_decoder {  // used for the establishment of next crypto keys
 #           define RANDOM_LEN 32
             uint8_t random[RANDOM_LEN];
-            uint32_t session_id_hash;  // The hash of the session id
+            bool decoder_ready;         // if true then decoder is inited
+            uint32_t session_id_hash;   // The hash of the session id
             uint32_t session_ticket_hash;   // The hash of the session ticket
             // pointers into key_block
             uint8_t *mac_key, *write_key, *init_vector; // points into key_block
@@ -546,8 +546,9 @@ static int tls_parser_ctor(struct tls_parser *tls_parser, struct proto *proto)
     tls_parser->keyfile = NULL;
     for (unsigned c = 0; c <=1 ; c++) {
         tls_parser->current[c] = 0;
-        tls_parser->spec[c].decoder_ready = false;
         for (unsigned d = 0; d <= 1; d++) {
+            tls_parser->spec[c].decoder[d].decoder_ready = false;
+            tls_parser->spec[c].decoder[d].write_key = NULL;
             // Clear bit 31 of session_id/ticket_hash
             tls_parser->spec[c].decoder[d].session_id_hash = tls_parser->spec[c].decoder[d].session_ticket_hash = 0;
         }
@@ -585,8 +586,8 @@ static void tls_parser_dtor(struct tls_parser *tls_parser)
     streambuf_dtor(&tls_parser->sbuf);
     for (unsigned current = 0; current < 2; current ++) {
         for (unsigned way = 0; way < 2; way++) {
-            if (! tls_parser->spec[current].decoder_ready) continue;
-            EVP_CIPHER_CTX_cleanup(&tls_parser->spec[current].decoder[way].evp);
+            if (tls_parser->spec[current].decoder[way].decoder_ready)
+                EVP_CIPHER_CTX_cleanup(&tls_parser->spec[current].decoder[way].evp);
         }
     }
 }
@@ -924,17 +925,21 @@ unknown_cipher:
 
     // prepare a cipher for both directions
     for (unsigned dir = 0; dir < 2; dir ++) {
-        if (clt_next_spec->decoder_ready) {
+        if (clt_next_spec->decoder[dir].decoder_ready) {
             EVP_CIPHER_CTX_cleanup(&clt_next_spec->decoder[dir].evp);
+            clt_next_spec->decoder[dir].decoder_ready = false;
         }
+        if (!clt_next_spec->decoder[dir].write_key)
+            continue;
+
         EVP_CIPHER_CTX_init(&clt_next_spec->decoder[dir].evp);
         if (1 != EVP_CipherInit(&clt_next_spec->decoder[dir].evp, cipher_info->ciph, clt_next_spec->decoder[dir].write_key, clt_next_spec->decoder[dir].init_vector, 0)) {
             // Error
             SLOG(LOG_INFO, "Cannot initialize cipher suite 0x%x: %s", clt_next_spec->cipher, openssl_errors_2_str());
             goto quit1;
         }
+        clt_next_spec->decoder[dir].decoder_ready = true;
     }
-    clt_next_spec->decoder_ready = true;
 
     // Prepare a subparser (if we haven't one yet)
     if (! parser->subparser && keyfile->proto) {
@@ -1289,7 +1294,7 @@ invalid:
 
     // put next crypto material into production
     parser->current[way] ^= 1;
-    SLOG(LOG_DEBUG, "Put in production new decoder for way %u (c2s is %u), (%sset)", way, parser->c2s_way, parser->spec[parser->current[way]].decoder_ready ? "":"un");
+    SLOG(LOG_DEBUG, "Put in production new decoder for way %u (c2s is %u), (%sset)", way, parser->c2s_way, parser->spec[parser->current[way]].decoder[way].decoder_ready ? "":"un");
 
     return PROTO_OK;
 }
@@ -1320,7 +1325,7 @@ static enum proto_parse_status tls_parse_application_data(struct tls_parser *par
 // Decrypt a whole record in one go
 static int tls_decrypt(struct tls_cipher_spec *spec, unsigned way, size_t cap_len, size_t wire_len, unsigned char const *payload, size_t *out_sz, unsigned char *out)
 {
-    if (! spec->decoder_ready) {
+    if (! spec->decoder[way].decoder_ready) {
         SLOG(LOG_DEBUG, "Cannot decrypt: decoder not ready");
         return -1;
     }
