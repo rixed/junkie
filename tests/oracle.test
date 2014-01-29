@@ -1,7 +1,7 @@
 #!/bin/sh
 
 NAME="Oracle"
-PCAPS="pcap/oracle/connect_close.pcap pcap/oracle/create_table.pcap pcap/oracle/delete.pcap pcap/oracle/insert.pcap pcap/oracle/select.pcap"
+PCAPS="pcap/oracle/cant_connect.pcap pcap/oracle/error_column_not_allowed.pcap pcap/oracle/query_no_data.pcap pcap/oracle/one_row_response.pcap pcap/oracle/two_row_response.pcap pcap/oracle/error_no_table.pcap"
 filter() {
 	grep '^TNS' | cut -d' ' -f 2-
 }
