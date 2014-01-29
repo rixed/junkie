@@ -24,6 +24,7 @@
 
 void cursor_rollback(struct cursor *cursor, size_t n)
 {
+    SLOG(LOG_DEBUG, "Rollback %zu bytes", n);
     cursor->cap_len += n;
     cursor->head -= n;
 }
@@ -136,6 +137,7 @@ void cursor_copy(void *dst, struct cursor *cursor, size_t n)
 
 void cursor_drop(struct cursor *cursor, size_t n)
 {
+    SLOG(LOG_DEBUG, "Skipping %zu bytes", n);
     assert(cursor->cap_len >= n);
     cursor->cap_len -= n;
     cursor->head += n;
