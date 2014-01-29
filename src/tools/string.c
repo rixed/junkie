@@ -1,6 +1,6 @@
 // -*- c-basic-offset: 4; c-backslash-column: 79; indent-tabs-mode: nil -*-
 // vim:sw=4 ts=4 sts=4 expandtab
-/* Copyright 2010, SecurActive.
+/* Copyright 2014, SecurActive.
  *
  * This file is part of Junkie.
  *
@@ -17,32 +17,38 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with Junkie.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdarg.h>
-#include <pthread.h>
-#include "junkie/config.h"
-#include "junkie/tools/tempstr.h"
-#include "junkie/tools/miscmacs.h"
-#include "junkie/cpp.h"
 
-static __thread unsigned next;
-static __thread char bufs[256][TEMPSTR_SIZE];
+#include "junkie/tools/string.h"
+#include <junkie/tools/miscmacs.h>
 
-char *tempstr(void)
+#ifndef HAVE_STRNSTR
+#include <string.h>
+#define BUF_MAXSZ 4096
+
+char const *strnstr(char const *haystack, char const *needle, size_t len)
 {
-    if (++next >= NB_ELEMS(bufs)) next = 0;
-    bufs[next][0] = '\0';
-    return bufs[next];
+    if (len >= BUF_MAXSZ) return NULL;
+
+    static __thread char buf[BUF_MAXSZ];
+    memcpy(buf, haystack, len);
+    buf[len] = 0;
+
+    char *found = strstr(buf, needle);
+
+    if (!found)
+        return NULL;
+
+    // return a pointer to the char in the string which match the computed offset
+    size_t offset = found - buf;
+
+    return &haystack[offset];
 }
+#endif
 
-char *tempstr_printf(char const *fmt, ...)
+void copy_string(char *dest, char const *src, size_t dest_size)
 {
-    char *str = tempstr();
-    va_list ap;
-    va_start(ap, fmt);
-    vsnprintf(str, TEMPSTR_SIZE, fmt, ap);
-    va_end(ap);
-    return str;
+    strncpy(dest, src, dest_size);
+    if (dest_size)
+        dest[dest_size - 1] = '\0';
 }
 

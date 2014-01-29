@@ -9,6 +9,6 @@ libjunkietools_la_SOURCES = \
 	tempstr.c timeval.c ext.c cli.c ref.c \
 	sock.c serialization.c netflow.c \
 	objalloc.c proto.c bench.c proto_stack.c \
-	term.c timebound.c
+	term.c timebound.c string.c
 libjunkietools_la_LDFLAGS = --export-dynamic
 

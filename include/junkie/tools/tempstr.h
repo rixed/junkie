@@ -18,8 +18,4 @@
 char *tempstr(void);
 char *tempstr_printf(char const *fmt, ...) a_la_printf_(1, 2);
 
-#ifndef HAVE_STRNSTR
-char const *strnstr(char const *haystack, char const *needle, size_t len) pure_;
-#endif
-
 #endif

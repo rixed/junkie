@@ -23,6 +23,7 @@
 #include <ctype.h>
 #include "junkie/cpp.h"
 #include "junkie/tools/log.h"
+#include "junkie/tools/string.h"
 #include "junkie/tools/objalloc.h"
 #include "junkie/proto/tcp.h"
 #include "junkie/proto/sql.h"
