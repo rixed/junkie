@@ -102,7 +102,7 @@ static enum proto_parse_status streambuf_append(struct streambuf *sbuf, unsigned
 {
     assert(way < 2);
     SLOG(LOG_DEBUG, "Append %zu bytes (%zu captured) to streambuf@%p[%u] of size %zu (restart @ %zu)",
-        wire_len, cap_len, sbuf, way, sbuf->dir[way].buffer_size, sbuf->dir[way].buffer_size - sbuf->dir[way].restart_offset);
+        wire_len, cap_len, sbuf, way, sbuf->dir[way].buffer_size, sbuf->dir[way].restart_offset);
     // Naive implementation : each time we add some bytes we realloc buffer
     // FIXME: use a redim_array ?
     // FIXME: better yet, rewrite everything using pkt-lists from end to end
@@ -124,9 +124,9 @@ static enum proto_parse_status streambuf_append(struct streambuf *sbuf, unsigned
 
             // Assemble kept buffer and new payload
             if (keep_size > 0) memcpy(new_buffer, dir->buffer + dir->restart_offset, keep_size);
-            if (keep_size < 0) {
+            else if (keep_size < 0) {
                 // skip some part of captured bytes
-                size_t const skip_size = keep_size >= 0 ? 0 : -keep_size;
+                size_t const skip_size = -keep_size;
                 assert(skip_size < cap_len);    // since new_size > 0
                 packet += skip_size;
                 cap_len -= skip_size;
