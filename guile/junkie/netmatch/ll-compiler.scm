@@ -92,7 +92,7 @@
            (status   (system cmd)))
       (if (eqv? 0 (status:exit-val status))
           (begin
-            ;(delete-file srcname)
+            (delete-file srcname)
             libname)
           (throw 'compilation-error
                  (simple-format #f "Cannot exec ~s: exit-val=~s, term-sig=~s stop-sig=~s~%"

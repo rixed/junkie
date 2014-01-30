@@ -18,6 +18,7 @@
  * along with Junkie.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <stdlib.h>
+#include <unistd.h>
 #include "junkie/tools/objalloc.h"
 #include "junkie/netmatch.h"
 
@@ -29,6 +30,9 @@ int netmatch_filter_ctor(struct netmatch_filter *netmatch, char const *libname)
     }
 
     netmatch->handle = lt_dlopen(libname);
+    if (! unlink(libname)) {
+        SLOG(LOG_INFO, "Could not delete shared object %s", libname);
+    }
     if (! netmatch->handle) {
         SLOG(LOG_CRIT, "Cannot load netmatch shared object %s: %s", libname, lt_dlerror());
         goto err1;

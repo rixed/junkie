@@ -409,10 +409,14 @@ static int nt_graph_ctor(struct nt_graph *graph, char const *name, char const *l
     }
 
     graph->lib = lt_dlopen(libname);
+    if (! unlink(libname)) {
+        SLOG(LOG_INFO, "Could not delete shared object %s", libname);
+    }
     if (! graph->lib) {
-        SLOG(LOG_ERR, "Cannot load netmatch shared object %s: %s", libname, lt_dlerror());
+        SLOG(LOG_ERR, "Cannot load nettrack shared object %s: %s", libname, lt_dlerror());
         return -1;
     }
+
     unsigned *uptr;
     if (NULL != (uptr = lt_dlsym(graph->lib, "nb_registers"))) {
         graph->nb_registers = *uptr;
