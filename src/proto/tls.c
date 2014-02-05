@@ -46,6 +46,10 @@
 
 LOG_CATEGORY_DEF(proto_tls);
 
+static SCM tls_ok;
+static SCM tls_error;
+static SCM tls_missing_passphrase;
+
 static unsigned max_sessions_per_key = 1000;
 EXT_PARAM_RW(max_sessions_per_key, "tls-max-sessions-per-key", uint, "For each TLS key, remember only this number of sessions (keep the most recently used)")
 
@@ -69,6 +73,12 @@ char const *openssl_errors_2_str(void)
     }
     return str;
 }
+
+enum tls_return_status {
+    TLS_OK,
+    TLS_ERROR,
+    TLS_MISSING_PASSPHRASE,
+};
 
 /*
  * Keyfiles & sessions Management
@@ -168,17 +178,28 @@ static void tls_session_promote(struct tls_session *session, struct tls_keyfile 
     TAILQ_INSERT_HEAD(&keyfile->sessions_lru, session, lru_entry);
 }
 
-static int tls_password_cb(char *buf, int bufsz, int rwflag, void *keyfile_)
-{
-    struct tls_keyfile *keyfile = keyfile_;
+struct tls_passwd_cb_userdata {
+    struct tls_keyfile *keyfile;
+    enum tls_return_status tls_return_status;
+};
 
+static int tls_passwd_cb(char *buf, int bufsz, int rwflag, void *userdata_)
+{
+    struct tls_passwd_cb_userdata *userdata = userdata_;
+    struct tls_keyfile *keyfile = userdata->keyfile;
     assert(0 == rwflag);
+
+    if (keyfile->pwd[0] == '\0') {
+        userdata->tls_return_status = TLS_MISSING_PASSPHRASE;
+        return 0;
+    }
     int len = snprintf(buf, bufsz, "%s", keyfile->pwd);
     if (bufsz <= len) return 0;
     return len;
 }
 
-static int tls_keyfile_ctor(struct tls_keyfile *keyfile, char const *path, char const *pwd, struct ip_addr const *net, struct ip_addr const *mask, bool is_mask, struct proto *proto)
+static enum tls_return_status tls_keyfile_ctor(struct tls_keyfile *keyfile, char const *path, char const *pwd,
+        struct ip_addr const *net, struct ip_addr const *mask, bool is_mask, struct proto *proto)
 {
     SLOG(LOG_DEBUG, "Construct keyfile@%p '%s' for '%s', proto %s", keyfile, path, ip_addr_2_str(net), proto->name);
 
@@ -188,21 +209,24 @@ static int tls_keyfile_ctor(struct tls_keyfile *keyfile, char const *path, char 
         SLOG(LOG_ERR, "SSL error while initializing keyfile %s: %s", path, openssl_errors_2_str());
         goto err0;
     }
+
+    snprintf(keyfile->path, sizeof(keyfile->path), "%s", path);
+    snprintf(keyfile->pwd, sizeof(keyfile->pwd), "%s", pwd ? pwd:"");
+
+    struct tls_passwd_cb_userdata userdata = {.keyfile = keyfile, .tls_return_status = TLS_OK};
+
+    // Always override default passwd_cb which expects input from stdin
+    SSL_CTX_set_default_passwd_cb(keyfile->ssl_ctx, tls_passwd_cb);
+    SSL_CTX_set_default_passwd_cb_userdata(keyfile->ssl_ctx, &userdata);
+
     // Load private key file
     if (1 != SSL_CTX_use_PrivateKey_file(keyfile->ssl_ctx, path, SSL_FILETYPE_PEM)) {
         if (1 != SSL_CTX_use_PrivateKey_file(keyfile->ssl_ctx, path, SSL_FILETYPE_ASN1)) {
-            SLOG(LOG_ERR, "Cannot load keyfile %s", path);
+            SLOG(LOG_ERR, "Cannot load keyfile %s: %s", path, openssl_errors_2_str());
             goto err1;
         }
     }
 
-    snprintf(keyfile->path, sizeof(keyfile->path), "%s", path);
-    snprintf(keyfile->pwd, sizeof(keyfile->pwd), "%s", pwd ? pwd:"");
-    // if we have a password:
-    if (pwd) {
-        SSL_CTX_set_default_passwd_cb(keyfile->ssl_ctx, tls_password_cb);
-        SSL_CTX_set_default_passwd_cb_userdata(keyfile->ssl_ctx, keyfile);
-    }
     keyfile->net = *net;
     keyfile->mask = *mask;
     keyfile->is_mask = is_mask;
@@ -214,22 +238,24 @@ static int tls_keyfile_ctor(struct tls_keyfile *keyfile, char const *path, char 
     WITH_LOCK(&tls_keyfiles_lock) {
         LIST_INSERT_HEAD(&tls_keyfiles, keyfile, entry);
     }
-    return 0;
+    return TLS_OK;
 err1:
     SSL_CTX_free(keyfile->ssl_ctx);
 err0:
-    return -1;
+    if (userdata.tls_return_status != TLS_OK) return userdata.tls_return_status;
+    return TLS_ERROR;
 }
 
-static struct tls_keyfile *tls_keyfile_new(char const *path, char const *pwd, struct ip_addr const *net, struct ip_addr const *mask, bool is_mask, struct proto *proto)
+static enum tls_return_status tls_keyfile_new(char const *path, char const *pwd, struct ip_addr const *net, struct ip_addr const *mask, bool is_mask, struct proto *proto)
 {
+    enum tls_return_status tls_return_status = TLS_OK;
     struct tls_keyfile *keyfile = objalloc(sizeof(*keyfile), "keyfiles");
-    if (! keyfile) return NULL;
-    if (0 != tls_keyfile_ctor(keyfile, path, pwd, net, mask, is_mask, proto)) {
+    if (! keyfile) return TLS_ERROR;
+    if (TLS_OK != (tls_return_status = tls_keyfile_ctor(keyfile, path, pwd, net, mask, is_mask, proto))) {
         objfree(keyfile);
-        return NULL;
+        return tls_return_status;
     }
-    return keyfile;
+    return tls_return_status;
 }
 
 static void tls_keyfile_dtor(struct tls_keyfile *keyfile)
@@ -310,8 +336,16 @@ static SCM g_tls_add_key(SCM file_, SCM net_, SCM mask_, SCM is_mask_, SCM proto
     struct proto *proto = proto_of_scm_name(proto_);
     if (! proto) return SCM_BOOL_F;
 
-    struct tls_keyfile *keyfile = tls_keyfile_new(file, NULL, &net, &mask, is_mask, proto);
-    return keyfile ? SCM_BOOL_T : SCM_BOOL_F;
+    enum tls_return_status return_status = tls_keyfile_new(file, NULL, &net, &mask, is_mask, proto);
+    switch (return_status) {
+        case TLS_OK:
+            return tls_ok;
+        case TLS_MISSING_PASSPHRASE:
+            return tls_missing_passphrase;
+        case TLS_ERROR:
+        default:
+            return tls_error;
+    }
 }
 
 static struct ext_function sg_tls_del_key;
@@ -1527,6 +1561,10 @@ void tls_init(void)
     port_muxer_ctor(&tcp_port_muxer_https, &tcp_port_muxers, 443, 443, proto_tls);
     port_muxer_ctor(&tcp_port_muxer_skinny, &tcp_port_muxers, 2443, 2443, proto_tls);
     port_muxer_ctor(&tcp_port_muxer_ftps, &tcp_port_muxers, 989, 990, proto_tls);
+
+	tls_ok = scm_permanent_object(scm_from_latin1_symbol("tls-ok"));
+	tls_error = scm_permanent_object(scm_from_latin1_symbol("tls-error"));
+	tls_missing_passphrase = scm_permanent_object(scm_from_latin1_symbol("tls-missing-passphrase"));
 
     // Extension functions to add keyfiles
     ext_function_ctor(&sg_tls_keys,

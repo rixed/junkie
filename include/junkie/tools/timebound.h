@@ -38,7 +38,7 @@ struct timebound_pool {
     unsigned const *timeout;            ///< So that it's easy to take this timeout from an ext_param
     void (*del)(struct timebound *);    ///< Deletor for timebound objects held here this pool
     LIST_ENTRY(timebound_pool) entry;   ///< One timebounder thread to rule them all
-    unsigned next_bucket;               ///< Round robin affectation of object to buckets. Not protected bu lock, don't care
+    unsigned next_bucket;               ///< Round robin affectation of object to buckets. Not protected by lock, don't care
     struct timebound_bucket {
         struct mutex mutex;             ///< Protects this list
         TAILQ_HEAD(timebounds, timebound) list; ///< Least recently used first
