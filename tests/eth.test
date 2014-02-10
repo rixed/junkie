@@ -1,9 +1,9 @@
 #!/bin/sh
 
 NAME="Ethernet"
-PCAPS="pcap/eth/stp_cdp.pcap pcap/eth/qinq.pcap"
+PCAPS="pcap/eth/stp_cdp.pcap pcap/eth/qinq.pcap pcap/eth/mac_in_mac.pcap"
 filter() {
-	grep -E '^(Ethernet|ARP)'
+    grep -E '^(Ethernet|ARP|ICMP|IPv4)'
 }
 OUTPUT="eth.out"
 CMDLINE="(set-collapse-vlans #f)"

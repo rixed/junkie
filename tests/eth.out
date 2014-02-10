@@ -6,3 +6,7 @@ Ethernet: head_len=22, payload=42, vlan_id=200, source=ca:03:0d:b4:00:1c, dest=f
 ARP: head_len=28, payload=14, opcode=request, sender=192.168.2.200, target=192.168.2.254, target MAC=00:00:00:00:00:00
 Ethernet: head_len=22, payload=42, vlan_id=200, source=ca:03:0d:b4:00:1c, dest=ff:ff:ff:ff:ff:ff, proto=ARP
 ARP: head_len=28, payload=14, opcode=request, sender=192.168.2.200, target=192.168.2.254, target MAC=00:00:00:00:00:00
+-- pcap/eth/mac_in_mac.pcap --
+Ethernet: head_len=36, payload=84, vlan_id=3, source=1c:c1:de:a0:3e:5e, dest=2c:f4:c5:5b:12:04, proto=IPv4
+IPv4: head_len=20, payload=64, version=4, addr=10.22.3.100->10.22.248.10, proto=ICMP, ttl=128, frag=NoFrag, id=0x55bf, Class=0:NonECT
+ICMP: head_len=64, payload=0, type=EchoRequest, err=NONE, id=1

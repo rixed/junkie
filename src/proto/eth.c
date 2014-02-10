@@ -195,11 +195,18 @@ static enum proto_parse_status eth_parse(struct parser *parser, struct proto_inf
         // We dont care about the source MAC being funny
     }
 
+    if (h_proto == ETH_PROTO_8021MACinMAC) {
+        if (cap_len < ethhdr_len + 18) return PROTO_TOO_SHORT;
+        ethhdr = (struct eth_hdr *) (packet + ethhdr_len + 4);
+        h_proto = READ_U16N(&ethhdr->proto);
+        ethhdr_len += 4 + sizeof(*ethhdr);
+    }
+
     while (h_proto == ETH_PROTO_8021Q || h_proto == ETH_PROTO_8021QinQ || h_proto == ETH_PROTO_8021QinQ_alt) {   // Take into account 802.1q vlan tag (with possible QinQ)
         if (cap_len < ethhdr_len + 4) return PROTO_TOO_SHORT;
         struct eth_vlan {
             uint16_t vlan_id, h_proto;
-        } packed_ *eth_vlan = (struct eth_vlan *)((char *)ethhdr + ethhdr_len);
+        } packed_ *eth_vlan = (struct eth_vlan *)((char *)packet + ethhdr_len);
         h_proto = READ_U16N(&eth_vlan->h_proto);
         vlan_id = READ_U16N(&eth_vlan->vlan_id) & 0xfff;
         ethhdr_len += 4;
