@@ -261,6 +261,19 @@ static enum proto_parse_status mysql_parse_error(struct sql_proto_info *info, st
     return PROTO_OK;
 }
 
+static enum sql_encoding mysql_charset_to_encoding(unsigned charset)
+{
+    switch (charset) {
+        case 0x05:
+        case 0x08:
+            return SQL_ENCODING_LATIN1;
+        case 0x21:
+            return SQL_ENCODING_UTF8;
+        default:
+            return SQL_ENCODING_UNKNOWN;
+    }
+}
+
 static enum proto_parse_status mysql_parse_startup(struct mysql_parser *mysql_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     info->msg_type = SQL_STARTUP;
@@ -279,12 +292,19 @@ static enum proto_parse_status mysql_parse_startup(struct mysql_parser *mysql_pa
     if (info->is_query) {
         uint8_t const *msg_end = cursor.head + packet_len;
         if (packet_num != 1) {
-            SLOG(LOG_DEBUG, "Wrong packet number");
+            SLOG(LOG_DEBUG, "Wrong packet number, expected 1, got %d", packet_num);
             return PROTO_PARSE_ERR;
         }
-        // jump to interresting bits
         if (packet_len < 32) return PROTO_PARSE_ERR;
-        cursor_drop(&cursor, 32);
+
+        cursor_drop(&cursor, 8);
+        SLOG(LOG_DEBUG, "Reading encoding charset");
+        unsigned charset = cursor_read_u8(&cursor);
+        info->set_values |= SQL_ENCODING;
+        info->u.startup.encoding = mysql_charset_to_encoding(charset);
+
+        // jump to interresting bits
+        cursor_drop(&cursor, 23);
         char *str;
         status = cursor_read_string(&cursor, &str, msg_end - cursor.head);
         if (status != PROTO_OK) return status;
@@ -300,7 +320,7 @@ static enum proto_parse_status mysql_parse_startup(struct mysql_parser *mysql_pa
         snprintf(info->u.startup.dbname, sizeof(info->u.startup.dbname), "%s", str);
     } else {
         if (packet_num != 2) {
-            SLOG(LOG_DEBUG, "Wrong packet number");
+            SLOG(LOG_DEBUG, "Wrong packet number, expected 2, got %d", packet_num);
             return PROTO_PARSE_ERR;
         }
         if (packet_len-- < 1) return PROTO_PARSE_ERR;

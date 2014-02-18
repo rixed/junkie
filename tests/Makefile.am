@@ -13,7 +13,8 @@ check_PROGRAMS = \
 	arp_check pkt_wait_list_check ip_reassembly_check \
 	tcp_reorder_check streambuf_check cli_check \
 	postgres_check endianness_check \
-	cursor_check mutex_check tls_check tds_check
+	cursor_check mutex_check \
+	mysql_check tls_check tds_check
 
 dist_check_SCRIPTS = \
 	postgres.test mysql.test oracle.test tds.test dns.test \
@@ -115,6 +116,9 @@ cursor_check_LDADD = ../src/tools/libjunkietools.la -lm
 tls_check_SOURCES = tls_check.c lib.c lib.h
 tls_check_LDADD = ../src/tools/libjunkietools.la ../src/proto/libproto.la -lm
 tds_check_SOURCES = tds_check.c lib.c lib.h
+mysql_check_SOURCES = mysql_check.c lib.c lib.h sql_test.c sql_test.h
+mysql_check_LDADD = ../src/tools/libjunkietools.la ../src/proto/libproto.la -lm
+tds_check_SOURCES = tds_check.c lib.c lib.h sql_test.c sql_test.h
 tds_check_LDADD = ../src/tools/libjunkietools.la ../src/proto/libproto.la -lm
 
 clean-local:
