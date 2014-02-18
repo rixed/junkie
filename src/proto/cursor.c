@@ -148,3 +148,65 @@ bool cursor_is_empty(struct cursor const *cursor)
     return cursor->cap_len == 0;
 }
 
+enum proto_parse_status cursor_read_fix_int_n(struct cursor *cursor, uint_least64_t *out_res, unsigned len)
+{
+    uint_least64_t res;
+    if (cursor->cap_len < len) return PROTO_TOO_SHORT;
+    switch (len) {
+        case 0:
+            res = 0;
+            break;
+        case 1:
+            res = cursor_read_u8(cursor);
+            break;
+        case 2:
+            res = cursor_read_u16n(cursor);
+            break;
+        case 3:
+            res = cursor_read_u24n(cursor);
+            break;
+        case 4:
+            res = cursor_read_u32n(cursor);
+            break;
+        case 8:
+            res = cursor_read_u64n(cursor);
+            break;
+        default:
+            SLOG(LOG_DEBUG, "Can't read a %d bytes long number", len);
+            return PROTO_PARSE_ERR;
+    }
+    if (out_res) *out_res = res;
+    return PROTO_OK;
+}
+
+enum proto_parse_status cursor_read_fix_int_le(struct cursor *cursor, uint_least64_t *out_res, unsigned len)
+{
+    uint_least64_t res;
+    if (cursor->cap_len < len) return PROTO_TOO_SHORT;
+    switch (len) {
+        case 0:
+            res = 0;
+            break;
+        case 1:
+            res = cursor_read_u8(cursor);
+            break;
+        case 2:
+            res = cursor_read_u16le(cursor);
+            break;
+        case 3:
+            res = cursor_read_u24le(cursor);
+            break;
+        case 4:
+            res = cursor_read_u32le(cursor);
+            break;
+        case 8:
+            res = cursor_read_u64le(cursor);
+            break;
+        default:
+            SLOG(LOG_DEBUG, "Can't read a %d bytes long number", len);
+            return PROTO_PARSE_ERR;
+    }
+    if (out_res) *out_res = res;
+    return PROTO_OK;
+}
+
