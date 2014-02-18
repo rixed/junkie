@@ -80,11 +80,11 @@ TNS: head_len=237, payload=0, Srv->Clt, unknown
 TNS: head_len=779, payload=0, Clt->Srv, unknown
 TNS: head_len=834, payload=0, Srv->Clt, unknown
 TNS: head_len=19, payload=0, Clt->Srv, unknown
-TNS: head_len=71, payload=0, Srv->Clt, unknown
+TNS: head_len=71, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 TNS: head_len=159, payload=0, Clt->Srv, unknown
-TNS: head_len=73, payload=0, Srv->Clt, unknown
+TNS: head_len=73, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 TNS: head_len=568, payload=0, Clt->Srv, unknown
-TNS: head_len=1169, payload=0, Srv->Clt, unknown
+TNS: head_len=1169, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 TNS: head_len=76, payload=0, Clt->Srv, query, query='SELECT * FROM "Toto"'
 TNS: head_len=443, payload=0, Srv->Clt, query, nb_rows=0, nb_fields=2
 TNS: head_len=17, payload=0, Clt->Srv, query

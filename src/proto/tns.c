@@ -104,7 +104,7 @@ static void tns_parser_del(struct parser *parser)
 // TTC subcode
 
 #define TTC_DEADBEEF               0xde
-#define TTC_VERSION_CLIENT         0x01
+#define TTC_LOGIN_PROPERTY         0x01
 #define TTC_DATA_REPRESENTATION    0x02
 #define TTC_QUERY                  0x03
 #define TTC_END_MESSAGE            0x04
@@ -253,51 +253,16 @@ static enum proto_parse_status cursor_read_chunked_string(struct cursor *cursor,
     return PROTO_OK;
 }
 
-// Read length fixed int up to 4 bytes width
-static enum proto_parse_status cursor_read_fix_int(struct cursor *cursor, unsigned *res, unsigned len)
-{
-    if (cursor->cap_len < len) return PROTO_PARSE_ERR;
-    if (len == 0) {
-        if (res) *res = 0;
-        return PROTO_OK;
-    }
-    if (len > 4) {
-        return PROTO_PARSE_ERR;
-    }
-    if (!res) {
-        cursor_drop(cursor, len);
-        return PROTO_OK;
-    }
-    switch (len) {
-        case 0:
-            *res = 0;
-            break;
-        case 1:
-            *res = cursor_read_u8(cursor);
-            break;
-        case 2:
-            *res = cursor_read_u16n(cursor);
-            break;
-        case 3:
-            *res = cursor_read_u24n(cursor);
-            break;
-        case 4:
-            *res = cursor_read_u32n(cursor);
-            break;
-    }
-    return PROTO_OK;
-}
-
 /* Read an int prefixed by 1 byte size
  * Size  Int------
  * 0x02  0x01 0xdd
  */
-static enum proto_parse_status cursor_read_variable_int(struct cursor *cursor, unsigned *res)
+static enum proto_parse_status cursor_read_variable_int(struct cursor *cursor, uint_least64_t *res)
 {
     if (cursor->cap_len < 1) return PROTO_PARSE_ERR;
     unsigned len = cursor_read_u8(cursor);
     SLOG(LOG_DEBUG, "Variable len has size %d", len);
-    return cursor_read_fix_int(cursor, res, len);
+    return cursor_read_fix_int_n(cursor, res, len);
 }
 
 /* Read a splitted string prefixed by a global variable size
@@ -307,7 +272,7 @@ static enum proto_parse_status cursor_read_variable_int(struct cursor *cursor, u
  */
 static enum proto_parse_status cursor_read_chunked_string_with_size(struct cursor *cursor, char **res)
 {
-    unsigned size;
+    uint_least64_t size;
     enum proto_parse_status status;
     if (cursor->cap_len < 1) return PROTO_PARSE_ERR;
     status = cursor_read_variable_int(cursor, &size);
@@ -425,7 +390,7 @@ static enum proto_parse_status tns_parse_row_recap(struct cursor *cursor)
      * - 1 var number of column sent
      * - <number of fields> bytes to ignore
      */
-    unsigned num_fields;
+    uint_least64_t num_fields;
     status = cursor_read_variable_int(cursor, &num_fields);
     if (status != PROTO_OK) return status;
     unsigned nb_ignore = (num_fields + 7) / 8;
@@ -468,7 +433,7 @@ static enum proto_parse_status tns_parse_row_description_prefix(struct tns_parse
     DROP_FIX(cursor, length);
     DROP_VAR(cursor);
 
-    unsigned num_fields;
+    uint_least64_t num_fields;
     status = cursor_read_variable_int(cursor, &num_fields);
     if (status != PROTO_OK) return status;
     info->set_values |= SQL_NB_FIELDS;
@@ -495,18 +460,19 @@ static enum proto_parse_status tns_parse_row_description_prefix(struct tns_parse
     return PROTO_OK;
 }
 
-static enum proto_parse_status tns_parse_row_description(struct cursor *cursor)
+static enum proto_parse_status tns_parse_row_description(struct sql_proto_info *info, struct cursor *cursor)
 {
     enum proto_parse_status status;
     SLOG(LOG_DEBUG, "Parsing a row description");
+    info->msg_type = SQL_QUERY;
 
-    unsigned length;
+    uint_least64_t length;
     status = cursor_read_variable_int(cursor, &length);
     if (status != PROTO_OK) return status;
     DROP_VARS(cursor, length);
     DROP_VAR(cursor);
 
-    unsigned nb_ignore;
+    uint_least64_t nb_ignore;
     status = cursor_read_variable_int(cursor, &nb_ignore);
     if (status != PROTO_OK) return status;
     for (unsigned i = 0; i < nb_ignore; i++) {
@@ -549,15 +515,17 @@ static enum proto_parse_status tns_parse_end(struct sql_proto_info *info, struct
     // Sequence
     DROP_VAR(cursor);
 
-    status = cursor_read_variable_int(cursor, &info->u.query.nb_rows);
+    uint_least64_t nb_rows;
+    status = cursor_read_variable_int(cursor, &nb_rows);
     if (status != PROTO_OK) return status;
+    info->u.query.nb_rows = nb_rows;
     info->set_values |= SQL_NB_ROWS;
     SLOG(LOG_DEBUG, "Nb rows %d", info->u.query.nb_rows);
 
-    unsigned error_code;
+    uint_least64_t error_code;
     status = cursor_read_variable_int(cursor, &error_code);
     if (status != PROTO_OK) return status;
-    SLOG(LOG_DEBUG, "Error code is %d", error_code);
+    SLOG(LOG_DEBUG, "Error code is %zu", error_code);
 
     DROP_VARS(cursor, 4);
     DROP_FIX(cursor, 2);
@@ -644,14 +612,14 @@ static enum proto_parse_status tns_parse_sql_query_jdbc(struct sql_proto_info *i
     DROP_VAR(cursor);
     DROP_FIX(cursor, 1);
 
-    unsigned sql_len;
+    uint_least64_t sql_len;
     status = cursor_read_variable_int(cursor, &sql_len);
     if (status != PROTO_OK) return status;
-    SLOG(LOG_DEBUG, "Size sql %d", sql_len);
+    SLOG(LOG_DEBUG, "Size sql %zu", sql_len);
 
     DROP_FIX(cursor, 1);
     // We have a number of fields at the end of the query
-    unsigned end_len;
+    uint_least64_t end_len;
     status = cursor_read_variable_int(cursor, &end_len);
     if (status != PROTO_OK) return status;
 
@@ -674,7 +642,7 @@ static enum proto_parse_status tns_parse_sql_query_jdbc(struct sql_proto_info *i
     info->set_values |= SQL_SQL;
     copy_string(info->u.query.sql, sql, sizeof(info->u.query.sql));
 
-    SLOG(LOG_DEBUG, "Skipping %d end variable fields", end_len);
+    SLOG(LOG_DEBUG, "Skipping %zu end variable fields", end_len);
     DROP_VARS(cursor, end_len);
     return PROTO_OK;
 }
@@ -698,7 +666,8 @@ static enum proto_parse_status tns_parse_sql_query(struct sql_proto_info *info, 
 
 static enum proto_parse_status tns_parse_query(struct tns_parser *tns_parser, struct sql_proto_info *info, struct cursor *cursor)
 {
-    SLOG(LOG_DEBUG, "Parsing tns query packet");
+    SLOG(LOG_DEBUG, "Parsing tns query");
+
     info->msg_type = SQL_UNKNOWN;
     enum proto_parse_status status = PROTO_OK;
     unsigned fun_code = cursor_read_u8(cursor);
@@ -717,6 +686,44 @@ static enum proto_parse_status tns_parse_query(struct tns_parser *tns_parser, st
             break;
     }
     return status;
+}
+
+static enum proto_parse_status tns_parse_login_property(struct sql_proto_info *info, struct cursor *cursor)
+{
+    SLOG(LOG_DEBUG, "Parsing tns login property");
+    // We are only interested in response
+    if (info->is_query) return PROTO_OK;
+
+    info->msg_type = SQL_STARTUP;
+    // Drop Server version
+    DROP_FIX(cursor, 3);
+    // Drop Server version text
+    uint8_t marker = 0x00;
+    enum proto_parse_status status = cursor_drop_until(cursor, &marker, sizeof(marker));
+    if (status != PROTO_OK) return status;
+    // Drop Null byte
+    DROP_FIX(cursor, 1);
+    if (cursor->cap_len < 2) return PROTO_PARSE_ERR;
+    uint16_t charset = cursor_read_u16le(cursor);
+    SLOG(LOG_DEBUG, "Found a charset of 0x%02x", charset);
+    switch (charset) {
+        case 0x01:
+        case 0x02:
+        case 0x1f:
+        case 0xb2:
+            info->u.startup.encoding = SQL_ENCODING_LATIN1;
+            break;
+        case 0x366:
+        case 0x367:
+        case 0x369:
+            info->u.startup.encoding = SQL_ENCODING_UTF8;
+            break;
+        default:
+            return PROTO_PARSE_ERR;
+    }
+    info->set_values |= SQL_ENCODING;
+    // We don't care of the rest...
+    return PROTO_OK;
 }
 
 static enum proto_parse_status tns_parse_data(struct tns_parser *tns_parser, struct sql_proto_info *info, struct cursor *cursor,
@@ -754,7 +761,10 @@ static enum proto_parse_status tns_parse_data(struct tns_parser *tns_parser, str
                 status = tns_parse_row_recap(cursor);
                 break;
             case TTC_ROW_DESCRIPTION:
-                status = tns_parse_row_description(cursor);
+                status = tns_parse_row_description(info, cursor);
+                break;
+            case TTC_LOGIN_PROPERTY:
+                status = tns_parse_login_property(info, cursor);
                 break;
             case TTC_QUERY:
                 status = tns_parse_query(tns_parser, info, cursor);
@@ -784,6 +794,7 @@ static enum proto_parse_status tns_parse_data(struct tns_parser *tns_parser, str
                 tns_parser->c2s_way = way;
                 break;
         }
+        info->is_query = way == tns_parser->c2s_way;
     }
     return status;
 }
