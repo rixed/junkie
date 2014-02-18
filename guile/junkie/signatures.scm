@@ -269,17 +269,23 @@
                        type:bool '(tcp) '(and
                                            ((nb-bytes rest) >= 5)
                                            ((rest @16n 0) == (nb-bytes rest)) ; Check length
-                                           ((rest @16n 2) == 0x0000) ; Checksum is generally to 0...
+                                           ((rest @16n 2) == 0) ; Checksum is generally to 0...
                                            ((rest @ 4) >= #x01) ; Check data type
                                            ((rest @ 4) <= #x19))))
 
 (add-proto-signature "PostgreSQL" 26 'medium
                      (nm:compile
                        type:bool '(tcp) '(and
-                                           ((nb-bytes rest) >= 5)
+                                           ((nb-bytes rest) >= 8)
                                            (or
                                              ; Check for startup
-                                             ((rest @32n 0) == (nb-bytes rest)) ; Check length
+                                             (and
+                                               ((rest @32n 0) == (nb-bytes rest)) ; Check length
+                                               ((rest @32n 4) == 196608)) ; Check version
+                                             ; Check for ssl request
+                                             (and
+                                               ((rest @32n 0) == 8)
+                                               ((rest @32n 4) == 80877103)) ; Check version
                                              (and
                                                (or
                                                  ((rest @ 0) == 81)  ; Q
@@ -289,4 +295,21 @@
                                                  ((rest @ 0) == 68)  ; D
                                                  ((rest @ 0) == 88)) ; X
                                                ((rest @32n 1) >= (nb-bytes rest))))))) ; Check for length
+
+(add-proto-signature "TDS" 27 'medium
+                     (nm:compile
+                       type:bool '(tcp) '(and
+                                           ((nb-bytes rest) >= 8) ; Header length
+                                           (or
+                                             (and ((rest @ 0) >= 1) ((rest @ 0) <= 4)) ; Batch, Login, Rpc, Result
+                                             ((rest @ 0) == 6)                         ; Attention
+                                             ((rest @ 0) == 7)                         ; Bulk load
+                                             ((rest @ 0) == 14)                        ; Manager Req
+                                             ((rest @ 0) == 16)                        ; Login
+                                             ((rest @ 0) == 17)                        ; Sspi
+                                             ((rest @ 0) == 18))                       ; Pre login
+                                           ((rest @16n 2) == (nb-bytes rest))
+                                           ((rest @16n 4) < 100) ; Channel number should not be too high...
+                                           ((rest @ 6) < 10)))) ; Packet number should not be too high
+
 
