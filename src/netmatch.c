@@ -30,7 +30,7 @@ int netmatch_filter_ctor(struct netmatch_filter *netmatch, char const *libname)
     }
 
     netmatch->handle = lt_dlopen(libname);
-    if (! unlink(libname)) {
+    if (-1 == unlink(libname)) {
         SLOG(LOG_INFO, "Could not delete shared object %s", libname);
     }
     if (! netmatch->handle) {
