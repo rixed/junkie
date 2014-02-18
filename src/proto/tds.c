@@ -25,10 +25,12 @@
 #include "junkie/tools/log.h"
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/objalloc.h"
+#include "junkie/proto/cursor.h"
 #include "junkie/proto/proto.h"
 #include "junkie/proto/tcp.h"
 #include "junkie/proto/tds.h"
 #include "junkie/proto/sql.h"
+#include "junkie/proto/streambuf.h"
 
 /* TDS has both notions of messages and packets.
  * Surely, the specifiers though that TDS will conquer TCP, UDP, Wap and the whole world,
@@ -51,16 +53,10 @@ LOG_CATEGORY_DEF(proto_tds);
 
 struct tds_parser {
     struct parser parser;
-    /* if > 0 then we are reading a packet data (pass it to msg_parser)
-     * if = 0 then we are waiting for next header */
-    size_t data_left;
-    size_t tot_msg_size;    // sum of all packet payloads for this message
-    /* Describe the current TDS packet.
-     * Useful to write correct info block in successive TCP packets. */
-    enum tds_packet_type type;
-    uint8_t status;
     // each tds parser comes with its tds_msg parser
     struct parser *msg_parser;
+
+    struct streambuf sbuf;  // yep, one more level of buffering
 };
 
 char const *tds_packet_type_2_str(enum tds_packet_type type)
@@ -99,14 +95,15 @@ static bool tds_packet_has_data(enum tds_packet_type type)
     assert(!"Invalid tds_packet_type");
 }
 
+static parse_fun tds_sbuf_parse;
+
 static int tds_parser_ctor(struct tds_parser *tds_parser, struct proto *proto)
 {
     SLOG(LOG_DEBUG, "Constructing tds_parser@%p", tds_parser);
     assert(proto == proto_tds);
     if (0 != parser_ctor(&tds_parser->parser, proto)) return -1;
-    tds_parser->data_left = 0;
-    tds_parser->status = TDS_EOM;
     tds_parser->msg_parser = NULL;
+    if (0 != streambuf_ctor(&tds_parser->sbuf, tds_sbuf_parse, 30000)) return -1;
 
     return 0;
 }
@@ -129,6 +126,7 @@ static void tds_parser_dtor(struct tds_parser *tds_parser)
     SLOG(LOG_DEBUG, "Destructing tds_parser@%p", tds_parser);
     parser_unref(&tds_parser->msg_parser);
     parser_dtor(&tds_parser->parser);
+    streambuf_dtor(&tds_parser->sbuf);
 }
 
 static void tds_parser_del(struct parser *parser)
@@ -147,11 +145,10 @@ char const *tds_info_2_str(struct proto_info const *info_)
     struct tds_proto_info const *info = DOWNCAST(info_, info, tds_proto_info);
     char *str = tempstr();
 
-    snprintf(str, TEMPSTR_SIZE, "%s, type=%s, status=0x%x, tot_msg_size=%zu",
+    snprintf(str, TEMPSTR_SIZE, "%s, type=%s, status=0x%x",
         proto_info_2_str(info_),
         tds_packet_type_2_str(info->type),
-        info->status,
-        info->tot_msg_size);
+        info->status);
     return str;
 }
 
@@ -166,91 +163,105 @@ void const *tds_info_addr(struct proto_info const *info_, size_t *size)
  * Parse
  */
 
-static enum proto_parse_status tds_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status tds_parse_header(struct cursor *cursor, enum tds_packet_type *out_type,
+        uint8_t *out_status, size_t *out_len, bool *unknown_token)
+{
+#   define TDS_PKT_HDR_LEN 8
+    CHECK_LEN(cursor, TDS_PKT_HDR_LEN, 0);
+
+    enum tds_packet_type type = cursor_read_u8(cursor);
+    uint8_t status = cursor_read_u8(cursor);
+    size_t len = cursor_read_u16n(cursor);
+    SLOG(LOG_DEBUG, "Reading new TDS packet of type %s, status %"PRIu8", length %zu", tds_packet_type_2_str(type), status, len);
+
+    // sanity check
+    if (len < TDS_PKT_HDR_LEN) return PROTO_PARSE_ERR;
+    // Drop rest of header
+    cursor_drop(cursor, 4);
+    switch (type) {
+        case TDS_PKT_TYPE_SQL_BATCH:
+        case TDS_PKT_TYPE_LOGIN:
+        case TDS_PKT_TYPE_RPC:
+        case TDS_PKT_TYPE_RESULT:
+        case TDS_PKT_TYPE_ATTENTION:
+        case TDS_PKT_TYPE_BULK_LOAD:
+        case TDS_PKT_TYPE_MANAGER_REQ:
+        case TDS_PKT_TYPE_TDS7_LOGIN:
+        case TDS_PKT_TYPE_SSPI:
+        case TDS_PKT_TYPE_PRELOGIN:
+            break;
+        default:
+            SLOG(LOG_DEBUG, "Unknown tds type %u", type);
+            if (unknown_token) *unknown_token = true;
+            return PROTO_PARSE_ERR;
+    }
+    size_t data_left = len - TDS_PKT_HDR_LEN;
+    if ((data_left > 0) != tds_packet_has_data(type)) {
+        SLOG(LOG_DEBUG, "This TDS packet of type %s has %zu bytes of data, but should%s have data",
+                tds_packet_type_2_str(type), data_left, tds_packet_has_data(type) ? "":" not");
+        return PROTO_PARSE_ERR;
+    }
+    if (out_type) *out_type = type;
+    if (out_status) *out_status = status;
+    if (out_len) *out_len = len;
+    return PROTO_OK;
+}
+
+static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct tds_parser *tds_parser = DOWNCAST(parser, parser, tds_parser);
-    size_t tot_head_len = 0;
-    size_t tot_payload = 0;
 
-next_hdr:
-    // Are we at the start of a packet?
-    if (0 == tds_parser->data_left) {
-        if (tds_parser->status & TDS_EOM) {
-            // previous packet was the last in message
-            tds_parser->tot_msg_size = 0;
-        }
+    struct cursor cursor;
+    cursor_ctor(&cursor, payload, cap_len);
 
-#       define TDS_PKT_HDR_LEN 8
-        if (wire_len < TDS_PKT_HDR_LEN) return PROTO_PARSE_ERR;
-        if (cap_len < TDS_PKT_HDR_LEN) return PROTO_TOO_SHORT;
+    enum tds_packet_type type;
+    uint8_t tds_status;
+    size_t len;
+    bool unknown_token = false;
+    enum proto_parse_status status = tds_parse_header(&cursor, &type, &tds_status, &len, &unknown_token);
 
-        tds_parser->type = READ_U8(payload);
-        tds_parser->status = READ_U8(payload+1);
-        size_t len = READ_U16N(payload+2);
-        SLOG(LOG_DEBUG, "Reading new TDS packet of type %s, status %"PRIu8", length %zu", tds_packet_type_2_str(tds_parser->type), tds_parser->status, len);
-        tds_parser->data_left = len - 8;
-        tds_parser->tot_msg_size += tds_parser->data_left;
-        // sanity check
-        if (len < 8) return PROTO_PARSE_ERR;
-        switch (tds_parser->type) {
-            case TDS_PKT_TYPE_SQL_BATCH:
-            case TDS_PKT_TYPE_LOGIN:
-            case TDS_PKT_TYPE_RPC:
-            case TDS_PKT_TYPE_RESULT:
-            case TDS_PKT_TYPE_ATTENTION:
-            case TDS_PKT_TYPE_BULK_LOAD:
-            case TDS_PKT_TYPE_MANAGER_REQ:
-            case TDS_PKT_TYPE_TDS7_LOGIN:
-            case TDS_PKT_TYPE_SSPI:
-            case TDS_PKT_TYPE_PRELOGIN:
-                break;
-            default:
-                return PROTO_PARSE_ERR;
-        }
-        if ((tds_parser->data_left > 0) != tds_packet_has_data(tds_parser->type)) {
-            SLOG(LOG_DEBUG, "This TDS packet of type %s has %zu bytes of data, but should%s have data", tds_packet_type_2_str(tds_parser->type), tds_parser->data_left, tds_packet_has_data(tds_parser->type) ? "":" not");
-            return PROTO_PARSE_ERR;
-        }
-
-        cap_len -= TDS_PKT_HDR_LEN;
-        wire_len -= TDS_PKT_HDR_LEN;
-        payload += TDS_PKT_HDR_LEN;
-        tot_head_len += TDS_PKT_HDR_LEN;
+    if (status != PROTO_OK) {
+        // We have an unknown token if the payload is encrypted after a ssl handshake
+        // It is valid but we don't know how to parse it yet
+        // TODO It would be better if we knew the values of the encryption options exchanged in prelogin messages
+        if (unknown_token) return PROTO_OK;
+        return status;
     }
 
-    tot_payload += MIN(wire_len, tds_parser->data_left);
-    struct tds_proto_info info;
-    proto_info_ctor(&info.info, parser, parent, tot_head_len, tot_payload);
-    info.type = tds_parser->type;
-    info.status = tds_parser->status;
-    info.tot_msg_size = tds_parser->tot_msg_size;
+    size_t data_left = len - 8;
+    if (data_left > wire_len) {
+        streambuf_set_restart(&tds_parser->sbuf, way, payload, true);
+        return PROTO_OK;
+    }
 
-    // Parse data
-    if (tds_parser->data_left > 0) {
-        if (! tds_parser->msg_parser) tds_parser->msg_parser = proto_tds_msg->ops->parser_new(proto_tds_msg);
-        if (tds_parser->msg_parser) {
-            enum proto_parse_status status = proto_parse(tds_parser->msg_parser, &info.info, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
-            if (status != PROTO_OK) return status;
-        }
-        // Skip these data
-        if (wire_len >= tds_parser->data_left) {
-            wire_len -= tds_parser->data_left;
-            if (cap_len < tds_parser->data_left) return PROTO_TOO_SHORT;
-            cap_len -= tds_parser->data_left;
-            payload += tds_parser->data_left;
-            tot_payload += tds_parser->data_left;
-            tds_parser->data_left = 0;
-            if (wire_len > 0) goto next_hdr;
-        } else {
-            // FIXME: we suppose msg_parser parsed everything but actually we don't know
-            tds_parser->data_left -= wire_len;
-            tot_payload += wire_len;
-        }
+    struct tds_proto_info info;
+    proto_info_ctor(&info.info, parser, parent, TDS_PKT_HDR_LEN, len - TDS_PKT_HDR_LEN);
+    info.type = type;
+    info.status = tds_status;
+
+    SLOG(LOG_DEBUG, "Parsing %s of size %zu", tds_packet_type_2_str(type), len);
+    if (! tds_parser->msg_parser) tds_parser->msg_parser = proto_tds_msg->ops->parser_new(proto_tds_msg);
+    if (tds_parser->msg_parser) {
+        enum proto_parse_status status = proto_parse(tds_parser->msg_parser, &info.info, way, cursor.head, cursor.cap_len,
+                wire_len - TDS_PKT_HDR_LEN, now, tot_cap_len, tot_packet);
+        if (status != PROTO_OK) return status;
     }
 
     // Advertise this packet if it was not done already
-    return proto_parse(NULL, &info.info, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
+    return proto_parse(NULL, &info.info, way, cursor.head, cursor.cap_len, wire_len, now, tot_cap_len, tot_packet);
+    return PROTO_OK;
 }
+
+static enum proto_parse_status tds_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
+{
+    struct tds_parser *tds_parser = DOWNCAST(parser, parser, tds_parser);
+
+    if (cap_len == 0 && wire_len > 0) return PROTO_TOO_SHORT;   // We do not know how to handle pure gaps
+    enum proto_parse_status const status = streambuf_add(&tds_parser->sbuf, parser, parent, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
+
+    return status;
+}
+
 
 /*
  * Construction/Destruction
@@ -283,3 +294,4 @@ void tds_fini(void)
 #   endif
     log_category_proto_tds_fini();
 }
+

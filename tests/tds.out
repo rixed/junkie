@@ -1,71 +1,60 @@
 -- pcap/tds/ms-sql-tds-rpc-requests.pcap --
-TDS: head_len=8, payload=182, type=SQL batch, status=0x1, tot_msg_size=182
+TDS: head_len=8, payload=182, type=SQL batch, status=0x1
 TDS(msg): head_len=182, payload=0, Clt->Srv, query, query=' set transaction isolation level  read committed  set implicit_transactions off '
-TDS: head_len=8, payload=26, type=Tabular result, status=0x1, tot_msg_size=26
-TDS(msg): head_len=26, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
-TDS: head_len=8, payload=284, type=RPC, status=0x1, tot_msg_size=284
+TDS: head_len=8, payload=26, type=Tabular result, status=0x1
+TDS(msg): head_len=26, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1, Status=Completed
+TDS: head_len=8, payload=284, type=RPC, status=0x1
 TDS(msg): head_len=284, payload=0, Clt->Srv, query, query='PrepExec(?*=0,?=@P0 nvarchar(4000),@P1 int,?=select * from test_table_1 where name = @P0 and id = @P1                ,?=zzz,?=2)'
-TDS: head_len=8, payload=350, type=Tabular result, status=0x1, tot_msg_size=350
-TDS(msg): head_len=350, payload=0, Srv->Clt, query, status=-1, nb_rows=2, nb_fields=4
-TDS: head_len=8, payload=36, type=SQL batch, status=0x1, tot_msg_size=36
+TDS: head_len=8, payload=350, type=Tabular result, status=0x1
+TDS(msg): head_len=350, payload=0, Srv->Clt, query, nb_rows=1, nb_fields=4, Status=Completed
+TDS: head_len=8, payload=36, type=SQL batch, status=0x1
 TDS(msg): head_len=36, payload=0, Clt->Srv, query, query='COMMIT TRANSACTION'
-TDS: head_len=8, payload=9, type=Tabular result, status=0x1, tot_msg_size=9
-TDS(msg): head_len=9, payload=0, Srv->Clt, query, status=0, nb_rows=-1, nb_fields=-1
-TDS: head_len=8, payload=177, type=RPC, status=0x9, tot_msg_size=177
+TDS: head_len=8, payload=9, type=Tabular result, status=0x1
+TDS(msg): head_len=9, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1, Status=Completed
+TDS: head_len=8, payload=177, type=RPC, status=0x9
 TDS(msg): head_len=177, payload=0, Clt->Srv, query, query='p_GetBogusData(@SearchType=1,@MaxWaitTimeInSeconds=0,@ProcessNegativeAck=0)'
-TDS: head_len=8, payload=1074, type=RPC, status=0x9, tot_msg_size=1074
-TDS(msg): head_len=1074, payload=0, Clt->Srv, query, query='sp_executesql(?=SELECT TOP 88 [dbo].[MyExampleTable].[ID], [dbo].[MyExampleTable].[EntityID], [dbo].[MyExampleTable].[EntityHistoryID], [dbo].[MyExampleTable].[EntityTypeID], [dbo].[MyExampleTable].[EntityVersion], [dbo].[MyExampleTable].[HandlingStatus],'
-TDS: head_len=8, payload=182, type=SQL batch, status=0x1, tot_msg_size=182
+TDS: head_len=8, payload=1074, type=RPC, status=0x9
+TDS(msg): head_len=1074, payload=0, Clt->Srv, query, query='sp_executesql(?=SELECT TOP 88 [dbo].[MyExampleTable].[ID], [dbo].[MyExampleTable].[EntityID], [dbo].[MyExampleTable].[EntityHistoryID], [dbo].[MyExampleTable].[EntityTypeID], [dbo].[MyExampleTable].[EntityVersion], [dbo].[MyExampleTable].[HandlingStatus], [dbo].[MyExampleTable].[OperationTypeID] FROM [dbo].[MyExampleTable]  WHERE ( ( ( [dbo].[MyExampleTable].[HandlingStatus] = @HandlingStatus1))) ORDER BY [dbo].[MyExampleTable].[EntityVersion] ASC,[dbo].[MyExampleTable].[ID] ASC,?=@HandlingStatus1 tinyint,'
+TDS: head_len=8, payload=182, type=SQL batch, status=0x1
 TDS(msg): head_len=182, payload=0, Clt->Srv, query, query=' set transaction isolation level  read committed  set implicit_transactions off '
-TDS: head_len=8, payload=26, type=Tabular result, status=0x1, tot_msg_size=26
-TDS(msg): head_len=26, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
-TDS: head_len=8, payload=245, type=RPC, status=0x1, tot_msg_size=245
+TDS: head_len=8, payload=26, type=Tabular result, status=0x1
+TDS(msg): head_len=26, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1, Status=Completed
+TDS: head_len=8, payload=245, type=RPC, status=0x1
 TDS(msg): head_len=245, payload=0, Clt->Srv, query, query='PrepExec(?*=0,?=NULL,?=create table newsyb (column1 char(30) not null, column2 char(30) null,column3 char(30) null))'
-TDS: head_len=8, payload=49, type=Tabular result, status=0x1, tot_msg_size=49
-TDS(msg): head_len=49, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
-TDS: head_len=8, payload=225, type=RPC, status=0x1, tot_msg_size=225
+TDS: head_len=8, payload=49, type=Tabular result, status=0x1
+TDS(msg): head_len=49, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1, Status=Completed
+TDS: head_len=8, payload=225, type=RPC, status=0x1
 TDS(msg): head_len=225, payload=0, Clt->Srv, query, query='PrepExec(?*=0,?=NULL,?=insert INTO newsyb (column1, column2, column3) VALUES ('first', 'second', 'third'))'
-TDS: head_len=8, payload=49, type=Tabular result, status=0x1, tot_msg_size=49
-TDS(msg): head_len=49, payload=0, Srv->Clt, query, status=-1, nb_rows=1, nb_fields=-1
-TDS: head_len=8, payload=53, type=RPC, status=0x1, tot_msg_size=53
+TDS: head_len=8, payload=49, type=Tabular result, status=0x1
+TDS(msg): head_len=49, payload=0, Srv->Clt, query, nb_rows=1, nb_fields=-1, Status=Completed
+TDS: head_len=8, payload=53, type=RPC, status=0x1
 TDS(msg): head_len=53, payload=0, Clt->Srv, query, query='Execute(?=2)'
-TDS: head_len=8, payload=72, type=Tabular result, status=0x1, tot_msg_size=72
-TDS(msg): head_len=72, payload=0, Srv->Clt, query, status=-1, nb_rows=1, nb_fields=-1
-TDS: head_len=8, payload=101, type=RPC, status=0x1, tot_msg_size=101
+TDS: head_len=8, payload=72, type=Tabular result, status=0x1
+TDS(msg): head_len=72, payload=0, Srv->Clt, query, nb_rows=1, nb_fields=-1, Status=Completed
+TDS: head_len=8, payload=101, type=RPC, status=0x1
 TDS(msg): head_len=101, payload=0, Clt->Srv, query, query='PrepExec(?*=0,?=NULL,?=select * from newsyb)'
-TDS: head_len=8, payload=430, type=Tabular result, status=0x1, tot_msg_size=430
-TDS(msg): head_len=430, payload=0, Srv->Clt, query, status=-1, nb_rows=6, nb_fields=3
-TDS: head_len=8, payload=37, type=RPC, status=0x1, tot_msg_size=37
+TDS: head_len=8, payload=430, type=Tabular result, status=0x1
+TDS(msg): head_len=430, payload=0, Srv->Clt, query, nb_rows=3, nb_fields=3, Status=Completed
+TDS: head_len=8, payload=37, type=RPC, status=0x1
 TDS(msg): head_len=37, payload=0, Clt->Srv, query, query='Execute(?=3)'
-TDS: head_len=8, payload=412, type=Tabular result, status=0x1, tot_msg_size=412
-TDS(msg): head_len=412, payload=0, Srv->Clt, query, status=-1, nb_rows=6, nb_fields=3
-TDS: head_len=8, payload=95, type=RPC, status=0x1, tot_msg_size=95
+TDS: head_len=8, payload=412, type=Tabular result, status=0x1
+TDS(msg): head_len=412, payload=0, Srv->Clt, query, nb_rows=3, nb_fields=3, Status=Completed
+TDS: head_len=8, payload=95, type=RPC, status=0x1
 TDS(msg): head_len=95, payload=0, Clt->Srv, query, query='PrepExec(?*=0,?=NULL,?=drop table newsyb)'
-TDS: head_len=8, payload=49, type=Tabular result, status=0x1, tot_msg_size=49
-TDS(msg): head_len=49, payload=0, Srv->Clt, query, status=-1, nb_rows=-1, nb_fields=-1
-TDS: head_len=8, payload=1452, type=RPC, status=0x4, tot_msg_size=7992
-TDS(msg): head_len=1452, payload=0, Clt->Srv, query
-TDS: head_len=0, payload=1460, type=RPC, status=0x4, tot_msg_size=7992
-TDS(msg): head_len=2912, payload=0, Clt->Srv, query
-TDS: head_len=0, payload=1460, type=RPC, status=0x4, tot_msg_size=7992
-TDS(msg): head_len=4372, payload=0, Clt->Srv, query
-TDS: head_len=0, payload=1460, type=RPC, status=0x4, tot_msg_size=7992
-TDS(msg): head_len=5832, payload=0, Clt->Srv, query
-TDS: head_len=0, payload=1460, type=RPC, status=0x4, tot_msg_size=7992
-TDS(msg): head_len=7292, payload=0, Clt->Srv, query
-TDS: head_len=0, payload=700, type=RPC, status=0x4, tot_msg_size=7992
-TDS(msg): head_len=7992, payload=0, Clt->Srv, query
-TDS: head_len=8, payload=331, type=RPC, status=0x1, tot_msg_size=8323
-TDS(msg): head_len=8323, payload=0, Clt->Srv, query, query='p_SaveExample(@LongParam=Studenckie Ko.o Przewodnik.w Turystycznych w Gda.sku.zaprasza na:.XXXV Nocne Marsze na Orientacj. "Dar.lub".04/05 grudnia 2010..Wst.p..Nocne Marsze na Orientacj. "Dar.lub" s. turystyczn. imprez. na orientacj. (InO), w kt.rej uczes'
-TDS: head_len=8, payload=363, type=RPC, status=0x9, tot_msg_size=363
+TDS: head_len=8, payload=49, type=Tabular result, status=0x1
+TDS(msg): head_len=49, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1, Status=Completed
+TDS: head_len=8, payload=7992, type=RPC, status=0x4
+TDS: head_len=8, payload=331, type=RPC, status=0x1
+TDS(msg): head_len=8323, payload=0, Clt->Srv, query, query='p_SaveExample(@LongParam=Studenckie Koło Przewodników Turystycznych w Gdańsku
+TDS: head_len=8, payload=363, type=RPC, status=0x9
 TDS(msg): head_len=363, payload=0, Clt->Srv, query, query='p_SetBogusSample(@BogusDetailsID=74565,@BogusStatusID=5,@ResultCode=NULL,@ResultMsg=NULL,@ErrorCode=NULL,@ErrorMsg=NULL,@ExampleBogusGeneratedID=NULL,@ExampleType=1)'
-TDS: head_len=8, payload=80, type=RPC, status=0x9, tot_msg_size=80
+TDS: head_len=8, payload=80, type=RPC, status=0x9
 TDS(msg): head_len=80, payload=0, Clt->Srv, query, query='p_GetMyExampleTableRowCount()'
-TDS: head_len=8, payload=210, type=RPC, status=0x1, tot_msg_size=210
-TDS(msg): head_len=210, payload=0, Clt->Srv, query, query='proc_GetMyExampleTableSampleMetaData(?=33221100554477668899aabbccddeeff,?=NULL,?=NULL,?=..................,?=1,?=45,?=......,?=108)'
-TDS: head_len=8, payload=191, type=RPC, status=0x9, tot_msg_size=191
-TDS(msg): head_len=191, payload=0, Clt->Srv, query, query='proc_GetMyExampleTableSampleMetaData(?=00112233445566778899aabbccddeeff,?=NULL,?=Bogus,?=NULL,?=1,?=45,?=..............,?=18)'
-TDS: head_len=8, payload=260, type=RPC, status=0x9, tot_msg_size=260
-TDS(msg): head_len=260, payload=0, Clt->Srv, query, query='proc_FetchMyExampleData(?=0123456789abcdef0123456789abcdef,?=NULL,?=BOGUS,?=0,?=4294967294,?=0,?=0,?=NULL,?=NULL,?=NULL,?=0,?=..............,?=NULL,?=1,?=5242880,?=45,?=1,?=0,?=NULL,?*=NULL)'
-TDS: head_len=8, payload=312, type=RPC, status=0x9, tot_msg_size=312
+TDS: head_len=8, payload=210, type=RPC, status=0x1
+TDS(msg): head_len=210, payload=0, Clt->Srv, query, query='proc_GetMyExampleTableSampleMetaData(?=33221100554477668899aabbccddeeff,?=NULL,?=NULL,?=䉁䑃䙅䡇䩉䱋乍偏剑呓噕塗婙扡摣晥桧橩,?=1,?=45,?=⌁杅ꮉ颺,?=108)'
+TDS: head_len=8, payload=191, type=RPC, status=0x9
+TDS(msg): head_len=191, payload=0, Clt->Srv, query, query='proc_GetMyExampleTableSampleMetaData(?=00112233445566778899aabbccddeeff,?=NULL,?=Bogus,?=NULL,?=1,?=45,?=⌁杅ꮉ쯭螩䍥ġ䔣襧춫꧋文,?=18)'
+TDS: head_len=8, payload=260, type=RPC, status=0x9
+TDS(msg): head_len=260, payload=0, Clt->Srv, query, query='proc_FetchMyExampleData(?=0123456789abcdef0123456789abcdef,?=NULL,?=BOGUS,?=0,?=4294967294,?=0,?=0,?=NULL,?=NULL,?=NULL,?=0,?=⌁杅ꮉ⌁杅ꮉ⌁杅ꮉ⌁杅,?=NULL,?=1,?=5242880,?=45,?=1,?=0,?=NULL,?*=NULL)'
+TDS: head_len=8, payload=312, type=RPC, status=0x9
 TDS(msg): head_len=312, payload=0, Clt->Srv, query, query='dbo.proc_GetMySampleDataItems(@SampleItemId=661ac34e14a25348a77ee7060fffff07,@DataId=NULL,@DataItemType=9b45b9bca8836445b1d3e9e198478f4e,@TableId=NULL,@MaxFetchSize=100,@SomeOtherSampleId=0)'

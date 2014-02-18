@@ -35,9 +35,6 @@ struct tds_proto_info {
 #   define TDS_RESET_CNX          0x08
 #   define TDS_RESET_CNX_KEEP_TRX 0x10
     uint8_t status;
-    /* TDS message size (as currently known, check TDS_EOM)
-     * Note: TDS messages can span several TDS packets */
-    size_t tot_msg_size;
 };
 
 char const *tds_info_2_str(struct proto_info const *);
