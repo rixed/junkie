@@ -120,6 +120,17 @@ static char const *sql_request_status_2_str(enum sql_request_status status)
     return "INVALID";
 }
 
+char const *sql_encoding_2_str(enum sql_encoding encoding)
+{
+    switch (encoding) {
+        case SQL_ENCODING_UTF8: return "UTF8";
+        case SQL_ENCODING_LATIN1: return "Latin1";
+        case SQL_ENCODING_UNKNOWN: return "Unknown";
+    }
+    assert(!"Unknown sql_encoding");
+    return "INVALID";
+}
+
 static char const *startup_query_2_str(struct sql_proto_info const *info)
 {
     return tempstr_printf(", %s%s%s%s%s%s%s",

@@ -36,17 +36,18 @@ struct sql_proto_info {
     // Set value for request_status
 #   define SQL_REQUEST_STATUS       0x0002
 #   define SQL_ERROR_CODE           0x0004
-#   define SQL_ERROR_SQL_STATUS     0x0800
-#   define SQL_ERROR_MESSAGE        0x1000
+#   define SQL_ERROR_SQL_STATUS     0x0008
+#   define SQL_ERROR_MESSAGE        0x0010
     // Set values for SQL_STARTUP
-#   define SQL_SSL_REQUEST          0x0010
-#   define SQL_USER                 0x0020
-#   define SQL_DBNAME               0x0040
-#   define SQL_PASSWD               0x0080
+#   define SQL_SSL_REQUEST          0x0020
+#   define SQL_USER                 0x0040
+#   define SQL_DBNAME               0x0080
+#   define SQL_PASSWD               0x0100
+#   define SQL_ENCODING             0x0200
     // Set values for SQL_QUERY
-#   define SQL_SQL                  0x0100
-#   define SQL_NB_ROWS              0x0200
-#   define SQL_NB_FIELDS            0x0400
+#   define SQL_SQL                  0x0400
+#   define SQL_NB_ROWS              0x0800
+#   define SQL_NB_FIELDS            0x1000
     unsigned set_values;
     unsigned version_maj, version_min;  ///< Version of the protocol
     // True if this message is the last message of a query / command
@@ -71,6 +72,11 @@ struct sql_proto_info {
             char user[64];
             char dbname[64];
             char passwd[64];
+            enum sql_encoding {
+                SQL_ENCODING_UTF8,
+                SQL_ENCODING_LATIN1,
+                SQL_ENCODING_UNKNOWN,
+            } encoding;
         } startup;
         struct sql_query {
             char sql[512];
@@ -80,6 +86,7 @@ struct sql_proto_info {
     } u;
 };
 
+char const *sql_encoding_2_str(enum sql_encoding encoding);
 char const *sql_msg_type_2_str(enum sql_msg_type type);
 char const *sql_info_2_str(struct proto_info const *);
 void const *sql_info_addr(struct proto_info const *, size_t *);
