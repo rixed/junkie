@@ -133,21 +133,26 @@ char const *sql_encoding_2_str(enum sql_encoding encoding)
 
 static char const *startup_query_2_str(struct sql_proto_info const *info)
 {
-    return tempstr_printf(", %s%s%s%s%s%s%s",
+    return tempstr_printf(", %s%s%s%s%s%s%s%s%s",
         info->set_values & SQL_SSL_REQUEST ? sql_ssl_2_str(info->u.startup.ssl_request) : "No SSL",
         info->set_values & SQL_USER   ? ", user=" : "",
         info->set_values & SQL_USER   ? info->u.startup.user : "",
         info->set_values & SQL_DBNAME ? ", dbname=" : "",
         info->set_values & SQL_DBNAME ? info->u.startup.dbname : "",
         info->set_values & SQL_PASSWD ? ", passwd=" : "",
-        info->set_values & SQL_PASSWD ? info->u.startup.passwd : "");
+        info->set_values & SQL_PASSWD ? info->u.startup.passwd : "",
+        info->set_values & SQL_ENCODING ? ", encoding=" : "",
+        info->set_values & SQL_ENCODING ? sql_encoding_2_str(info->u.startup.encoding) : ""
+        );
 }
 
 // FIXME: a unsigned_if_set_2_str(info, set_mask, field_name, field_value) to replace various -1 for unset ints.
 static char const *startup_reply_2_str(struct sql_proto_info const *info)
 {
-    return tempstr_printf(", %s",
-        info->set_values & SQL_SSL_REQUEST ? sql_ssl_2_str(info->u.startup.ssl_request) : "No SSL");
+    return tempstr_printf(", %s%s%s",
+        info->set_values & SQL_SSL_REQUEST ? sql_ssl_2_str(info->u.startup.ssl_request) : "No SSL",
+        info->set_values & SQL_ENCODING ? ", encoding=" : "",
+        info->set_values & SQL_ENCODING ? sql_encoding_2_str(info->u.startup.encoding) : "");
 }
 
 static char const *query_query_2_str(struct sql_proto_info const *info)
@@ -288,6 +293,28 @@ static enum proto_parse_status cursor_read_msg(struct cursor *cursor, uint8_t *t
     return PROTO_OK;
 }
 
+static void pg_parse_client_encoding(struct sql_proto_info *info, char const *value)
+{
+    SLOG(LOG_DEBUG, "Parse sql encoding %s", value);
+    info->set_values |= SQL_ENCODING;
+    if (0 == strcmp(value, "UTF8")) {
+        info->u.startup.encoding = SQL_ENCODING_UTF8;
+    } else if (0 == strcmp(value, "LATIN1")) {
+        info->u.startup.encoding = SQL_ENCODING_LATIN1;
+    } else {
+        SLOG(LOG_DEBUG, "Unknown client encoding (%s)", value);
+        info->u.startup.encoding = SQL_ENCODING_UNKNOWN;
+    }
+}
+
+static enum proto_parse_status pg_parse_parameter_value(struct cursor *cursor, char **name, char **value, size_t len)
+{
+    enum proto_parse_status status = cursor_read_string(cursor, name, len);
+    if (status != PROTO_OK) return status;
+    if (name[0] == '\0') return PROTO_OK;
+    return cursor_read_string(cursor, value, len );
+}
+
 static enum proto_parse_status pg_parse_init(struct pgsql_parser *pg_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     info->msg_type = SQL_STARTUP;
@@ -318,18 +345,20 @@ static enum proto_parse_status pg_parse_init(struct pgsql_parser *pg_parser, str
             // fine, now parse all the strings that follow
             do {
                 char *name, *value;
-                status = cursor_read_string(&cursor, &name, len);
-                if (status != PROTO_OK) return status;
+                status = pg_parse_parameter_value(&cursor, &name, &value, len);
                 if (name[0] == '\0') break;
-                status = cursor_read_string(&cursor, &value, len);
                 if (status != PROTO_OK) return status;
+
                 if (0 == strcmp(name, "user")) {
                     info->set_values |= SQL_USER;
                     snprintf(info->u.startup.user, sizeof(info->u.startup.user), "%s", value);
                 } else if (0 == strcmp(name, "database")) {
                     info->set_values |= SQL_DBNAME;
                     snprintf(info->u.startup.dbname, sizeof(info->u.startup.dbname), "%s", value);
+                } else if (0 == strcmp(name, "client_encoding")) {
+                    pg_parse_client_encoding(info, value);
                 }
+
             } while (1);
             // and enter "startup phase" untill the server is ready for query
             pg_parser->phase = STARTUP;
@@ -350,6 +379,28 @@ static enum proto_parse_status pg_parse_init(struct pgsql_parser *pg_parser, str
     }
 
     return proto_parse(NULL, &info->info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
+}
+
+static enum proto_parse_status pg_parse_parameter_status(struct sql_proto_info *info, struct cursor *cursor)
+{
+    SLOG(LOG_DEBUG, "Parse of parameters stats");
+    do {
+        uint8_t type;
+        size_t len;
+        enum proto_parse_status status = cursor_read_msg(cursor, &type, &len);
+        if (status != PROTO_OK) return status;
+        if (type != 'S') {
+            // Finished parse of parameter status
+            return PROTO_OK;
+        }
+        char *name, *value;
+        status = pg_parse_parameter_value(cursor, &name, &value, len);
+        if (0 == strcmp(name, "client_encoding")) {
+            pg_parse_client_encoding(info, value);
+            // We only care of client encoding for now
+            return PROTO_OK;
+        }
+    } while(1);
 }
 
 static enum proto_parse_status pg_parse_startup(struct pgsql_parser *pg_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
@@ -389,6 +440,7 @@ static enum proto_parse_status pg_parse_startup(struct pgsql_parser *pg_parser, 
                 info->set_values |= SQL_REQUEST_STATUS;
                 info->request_status = SQL_REQUEST_COMPLETE;
             }
+            pg_parse_parameter_status(info, &cursor);
         } else {
             SLOG(LOG_DEBUG, "Unknown startup message with type %c", type);
             return PROTO_PARSE_ERR;
