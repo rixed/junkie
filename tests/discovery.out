@@ -76,7 +76,7 @@ TNS: head_len=24, payload=0, Srv->Clt, version=3.8, startup, No SSL, Status=Comp
 TNS: head_len=152, payload=0, Clt->Srv, unknown
 TNS: head_len=127, payload=0, Srv->Clt, unknown
 TNS: head_len=33, payload=0, Clt->Srv, unknown
-TNS: head_len=237, payload=0, Srv->Clt, unknown
+TNS: head_len=237, payload=0, Srv->Clt, startup, No SSL, encoding=UTF8
 TNS: head_len=779, payload=0, Clt->Srv, unknown
 TNS: head_len=834, payload=0, Srv->Clt, unknown
 TNS: head_len=19, payload=0, Clt->Srv, unknown
@@ -93,13 +93,13 @@ TNS: head_len=90, payload=0, Srv->Clt, query, nb_rows=1, nb_fields=-1, Status=Co
 PostgreSQL: head_len=34, payload=0, Clt->Srv, version=3.0, startup, No SSL, user=rixed, dbname=nova
 PostgreSQL: head_len=13, payload=0, Srv->Clt, startup, No SSL
 PostgreSQL: head_len=41, payload=0, Clt->Srv, startup, No SSL, passwd=md5c0b295f0cd4b08167fbf02c5d0c1345f
-PostgreSQL: head_len=303, payload=0, Srv->Clt, startup, No SSL, Status=Completed
+PostgreSQL: head_len=303, payload=0, Srv->Clt, startup, No SSL, encoding=Latin1, Status=Completed
 PostgreSQL: head_len=5, payload=0, Clt->Srv, exit, Status=Completed
 -- pcap/postgres/long_select.pcap --
 PostgreSQL: head_len=8, payload=0, Clt->Srv, startup, SSL requested
 PostgreSQL: head_len=1, payload=0, Srv->Clt, startup, SSL refused
 PostgreSQL: head_len=33, payload=0, Clt->Srv, version=3.0, startup, No SSL, user=sora, dbname=sora
-PostgreSQL: head_len=324, payload=0, Srv->Clt, startup, No SSL, Status=Completed
+PostgreSQL: head_len=324, payload=0, Srv->Clt, startup, No SSL, encoding=Unknown, Status=Completed
 PostgreSQL: head_len=285, payload=0, Clt->Srv, query, query='SELECT * FROM                                                                                                                                                                                                                                                                octonions;'
 PostgreSQL: head_len=71, payload=0, Srv->Clt, query, nb_rows=0, nb_fields=2, Status=Completed
 PostgreSQL: head_len=5, payload=0, Clt->Srv, exit, Status=Completed

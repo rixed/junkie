@@ -6,7 +6,7 @@ head_len=24, payload=0, Srv->Clt, version=3.8, startup, No SSL, Status=Completed
 head_len=152, payload=0, Clt->Srv, unknown
 head_len=127, payload=0, Srv->Clt, unknown
 head_len=33, payload=0, Clt->Srv, unknown
-head_len=237, payload=0, Srv->Clt, unknown
+head_len=237, payload=0, Srv->Clt, startup, No SSL, encoding=UTF8
 head_len=779, payload=0, Clt->Srv, unknown
 head_len=834, payload=0, Srv->Clt, unknown
 head_len=19, payload=0, Clt->Srv, unknown
@@ -27,7 +27,7 @@ head_len=24, payload=0, Srv->Clt, version=3.8, startup, No SSL, Status=Completed
 head_len=152, payload=0, Clt->Srv, unknown
 head_len=127, payload=0, Srv->Clt, unknown
 head_len=33, payload=0, Clt->Srv, unknown
-head_len=237, payload=0, Srv->Clt, unknown
+head_len=237, payload=0, Srv->Clt, startup, No SSL, encoding=UTF8
 head_len=779, payload=0, Clt->Srv, unknown
 head_len=834, payload=0, Srv->Clt, unknown
 head_len=19, payload=0, Clt->Srv, unknown
@@ -49,7 +49,7 @@ head_len=24, payload=0, Srv->Clt, version=3.8, startup, No SSL, Status=Completed
 head_len=152, payload=0, Clt->Srv, unknown
 head_len=127, payload=0, Srv->Clt, unknown
 head_len=33, payload=0, Clt->Srv, unknown
-head_len=237, payload=0, Srv->Clt, unknown
+head_len=237, payload=0, Srv->Clt, startup, No SSL, encoding=UTF8
 head_len=779, payload=0, Clt->Srv, unknown
 head_len=834, payload=0, Srv->Clt, unknown
 head_len=19, payload=0, Clt->Srv, unknown
@@ -70,7 +70,7 @@ head_len=24, payload=0, Srv->Clt, version=3.8, startup, No SSL, Status=Completed
 head_len=152, payload=0, Clt->Srv, unknown
 head_len=127, payload=0, Srv->Clt, unknown
 head_len=33, payload=0, Clt->Srv, unknown
-head_len=237, payload=0, Srv->Clt, unknown
+head_len=237, payload=0, Srv->Clt, startup, No SSL, encoding=UTF8
 head_len=779, payload=0, Clt->Srv, unknown
 head_len=834, payload=0, Srv->Clt, unknown
 head_len=19, payload=0, Clt->Srv, unknown
@@ -91,7 +91,7 @@ head_len=24, payload=0, Srv->Clt, version=3.8, startup, No SSL, Status=Completed
 head_len=152, payload=0, Clt->Srv, unknown
 head_len=127, payload=0, Srv->Clt, unknown
 head_len=33, payload=0, Clt->Srv, unknown
-head_len=229, payload=0, Srv->Clt, unknown
+head_len=229, payload=0, Srv->Clt, startup, No SSL, encoding=UTF8
 head_len=779, payload=0, Clt->Srv, unknown
 head_len=834, payload=0, Srv->Clt, unknown
 head_len=19, payload=0, Clt->Srv, unknown
@@ -112,7 +112,7 @@ head_len=24, payload=0, Srv->Clt, version=3.8, startup, No SSL, Status=Completed
 head_len=152, payload=0, Clt->Srv, unknown
 head_len=127, payload=0, Srv->Clt, unknown
 head_len=33, payload=0, Clt->Srv, unknown
-head_len=229, payload=0, Srv->Clt, unknown
+head_len=229, payload=0, Srv->Clt, startup, No SSL, encoding=UTF8
 head_len=779, payload=0, Clt->Srv, unknown
 head_len=834, payload=0, Srv->Clt, unknown
 head_len=19, payload=0, Clt->Srv, unknown

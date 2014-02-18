@@ -1,10 +1,10 @@
 -- pcap/mysql/cant_connect.pcap --
 head_len=68, payload=0, Srv->Clt, version=10.0, startup, No SSL
-head_len=68, payload=0, Clt->Srv, startup, No SSL, user=guest, dbname=test, passwd=U.i...ySe..D....'..{
+head_len=68, payload=0, Clt->Srv, startup, No SSL, user=guest, dbname=test, passwd=U.i...ySe..D....'..{, encoding=Latin1
 head_len=97, payload=0, Srv->Clt, startup, No SSL, Status=Error, SqlCode=28000, ErrorCode=1045, ErrorMessage=Access denied for user 'guest'@'dletournel.rd.securactive.lan' (using password: YES)
 -- pcap/mysql/command.pcap --
 head_len=68, payload=0, Srv->Clt, version=10.0, startup, No SSL
-head_len=68, payload=0, Clt->Srv, startup, No SSL, user=guest, dbname=test, passwd=S1.....0..R.=..'.{.W
+head_len=68, payload=0, Clt->Srv, startup, No SSL, user=guest, dbname=test, passwd=S1.....0..R.=..'.{.W, encoding=Latin1
 head_len=11, payload=0, Srv->Clt, startup, No SSL, Status=Completed
 head_len=19, payload=0, Clt->Srv, query, query='show databases'
 head_len=108, payload=0, Srv->Clt, query, nb_rows=2, nb_fields=1, Status=Completed
@@ -17,7 +17,7 @@ head_len=11, payload=0, Srv->Clt, query, nb_rows=0, nb_fields=-1, Status=Complet
 head_len=5, payload=0, Clt->Srv, exit, Status=Completed
 -- pcap/mysql/insert.pcap --
 head_len=68, payload=0, Srv->Clt, version=10.0, startup, No SSL
-head_len=68, payload=0, Clt->Srv, startup, No SSL, user=guest, dbname=test, passwd=j.*...].O#..R...H!..
+head_len=68, payload=0, Clt->Srv, startup, No SSL, user=guest, dbname=test, passwd=j.*...].O#..R...H!.., encoding=Latin1
 head_len=11, payload=0, Srv->Clt, startup, No SSL, Status=Completed
 head_len=19, payload=0, Clt->Srv, query, query='show databases'
 head_len=108, payload=0, Srv->Clt, query, nb_rows=2, nb_fields=1, Status=Completed
@@ -32,7 +32,7 @@ head_len=11, payload=0, Srv->Clt, query, nb_rows=1, nb_fields=-1, Status=Complet
 head_len=5, payload=0, Clt->Srv, exit, Status=Completed
 -- pcap/mysql/select.pcap --
 head_len=68, payload=0, Srv->Clt, version=10.0, startup, No SSL
-head_len=68, payload=0, Clt->Srv, startup, No SSL, user=guest, dbname=test, passwd=......!.-[tTk+L...y.
+head_len=68, payload=0, Clt->Srv, startup, No SSL, user=guest, dbname=test, passwd=......!.-[tTk+L...y., encoding=Latin1
 head_len=11, payload=0, Srv->Clt, startup, No SSL, Status=Completed
 head_len=19, payload=0, Clt->Srv, query, query='show databases'
 head_len=108, payload=0, Srv->Clt, query, nb_rows=2, nb_fields=1, Status=Completed

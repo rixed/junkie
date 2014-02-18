@@ -7,13 +7,13 @@ head_len=94, payload=0, Srv->Clt, startup, No SSL, Status=Error, SqlCode=28000, 
 head_len=34, payload=0, Clt->Srv, version=3.0, startup, No SSL, user=rixed, dbname=nova
 head_len=13, payload=0, Srv->Clt, startup, No SSL
 head_len=41, payload=0, Clt->Srv, startup, No SSL, passwd=md5c0b295f0cd4b08167fbf02c5d0c1345f
-head_len=303, payload=0, Srv->Clt, startup, No SSL, Status=Completed
+head_len=303, payload=0, Srv->Clt, startup, No SSL, encoding=Latin1, Status=Completed
 head_len=5, payload=0, Clt->Srv, exit, Status=Completed
 -- pcap/postgres/command.pcap --
 head_len=34, payload=0, Clt->Srv, version=3.0, startup, No SSL, user=rixed, dbname=nova
 head_len=13, payload=0, Srv->Clt, startup, No SSL
 head_len=41, payload=0, Clt->Srv, startup, No SSL, passwd=md5da87c231a64e7f478b162d2c52a27539
-head_len=303, payload=0, Srv->Clt, startup, No SSL, Status=Completed
+head_len=303, payload=0, Srv->Clt, startup, No SSL, encoding=Latin1, Status=Completed
 head_len=35, payload=0, Clt->Srv, query, query='create table toto (titi int);'
 head_len=24, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1, Status=Completed
 head_len=5, payload=0, Clt->Srv, exit, Status=Completed
@@ -21,7 +21,7 @@ head_len=5, payload=0, Clt->Srv, exit, Status=Completed
 head_len=34, payload=0, Clt->Srv, version=3.0, startup, No SSL, user=rixed, dbname=nova
 head_len=13, payload=0, Srv->Clt, startup, No SSL
 head_len=41, payload=0, Clt->Srv, startup, No SSL, passwd=md55dbf99b539164853cac6d2a8d09b77b2
-head_len=303, payload=0, Srv->Clt, startup, No SSL, Status=Completed
+head_len=303, payload=0, Srv->Clt, startup, No SSL, encoding=Latin1, Status=Completed
 head_len=32, payload=0, Clt->Srv, query, query='select * from meta_table ;'
 head_len=1448, payload=0, Srv->Clt, query, nb_rows=22, nb_fields=2
 head_len=1489, payload=0, Srv->Clt, query, nb_rows=31, nb_fields=-1
