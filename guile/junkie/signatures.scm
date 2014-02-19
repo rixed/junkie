@@ -26,7 +26,7 @@
                                                 ((rest @ 2) == 1) ; TLS v3.1
                                                 ((rest @ 2) == 0))))) ; TLS v3.0
 
-(add-proto-signature "bittorrent" 4 'medium
+(add-proto-signature "Bittorrent" 4 'medium
                      (nm:compile
                        type:bool '(tcp) '(or
                                            (and ((nb-bytes rest) >= 6)
@@ -42,7 +42,7 @@
 ; (define (string->numbers s) (map char->integer (string->list s)))
 ; (define (string->bytes s) (list->vector (string->numbers s)))
 
-(add-proto-signature "gnutella" 5 'low ; until proven otherwise
+(add-proto-signature "Gnutella" 5 'low ; until proven otherwise
                      (nm:compile
                        type:bool '(tcp) '(or
                                            (and ((nb-bytes rest) >= 4)
@@ -137,7 +137,7 @@
                        type:bool '(tcp) '(and ((nb-bytes rest) >= 8)
                                               ((firsts 5 rest) == #(#x4e #x49 #x43 #x4b #x20))))) ; "NICK "
 
-(add-proto-signature "jabber" 12 'low
+(add-proto-signature "Jabber" 12 'low
                      (nm:compile
                        type:bool '(tcp) '(and ((nb-bytes rest) >= 14)
                                               ((firsts 14 rest) == #(#x3c #x73 #x74 #x72 #x65 #x61 #x6d #x3a #x73 #x74 #x72 #x65 #x61 #x6d)))))
@@ -173,11 +173,11 @@
                                            (or ((firsts 2 rest) == #(#x6e #x71))
                                                ((firsts 2 rest) == #(#x73 #x74))))))
 
-(add-proto-signature "citrix" 16 'medium
+(add-proto-signature "Citrix" 16 'medium
                      (nm:compile
                        type:bool '() '(str-in-bytes rest "\x32\x26\x85\x92\x58")))
 
-(add-proto-signature "telnet" 17 'low
+(add-proto-signature "Telnet" 17 'low
                      (nm:compile
                        type:bool '(tcp) '(and ((nb-bytes rest) >= 8)
                                               ((rest @ 0) == #xff)
