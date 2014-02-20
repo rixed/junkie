@@ -740,7 +740,7 @@ static void append_hexstring(char *dst, size_t dst_size, size_t *dst_pos, struct
             dst[(*dst_pos)++] = hexdigit(c&15);
         }
     }
-    if (*dst_pos < dst_size) dst[*dst_pos] = '\0';
+    dst[MIN(*dst_pos, dst_size - 1)] = '\0';
 }
 
 // Varchar with a size on 1 byte followed by unicode string
