@@ -19,7 +19,6 @@
     } } while (0)
 
 enum way { FROM_CLIENT, FROM_SERVER };
-char const *set_value_2_str(unsigned value);
 int compare_expected_sql(struct sql_proto_info const *info, struct sql_proto_info const *expected);
 void check_sql_set(struct sql_proto_info const *info, struct sql_proto_info const *expected, unsigned set);
 

@@ -3,7 +3,7 @@
 #include <junkie/proto/sql.h>
 #include "sql_test.h"
 
-char const *set_value_2_str(unsigned value)
+static char const *set_value_2_str(unsigned value)
 {
     switch (value) {
         case SQL_VERSION:
