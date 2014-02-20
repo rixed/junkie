@@ -9,9 +9,9 @@ TLS: head_len=936, payload=0, version=3.1, content-type=data
 -- pcap/voip/single-rtp.pcap --
 RTP: head_len=12, payload=160, payload_type=PCMU, SSRC=1438910670, seqnum=23777, timestamp=2240
 -- pcap/misc/telnet.pcap --
-PIPI: head_len=0, payload=33, protocol=17(telnet), trust=low
-PIPI: head_len=0, payload=12, protocol=17(telnet), trust=low
-PIPI: head_len=0, payload=45, protocol=17(telnet), trust=low
+PIPI: head_len=0, payload=33, protocol=17(Telnet), trust=low
+PIPI: head_len=0, payload=12, protocol=17(Telnet), trust=low
+PIPI: head_len=0, payload=45, protocol=17(Telnet), trust=low
 -- pcap/misc/samba.pcap --
 Netbios: head_len=4, payload=74
 CIFS: head_len=32, payload=42, command=0x32, status=0x00000000
