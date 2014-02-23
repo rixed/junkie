@@ -77,6 +77,9 @@ tests/objalloc_check
 tests/serialize_check.*ser
 tests/sock-check/
 tests/tds_check
+tests/mysql_check
+tests/tls_check
+tests/tns_check
 doxydoc
 config/instvars.scm
 config/.index
