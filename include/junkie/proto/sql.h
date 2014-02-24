@@ -79,7 +79,7 @@ struct sql_proto_info {
             } encoding;
         } startup;
         struct sql_query {
-            char sql[512];
+            char sql[4096];
             unsigned nb_rows;
             unsigned nb_fields;
         } query;
