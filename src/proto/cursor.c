@@ -101,12 +101,97 @@ uint_least64_t cursor_read_u64le(struct cursor *cursor)
     return a | (b << 32);
 }
 
-enum proto_parse_status cursor_read_string(struct cursor *cursor, char **str_, size_t max_len)
+uint_least8_t cursor_peek_u8(struct cursor *cursor, size_t offset)
+{
+    assert(cursor->cap_len >= 1 + offset);
+    SLOG(LOG_DEBUG, "Reading byte 0x%x, %zu left, %zu offset", *(cursor->head + offset),
+            cursor->cap_len, offset);
+    return *(cursor->head + offset);
+}
+
+uint_least16_t cursor_peek_u16n(struct cursor *cursor, size_t offset)
+{
+    uint_least32_t a = cursor_peek_u8(cursor, offset);
+    uint_least32_t b = cursor_peek_u8(cursor, offset + 1);
+    return (a << 8) | b;
+}
+
+uint_least16_t cursor_peek_u16le(struct cursor *cursor, size_t offset)
+{
+    uint_least32_t a = cursor_peek_u8(cursor, offset);
+    uint_least32_t b = cursor_peek_u8(cursor, offset + 1);
+    return a | (b << 8);
+}
+
+uint_least32_t cursor_peek_u24n(struct cursor *cursor, size_t offset)
+{
+    uint_least32_t a = cursor_peek_u8(cursor, offset);
+    uint_least32_t b = cursor_peek_u8(cursor, offset + 1);
+    uint_least32_t c = cursor_peek_u8(cursor, offset + 2);
+    return (a << 16) | (b << 8) | c;
+}
+
+uint_least32_t cursor_peek_u24le(struct cursor *cursor, size_t offset)
+{
+    uint_least32_t a = cursor_peek_u8(cursor, offset);
+    uint_least32_t b = cursor_peek_u8(cursor, offset + 1);
+    uint_least32_t c = cursor_peek_u8(cursor, offset + 2);
+    return a | (b << 8) | (c << 16);
+}
+
+uint_least32_t cursor_peek_u32n(struct cursor *cursor, size_t offset)
+{
+    uint_least32_t a = cursor_peek_u16n(cursor, offset);
+    uint_least32_t b = cursor_peek_u16n(cursor, offset + 2);
+    return (a << 16) | b;
+}
+
+uint_least32_t cursor_peek_u32le(struct cursor *cursor, size_t offset)
+{
+    uint_least32_t a = cursor_peek_u16le(cursor, offset);
+    uint_least32_t b = cursor_peek_u16le(cursor, offset + 2);
+    return a | (b << 16);
+}
+
+uint_least64_t cursor_peek_u64n(struct cursor *cursor, size_t offset)
+{
+    uint_least64_t a = cursor_peek_u32n(cursor, offset);
+    uint_least64_t b = cursor_peek_u32n(cursor, offset + 4);
+    return (a << 32) | b;
+}
+
+uint_least64_t cursor_peek_u64le(struct cursor *cursor, size_t offset)
+{
+    uint_least64_t a = cursor_peek_u32le(cursor, offset);
+    uint_least64_t b = cursor_peek_u32le(cursor, offset + 4);
+    return a | (b << 32);
+}
+
+
+enum proto_parse_status cursor_read_fix_string(struct cursor *cursor, char **out_str, size_t str_len)
+{
+    SLOG(LOG_DEBUG, "Reading string of size %zu", str_len);
+    if (cursor->cap_len < str_len) return PROTO_PARSE_ERR;
+    if (!out_str) {
+        cursor_drop(cursor, str_len);
+        return PROTO_OK;
+    }
+    char *str = tempstr();
+    unsigned parsed_len = MIN(str_len, TEMPSTR_SIZE - 1);
+    cursor_copy(str, cursor, parsed_len);
+    str[parsed_len] = '\0';
+    if (str_len - parsed_len > 0) {
+        cursor_drop(cursor, str_len - parsed_len);
+    }
+    if(out_str) *out_str = str;
+    return PROTO_OK;
+}
+
+enum proto_parse_status cursor_read_string(struct cursor *cursor, char **out_str, size_t max_len)
 {
     char *str = tempstr();
     unsigned len;
     if (max_len > TEMPSTR_SIZE-1) max_len = TEMPSTR_SIZE-1;
-
     for (len = 0; len < max_len; len ++) {
         CHECK_LEN(cursor, 1, len);
         uint8_t c = cursor_read_u8(cursor);
@@ -117,12 +202,9 @@ enum proto_parse_status cursor_read_string(struct cursor *cursor, char **str_, s
         cursor_rollback(cursor, len);
         return PROTO_TOO_SHORT;
     }
-
     str[len] = '\0';
-
     SLOG(LOG_DEBUG, "Reading string '%s'", str);
-
-    if (str_) *str_ = str;
+    if (out_str) *out_str = str;
     return PROTO_OK;
 }
 

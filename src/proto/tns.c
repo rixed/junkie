@@ -178,20 +178,6 @@ static enum proto_parse_status cursor_read_tns_hdr(struct cursor *cursor, size_t
     return PROTO_OK;
 }
 
-static enum proto_parse_status cursor_read_fix_string(struct cursor *cursor, char **out_str, unsigned str_len)
-{
-    if (cursor->cap_len < str_len) return PROTO_PARSE_ERR;
-    char *str = tempstr();
-    unsigned parsed_len = MIN(str_len, TEMPSTR_SIZE - 1);
-    cursor_copy(str, cursor, parsed_len);
-    str[parsed_len] = '\0';
-    if (str_len - parsed_len > 0) {
-        cursor_drop(cursor, str_len - parsed_len);
-    }
-    if(out_str) *out_str = str;
-    return PROTO_OK;
-}
-
 static enum proto_parse_status cursor_drop_until(struct cursor *cursor, const void *marker, size_t marker_len)
 {
     uint8_t *new_head = memmem(cursor->head, cursor->cap_len, marker, marker_len);
