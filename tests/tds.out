@@ -14,7 +14,7 @@ TDS(msg): head_len=9, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1, Stat
 TDS: head_len=8, payload=177, type=RPC, status=0x9
 TDS(msg): head_len=177, payload=0, Clt->Srv, query, query='p_GetBogusData(@SearchType=1,@MaxWaitTimeInSeconds=0,@ProcessNegativeAck=0)'
 TDS: head_len=8, payload=1074, type=RPC, status=0x9
-TDS(msg): head_len=1074, payload=0, Clt->Srv, query, query='sp_executesql(?=SELECT TOP 88 [dbo].[MyExampleTable].[ID], [dbo].[MyExampleTable].[EntityID], [dbo].[MyExampleTable].[EntityHistoryID], [dbo].[MyExampleTable].[EntityTypeID], [dbo].[MyExampleTable].[EntityVersion], [dbo].[MyExampleTable].[HandlingStatus], [dbo].[MyExampleTable].[OperationTypeID] FROM [dbo].[MyExampleTable]  WHERE ( ( ( [dbo].[MyExampleTable].[HandlingStatus] = @HandlingStatus1))) ORDER BY [dbo].[MyExampleTable].[EntityVersion] ASC,[dbo].[MyExampleTable].[ID] ASC,?=@HandlingStatus1 tinyint,'
+TDS(msg): head_len=1074, payload=0, Clt->Srv, query, query='sp_executesql(?=SELECT TOP 88 [dbo].[MyExampleTable].[ID], [dbo].[MyExampleTable].[EntityID], [dbo].[MyExampleTable].[EntityHistoryID], [dbo].[MyExampleTable].[EntityTypeID], [dbo].[MyExampleTable].[EntityVersion], [dbo].[MyExampleTable].[HandlingStatus], [dbo].[MyExampleTable].[OperationTypeID] FROM [dbo].[MyExampleTable]  WHERE ( ( ( [dbo].[MyExampleTable].[HandlingStatus] = @HandlingStatus1))) ORDER BY [dbo].[MyExampleTable].[EntityVersion] ASC,[dbo].[MyExampleTable].[ID] ASC,?=@HandlingStatus1 tinyint,@HandlingStatus1=0)'
 TDS: head_len=8, payload=182, type=SQL batch, status=0x1
 TDS(msg): head_len=182, payload=0, Clt->Srv, query, query=' set transaction isolation level  read committed  set implicit_transactions off '
 TDS: head_len=8, payload=26, type=Tabular result, status=0x1
@@ -51,10 +51,37 @@ TDS(msg): head_len=363, payload=0, Clt->Srv, query, query='p_SetBogusSample(@Bog
 TDS: head_len=8, payload=80, type=RPC, status=0x9
 TDS(msg): head_len=80, payload=0, Clt->Srv, query, query='p_GetMyExampleTableRowCount()'
 TDS: head_len=8, payload=210, type=RPC, status=0x1
-TDS(msg): head_len=210, payload=0, Clt->Srv, query, query='proc_GetMyExampleTableSampleMetaData(?=33221100554477668899aabbccddeeff,?=NULL,?=NULL,?=䉁䑃䙅䡇䩉䱋乍偏剑呓噕塗婙扡摣晥桧橩,?=1,?=45,?=⌁杅ꮉ颺,?=108)'
+TDS(msg): head_len=210, payload=0, Clt->Srv, query, query='proc_GetMyExampleTableSampleMetaData(?=33221100554477668899aabbccddeeff,?=NULL,?=NULL,?=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij,?=1,?=45,?=0123456789abcdeffedcba98,?=108)'
 TDS: head_len=8, payload=191, type=RPC, status=0x9
-TDS(msg): head_len=191, payload=0, Clt->Srv, query, query='proc_GetMyExampleTableSampleMetaData(?=00112233445566778899aabbccddeeff,?=NULL,?=Bogus,?=NULL,?=1,?=45,?=⌁杅ꮉ쯭螩䍥ġ䔣襧춫꧋文,?=18)'
+TDS(msg): head_len=191, payload=0, Clt->Srv, query, query='proc_GetMyExampleTableSampleMetaData(?=00112233445566778899aabbccddeeff,?=NULL,?=Bogus,?=NULL,?=1,?=45,?=0123456789abcdefedcba9876543210123456789abcdefedcba98765,?=18)'
 TDS: head_len=8, payload=260, type=RPC, status=0x9
-TDS(msg): head_len=260, payload=0, Clt->Srv, query, query='proc_FetchMyExampleData(?=0123456789abcdef0123456789abcdef,?=NULL,?=BOGUS,?=0,?=4294967294,?=0,?=0,?=NULL,?=NULL,?=NULL,?=0,?=⌁杅ꮉ⌁杅ꮉ⌁杅ꮉ⌁杅,?=NULL,?=1,?=5242880,?=45,?=1,?=0,?=NULL,?*=NULL)'
+TDS(msg): head_len=260, payload=0, Clt->Srv, query, query='proc_FetchMyExampleData(?=0123456789abcdef0123456789abcdef,?=NULL,?=BOGUS,?=0,?=4294967294,?=0,?=0,?=NULL,?=NULL,?=NULL,?=0,?=0123456789abcdef0123456789abcdef0123456789abcdef01234567,?=NULL,?=1,?=5242880,?=45,?=1,?=0,?=NULL,?*=NULL)'
 TDS: head_len=8, payload=312, type=RPC, status=0x9
 TDS(msg): head_len=312, payload=0, Clt->Srv, query, query='dbo.proc_GetMySampleDataItems(@SampleItemId=661ac34e14a25348a77ee7060fffff07,@DataId=NULL,@DataItemType=9b45b9bca8836445b1d3e9e198478f4e,@TableId=NULL,@MaxFetchSize=100,@SomeOtherSampleId=0)'
+-- pcap/tds/mssql_truncated.pcap --
+TDS: head_len=8, payload=59, type=Pre-login, status=0x1
+TDS(msg): head_len=59, payload=0, Clt->Srv, version=0.0, startup, No SSL
+TDS: head_len=8, payload=23, type=Tabular result, status=0x1
+TDS(msg): head_len=23, payload=0, Srv->Clt, version=11.0, startup, No SSL
+TDS: head_len=8, payload=154, type=Pre-login, status=0x1
+TDS(msg): head_len=154, payload=0, Clt->Srv, startup, No SSL
+TDS: head_len=8, payload=609, type=Pre-login, status=0x1
+TDS(msg): head_len=609, payload=0, Srv->Clt, startup, No SSL
+TDS: head_len=8, payload=198, type=Pre-login, status=0x1
+TDS(msg): head_len=198, payload=0, Clt->Srv, startup, No SSL
+TDS: head_len=8, payload=59, type=Pre-login, status=0x1
+TDS(msg): head_len=59, payload=0, Srv->Clt, startup, No SSL
+TDS: head_len=8, payload=409, type=Tabular result, status=0x1
+TDS(msg): head_len=409, payload=0, Srv->Clt, startup, No SSL
+TDS: head_len=8, payload=99, type=RPC, status=0x1
+TDS(msg): head_len=99, payload=0, Clt->Srv, query, query='PrepExec(?*=0,?=NULL,?=SELECT * FROM Toto )'
+TDS: head_len=8, payload=7992, type=Tabular result, status=0x0
+TDS(msg): head_len=2888, payload=0, Srv->Clt, query, nb_rows=57, nb_fields=2
+TDS: head_len=8, payload=7992, type=Tabular result, status=0x0
+TDS(msg): head_len=7992, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
+TDS: head_len=8, payload=7992, type=Tabular result, status=0x0
+TDS(msg): head_len=7992, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
+TDS: head_len=8, payload=7992, type=Tabular result, status=0x0
+TDS(msg): head_len=7992, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
+TDS: head_len=8, payload=7992, type=Tabular result, status=0x0
+TDS(msg): head_len=18816, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1

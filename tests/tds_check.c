@@ -24,6 +24,7 @@ static struct parse_test {
     enum proto_parse_status ret;         // Expected proto status
     struct sql_proto_info expected;
     enum way way;
+    bool called;
 } parse_tests[] = {
 
     // First prelogin
@@ -50,6 +51,7 @@ static struct parse_test {
             .version_min = 0,
             .msg_type = SQL_STARTUP,
         },
+        .called = true,
     },
 
     // Server response to first prelogin
@@ -70,6 +72,7 @@ static struct parse_test {
             .version_min = 0,
             .msg_type = SQL_STARTUP,
         },
+        .called = true,
     },
 
     // Second prelogin. Looks like an ssl handshake...
@@ -95,6 +98,7 @@ static struct parse_test {
             .info = { .head_len = 0xa2 - 8, .payload = 0},
             .msg_type = SQL_STARTUP,
         },
+        .called = true,
     },
 
     // Encrypted login... yeah
@@ -125,6 +129,76 @@ static struct parse_test {
             .info = { .head_len = 0x145 - 8, .payload = 0},
             .msg_type = SQL_STARTUP,
         },
+        .called = false,
+    },
+
+    // Login response
+    {
+        .packet = (uint8_t const []) {
+//          Resp Stat Length--- Channel-- Pack Wind  EnvC Size----- Type vLen NewValue------
+            0x04,0x01,0x01,0x99,0x00,0x33,0x01,0x00, 0xe3,0x17,0x00,0x01,0x04,0x6f,0x00,0x63,
+//          ------------------------ vLen OldValue------------------------------------------
+            0x00,0x74,0x00,0x6f,0x00,0x06,0x6d,0x00, 0x61,0x00,0x73,0x00,0x74,0x00,0x65,0x00,
+//          --------- Info Size----- ErrorCode----------- Stat Seve Len------ Message-------
+            0x72,0x00,0xab,0x76,0x00,0x45,0x16,0x00, 0x00,0x02,0x00,0x23,0x00,0x43,0x00,0x68,
+//          --------------------------------------------------------------------------------
+            0x00,0x61,0x00,0x6e,0x00,0x67,0x00,0x65, 0x00,0x64,0x00,0x20,0x00,0x64,0x00,0x61,
+//          --------------------------------------------------------------------------------
+            0x00,0x74,0x00,0x61,0x00,0x62,0x00,0x61, 0x00,0x73,0x00,0x65,0x00,0x20,0x00,0x63,
+//          --------------------------------------------------------------------------------
+            0x00,0x6f,0x00,0x6e,0x00,0x74,0x00,0x65, 0x00,0x78,0x00,0x74,0x00,0x20,0x00,0x74,
+//          --------------------------------------------------------------------------------
+            0x00,0x6f,0x00,0x20,0x00,0x27,0x00,0x6f, 0x00,0x63,0x00,0x74,0x00,0x6f,0x00,0x27,
+//          -------------- Leng ServerName--------------------------------------------------
+            0x00,0x2e,0x00,0x12,0x49,0x00,0x45,0x00, 0x39,0x00,0x57,0x00,0x49,0x00,0x4e,0x00,
+//          --------------------------------------------------------------------------------
+            0x37,0x00,0x5c,0x00,0x53,0x00,0x51,0x00, 0x4c,0x00,0x45,0x00,0x58,0x00,0x50,0x00,
+//          ---------------------------------------  Proc LineNumbe EnvC Length--- Type OldV
+            0x52,0x00,0x45,0x00,0x53,0x00,0x53,0x00, 0x00,0x01,0x00,0xe3,0x08,0x00,0x07,0x05,
+//          ------------------------ Size EnvC Length---- Type OldV ------------------------
+            0x09,0x04,0xd0,0x00,0x34,0x00,0xe3,0x17, 0x00,0x02,0x0a,0x75,0x00,0x73,0x00,0x5f,
+//          --------------------------------------------------------------------------- OldV
+            0x00,0x65,0x00,0x6e,0x00,0x67,0x00,0x6c, 0x00,0x69,0x00,0x73,0x00,0x68,0x00,0x00,
+//          Info Leng----- InfoValue--------------------------------------------------------
+            0xab,0x7e,0x00,0x47,0x16,0x00,0x00,0x01, 0x00,0x27,0x00,0x43,0x00,0x68,0x00,0x61,
+//          --------------------------------------------------------------------------------
+            0x00,0x6e,0x00,0x67,0x00,0x65,0x00,0x64, 0x00,0x20,0x00,0x6c,0x00,0x61,0x00,0x6e,
+//          --------------------------------------------------------------------------------
+            0x00,0x67,0x00,0x75,0x00,0x61,0x00,0x67, 0x00,0x65,0x00,0x20,0x00,0x73,0x00,0x65,
+//          --------------------------------------------------------------------------------
+            0x00,0x74,0x00,0x74,0x00,0x69,0x00,0x6e, 0x00,0x67,0x00,0x20,0x00,0x74,0x00,0x6f,
+//          --------------------------------------------------------------------------------
+            0x00,0x20,0x00,0x75,0x00,0x73,0x00,0x5f, 0x00,0x65,0x00,0x6e,0x00,0x67,0x00,0x6c,
+//          --------------------------------------------------------------------------------
+            0x00,0x69,0x00,0x73,0x00,0x68,0x00,0x2e, 0x00,0x12,0x49,0x00,0x45,0x00,0x39,0x00,
+//          --------------------------------------------------------------------------------
+            0x57,0x00,0x49,0x00,0x4e,0x00,0x37,0x00, 0x5c,0x00,0x53,0x00,0x51,0x00,0x4c,0x00,
+//          --------------------------------------------------------------------------------
+            0x45,0x00,0x58,0x00,0x50,0x00,0x52,0x00, 0x45,0x00,0x53,0x00,0x53,0x00,0x00,0x01,
+//          ---- LogA Length--- Inte TDSVersion---------- Prog -----------------------------
+            0x00,0xad,0x36,0x00,0x01,0x71,0x00,0x00, 0x01,0x16,0x4d,0x00,0x69,0x00,0x63,0x00,
+//          --------------------------------------------------------------------------------
+            0x72,0x00,0x6f,0x00,0x73,0x00,0x6f,0x00, 0x66,0x00,0x74,0x00,0x20,0x00,0x53,0x00,
+//          --------------------------------------------------------------------------------
+            0x51,0x00,0x4c,0x00,0x20,0x00,0x53,0x00, 0x65,0x00,0x72,0x00,0x76,0x00,0x65,0x00,
+//          ----------------------------- ProgVersion--------- EnvC
+            0x72,0x00,0x00,0x00,0x00,0x00,0x0b,0x00, 0x0c,0x38,0xe3,0x13,0x00,0x04,0x04,0x34,
+            0x00,0x30,0x00,0x39,0x00,0x36,0x00,0x04, 0x34,0x00,0x30,0x00,0x39,0x00,0x36,0x00,
+            0xfd,0x00,0x00,0x00,0x00,0x00,0x00,0x00, 0x00
+        },
+        .size = 0x199,
+        .ret = PROTO_OK,
+        .way = FROM_CLIENT,
+        .expected = {
+            .info = { .head_len = 0x199 - 8, .payload = 0},
+            .msg_type = SQL_STARTUP,
+            .set_values = SQL_DBNAME | SQL_VERSION | SQL_REQUEST_STATUS,
+            .request_status = SQL_REQUEST_COMPLETE,
+            .version_maj = 7,
+            .version_min = 1,
+            .u = { .startup = { .dbname = "octo" } },
+        },
+        .called = true,
     },
 
     // A select
@@ -148,6 +222,46 @@ static struct parse_test {
             .u = { .query = { .sql = "PrepExec(?*=0,?=NULL,?=SELECT * FROM Toto)" } },
             .msg_type = SQL_QUERY,
         },
+        .called = true,
+    },
+
+    // An rpc with xml
+    {
+        .packet = (uint8_t const []) {
+//          RPC  stat length--- -------------------  All-headers----------------------------
+            0x03,0x01,0x00,0xc7,0x00,0x33,0x01,0x00, 0x16,0x00,0x00,0x00,0x12,0x00,0x00,0x00,
+//          ---------------------------------------------------------------------- NameLenPr
+            0x02,0x00,0x00,0x00,0x00,0x00,0x00,0x00, 0x00,0x00,0x01,0x00,0x00,0x00,0xff,0xff,
+//          PrepExec----------- bVar Stat IntT Leng  Leng ------------------- bVar Stat NVar
+            0x0d,0x00,0x00,0x00,0x00,0x01,0x26,0x04, 0x04,0x00,0x00,0x00,0x00,0x00,0x00,0xe7,
+//          --------- Collation--------------- Size  --------@---------P---------0---------
+            0x40,0x1f,0x09,0x04,0xd0,0x00,0x34,0x0e, 0x00,0x40,0x00,0x50,0x00,0x30,0x00,0x20,
+//          --------x---------m---------l----- bVar  Stat NVar---------- Collation----------
+            0x00,0x78,0x00,0x6d,0x00,0x6c,0x00,0x00, 0x00,0xe7,0x40,0x1f,0x09,0x04,0xd0,0x00,
+//          ---- Size ----------------------------------------------------------------------
+            0x34,0x36,0x00,0x45,0x00,0x58,0x00,0x45, 0x00,0x43,0x00,0x20,0x00,0x53,0x00,0x61,
+//          --------------------------------------------------------------------------------
+            0x00,0x6d,0x00,0x70,0x00,0x6c,0x00,0x65, 0x00,0x50,0x00,0x72,0x00,0x6f,0x00,0x63,
+//          --------------------------------------------------------------------------------
+            0x00,0x20,0x00,0x40,0x00,0x50,0x00,0x30, 0x00,0x20,0x00,0x20,0x00,0x20,0x00,0x20,
+//          --------------------------------------------- bVar Stat XMLType-- Unknonw Length
+            0x00,0x20,0x00,0x20,0x00,0x20,0x00,0x20, 0x00,0x00,0x00,0xf1,0x00,0xfe,0xff,0xff,
+//          ------------------------ ChunkSize-----------
+            0xff,0xff,0xff,0xff,0xff,0x2a,0x00,0x00, 0x00,0x3c,0x00,0x72,0x00,0x6f,0x00,0x6f,
+            0x00,0x74,0x00,0x3e,0x00,0x3c,0x00,0x74, 0x00,0x6f,0x00,0x74,0x00,0x6f,0x00,0x31,
+            0x00,0x2f,0x00,0x3e,0x00,0x3c,0x00,0x2f, 0x00,0x72,0x00,0x6f,0x00,0x6f,0x00,0x74,
+            0x00,0x3e,0x00,0x00,0x00,0x00,0x00
+        },
+        .size = 0xc7,
+        .ret = PROTO_OK,
+        .way = FROM_CLIENT,
+        .expected = {
+            .info = { .head_len = 0xc7 - 0x8, .payload = 0x0},
+            .set_values = SQL_SQL,
+            .u = { .query = { .sql = "PrepExec(?*=0,?=@P0 xml,?=EXEC SampleProc @P0        ,?=<root><toto1/></root>)" } },
+            .msg_type = SQL_QUERY,
+        },
+        .called = true,
     },
 
     // First part long query
@@ -171,10 +285,7 @@ static struct parse_test {
         .size = 0x98,
         .ret = PROTO_OK,
         .way = FROM_CLIENT,
-        .expected = {
-            .info = { .head_len = 0x98 - 8, .payload = 0},
-            .msg_type = SQL_QUERY,
-        },
+        .called = false,
     },
 
     // Second part long query
@@ -202,6 +313,7 @@ static struct parse_test {
             .u = { .query = { .sql = "Prepare(?*=NULL,?=NULL,?=SELECT *                                                                                                                    FROM Toto,?=1)"
                 } } ,
         },
+        .called = true,
     },
 
       // An insert
@@ -231,13 +343,15 @@ static struct parse_test {
               .msg_type = SQL_QUERY,
               .u = { .query = { .sql = "PrepExec(?*=0,?=@P0 nvarchar(4000),?=INSERT INTO Toto (name) VALUES (@P0)         ,?=another2)" } },
           },
+        .called = true,
       },
 
       // A response packet
       {
           .packet = (uint8_t const []) {
-  //          Resp Stat Length--- Channel-- Pack Wind  Done
+//            Resp Stat Length--- Channel-- Pack Wind  Done MsgStatus curCmd--- DoneRowCount-
               0x04,0x01,0x00,0x39,0x00,0x33,0x01,0x00, 0xff,0x11,0x00,0xc3,0x00,0x01,0x00,0x00,
+//            ------------------------ RetS -------------------- RetV Ordinal--
               0x00,0x00,0x00,0x00,0x00,0x79,0x00,0x00, 0x00,0x00,0xac,0x00,0x00,0x00,0x01,0x00,
               0x00,0x00,0x00,0x00,0x00,0x26,0x04,0x04, 0x01,0x00,0x00,0x00,0xfe,0x00,0x00,0xe0,
               0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00, 0x00
@@ -252,6 +366,7 @@ static struct parse_test {
               .u = { .query = { .nb_rows = 1 } },
               .msg_type = SQL_QUERY,
           },
+        .called = true,
       },
 
       // Splitted packet First
@@ -294,6 +409,7 @@ static struct parse_test {
           .ret = PROTO_OK,
           .way = FROM_SERVER,
           // Only tds header is advertised here
+          .called = true,
       },
 
       // Splitted packet First
@@ -316,6 +432,7 @@ static struct parse_test {
               .u = { .query = { .sql = "PrepExec(?*=0,?=NULL,?=SELECT *                                                                                                                                                                                                                                                 FROM Toto)" } },
               .msg_type = SQL_QUERY,
           },
+          .called = true,
       },
 
      // A select response with two row
@@ -352,6 +469,7 @@ static struct parse_test {
              .u = { .query = { .nb_rows = 2, .nb_fields = 2 } },
              .msg_type = SQL_QUERY,
          },
+         .called = true,
      },
 
      // A select response with one row
@@ -379,6 +497,7 @@ static struct parse_test {
              .u = { .query = { .nb_rows = 1, .nb_fields = 2 } },
              .msg_type = SQL_QUERY,
          },
+         .called = true,
      },
 
      // An error pdu
@@ -430,6 +549,7 @@ static struct parse_test {
              .error_message = "Invalid object name 'Toto2'.",
              .msg_type = SQL_QUERY,
          },
+         .called = true,
      },
 
      // Another error pdu
@@ -464,6 +584,7 @@ static struct parse_test {
              .error_message = "Incorrect syntax near 'FOM'.",
              .msg_type = SQL_QUERY,
          },
+         .called = true,
      },
 
      // Yet another response
@@ -526,6 +647,7 @@ static struct parse_test {
              .u = { .query = { .nb_rows = 1, .nb_fields = 4 } },
              .msg_type = SQL_QUERY,
          },
+         .called = true,
      },
 
      // Yet another another response
@@ -545,6 +667,7 @@ static struct parse_test {
              .set_values = SQL_REQUEST_STATUS,
              .msg_type = SQL_QUERY,
          },
+         .called = true,
      },
 
      // An rpc
@@ -576,14 +699,42 @@ static struct parse_test {
              .u = { .query = { .sql = "p_GetBogusData(@SearchType=1,@MaxWaitTimeInSeconds=0,@ProcessNegativeAck=0)" } },
              .msg_type = SQL_QUERY,
          },
+         .called = true,
+     },
+
+     // An rpc
+     {
+         .packet = (uint8_t const []) {
+//           Resp Stat Length--- osef---------------  ColM Count---- UserType----------- Flag
+             0x04,0x01,0x00,0x35,0x00,0xe5,0x01,0x00, 0x81,0x01,0x00,0x00,0x00,0x00,0x00,0x21,
+//           ---- Toke Variable- VarL RowT Size-----  ---------------------------------------
+             0x00,0xa5,0x80,0x00,0x00,0xd1,0x10,0x00, 0x32,0x11,0xd9,0x31,0x3e,0xb3,0x91,0x3e,
+//           ---------------------------------------  Done MsgStatus Cmd------ RowCount-------
+             0x38,0x45,0x22,0x95,0x16,0x9a,0x34,0x9e, 0xfd,0x10,0x00,0xc1,0x00,0x01,0x00,0x00,
+//           ------------------------
+             0x00,0x00,0x00,0x00,0x00
+         },
+         .size = 0x35,
+         .ret = PROTO_OK,
+         .way = FROM_SERVER,
+         .expected = {
+             .info = { .head_len = 0x35 - 8, .payload = 0},
+             .request_status = SQL_REQUEST_COMPLETE,
+             .set_values = SQL_REQUEST_STATUS | SQL_NB_ROWS | SQL_NB_FIELDS,
+             .msg_type = SQL_QUERY,
+             .u = { .query = { .nb_fields = 1, .nb_rows = 1 } },
+         },
+         .called = true,
      },
 
 };
 
 static unsigned cur_test;
+static unsigned check_called = 0;
 
 static void tds_info_check(struct proto_subscriber unused_ *s, struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet, struct timeval const unused_ *now)
 {
+    check_called++;
     // Ignore non sql message
     if (info_->parser->proto != proto_tds_msg) {
         return;
@@ -600,15 +751,26 @@ static void parse_check(void)
     timeval_set_now(&now);
     struct parser *parser = proto_tds->ops->parser_new(proto_tds);
     struct tds_parser *tds_parser = DOWNCAST(parser, parser, tds_parser);
+    struct tds_msg_parser **tds_msg_parser = (struct tds_msg_parser **)&tds_parser->msg_parser;
     assert(tds_parser);
     struct proto_subscriber sub;
     hook_subscriber_ctor(&pkt_hook, &sub, tds_info_check);
-
     for (cur_test = 0; cur_test < NB_ELEMS(parse_tests); cur_test++) {
         struct parse_test const *test = parse_tests + cur_test;
         printf("Check packet %d of size 0x%x (%d)\n", cur_test, test->size, test->size);
+        unsigned old_check = check_called;
+        tds_parser->channels[0] = 0;
+        tds_parser->channels[1] = 0;
+        if (*tds_msg_parser) (*tds_msg_parser)->pre_7_2 = false;
         enum proto_parse_status ret = tds_parse(parser, NULL, test->way, test->packet, test->size,
                 test->size, &now, test->size, test->packet);
+        if (test->called && (old_check + 1 != check_called)) {
+            printf("Expected callback to be called\n");
+            assert(old_check + 1 == check_called);
+        } else if (!test->called && (old_check != check_called)){
+            printf("Expected callback to not be called\n");
+            assert(old_check == check_called);
+        }
         assert(ret == test->ret);
     }
     hook_subscriber_dtor(&pkt_hook, &sub);
@@ -655,15 +817,15 @@ static void append_unicode_check(struct tds_msg_parser *tds_msg_parser)
 static void append_us_varchar_check(struct tds_msg_parser *tds_msg_parser)
 {
     static uint8_t unicode_strings[] = {
-        0x49,0x00,0x6e,0x00,0x76, 0x00,0x61,0x00,0x6c,0x00,0x69,0x00,0x64,0x00,0x20,0x00,
-        0x6f,0x00,0x62,0x00,0x6a, 0x00,0x65,0x00,0x63,0x00,0x74,0x00,0x20,0x00,0x6e,0x00,
-        0x61,0x00,0x6d,0x00,0x65, 0x00,0x20,0x00,0x27,0x00,0x54,0x00,0x6f,0x00,0x74,0x00,
-        0x6f,0x00,0x32,0x00,0x27, 0x00,0x2e,0x00};
+        0x1c,0x00,0x49,0x00,0x6e,0x00,0x76,0x00,0x61,0x00,0x6c,0x00,0x69,0x00,0x64,0x00,
+        0x20,0x00,0x6f,0x00,0x62,0x00,0x6a,0x00,0x65,0x00,0x63,0x00,0x74,0x00,0x20,0x00,
+        0x6e,0x00,0x61,0x00,0x6d,0x00,0x65,0x00,0x20,0x00,0x27,0x00,0x54,0x00,0x6f,0x00,
+        0x74,0x00,0x6f,0x00,0x32,0x00,0x27,0x00,0x2e,0x00};
     char dst[256];
     size_t len = 0;
     struct cursor cursor;
     cursor_ctor(&cursor, unicode_strings, sizeof(unicode_strings));
-    append_us_varchar(tds_msg_parser, dst, sizeof(dst), &len, &cursor, 0x1c);
+    append_us_varchar(tds_msg_parser, dst, sizeof(dst), &len, &cursor);
     assert(0 == strcmp(dst, "Invalid object name 'Toto2'."));
 }
 
