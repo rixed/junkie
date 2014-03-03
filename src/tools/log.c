@@ -123,9 +123,10 @@ void slog(int priority, char const *filename, char const *funcname, char *fmt, .
         if (len < (int)sizeof(str)) len += vsnprintf(str + len, sizeof(str) - len, fmt, ap);
         if (len < (int)sizeof(str)) len += snprintf(str + len, sizeof(str) - len, "\n");
         if (len > (int)sizeof(str)) {
-            str[sizeof(str)-1] = '.';
-            str[sizeof(str)-2] = '.';
+            str[sizeof(str)-4] = '.';
             str[sizeof(str)-3] = '.';
+            str[sizeof(str)-2] = '.';
+            str[sizeof(str)-1] = '\n';
         }
         len = MIN(len, (int)sizeof(str));
 
