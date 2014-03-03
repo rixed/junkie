@@ -38,30 +38,52 @@
 #undef LOG_CAT
 #define LOG_CAT proto_tds_log_category
 
+enum env_change_token {
+    ENV_DATABASE = 0x01,
+    ENV_LANGUAGE,
+    ENV_CHARACTER_SET,
+    ENV_PACKET_SIZE,
+    ENV_UNICODE_LOCAL_ID,
+    ENV_UNICODE_COMPARISON_FLAG,
+    ENV_COLLATION,
+    ENV_BEGIN_TRANSACTION,
+    ENV_COMMIT_TRANSACTION,
+    ENV_ROLLBACK_TRANSACTION,
+    ENV_ENLIST_TRANSACTION,
+    ENV_DEFECT_TRANSACTION,
+    ENV_REAL_TIME_LOG,
+    ENV_PROMOTE_TRANSACTION,
+    ENV_TRANSACTION_MANAGER,
+    ENV_TRANSACTION_ENDED,
+    ENV_RESET_CONNECTION,
+    ENV_SEND_BACK_INSTANCE,
+    ENV_SEND_ROUTING_INFO,
+};
+
 // token definitions
 enum tds_msg_token {
     // Data Buffer Stream Tokens
-    ALTMETADATA_TOKEN = 0x88,
-    ALTROW_TOKEN = 0xD3,
-    COLMETADATA_TOKEN = 0x81,
-    COLINFO_TOKEN = 0xA5,
-    DONE_TOKEN = 0xFD,
-    DONEPROC_TOKEN = 0xFE,
-    DONEINPROC_TOKEN = 0xFF,
-    ENVCHANGE_TOKEN = 0xE3,
-    ERROR_TOKEN = 0xAA,
-    FEATUREEXTACK_TOKEN = 0xAE,
-    INFO_TOKEN = 0xAB,
-    LOGINACK_TOKEN = 0xAD,
-    NBCROW_TOKEN = 0xD2,
-    OFFSET_TOKEN = 0x78,
-    ORDER_TOKEN = 0xA9,
-    RETURNSTATUS_TOKEN = 0x79,
-    RETURNVALUE_TOKEN = 0xAC,
-    ROW_TOKEN = 0xD1,
-    SESSIONSTATE_TOKEN = 0xE4,
-    SSPI_TOKEN = 0xED,
-    TABNAME_TOKEN = 0xA4,
+    ALTMETADATA_TOKEN            = 0x88,
+    ALTROW_TOKEN                 = 0xD3,
+    COLMETADATA_TOKEN            = 0x81,
+    COLINFO_TOKEN                = 0xA5,
+    DONE_TOKEN                   = 0xFD,
+    DONEPROC_TOKEN               = 0xFE,
+    DONEINPROC_TOKEN             = 0xFF,
+    ENV_CHANGE_TOKEN             = 0xE3,
+    ERROR_TOKEN                  = 0xAA,
+    FEATUREEXTACK_TOKEN          = 0xAE,
+    INFO_TOKEN                   = 0xAB,
+    LOGINACK_TOKEN               = 0xAD,
+    NBCROW_TOKEN                 = 0xD2,
+    OFFSET_TOKEN                 = 0x78,
+    ORDER_TOKEN                  = 0xA9,
+    RETURNSTATUS_TOKEN           = 0x79,
+    RETURNVALUE_TOKEN            = 0xAC,
+    ROW_TOKEN                    = 0xD1,
+    SESSIONSTATE_TOKEN           = 0xE4,
+    SSPI_TOKEN                   = 0xED,
+    TABNAME_TOKEN                = 0xA4,
 };
 
 /* TODO: prelogin messages can also be TLS handshake. */
@@ -84,48 +106,48 @@ enum tds_msg_encryption_option {
 
 // Token for determining the type of data
 enum type_info_token {
-    NULLTYPE = 0x1F,
-    INT1TYPE = 0x30,
-    BITTYPE = 0x32,
-    INT2TYPE = 0x34,
-    INT4TYPE = 0x38,
-    DATETIM4TYPE = 0x3A,
-    FLT4TYPE = 0x3B,
-    MONEYTYPE = 0x3C,
-    DATETIMETYPE = 0x3D,
-    FLT8TYPE = 0x3E,
-    MONEY4TYPE = 0x7A,
-    INT8TYPE = 0x7F,
-    GUIDTYPE = 0x24,
-    INTNTYPE = 0x26,
-    DECIMALTYPE = 0x37,
-    NUMERICTYPE = 0x3F,
-    BITNTYPE = 0x68,
-    DECIMALNTYPE = 0x6A,
-    NUMERICNTYPE = 0x6C,
-    FLTNTYPE = 0x6D,
-    MONEYNTYPE = 0x6E,
-    DATETIMNTYPE = 0x6F,
-    DATENTYPE = 0x28,
-    TIMENTYPE = 0x29,
-    DATETIME2NTYPE = 0x2A,
+    NULLTYPE            = 0x1F,
+    INT1TYPE            = 0x30,
+    BITTYPE             = 0x32,
+    INT2TYPE            = 0x34,
+    INT4TYPE            = 0x38,
+    DATETIM4TYPE        = 0x3A,
+    FLT4TYPE            = 0x3B,
+    MONEYTYPE           = 0x3C,
+    DATETIMETYPE        = 0x3D,
+    FLT8TYPE            = 0x3E,
+    MONEY4TYPE          = 0x7A,
+    INT8TYPE            = 0x7F,
+    GUIDTYPE            = 0x24,
+    INTNTYPE            = 0x26,
+    DECIMALTYPE         = 0x37,
+    NUMERICTYPE         = 0x3F,
+    BITNTYPE            = 0x68,
+    DECIMALNTYPE        = 0x6A,
+    NUMERICNTYPE        = 0x6C,
+    FLTNTYPE            = 0x6D,
+    MONEYNTYPE          = 0x6E,
+    DATETIMNTYPE        = 0x6F,
+    DATENTYPE           = 0x28,
+    TIMENTYPE           = 0x29,
+    DATETIME2NTYPE      = 0x2A,
     DATETIMEOFFSETNTYPE = 0x2B,
-    CHARTYPE = 0x2F,
-    VARCHARTYPE = 0x27,
-    BINARYTYPE = 0x2D,
-    VARBINARYTYPE = 0x25,
-    BIGVARBINTYPE = 0xA5,
-    BIGVARCHRTYPE = 0xA7,
-    BIGBINARYTYPE = 0xAD,
-    BIGCHARTYPE = 0xAF,
-    NVARCHARTYPE = 0xE7,
-    NCHARTYPE = 0xEF,
-    XMLTYPE = 0xF1,
-    UDTTYPE = 0xF0,
-    TEXTTYPE = 0x23,
-    IMAGETYPE = 0x22,
-    NTEXTTYPE = 0x63,
-    SSVARIANTTYPE = 0x62,
+    CHARTYPE            = 0x2F,
+    VARCHARTYPE         = 0x27,
+    BINARYTYPE          = 0x2D,
+    VARBINARYTYPE       = 0x25,
+    BIGVARBINTYPE       = 0xA5,
+    BIGVARCHRTYPE       = 0xA7,
+    BIGBINARYTYPE       = 0xAD,
+    BIGCHARTYPE         = 0xAF,
+    NVARCHARTYPE        = 0xE7,
+    NCHARTYPE           = 0xEF,
+    XMLTYPE             = 0xF1,
+    UDTTYPE             = 0xF0,
+    TEXTTYPE            = 0x23,
+    IMAGETYPE           = 0x22,
+    NTEXTTYPE           = 0x63,
+    SSVARIANTTYPE       = 0x62,
 };
 
 enum type_info_type {
@@ -146,7 +168,7 @@ static char const *tds_msg_token_2_str(enum tds_msg_token tok)
         case DONE_TOKEN: return "DONE";
         case DONEPROC_TOKEN: return "DONEPROC";
         case DONEINPROC_TOKEN: return "DONEINPROC";
-        case ENVCHANGE_TOKEN: return "ENVCHANGE";
+        case ENV_CHANGE_TOKEN: return "ENV_CHANGE";
         case ERROR_TOKEN: return "ERROR";
         case FEATUREEXTACK_TOKEN: return "FEATUREEXTACK";
         case INFO_TOKEN: return "INFO";
@@ -227,6 +249,32 @@ static char const *type_info_token_2_str(enum type_info_token tok)
     return tempstr_printf("unknown token (%u)", tok);
 }
 
+static char const *env_change_token_2_str(enum env_change_token tok)
+{
+    switch (tok) {
+        case ENV_DATABASE: return "ENV_DATABASE";
+        case ENV_LANGUAGE: return "ENV_LANGUAGE";
+        case ENV_CHARACTER_SET: return "ENV_CHARACTER_SET";
+        case ENV_PACKET_SIZE: return "ENV_PACKET_SIZE";
+        case ENV_UNICODE_LOCAL_ID: return "ENV_UNICODE_LOCAL_ID";
+        case ENV_UNICODE_COMPARISON_FLAG: return "ENV_UNICODE_COMPARISON_FLAG";
+        case ENV_COLLATION: return "ENV_COLLATION";
+        case ENV_BEGIN_TRANSACTION: return "ENV_BEGIN_TRANSACTION";
+        case ENV_COMMIT_TRANSACTION: return "ENV_COMMIT_TRANSACTION";
+        case ENV_ROLLBACK_TRANSACTION: return "ENV_ROLLBACK_TRANSACTION";
+        case ENV_ENLIST_TRANSACTION: return "ENV_ENLIST_TRANSACTION";
+        case ENV_DEFECT_TRANSACTION: return "ENV_DEFECT_TRANSACTION";
+        case ENV_REAL_TIME_LOG: return "ENV_REAL_TIME_LOG";
+        case ENV_PROMOTE_TRANSACTION: return "ENV_PROMOTE_TRANSACTION";
+        case ENV_TRANSACTION_MANAGER: return "ENV_TRANSACTION_MANAGER";
+        case ENV_TRANSACTION_ENDED: return "ENV_TRANSACTION_ENDED";
+        case ENV_RESET_CONNECTION: return "ENV_RESET_CONNECTION";
+        case ENV_SEND_BACK_INSTANCE: return "ENV_SEND_BACK_INSTANCE";
+        case ENV_SEND_ROUTING_INFO: return "ENV_SEND_ROUTING_INFO";
+    }
+    return tempstr_printf("unknown token (%u)", tok);
+}
+
 static char const *type_info_type_2_str(enum type_info_type tok)
 {
     switch (tok) {
@@ -254,6 +302,7 @@ static char const *type_info_2_str(struct type_info const *type_info)
              type_info->size);
 }
 
+# define MAX_TYPE_INFO 100
 struct tds_msg_parser {
     struct parser parser;
     unsigned c2s_way;       // The way when traffic is going from client to server (or UNSET)
@@ -270,8 +319,9 @@ struct tds_msg_parser {
     bool pre_7_2;           // true if we run an old version of the protocol
     struct streambuf sbuf;  // yep, one more level of buffering
     unsigned column_count;
-    struct type_info type_info[16]; // Type info extracted from COLMETADATA
+    struct type_info type_info[MAX_TYPE_INFO]; // Type info extracted from COLMETADATA
     iconv_t iconv_cd;               // Conversion descriptor for reading unicode
+    bool had_gap;
 };
 
 static parse_fun tds_msg_sbuf_parse;
@@ -285,11 +335,13 @@ static int tds_msg_parser_ctor(struct tds_msg_parser *tds_msg_parser, struct pro
     tds_msg_parser->last_pkt_type = 0;
     tds_msg_parser->option_flag_1 = 0;  // ASCII + LittleEndian by default
     tds_msg_parser->pre_7_2 = false;    // assume recent protocol version
+    tds_msg_parser->had_gap = false;
     if (0 != streambuf_ctor(&tds_msg_parser->sbuf, tds_msg_sbuf_parse, 30000)) return -1;
 
     tds_msg_parser->iconv_cd = iconv_open("UTF8//IGNORE", "UCS2");
     if (tds_msg_parser->iconv_cd == ((iconv_t) - 1)) {
         SLOG(LOG_NOTICE, "Could not open iconv: %s", strerror(errno));
+        streambuf_dtor(&tds_msg_parser->sbuf);
         return -1;
     }
 
@@ -325,25 +377,160 @@ static void tds_msg_parser_del(struct parser *parser)
 }
 
 /*
+ * Some parse helper
+ */
+
+// dst_size is the size of dst buffer
+// dst_pos is the position in dst
+// str_len is number of bytes to read from cursor
+static void append_from_unicode(struct tds_msg_parser const *tds_msg_parser, char *dst, size_t dst_size,
+        size_t *dst_pos, struct cursor *cursor, size_t str_len)
+{
+    assert(cursor->cap_len >= str_len);
+    if (!dst || (dst_size == *dst_pos)) {
+        SLOG(LOG_DEBUG, "No buffer available for unicode append");
+        cursor_drop(cursor, str_len);
+        return;
+    }
+    assert(dst_size > 0);
+
+    SLOG(LOG_DEBUG, "Appending a unicode str of length %zu @%zu (max %zu))", str_len, *dst_pos, dst_size);
+    char *output = dst + *dst_pos;
+    size_t output_len = dst_size - *dst_pos;
+    char *start_output = output;
+    unsigned char const *input = (unsigned const char *)cursor->head;
+    size_t input_len = str_len;
+
+    size_t ret = iconv(tds_msg_parser->iconv_cd, (char **)&input, &input_len, &output, &output_len);
+    if (ret == (size_t) -1) {
+        SLOG(LOG_NOTICE, "Iconv error: %s", strerror(errno));
+    }
+    size_t written_bytes = output - start_output;
+    *dst_pos = MIN(*dst_pos + written_bytes, dst_size - 1);
+    dst[*dst_pos] = '\0';
+    SLOG(LOG_DEBUG, "Converted %zu bytes: '%s'", written_bytes, start_output);
+    cursor_drop(cursor, str_len);
+}
+
+static void append_string(char *dst, size_t dst_size, size_t *dst_pos, char const *str)
+{
+    if (!dst) return;
+    if (*dst_pos >= dst_size) return;
+    *dst_pos += snprintf(dst + *dst_pos, dst_size - *dst_pos, "%s", str);
+}
+
+static char hexdigit(int n)
+{
+    return "0123456789abcdef"[n];
+}
+
+// same as above, but display as hex bytes instead of chars
+static void append_hexstring(char *dst, size_t dst_size, size_t *dst_pos, struct cursor *cursor, size_t bytes_len)
+{
+    if (!dst) {
+        cursor_drop(cursor, bytes_len);
+        return;
+    }
+    SLOG(LOG_DEBUG, "Appending a hexstring of length %zu @%zu)", bytes_len, *dst_pos);
+
+    while (bytes_len-- > 0) {
+        uint8_t c = cursor_read_u8(cursor);
+        if (*dst_pos < dst_size-2) {
+            dst[(*dst_pos)++] = hexdigit(c>>4);
+            dst[(*dst_pos)++] = hexdigit(c&15);
+        }
+    }
+    dst[MIN(*dst_pos, dst_size - 1)] = '\0';
+}
+
+// Varchar with a size on 1 byte followed by unicode string
+static enum proto_parse_status append_b_varchar(struct tds_msg_parser const *tds_msg_parser, char *dst, size_t dst_size, size_t *dst_pos,
+        struct cursor *cursor, char const *default_str)
+{
+    CHECK(1);
+    size_t str_len = cursor_read_u8(cursor);
+    CHECK(str_len*2);
+    if (!dst) {
+        cursor_drop(cursor, str_len*2);
+    } else if (0 == str_len) {
+        if (default_str) append_string(dst, dst_size, dst_pos, default_str);
+    } else {
+        SLOG(LOG_DEBUG, "Appending a B_VARCHAR of length %zu into @%zu in buffer of size %zu", str_len, *dst_pos, dst_size);
+        append_from_unicode(tds_msg_parser, dst, dst_size, dst_pos, cursor, str_len * 2);
+    }
+    return PROTO_OK;
+}
+
+static enum proto_parse_status skip_b_varchar(struct cursor *cursor)
+{
+    return append_b_varchar(NULL, NULL, 0, NULL, cursor, NULL);
+}
+
+// Varchar with a size on 2 byte followed by unicode string
+static enum proto_parse_status append_us_varchar(struct tds_msg_parser const *tds_msg_parser, char *dst, size_t dst_size,
+        size_t *dst_pos, struct cursor *cursor)
+{
+    CHECK(2);
+    size_t str_len = cursor_read_u16le(cursor);
+    CHECK(str_len*2);
+    if (!dst) {
+        cursor_drop(cursor, str_len * 2);
+        return PROTO_OK;
+    }
+    SLOG(LOG_DEBUG, "Appending a US_VARCHAR of length %zu @%zu in buffer of size %zu", str_len, *dst_pos, dst_size);
+    append_from_unicode(tds_msg_parser, dst, dst_size, dst_pos, cursor, str_len * 2);
+    return PROTO_OK;
+}
+
+static enum proto_parse_status skip_us_varchar(struct cursor *cursor)
+{
+    return append_us_varchar(NULL, NULL, 0, NULL, cursor);
+}
+
+/*
  * Parse
  */
 
-#define CHECK(n) CHECK_LEN(cursor, n, 0)
-
-#define COLLATION_LEN 5
-static bool type_has_collation(enum type_info_token tok)
+static unsigned type_info_variant_bytes(enum type_info_token tok)
 {
-    /* Skip COLLATION?
-     * "COLLATION occurs only if the type is BIGCHARTYPE, BIGVARCHRTYPE, TEXTTYPE, NTEXTTYPE,
-     * NCHARTYPE, or NVARCHARTYPE." */
-    return
-        tok == BIGCHARTYPE || tok == BIGVARCHRTYPE || tok == TEXTTYPE ||
-        tok == NTEXTTYPE || tok == NCHARTYPE || tok == NVARCHARTYPE;
+    switch (tok) {
+        case TIMENTYPE:
+        case DATETIME2NTYPE:
+        case DATETIMEOFFSETNTYPE:
+            // Scale byte
+            return 1;
+        case NUMERICNTYPE:
+        case DECIMALNTYPE:
+            // 1 byte precision, 1 byte scale
+            return 2;
+        case BIGVARCHRTYPE:
+        case BIGCHARTYPE:
+        case NVARCHARTYPE:
+        case NCHARTYPE:
+            return 5;
+        case BIGVARBINTYPE:
+        case BIGBINARYTYPE:
+            // Max bytes already parsed as token to size?
+            return 0;
+        default:
+            return 0;
+    }
 }
 
 static bool type_is_text(enum type_info_token tok)
 {
-    return type_has_collation(tok) || tok == BIGVARBINTYPE;
+    switch (tok) {
+        case BIGCHARTYPE:
+        case BIGVARCHRTYPE:
+        case TEXTTYPE:
+        case NTEXTTYPE:
+        case NCHARTYPE:
+        case NVARCHARTYPE:
+        case XMLTYPE:
+            return true;
+        default:
+            return false;
+    }
 }
 
 // Give the size of the value for fixed length types
@@ -411,15 +598,9 @@ static size_t type_info_token_to_size(enum type_info_token tok)
     }
 }
 
-static enum proto_parse_status parse_type_info(struct tds_msg_parser const *tds_msg_parser,
-        struct cursor *cursor, struct type_info *out_type_info)
+static bool is_type_info_token(enum type_info_token token)
 {
-    struct type_info type_info;
-    type_info.size = 0;
-    CHECK(1);
-    type_info.token = cursor_read_u8(cursor);
-
-    switch (type_info.token) {
+    switch (token) {
         case NULLTYPE:
         case INT1TYPE:
         case BITTYPE:
@@ -456,78 +637,245 @@ static enum proto_parse_status parse_type_info(struct tds_msg_parser const *tds_
         case BIGCHARTYPE:
         case NVARCHARTYPE:
         case NCHARTYPE:
-        case XMLTYPE:
-        case UDTTYPE:
         case TEXTTYPE:
         case IMAGETYPE:
         case NTEXTTYPE:
         case SSVARIANTTYPE:
-            break;
+        case UDTTYPE:
+        case XMLTYPE:
+            return true;
+        default:
+            return false;
+    }
+}
+
+static enum proto_parse_status parse_type_info(struct tds_msg_parser const *tds_msg_parser,
+        struct cursor *cursor, struct type_info *out_type_info)
+{
+    SLOG(LOG_DEBUG, "Parsing type info");
+    struct type_info type_info;
+    type_info.size = 0;
+    CHECK(1);
+    type_info.token = cursor_read_u8(cursor);
+
+    switch (type_info.token) {
+        case NULLTYPE:
+            {
+                type_info.type = ZERO_LENGTH_TOKEN;
+                type_info.size = 0;
+                break;
+            }
+        case INT1TYPE:
+        case BITTYPE:
+        case INT2TYPE:
+        case INT4TYPE:
+        case DATETIM4TYPE:
+        case FLT4TYPE:
+        case MONEYTYPE:
+        case DATETIMETYPE:
+        case FLT8TYPE:
+        case MONEY4TYPE:
+        case INT8TYPE:
+            {
+                type_info.type = FIXED_LENGTH_TOKEN;
+                type_info.size = 1 << ((type_info.token >> 2) & 3);
+                break;
+            }
+        case GUIDTYPE:
+        case INTNTYPE:
+        case DECIMALTYPE:
+        case NUMERICTYPE:
+        case BITNTYPE:
+        case DECIMALNTYPE:
+        case NUMERICNTYPE:
+        case FLTNTYPE:
+        case MONEYNTYPE:
+        case DATETIMNTYPE:
+        case DATENTYPE:
+        case TIMENTYPE:
+        case DATETIME2NTYPE:
+        case DATETIMEOFFSETNTYPE:
+        case CHARTYPE:
+        case VARCHARTYPE:
+        case BINARYTYPE:
+        case VARBINARYTYPE:
+        case BIGVARBINTYPE:
+        case BIGVARCHRTYPE:
+        case BIGBINARYTYPE:
+        case BIGCHARTYPE:
+        case NVARCHARTYPE:
+        case NCHARTYPE:
+        case TEXTTYPE:
+        case IMAGETYPE:
+        case NTEXTTYPE:
+        case SSVARIANTTYPE:
+            {
+                type_info.type = VARIABLE_LENGTH_TOKEN;
+                type_info.size = type_info_token_to_size(type_info.token);
+                CHECK(type_info.size);
+                uint_least64_t length;
+                cursor_read_fix_int_le(cursor, &length, type_info.size);
+                unsigned variant_bytes = type_info_variant_bytes(type_info.token);
+                if (variant_bytes) {
+                    SLOG(LOG_DEBUG, "Drop %u variant bytes", variant_bytes);
+                    CHECK(variant_bytes);
+                    cursor_drop(cursor, variant_bytes);
+                }
+                if (!tds_msg_parser->pre_7_2 && ((type_info.token == BIGVARCHRTYPE || type_info.token == BIGVARBINTYPE ||
+                                type_info.token == NVARCHARTYPE) && length > 8000)) {
+                    type_info.type = PARTIALY_LENGTH_PREFIXED;
+                }
+                break;
+            }
+        case UDTTYPE:
+            {
+                type_info.type = PARTIALY_LENGTH_PREFIXED;
+                break;
+            }
+        case XMLTYPE:
+            {
+                type_info.type = PARTIALY_LENGTH_PREFIXED;
+                uint8_t schema_present = cursor_read_u8(cursor);
+                if (schema_present) {
+                    skip_b_varchar(cursor);  // dbname
+                    skip_b_varchar(cursor);  // owning_schema
+                    skip_us_varchar(cursor); // xml_schema_collection
+                }
+                break;
+            }
         default:
             SLOG(LOG_DEBUG, "Unknown token %d", type_info.token);
             return PROTO_PARSE_ERR;
     }
-
-    switch (type_info.token & 0x30) {
-        case 0x10:
-            type_info.type = ZERO_LENGTH_TOKEN;
-            break;
-        case 0x20:
-            type_info.type = VARIABLE_LENGTH_TOKEN;
-            type_info.size = type_info_token_to_size(type_info.token);
-            CHECK(type_info.size);
-            uint_least64_t length;
-            cursor_read_fix_int_le(cursor, &length, type_info.size);
-            bool const has_collation = type_has_collation(type_info.token);
-            if (has_collation) {
-                SLOG(LOG_DEBUG, "Drop collation bytes");
-                CHECK(COLLATION_LEN);
-                cursor_drop(cursor, COLLATION_LEN);
-            }
-            if (! tds_msg_parser->pre_7_2 && (((type_info.token == BIGVARCHRTYPE || type_info.token == BIGVARBINTYPE ||
-                          type_info.token == NVARCHARTYPE) && length > 8000) ||
-                        (type_info.token == XMLTYPE || type_info.token == UDTTYPE))) {
-                type_info.type = PARTIALY_LENGTH_PREFIXED;
-            }
-            break;
-        case 0x30:
-            type_info.type = FIXED_LENGTH_TOKEN;
-            type_info.size = 1 << ((type_info.token >> 2) & 3);
-            break;
-        case 0x00:
-            type_info.type = VARIABLE_COUNT_TOKEN;
-            break;
-    }
-
     if (out_type_info) *out_type_info = type_info;
+    return PROTO_OK;
+}
+
+static enum proto_parse_status parse_type_info_value(struct tds_msg_parser const *tds_msg_parser,
+        char *dst, size_t dst_size, size_t *dst_pos, struct cursor *cursor, struct type_info *type_info)
+{
+    enum proto_parse_status status;
+    switch (type_info->type) {
+        case ZERO_LENGTH_TOKEN:
+            {
+                append_string(dst, dst_size, dst_pos, "NULL");
+                break;
+            }
+        case FIXED_LENGTH_TOKEN:
+            {
+                uint_least64_t res;
+                CHECK(type_info->size);
+                cursor_read_fix_int_le(cursor, &res, type_info->size);
+                append_string(dst, dst_size, dst_pos, tempstr_printf("%"PRIu64, res));
+                break;
+            }
+        case VARIABLE_LENGTH_TOKEN:
+            {
+                // Read actual size
+                size_t length;
+                CHECK(type_info->size);
+                status = cursor_read_fix_int_le(cursor, &length, type_info->size);
+                if (status != PROTO_OK) return status;
+
+                if (0xFFFFULL == length) length = 0;   // NULL
+                else if (0xFFFFFFFFULL == length) length = 0;   // NULL
+
+                SLOG(LOG_DEBUG, "Actual value length %zu (%zu remaining)", length, cursor->cap_len);
+                CHECK(length);
+                // TODO: specific printer for more complex types
+                if (0 == length) {
+                    append_string(dst, dst_size, dst_pos, "NULL");
+                } else if (type_is_text(type_info->token)) {  // display all kind of texts + Binary + varBinary as text
+                    if (type_info->token == NVARCHARTYPE) {
+                        append_from_unicode(tds_msg_parser, dst, dst_size, dst_pos, cursor, length);
+                    } else {
+                        char *str;
+                        status = cursor_read_fix_string(cursor, &str, length);
+                        if (PROTO_OK != status) return status;
+                        append_string(dst, dst_size, dst_pos, str);
+                    }
+                } else {    // rest as number
+                    uint_least64_t value;
+                    if (PROTO_OK == cursor_read_fix_int_le(cursor, &value, length)) {
+                        append_string(dst, dst_size, dst_pos, tempstr_printf("%"PRIuLEAST64, value));
+                    } else {
+                        append_hexstring(dst, dst_size, dst_pos, cursor, length);
+                    }
+                }
+                break;
+            }
+        case VARIABLE_COUNT_TOKEN:
+            CHECK(2);
+            uint_least16_t nb_fields = cursor_read_u16n(cursor);
+            if (nb_fields == 0xffff) {  // COLMETADATA uses this (TODO: check ALTMETADATA)
+                nb_fields = 0;  // Cf table at end of 2.2.7.4
+            }
+            // TODO
+            return PROTO_PARSE_ERR;
+        case PARTIALY_LENGTH_PREFIXED:
+            {
+                /* Fear the dreadful addition of TDS 7.2: Partially Length-Prefixed Data type
+                 * So this length was only the 2 low bytes of a 8 bytes length (ULONGLONGLEN), or
+                 * of a NULL value.  */
+#               define PLP_NULL         0xFFFFFFFFFFFFFFFFULL // ...of ones
+#               define PLP_UNKNOWN_LEN  0xFFFFFFFFFFFFFFFEULL
+#               define PLP_TERMINATOR   0x00000000
+                CHECK(8);
+                uint_least64_t tot_len = cursor_read_u64le(cursor);
+                size_t length;
+                if (tot_len == PLP_UNKNOWN_LEN) {
+                    SLOG(LOG_DEBUG, "Parsing Partially Length-Prefixed (PLP) Data of unknown length");
+                } else if (tot_len < PLP_UNKNOWN_LEN) {
+                    SLOG(LOG_DEBUG, "Parsing Partially Length-Prefixed (PLP) Data of total length %"PRIu64, tot_len);
+                }
+
+                if (PLP_NULL == tot_len) {   // much ado about nothing. We merely rely on normal code path for NULL.
+                    SLOG(LOG_DEBUG, "Parsing Partially Length-Prefixed (PLP) Data Null");
+                    length = 0; // NULL
+                } else {
+                    /* We now have many chunks, which total length is supposed to equal this
+                     * 8 bytes lengths, and which must (at least in some cases, the specs
+                     * are unclear about other cases) end with a terminator (aka zero length
+                     * chunk).
+                     * So, are we going to trust the terminator or the total length?
+                     * The go for the total length, but stop if we encounter a null length
+                     * chunk. Notice that if we managed to buffer the whole message in our
+                     * streambuf then the actual total length is probably quite small anyway. */
+                    // Parse all chunks
+                    while (1) {
+                        CHECK(4);
+                        length = cursor_read_u32le(cursor);
+                        if (tot_len == 0 && length == PLP_TERMINATOR) {
+                            break;
+                        }
+                        SLOG(LOG_DEBUG, "Chunk is %zu bytes long", length);
+                        if (0 == length) {
+                            SLOG(LOG_DEBUG, "Hit a terminator while still waiting for %zu bytes of total length, stopping there",
+                                    tot_len);
+                            break;
+                        }
+                        if (tot_len != PLP_UNKNOWN_LEN && length > tot_len) {
+                            SLOG(LOG_DEBUG, "chunk is bigger than total length");
+                            return PROTO_PARSE_ERR;
+                        }
+                        CHECK(length);
+                        if (type_is_text(type_info->token)) {
+                            append_from_unicode(tds_msg_parser, dst, dst_size, dst_pos, cursor, length);
+                        } else {
+                            append_hexstring(dst, dst_size, dst_pos, cursor, length);
+                        }
+                        tot_len -= length;
+                    }
+                    break;
+                }
+            }
+    }
     return PROTO_OK;
 }
 
 static enum proto_parse_status skip_type_info_value(struct cursor *cursor, struct type_info *type_info)
 {
-    SLOG(LOG_DEBUG, "Skipping type info value %s", type_info_2_str(type_info));
-    switch (type_info->type) {
-        case VARIABLE_LENGTH_TOKEN:
-            {
-                CHECK(type_info->size);
-                uint_least64_t size_value = 0;
-                cursor_read_fix_int_le(cursor, &size_value, type_info->size);
-                CHECK(size_value);
-                cursor_drop(cursor, size_value);
-                break;
-            }
-        case FIXED_LENGTH_TOKEN:
-            CHECK(type_info->size);
-            cursor_drop(cursor, type_info->size);
-            break;
-        case ZERO_LENGTH_TOKEN:
-            break;
-        case VARIABLE_COUNT_TOKEN:
-        case PARTIALY_LENGTH_PREFIXED:
-            // TODO
-            break;
-    }
-    return PROTO_OK;
+    return  parse_type_info_value(NULL, NULL, 0, NULL, cursor, type_info);
 }
 
 static enum proto_parse_status tds_prelogin(struct cursor *cursor, struct sql_proto_info *info, bool is_client)
@@ -690,95 +1038,6 @@ static enum proto_parse_status skip_all_headers(struct cursor *cursor)
     return PROTO_OK;
 }
 
-// dst_size is the size of dst buffer
-// dst_pos is the position in dst
-// bytes_len is number of bytes to read from cursor
-static void append_from_unicode(struct tds_msg_parser const *tds_msg_parser, char *dst, size_t dst_size,
-        size_t *dst_pos, struct cursor *cursor, size_t bytes_len)
-{
-    assert(dst_size > 0);
-    assert(cursor->cap_len >= bytes_len);
-    SLOG(LOG_DEBUG, "Appending a unicode str of length %zu @%zu (max %zu))", bytes_len, *dst_pos, dst_size);
-    char *outbuf = dst + *dst_pos;
-    char *start_output = outbuf;
-    size_t outbytesleft = dst_size - *dst_pos;
-    unsigned char const *inbuf = (unsigned const char *)cursor->head;
-
-    size_t ret = iconv(tds_msg_parser->iconv_cd, (char **)&inbuf, &bytes_len, &outbuf, &outbytesleft);
-    if (ret == (size_t) -1) {
-        SLOG(LOG_NOTICE, "Iconv error: %s", strerror(errno));
-    }
-    size_t written_bytes = outbuf - start_output;
-    size_t read_bytes = inbuf - cursor->head;
-    *dst_pos += written_bytes;
-    dst[MIN(*dst_pos, dst_size - 1)] = '\0';
-    SLOG(LOG_DEBUG, "Converted %zu bytes, dst_pos %zu, %s", read_bytes, *dst_pos, dst);
-    cursor_drop(cursor, read_bytes);
-}
-
-static void append_string(char *dst, size_t dst_size, size_t *dst_pos, char const *str)
-{
-    if (*dst_pos >= dst_size) return;
-    *dst_pos += snprintf(dst + *dst_pos, dst_size - *dst_pos, "%s", str);
-}
-
-static char hexdigit(int n)
-{
-    if (n < 10) return '0'+n;
-    else return 'a'+(n-10);
-}
-
-// same as above, but display as hex bytes instead of chars
-static void append_hexstring(char *dst, size_t dst_size, size_t *dst_pos, struct cursor *cursor, size_t byte_len)
-{
-    SLOG(LOG_DEBUG, "Appending a hexstring of length %zu @%zu)", byte_len, *dst_pos);
-
-    while (byte_len-- > 0) {
-        uint8_t c = cursor_read_u8(cursor);
-        if (*dst_pos < dst_size-2) {
-            dst[(*dst_pos)++] = hexdigit(c>>4);
-            dst[(*dst_pos)++] = hexdigit(c&15);
-        }
-    }
-    dst[MIN(*dst_pos, dst_size - 1)] = '\0';
-}
-
-// Varchar with a size on 1 byte followed by unicode string
-static enum proto_parse_status append_b_varchar(struct tds_msg_parser const *tds_msg_parser, char *dst, size_t dst_size, size_t *dst_pos,
-        struct cursor *cursor, char const *default_str)
-{
-    CHECK(1);
-    size_t str_len = cursor_read_u8(cursor);
-    if (0 == str_len) {
-        if (default_str) append_string(dst, dst_size, dst_pos, default_str);
-    } else {
-        SLOG(LOG_DEBUG, "Appending a B_VARCHAR of length %zu into @%zu in buffer of size %zu", str_len, *dst_pos, dst_size);
-        CHECK(str_len * 2);
-        append_from_unicode(tds_msg_parser, dst, dst_size, dst_pos, cursor, str_len * 2);
-    }
-    return PROTO_OK;
-}
-
-// Varchar with a size on 2 byte followed by unicode string
-static enum proto_parse_status append_us_varchar(struct tds_msg_parser const *tds_msg_parser, char *dst, size_t dst_size,
-        size_t *dst_pos, struct cursor *cursor, size_t str_len)
-{
-    SLOG(LOG_DEBUG, "Appending a US_VARCHAR of length %zu @%zu in buffer of size %zu", str_len, *dst_pos, dst_size);
-    CHECK(str_len*2);
-    append_from_unicode(tds_msg_parser, dst, dst_size, dst_pos, cursor, str_len * 2);
-    return PROTO_OK;
-}
-
-static enum proto_parse_status skip_b_varchar(struct cursor *cursor)
-{
-    CHECK(1);
-    size_t str_len = cursor_read_u8(cursor);
-    SLOG(LOG_DEBUG, "Skipping a B_VARCHAR of %zu chars", str_len);
-    CHECK(str_len*2);
-    cursor_drop(cursor, str_len*2);
-    return PROTO_OK;
-}
-
 static enum proto_parse_status tds_sql_batch(struct tds_msg_parser const *tds_msg_parser, struct cursor *cursor,
         struct sql_proto_info *info)
 {
@@ -821,102 +1080,7 @@ static enum proto_parse_status rpc_parameter_data(struct tds_msg_parser const *t
     if (PROTO_OK != (status = parse_type_info(tds_msg_parser, cursor, &type_info))) return status;
     SLOG(LOG_DEBUG, "Parsed type info :%s", type_info_2_str(&type_info));
 
-    switch (type_info.type) {
-        case ZERO_LENGTH_TOKEN:
-            append_string(dst, dst_size, dst_pos, "NULL");
-            break;
-        case FIXED_LENGTH_TOKEN:
-            append_string(dst, dst_size, dst_pos, tempstr_printf("%"PRIu64, type_info.size));
-            break;
-        case VARIABLE_LENGTH_TOKEN:
-            {
-                // Read actual size
-                size_t length;
-                CHECK(type_info.size);
-                cursor_read_fix_int_le(cursor, &length, type_info.size);
-                if (0xFFFFULL == length) length = 0;   // NULL
-                else if (0xFFFFFFFFULL == length) length = 0;   // NULL
-
-                SLOG(LOG_DEBUG, "Actual value length %zu (%zu remaining)", length, cursor->cap_len);
-                CHECK(length);
-                // TODO: specific printer for more complex types
-                if (0 == length) {
-                    append_string(dst, dst_size, dst_pos, "NULL");
-                } else if (!(length&1) && type_is_text(type_info.token)) {  // display all kind of texts + Binary + varBinary as text
-                    append_from_unicode(tds_msg_parser, dst, dst_size, dst_pos, cursor, length);
-                } else {    // rest as number
-                    uint_least64_t value;
-                    if (PROTO_OK == cursor_read_fix_int_le(cursor, &value, length)) {
-                        append_string(dst, dst_size, dst_pos, tempstr_printf("%"PRIuLEAST64, value));
-                    } else {
-                        append_hexstring(dst, dst_size, dst_pos, cursor, length);
-                    }
-                }
-                break;
-            }
-        case VARIABLE_COUNT_TOKEN:
-            CHECK(2);
-            uint_least16_t nb_fields = cursor_read_u16n(cursor);
-            if (nb_fields == 0xffff) {  // COLMETADATA uses this (TODO: check ALTMETADATA)
-                nb_fields = 0;  // Cf table at end of 2.2.7.4
-            }
-            // TODO
-            return PROTO_PARSE_ERR;
-        case PARTIALY_LENGTH_PREFIXED:
-            {
-                /* Fear the dreadful addition of TDS 7.2: Partially Length-Prefixed Data type
-                 * So this length was only the 2 low bytes of a 8 bytes length (ULONGLONGLEN), or
-                 * of a NULL value.  */
-#               define PLP_NULL 0xFFFFFFFFFFFFFFFFULL // ...of ones
-                CHECK(8);
-                uint_least64_t tot_len = cursor_read_u64le(cursor);
-                size_t length;
-                SLOG(LOG_DEBUG, "Parsing Partially Length-Prefixed (PLP) Data of total length %"PRIu64, tot_len);
-                if (PLP_NULL == tot_len) {   // much ado about nothing. We merely rely on normal code path for NULL.
-                    length = 0; // NULL
-                } else {
-                    /* We now have many chunks, which total length is supposed to equal this
-                     * 8 bytes lengths, and which must (at least in some cases, the specs
-                     * are unclear about other cases) end with a terminator (aka zero length
-                     * chunk).
-                     * So, are we going to trust the terminator or the total length?
-                     * The go for the total length, but stop if we encounter a null length
-                     * chunk. Notice that if we managed to buffer the whole message in our
-                     * streambuf then the actual total length is probably quite small anyway. */
-                    // Parse all chunks
-                    while (1) {
-                        if (tot_len == 0) {
-                            if (cursor->cap_len >= 4 &&
-                                    cursor->head[0] == 0 && cursor->head[1] == 0 &&
-                                    cursor->head[2] == 0 && cursor->head[3] == 0)
-                                cursor_drop(cursor, 4); // swallow the terminator
-                            break;  // in any cases, stop there
-                        }
-                        CHECK(4);
-                        length = cursor_read_u32le(cursor);
-                        SLOG(LOG_DEBUG, "Chunk is %zu bytes long", length);
-                        if (0 == length) {
-                            SLOG(LOG_DEBUG, "Hit a terminator while still waiting for %zu bytes of total length, stopping there", tot_len);
-                            break;
-                        }
-                        if (length > tot_len) {
-                            SLOG(LOG_DEBUG, "chunk is bigger than total length");
-                            return PROTO_PARSE_ERR;
-                        }
-                        CHECK(length);
-                        if (!(length&1) && type_is_text(type_info.token)) {
-                            append_from_unicode(tds_msg_parser, dst, dst_size, dst_pos, cursor, length);
-                        } else {
-                            append_hexstring(dst, dst_size, dst_pos, cursor, length);
-                        }
-                        tot_len -= length;
-                    }
-                    break;
-                }
-            }
-    }
-
-    return PROTO_OK;
+    return parse_type_info_value(tds_msg_parser, dst, dst_size, dst_pos, cursor, &type_info);
 }
 
 static enum proto_parse_status rpc_req_batch(struct tds_msg_parser const *tds_msg_parser, struct cursor *cursor, struct sql_proto_info *info)
@@ -925,10 +1089,11 @@ static enum proto_parse_status rpc_req_batch(struct tds_msg_parser const *tds_ms
 
     // NameLenProcID
     CHECK(2);
-    size_t name_len = cursor_read_u16le(cursor);
+    size_t name_len = cursor_peek_u16le(cursor, 0);
     SLOG(LOG_DEBUG, "NameLenProc len=%zu", name_len);
     size_t sql_len = 0;
     if (name_len == 0xffff) {
+        cursor_drop(cursor, 2);
         // well known procedure name
         CHECK(2);
         unsigned const proc_id = cursor_read_u16le(cursor);
@@ -961,7 +1126,7 @@ static enum proto_parse_status rpc_req_batch(struct tds_msg_parser const *tds_ms
         // name as us_varchar
         info->u.query.sql[0] = '\0';    // for the debug strings
         if (PROTO_OK != (status = append_us_varchar(tds_msg_parser, info->u.query.sql,
-                        sizeof(info->u.query.sql), &sql_len, cursor, name_len)))
+                        sizeof(info->u.query.sql), &sql_len, cursor)))
             return status;
 
         info->set_values |= SQL_SQL;
@@ -1036,6 +1201,56 @@ static void add_fields(struct sql_proto_info *info, unsigned count)
     }
 }
 
+static enum proto_parse_status tds_parse_env_change(struct tds_msg_parser *tds_msg_parser, struct cursor *cursor,
+        struct sql_proto_info *info)
+{
+    CHECK(4);
+    size_t length = cursor_read_u16le(cursor);
+    SLOG(LOG_DEBUG, "Parsing Env change of length %zu", length);
+    CHECK(length);
+    enum env_change_token env_token = cursor_read_u8(cursor);
+    SLOG(LOG_DEBUG, "Parsing environnement change of type %s", env_change_token_2_str(env_token));
+    enum proto_parse_status status;
+    switch (env_token) {
+        case ENV_DATABASE:
+            {
+                size_t len = 0;
+                status = append_b_varchar(tds_msg_parser, info->u.startup.dbname,
+                        sizeof(info->u.startup.dbname), &len, cursor, "?");
+                if (status != PROTO_OK) return status;
+                info->set_values |= SQL_DBNAME;
+                if (PROTO_OK != (status = skip_b_varchar(cursor))) return status;
+            }
+            break;
+        case ENV_CHARACTER_SET:
+            {
+                size_t len = 0;
+                char *buf = tempstr();
+                status = append_b_varchar(tds_msg_parser, buf,
+                        TEMPSTR_SIZE, &len, cursor, "?");
+                if (status != PROTO_OK) return status;
+                if (0 == strcmp("ISO-8859-1", buf)) {
+                    info->u.startup.encoding = SQL_ENCODING_LATIN1;
+                } else if (0 == strcmp("UTF8", buf)) {
+                    info->u.startup.encoding = SQL_ENCODING_UTF8;
+                } else {
+                    SLOG(LOG_DEBUG, "Unknown encoding %s", buf);
+                    info->u.startup.encoding = SQL_ENCODING_UNKNOWN;
+                }
+                info->set_values |= SQL_ENCODING;
+                if (PROTO_OK != (status = skip_b_varchar(cursor))) return status;
+            }
+            break;
+        default:
+            {
+                // Env change type was already swallowed
+                cursor_drop(cursor, length - 1);
+            }
+            break;
+    }
+    return PROTO_OK;
+}
+
 // Parse a single token from a TDS result message
 static enum proto_parse_status tds_result_token(struct tds_msg_parser *tds_msg_parser, struct cursor *cursor, struct sql_proto_info *info, bool *skip)
 {
@@ -1059,10 +1274,13 @@ static enum proto_parse_status tds_result_token(struct tds_msg_parser *tds_msg_p
 #               define DONE_RPCINBATCH 0x080
 #               define DONE_SRVERROR   0x100
                 uint_least16_t const msg_status = cursor_read_u16le(cursor);
-                uint_least16_t const unused_ curcmd = cursor_read_u16le(cursor);
+                // Current command
+                cursor_drop(cursor, 2);
                 // Only 32 bits prior to TDS 7.2. Sometime mixed? :-/
                 // If 32 bits are left, assume the last rowcount is 32 bits
                 uint_least64_t rowcount;
+                SLOG(LOG_DEBUG, "Got %s 7.2, reading %d bytes", tds_msg_parser->pre_7_2 ? "pre": "post",
+                    tds_msg_parser->pre_7_2 ? 4: 8);
                 if (tds_msg_parser->pre_7_2 || cursor->cap_len == 4) {
                     CHECK(4);
                     rowcount = cursor_read_u32le(cursor);
@@ -1071,6 +1289,7 @@ static enum proto_parse_status tds_result_token(struct tds_msg_parser *tds_msg_p
                     rowcount = cursor_read_u64le(cursor);
                 }
                 if (msg_status & DONE_COUNT_SET) {
+                    SLOG(LOG_DEBUG, "Got %zu rows", rowcount);
                     info->set_values |= SQL_NB_ROWS;
                     info->u.query.nb_rows = rowcount;
                 }
@@ -1102,16 +1321,15 @@ static enum proto_parse_status tds_result_token(struct tds_msg_parser *tds_msg_p
                 snprintf(info->error_code, sizeof(info->error_code), "%d", error_code);
                 // Status (1 byte) + classe (1 byte)
                 cursor_drop(&value, 2);
-                unsigned length_message = cursor_read_u16(&value);
                 size_t len = 0;
-                append_us_varchar(tds_msg_parser, info->error_message, sizeof(info->error_message), &len, &value, length_message);
+                append_us_varchar(tds_msg_parser, info->error_message, sizeof(info->error_message), &len, &value);
                 info->set_values |= SQL_ERROR_MESSAGE;
             }
             break;
         case RETURNSTATUS_TOKEN:
             {
                 CHECK(4);
-                cursor_read_u32le(cursor);
+                cursor_drop(cursor, 4);
             }
             break;
         case RETURNVALUE_TOKEN:
@@ -1136,6 +1354,7 @@ static enum proto_parse_status tds_result_token(struct tds_msg_parser *tds_msg_p
             break;
         case COLMETADATA_TOKEN:
             {
+                info->msg_type = SQL_QUERY;
                 // We must fetch the data size for next row
                 CHECK(2);
                 unsigned count = cursor_read_u16le(cursor); // missing from specs but actually present (and required)
@@ -1144,10 +1363,31 @@ static enum proto_parse_status tds_result_token(struct tds_msg_parser *tds_msg_p
                 SLOG(LOG_DEBUG, "Parsing COLMETADATA with %u columns", count);
                 add_fields(info, count);
                 tds_msg_parser->column_count = count;
+                if (tds_msg_parser->column_count >= MAX_TYPE_INFO) {
+                    SLOG(LOG_DEBUG, "Too much column to parse (%d)", tds_msg_parser->column_count);
+                    return PROTO_PARSE_ERR;
+                }
+
+                if (!tds_msg_parser->pre_7_2) {
+                    CHECK(6);
+                    // Small heuristic to guess if we are really post 7.2
+                    enum type_info_token token_pre_7_2 = cursor_peek_u8(cursor, 4);
+                    enum type_info_token token_post_7_2 = cursor_peek_u8(cursor, 6);
+                    if (is_type_info_token(token_pre_7_2) && !is_type_info_token(token_post_7_2)) {
+                        SLOG(LOG_DEBUG, "Looks like colmetadata token is pre 7.2");
+                        tds_msg_parser->pre_7_2 = true;
+                    }
+                }
                 for (unsigned i = 0; i < count; i++) {
-                    SLOG(LOG_DEBUG, "Parsing column %d", i);
-                    cursor_drop(cursor, (tds_msg_parser->pre_7_2 ? 2:4) + 2);   // skip user_type and flag
-                    struct type_info *type_info = tds_msg_parser->type_info + i;
+                    SLOG(LOG_DEBUG, "Parsing column metadata %u/%u", i, count);
+                    size_t flag_length = (tds_msg_parser->pre_7_2 ? 2:4) + 2;
+                    CHECK(flag_length);
+                    SLOG(LOG_DEBUG, "Dropping user type and flag");
+                    cursor_drop(cursor, flag_length);
+                    struct type_info *type_info = NULL;
+                    if (i < MAX_TYPE_INFO) {
+                        type_info = tds_msg_parser->type_info + i;
+                    }
                     if (PROTO_OK != (status = parse_type_info(tds_msg_parser, cursor, type_info))) return status;
                     SLOG(LOG_DEBUG, "Column has type %s", type_info_token_2_str(type_info->token));
 
@@ -1158,32 +1398,78 @@ static enum proto_parse_status tds_result_token(struct tds_msg_parser *tds_msg_p
             }
             break;
         case ROW_TOKEN:
-            for (unsigned i = 0; i < tds_msg_parser->column_count; i++) {
-                skip_type_info_value(cursor, tds_msg_parser->type_info + i);
+            {
+                info->msg_type = SQL_QUERY;
+                if (tds_msg_parser->column_count > MAX_TYPE_INFO - 1) {
+                    SLOG(LOG_DEBUG, "Too much column to process (%d)", tds_msg_parser->column_count);
+                    return PROTO_PARSE_ERR;
+                }
+                for (unsigned i = 0; i < tds_msg_parser->column_count; i++) {
+                    SLOG(LOG_DEBUG, "Reading column %u/%u", i, tds_msg_parser->column_count);
+                    skip_type_info_value(cursor, tds_msg_parser->type_info + i);
+                }
+                add_rows(info, 1);
+                SLOG(LOG_DEBUG, "Incremented row count to %u", info->u.query.nb_rows);
             }
-            SLOG(LOG_DEBUG, "Incrementing row count %d", info->u.query.nb_rows);
-            add_rows(info, 1);
             break;
         case LOGINACK_TOKEN:
             {   // Here we get the protocol version that we are going to use (we are interested to know if we run below or above 7.2)
+                info->msg_type = SQL_STARTUP;
                 CHECK(2);
                 size_t length = cursor_read_u16le(cursor);
                 SLOG(LOG_DEBUG, "Parsing LOGINACK of length %zu", length);
                 if (length < 10) return PROTO_PARSE_ERR;
                 CHECK(length);
-                cursor_drop(cursor, 1+2); // INTERFACE+low bits of version that we don't care about
-                info->version_min = cursor_read_u8(cursor);
-                info->version_maj = cursor_read_u8(cursor);
+                cursor_drop(cursor, 1); // INTERFACE
+                uint_least32_t version = cursor_read_u32n(cursor);
                 info->set_values |= SQL_VERSION;
-                tds_msg_parser->pre_7_2 = info->version_maj < 7 || (info->version_maj == 7 && info->version_min < 2);
-                SLOG(LOG_DEBUG, "Version set to %u.%u (%s 7.2)", info->version_maj, info->version_min, tds_msg_parser->pre_7_2 ? "pre":"post");
+                // This protocol is so stupid...
+                switch (version) {
+                    case 0x07000000:
+                        info->version_maj = 7;
+                        info->version_min = 0;
+                        break;
+                    case 0x07010000:
+                        info->version_maj = 7;
+                        info->version_min = 1;
+                        break;
+                    default:
+                        info->version_maj = version >> 28;
+                        info->version_min = (version >> 24) & 0xf;
+                        break;
+                }
+                tds_msg_parser->pre_7_2 = !(info->version_maj >= 7 && info->version_min >= 2);
+                SLOG(LOG_DEBUG, "Version set to %u.%u (%s 7.2)", info->version_maj, info->version_min,
+                        tds_msg_parser->pre_7_2 ? "pre":"post");
                 // ignore the rest
                 cursor_drop(cursor, length - 5);
             }
             break;
+        case INFO_TOKEN:
+            {
+                CHECK(2);
+                size_t length = cursor_read_u16le(cursor);
+                CHECK(length);
+                cursor_drop(cursor, length);
+            }
+            break;
+        case ENV_CHANGE_TOKEN:
+            {
+                return tds_parse_env_change(tds_msg_parser, cursor, info);
+            }
+        case ORDER_TOKEN:
+            {
+                CHECK(2);
+                size_t length = cursor_read_u16le(cursor);
+                CHECK(length);
+                cursor_drop(cursor, length);
+            }
+            break;
         default:
-            SLOG(LOG_DEBUG, "Don't know how to handle result token %s, skipping message", tds_msg_token_2_str(tok));
-            *skip = true;
+            {
+                SLOG(LOG_DEBUG, "Don't know how to handle result token %s, skipping message", tds_msg_token_2_str(tok));
+                *skip = true;
+            }
             break;
     }
 
@@ -1245,7 +1531,7 @@ static enum proto_parse_status tds_msg_parse_result(struct tds_msg_parser *tds_m
             while (! cursor_is_empty(cursor)) {
                 bool skip = false;
                 status = tds_result_token(tds_msg_parser, cursor, info, &skip);
-                SLOG(LOG_DEBUG, "Token parse has returned %d", status);
+                SLOG(LOG_DEBUG, "Token parse has returned %s", proto_parse_status_2_str(status));
                 if (status != PROTO_OK) break;
                 if (skip) break;
             }
@@ -1259,6 +1545,7 @@ static enum proto_parse_status tds_msg_sbuf_parse(struct parser *parser, struct 
 
     // Retrieve TDS infos
     ASSIGN_INFO_CHK(tds, parent, PROTO_PARSE_ERR);
+    bool has_gap = wire_len > cap_len;
 
     // If this is the first time we are called, init c2s_way
     if (tds_msg_parser->c2s_way == UNSET) {
@@ -1266,7 +1553,8 @@ static enum proto_parse_status tds_msg_sbuf_parse(struct parser *parser, struct 
         SLOG(LOG_DEBUG, "First packet, init c2s_way to %u", tds_msg_parser->c2s_way);
     }
 
-    if ((tds->status & TDS_EOM) == 0x00) {
+    // Immediatly parse on first gap, else, bufferize
+    if (!tds_msg_parser->had_gap && !has_gap && ((tds->status & TDS_EOM) == 0x00)) {
         SLOG(LOG_DEBUG, "Packet is not an EOM, buffering it");
         streambuf_set_restart(&tds_msg_parser->sbuf, way, payload, true);
         return PROTO_OK;
@@ -1282,7 +1570,6 @@ static enum proto_parse_status tds_msg_sbuf_parse(struct parser *parser, struct 
     if (info.is_query) tds_msg_parser->last_pkt_type = tds->type;
     info.set_values = 0;
 
-    // Stop the cursor after this message, and restart after it
     struct cursor cursor;
     cursor_ctor(&cursor, payload, cap_len);
 
@@ -1314,6 +1601,8 @@ static enum proto_parse_status tds_msg_sbuf_parse(struct parser *parser, struct 
             break;
     }
     SLOG(LOG_DEBUG, "Finished parsing %s, status = %s", tds_packet_type_2_str(tds->type), proto_parse_status_2_str(status));
+
+    tds_msg_parser->had_gap = has_gap && !(tds->status & TDS_EOM);
 
     // Advertise the parsed packet even if an error has occured
     return proto_parse(NULL, &info.info, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);

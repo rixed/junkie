@@ -51,13 +51,33 @@
 
 LOG_CATEGORY_DEF(proto_tds);
 
+struct tds_header {
+    enum tds_packet_type type;
+    uint8_t status;
+    size_t len;
+    uint16_t channel;
+    uint8_t pkt_number;
+};
+
 struct tds_parser {
     struct parser parser;
     // each tds parser comes with its tds_msg parser
     struct parser *msg_parser;
 
     struct streambuf sbuf;  // yep, one more level of buffering
+    // We give up parsing if capture has been truncated until we change way
+    // However, we still advertise those packets as part of the current query
+    // Keep track of tds data left if we have truncated packet
+    size_t data_left;
+    uint16_t channels[2];
+    bool had_gap;
 };
+
+static char const *tds_header_2_str(struct tds_header *header)
+{
+    return tempstr_printf("Type: %s, Status: %d, Length: %zu, Channel %"PRIu16", Pkt number %"PRIu8"",
+        tds_packet_type_2_str(header->type), header->status, header->len, header->channel, header->pkt_number);
+}
 
 char const *tds_packet_type_2_str(enum tds_packet_type type)
 {
@@ -103,6 +123,10 @@ static int tds_parser_ctor(struct tds_parser *tds_parser, struct proto *proto)
     assert(proto == proto_tds);
     if (0 != parser_ctor(&tds_parser->parser, proto)) return -1;
     tds_parser->msg_parser = NULL;
+    tds_parser->had_gap = false;
+    tds_parser->data_left = 0;
+    tds_parser->channels[0] = 0;
+    tds_parser->channels[1] = 0;
     if (0 != streambuf_ctor(&tds_parser->sbuf, tds_sbuf_parse, 30000)) return -1;
 
     return 0;
@@ -163,22 +187,24 @@ void const *tds_info_addr(struct proto_info const *info_, size_t *size)
  * Parse
  */
 
-static enum proto_parse_status tds_parse_header(struct cursor *cursor, enum tds_packet_type *out_type,
-        uint8_t *out_status, size_t *out_len, bool *unknown_token)
+static enum proto_parse_status tds_parse_header(struct cursor *cursor, struct tds_header *out_header, bool *unknown_token)
 {
 #   define TDS_PKT_HDR_LEN 8
     CHECK_LEN(cursor, TDS_PKT_HDR_LEN, 0);
 
-    enum tds_packet_type type = cursor_read_u8(cursor);
-    uint8_t status = cursor_read_u8(cursor);
-    size_t len = cursor_read_u16n(cursor);
-    SLOG(LOG_DEBUG, "Reading new TDS packet of type %s, status %"PRIu8", length %zu", tds_packet_type_2_str(type), status, len);
+    struct tds_header header;
+    header.type = cursor_read_u8(cursor);
+    header.status = cursor_read_u8(cursor);
+    header.len = cursor_read_u16n(cursor);
+    header.channel = cursor_read_u16n(cursor);
+    header.pkt_number = cursor_read_u8(cursor);
+    SLOG(LOG_DEBUG, "Reading new TDS packet %s", tds_header_2_str(&header));
 
+    // Drop window
+    cursor_drop(cursor, 1);
     // sanity check
-    if (len < TDS_PKT_HDR_LEN) return PROTO_PARSE_ERR;
-    // Drop rest of header
-    cursor_drop(cursor, 4);
-    switch (type) {
+    if (header.len < TDS_PKT_HDR_LEN) return PROTO_PARSE_ERR;
+    switch (header.type) {
         case TDS_PKT_TYPE_SQL_BATCH:
         case TDS_PKT_TYPE_LOGIN:
         case TDS_PKT_TYPE_RPC:
@@ -191,34 +217,38 @@ static enum proto_parse_status tds_parse_header(struct cursor *cursor, enum tds_
         case TDS_PKT_TYPE_PRELOGIN:
             break;
         default:
-            SLOG(LOG_DEBUG, "Unknown tds type %u", type);
+            SLOG(LOG_DEBUG, "Unknown tds type %u", header.type);
             if (unknown_token) *unknown_token = true;
             return PROTO_PARSE_ERR;
     }
-    size_t data_left = len - TDS_PKT_HDR_LEN;
-    if ((data_left > 0) != tds_packet_has_data(type)) {
+    size_t data_left = header.len - TDS_PKT_HDR_LEN;
+    if ((data_left > 0) != tds_packet_has_data(header.type)) {
         SLOG(LOG_DEBUG, "This TDS packet of type %s has %zu bytes of data, but should%s have data",
-                tds_packet_type_2_str(type), data_left, tds_packet_has_data(type) ? "":" not");
+                tds_packet_type_2_str(header.type), data_left, tds_packet_has_data(header.type) ? "":" not");
         return PROTO_PARSE_ERR;
     }
-    if (out_type) *out_type = type;
-    if (out_status) *out_status = status;
-    if (out_len) *out_len = len;
+    if (out_header) *out_header = header;
     return PROTO_OK;
 }
 
 static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct tds_parser *tds_parser = DOWNCAST(parser, parser, tds_parser);
+    SLOG(LOG_DEBUG, "Got tds packet, data_left %zu, way %d", tds_parser->data_left, way);
+    bool has_gap = wire_len > cap_len;
 
+    if (tds_parser->had_gap && tds_parser->data_left > 0) {
+        tds_parser->data_left = wire_len > tds_parser->data_left ? 0 : tds_parser->data_left - wire_len;
+        SLOG(LOG_DEBUG, "Discard tds with gap, data_left %zu...", tds_parser->data_left);
+        return PROTO_OK;
+    }
+    tds_parser->had_gap = has_gap;
+
+    struct tds_header header;
+    bool unknown_token = false;
     struct cursor cursor;
     cursor_ctor(&cursor, payload, cap_len);
-
-    enum tds_packet_type type;
-    uint8_t tds_status;
-    size_t len;
-    bool unknown_token = false;
-    enum proto_parse_status status = tds_parse_header(&cursor, &type, &tds_status, &len, &unknown_token);
+    enum proto_parse_status status = tds_parse_header(&cursor, &header, &unknown_token);
 
     if (status != PROTO_OK) {
         // We have an unknown token if the payload is encrypted after a ssl handshake
@@ -228,28 +258,42 @@ static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct prot
         return status;
     }
 
-    size_t data_left = len - 8;
-    if (data_left > wire_len) {
+    if (tds_parser->channels[way] && (tds_parser->channels[way] != header.channel)) {
+        SLOG(LOG_DEBUG, "Expected channel %"PRIu16", got channel %"PRIu16"",
+                tds_parser->channels[way], header.channel);
+        return PROTO_OK;
+    }
+
+    tds_parser->data_left = wire_len >= header.len ? 0 : header.len - wire_len;
+    SLOG(LOG_DEBUG, "Data left after wire %zu", tds_parser->data_left);
+    if (tds_parser->data_left > 0 && !has_gap) {
+        SLOG(LOG_DEBUG, "Incomplete tds packet, buffering it");
         streambuf_set_restart(&tds_parser->sbuf, way, payload, true);
         return PROTO_OK;
     }
 
     struct tds_proto_info info;
-    proto_info_ctor(&info.info, parser, parent, TDS_PKT_HDR_LEN, len - TDS_PKT_HDR_LEN);
-    info.type = type;
-    info.status = tds_status;
+    proto_info_ctor(&info.info, parser, parent, TDS_PKT_HDR_LEN, header.len - TDS_PKT_HDR_LEN);
+    info.type = header.type;
+    info.status = header.status;
+    if (header.channel > 0) {
+        SLOG(LOG_DEBUG, "Saving channel %"PRIu16"", header.channel);
+        tds_parser->channels[way] = header.channel;
+    }
 
-    SLOG(LOG_DEBUG, "Parsing %s of size %zu", tds_packet_type_2_str(type), len);
-    if (! tds_parser->msg_parser) tds_parser->msg_parser = proto_tds_msg->ops->parser_new(proto_tds_msg);
+    SLOG(LOG_DEBUG, "Parsing %s", tds_header_2_str(&header));
+    if (! tds_parser->msg_parser) {
+        SLOG(LOG_DEBUG, "Building new tds_msg_parser");
+        tds_parser->msg_parser = proto_tds_msg->ops->parser_new(proto_tds_msg);
+    }
     if (tds_parser->msg_parser) {
-        enum proto_parse_status status = proto_parse(tds_parser->msg_parser, &info.info, way, cursor.head, cursor.cap_len,
-                wire_len - TDS_PKT_HDR_LEN, now, tot_cap_len, tot_packet);
+        enum proto_parse_status status = proto_parse(tds_parser->msg_parser, &info.info, way,
+                cursor.head, cursor.cap_len, wire_len - TDS_PKT_HDR_LEN, now, tot_cap_len, tot_packet);
         if (status != PROTO_OK) return status;
     }
 
     // Advertise this packet if it was not done already
-    return proto_parse(NULL, &info.info, way, cursor.head, cursor.cap_len, wire_len, now, tot_cap_len, tot_packet);
-    return PROTO_OK;
+    return proto_parse(NULL, &info.info, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
 }
 
 static enum proto_parse_status tds_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
