@@ -582,8 +582,7 @@ static enum proto_parse_status tns_parse_sql_query_oci(struct sql_proto_info *in
     status = cursor_read_chunked_string(cursor, &sql);
     if (status != PROTO_OK) return status;
     SLOG(LOG_DEBUG, "Sql parsed: %s", sql);
-    info->set_values |= SQL_SQL;
-    copy_string(info->u.query.sql, sql, sizeof(info->u.query.sql));
+    sql_set_query(info, "%s", sql);
 
     // Drop the rest
     cursor_drop(cursor, cursor->cap_len - 1);
@@ -625,8 +624,7 @@ static enum proto_parse_status tns_parse_sql_query_jdbc(struct sql_proto_info *i
     status = cursor_read_fix_string(cursor, &sql, sql_len);
     if (status != PROTO_OK) return status;
     SLOG(LOG_DEBUG, "Sql parsed: %s", sql);
-    info->set_values |= SQL_SQL;
-    copy_string(info->u.query.sql, sql, sizeof(info->u.query.sql));
+    sql_set_query(info, "%s", sql);
 
     SLOG(LOG_DEBUG, "Skipping %zu end variable fields", end_len);
     DROP_VARS(cursor, end_len);

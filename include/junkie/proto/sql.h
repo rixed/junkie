@@ -73,15 +73,17 @@ struct sql_proto_info {
             char dbname[64];
             char passwd[64];
             enum sql_encoding {
+                SQL_ENCODING_UNKNOWN=0,
                 SQL_ENCODING_UTF8,
                 SQL_ENCODING_LATIN1,
-                SQL_ENCODING_UNKNOWN,
+                SQL_ENCODING_MAX
             } encoding;
         } startup;
         struct sql_query {
-            char sql[4096];
+            char sql[4096];             // UTF-8
             unsigned nb_rows;
             unsigned nb_fields;
+            bool truncated;
         } query;
     } u;
 };
@@ -90,6 +92,7 @@ char const *sql_encoding_2_str(enum sql_encoding encoding);
 char const *sql_msg_type_2_str(enum sql_msg_type type);
 char const *sql_info_2_str(struct proto_info const *);
 void const *sql_info_addr(struct proto_info const *, size_t *);
+int sql_set_query(struct sql_proto_info *info, char const *fmt, ...);
 
 void pgsql_init(void);
 void pgsql_fini(void);

@@ -343,13 +343,13 @@ static char const *com_refresh_2_str(uint8_t code)
 {
     switch (code) {
         case 0x01: return "REFRESH GRANT";
-		case 0x02: return "REFRESH LOG";
-		case 0x04: return "REFRESH TABLES";
-		case 0x08: return "REFRESH HOSTS";
-		case 0x10: return "REFRESH STATUS";
-		case 0x20: return "REFRESH THREADS";
-		case 0x40: return "REFRESH SLAVE";
-		case 0x80: return "REFRESH MASTER";
+        case 0x02: return "REFRESH LOG";
+        case 0x04: return "REFRESH TABLES";
+        case 0x08: return "REFRESH HOSTS";
+        case 0x10: return "REFRESH STATUS";
+        case 0x20: return "REFRESH THREADS";
+        case 0x40: return "REFRESH SLAVE";
+        case 0x80: return "REFRESH MASTER";
     }
     return NULL;
 }
@@ -357,14 +357,14 @@ static char const *com_refresh_2_str(uint8_t code)
 static char const *com_shutdown_2_str(uint8_t code)
 {
     switch (code) {
-		case 0x00: return "SHUTDOWN DEFAULT";
-		case 0x01: return "SHUTDOWN WAIT CONNECTIONS";
-		case 0x02: return "SHUTDOWN WAIT TRANSACTIONS";
-		case 0x08: return "SHUTDOWN WAIT UPDATES";
-		case 0x10: return "SHUTDOWN WAIT ALL BUFFERS";
-		case 0x11: return "SHUTDOWN WAIT CRITICAL BUFFERS";
-		case 0xFE: return "KILL QUERY";
-		case 0xFF: return "KILL CONNECTION";
+        case 0x00: return "SHUTDOWN DEFAULT";
+        case 0x01: return "SHUTDOWN WAIT CONNECTIONS";
+        case 0x02: return "SHUTDOWN WAIT TRANSACTIONS";
+        case 0x08: return "SHUTDOWN WAIT UPDATES";
+        case 0x10: return "SHUTDOWN WAIT ALL BUFFERS";
+        case 0x11: return "SHUTDOWN WAIT CRITICAL BUFFERS";
+        case 0xFE: return "KILL QUERY";
+        case 0xFF: return "KILL CONNECTION";
     }
     return NULL;
 }
@@ -399,55 +399,51 @@ static enum proto_parse_status mysql_parse_query(struct mysql_parser *mysql_pars
             if (packet_len-- < 1) return PROTO_PARSE_ERR;
             unsigned command = cursor_read_u8(&cursor);
             if (command > COM_STMT_FETCH) return PROTO_PARSE_ERR;
-            info->set_values |= SQL_SQL;
             if (command == COM_QUERY || command == COM_STMT_PREPARE) {
-                snprintf(info->u.query.sql, sizeof(info->u.query.sql), "%.*s", (int)packet_len, cursor.head);
+                sql_set_query(info, "%.*s", (int)packet_len, cursor.head);
             } else if (command == COM_INIT_DB) {
-                snprintf(info->u.query.sql, sizeof(info->u.query.sql), "USE %.*s", (int)packet_len, cursor.head);
+                sql_set_query(info, "USE %.*s", (int)packet_len, cursor.head);
             } else if (command == COM_FIELD_LIST) {
-                snprintf(info->u.query.sql, sizeof(info->u.query.sql), "SHOW FIELDS FROM %.*s", (int)packet_len, cursor.head);
+                sql_set_query(info, "SHOW FIELDS FROM %.*s", (int)packet_len, cursor.head);
             } else if (command == COM_CREATE_DB) {
-                snprintf(info->u.query.sql, sizeof(info->u.query.sql), "CREATE DATABASE %.*s", (int)packet_len, cursor.head);
+                sql_set_query(info, "CREATE DATABASE %.*s", (int)packet_len, cursor.head);
             } else if (command == COM_DROP_DB) {
-                snprintf(info->u.query.sql, sizeof(info->u.query.sql), "DROP DATABASE %.*s", (int)packet_len, cursor.head);
+                sql_set_query(info, "DROP DATABASE %.*s", (int)packet_len, cursor.head);
             } else if (command == COM_REFRESH) {
                 if (packet_len-- < 1) return PROTO_PARSE_ERR;
                 char const *sql = com_refresh_2_str(cursor_read_u8(&cursor));
                 if (! sql) return PROTO_PARSE_ERR;
-                snprintf(info->u.query.sql, sizeof(info->u.query.sql), "%s", sql);
+                sql_set_query(info, "%s", sql);
             } else if (command == COM_SHUTDOWN) {
                 if (packet_len-- < 1) return PROTO_PARSE_ERR;
                 char const *sql = com_shutdown_2_str(cursor_read_u8(&cursor));
                 if (! sql) return PROTO_PARSE_ERR;
-                snprintf(info->u.query.sql, sizeof(info->u.query.sql), "%s", sql);
+                sql_set_query(info, "%s", sql);
             } else if (command == COM_STATISTICS) {
                 if (packet_len != 0) return PROTO_PARSE_ERR;
-                snprintf(info->u.query.sql, sizeof(info->u.query.sql), "STATISTICS");
+                sql_set_query(info, "STATISTICS");
             } else if (command == COM_PROCESS_INFO) {
                 if (packet_len != 0) return PROTO_PARSE_ERR;
-                snprintf(info->u.query.sql, sizeof(info->u.query.sql), "SHOW PROCESSLIST");
+                sql_set_query(info, "SHOW PROCESSLIST");
             } else if (command == COM_PROCESS_KILL) {
                 if (packet_len != 4) return PROTO_PARSE_ERR;
                 uint32_t pid = cursor_read_u32(&cursor);
-                snprintf(info->u.query.sql, sizeof(info->u.query.sql), "KILL %"PRIu32, pid);
+                sql_set_query(info, "KILL %"PRIu32, pid);
             } else if (command == COM_DEBUG) {
                 if (packet_len != 0) return PROTO_PARSE_ERR;
-                snprintf(info->u.query.sql, sizeof(info->u.query.sql), "DEBUG");
+                sql_set_query(info, "DEBUG");
             } else if (command == COM_PING) {
                 if (packet_len != 0) return PROTO_PARSE_ERR;
-                snprintf(info->u.query.sql, sizeof(info->u.query.sql), "PING");
+                sql_set_query(info, "PING");
             } else if (command == COM_CHANGE_USER) {
                 // TODO: fetch new user, password and dbname, and reset the phase to startup ?
             } else if (command == COM_QUIT) {
                 if (packet_len != 0) return PROTO_PARSE_ERR;
                 mysql_parser->phase = EXIT;
                 info->msg_type = SQL_EXIT;
-                info->set_values ^= SQL_SQL;
                 info->set_values |= SQL_REQUEST_STATUS;
                 info->request_status = SQL_REQUEST_COMPLETE;
                 break;
-            } else {
-                info->set_values ^= SQL_SQL;
             }
             if ( command == COM_FIELD_LIST ) {
                 mysql_parser->expected_eof = 1;

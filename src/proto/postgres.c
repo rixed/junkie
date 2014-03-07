@@ -126,9 +126,10 @@ char const *sql_encoding_2_str(enum sql_encoding encoding)
         case SQL_ENCODING_UTF8: return "UTF8";
         case SQL_ENCODING_LATIN1: return "Latin1";
         case SQL_ENCODING_UNKNOWN: return "Unknown";
+        default:
+            assert(!"Unknown sql_encoding");
+            return "INVALID";
     }
-    assert(!"Unknown sql_encoding");
-    return "INVALID";
 }
 
 static char const *startup_query_2_str(struct sql_proto_info const *info)
@@ -223,6 +224,20 @@ void const *sql_info_addr(struct proto_info const *info_, size_t *size)
     struct sql_proto_info const *info = DOWNCAST(info_, info, sql_proto_info);
     if (size) *size = sizeof(*info);
     return info;
+}
+
+// Set both the query and the flag that indicate if the query was truncated.
+int sql_set_query(struct sql_proto_info *info, char const *fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    int size = vsnprintf(info->u.query.sql, sizeof(info->u.query.sql), fmt, args);
+    va_end(args);
+    if (size >= 0) {
+        info->set_values |= SQL_SQL;
+        info->u.query.truncated = ((unsigned)size >= sizeof(info->u.query.sql));
+    }
+    return size;
 }
 
 /*
@@ -492,8 +507,7 @@ static enum proto_parse_status pg_parse_query(struct pgsql_parser *pg_parser, st
             char *sql;
             status = cursor_read_string(&cursor, &sql, len);
             if (status != PROTO_OK) return status;
-            info->set_values |= SQL_SQL;
-            snprintf(info->u.query.sql, sizeof(info->u.query.sql), "%s", sql);
+            sql_set_query(info, "%s", sql);
         } else if (type == 'X') {
             info->msg_type = SQL_EXIT;
             info->set_values |= SQL_REQUEST_STATUS;
