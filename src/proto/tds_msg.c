@@ -1172,7 +1172,8 @@ static enum proto_parse_status tds_parse_env_change(struct tds_msg_parser *tds_m
                 string_buffer_ctor(&buffer, info->u.startup.dbname, sizeof(info->u.startup.dbname));
                 status = append_b_varchar(tds_msg_parser, &buffer, cursor, "?");
                 if (status != PROTO_OK) return status;
-                buffer_get_string(&buffer);
+                char *dbname = buffer_get_string(&buffer);
+                SLOG(LOG_DEBUG, "Setting dbname to %s", dbname);
                 info->set_values |= SQL_DBNAME;
                 if (PROTO_OK != (status = skip_b_varchar(cursor))) return status;
             }
@@ -1481,19 +1482,24 @@ static enum proto_parse_status tds_msg_parse_result(struct tds_msg_parser *tds_m
 {
     SLOG(LOG_DEBUG, "Parsing Result");
     enum proto_parse_status status;
-    switch (tds_msg_parser->last_pkt_type) {
-        case TDS_PKT_TYPE_PRELOGIN:
-            return tds_prelogin(cursor, info, false);
-        default:
-            while (! cursor_is_empty(cursor)) {
-                bool skip = false;
-                status = tds_result_token(tds_msg_parser, cursor, info, &skip);
-                SLOG(LOG_DEBUG, "Token parse has returned %s", proto_parse_status_2_str(status));
-                if (status != PROTO_OK) break;
-                if (skip) break;
-            }
-            return status;
+    if (tds_msg_parser->last_pkt_type == TDS_PKT_TYPE_PRELOGIN) {
+        SLOG(LOG_DEBUG, "Try to parse as a prelogin packet");
+        struct cursor save = *cursor;
+        status = tds_prelogin(cursor, info, false);
+        if (status == PROTO_OK) return status;
+        // It might happens after the login packet
+        // failed to parse as a prelogin, let's try as a normal response
+        SLOG(LOG_DEBUG, "Failed to parse response as a prelogin packet");
+        *cursor = save;
     }
+    while (! cursor_is_empty(cursor)) {
+        bool skip = false;
+        status = tds_result_token(tds_msg_parser, cursor, info, &skip);
+        SLOG(LOG_DEBUG, "Token parse has returned %s", proto_parse_status_2_str(status));
+        if (status != PROTO_OK) break;
+        if (skip) break;
+    }
+    return status;
 }
 
 static enum proto_parse_status tds_msg_sbuf_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)

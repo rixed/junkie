@@ -72,7 +72,7 @@ TDS(msg): head_len=198, payload=0, Clt->Srv, startup, No SSL
 TDS: head_len=8, payload=59, type=Pre-login, status=0x1
 TDS(msg): head_len=59, payload=0, Srv->Clt, startup, No SSL
 TDS: head_len=8, payload=409, type=Tabular result, status=0x1
-TDS(msg): head_len=409, payload=0, Srv->Clt, startup, No SSL
+TDS(msg): head_len=409, payload=0, Srv->Clt, version=7.4, startup, No SSL, dbname=octo, Status=Completed
 TDS: head_len=8, payload=99, type=RPC, status=0x1
 TDS(msg): head_len=99, payload=0, Clt->Srv, query, query='PrepExec(?*=0,?=NULL,?=SELECT * FROM Toto )'
 TDS: head_len=8, payload=7992, type=Tabular result, status=0x0
@@ -85,3 +85,22 @@ TDS: head_len=8, payload=7992, type=Tabular result, status=0x0
 TDS(msg): head_len=7992, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 TDS: head_len=8, payload=7992, type=Tabular result, status=0x0
 TDS(msg): head_len=18816, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
+-- pcap/tds/mssql_with_accent.pcap --
+TDS: head_len=8, payload=59, type=Pre-login, status=0x1
+TDS(msg): head_len=59, payload=0, Clt->Srv, version=0.0, startup, No SSL
+TDS: head_len=8, payload=23, type=Tabular result, status=0x1
+TDS(msg): head_len=23, payload=0, Srv->Clt, version=11.0, startup, No SSL
+TDS: head_len=8, payload=154, type=Pre-login, status=0x1
+TDS(msg): head_len=154, payload=0, Clt->Srv, startup, No SSL
+TDS: head_len=8, payload=609, type=Pre-login, status=0x1
+TDS(msg): head_len=609, payload=0, Srv->Clt, startup, No SSL
+TDS: head_len=8, payload=198, type=Pre-login, status=0x1
+TDS(msg): head_len=198, payload=0, Clt->Srv, startup, No SSL
+TDS: head_len=8, payload=59, type=Pre-login, status=0x1
+TDS(msg): head_len=59, payload=0, Srv->Clt, startup, No SSL
+TDS: head_len=8, payload=429, type=Tabular result, status=0x1
+TDS(msg): head_len=429, payload=0, Srv->Clt, version=7.4, startup, No SSL, dbname=ç é ààààà, Status=Completed
+TDS: head_len=8, payload=227, type=RPC, status=0x1
+TDS(msg): head_len=227, payload=0, Clt->Srv, query, query='PrepExec(?*=0,?=@P0 nvarchar(4000),?=DELETE FROM Toto WHERE name = @P0ç é ààààà        ,?=ç é ààààà)'
+TDS: head_len=8, payload=288, type=Tabular result, status=0x1
+TDS(msg): head_len=288, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1, Status=Error, ErrorCode=137, ErrorMessage=Must declare the scalar variable "@P0ç".

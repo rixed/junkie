@@ -133,7 +133,7 @@ char const *sql_encoding_2_str(enum sql_encoding encoding)
     }
 }
 
-static char const *startup_query_2_str(struct sql_proto_info const *info)
+static char const *startup_2_str(struct sql_proto_info const *info)
 {
     return tempstr_printf(", %s%s%s%s%s%s%s%s%s",
         info->set_values & SQL_SSL_REQUEST ? sql_ssl_2_str(info->u.startup.ssl_request) : "No SSL",
@@ -146,15 +146,6 @@ static char const *startup_query_2_str(struct sql_proto_info const *info)
         info->set_values & SQL_ENCODING ? ", encoding=" : "",
         info->set_values & SQL_ENCODING ? sql_encoding_2_str(info->u.startup.encoding) : ""
         );
-}
-
-// FIXME: a unsigned_if_set_2_str(info, set_mask, field_name, field_value) to replace various -1 for unset ints.
-static char const *startup_reply_2_str(struct sql_proto_info const *info)
-{
-    return tempstr_printf(", %s%s%s",
-        info->set_values & SQL_SSL_REQUEST ? sql_ssl_2_str(info->u.startup.ssl_request) : "No SSL",
-        info->set_values & SQL_ENCODING ? ", encoding=" : "",
-        info->set_values & SQL_ENCODING ? sql_encoding_2_str(info->u.startup.encoding) : "");
 }
 
 static char const *query_query_2_str(struct sql_proto_info const *info)
@@ -193,7 +184,7 @@ char const *sql_info_2_str(struct proto_info const *info_)
         case SQL_UNKNOWN:
             break;
         case SQL_STARTUP:
-            spec_info_2_str = info->is_query ? startup_query_2_str : startup_reply_2_str;
+            spec_info_2_str = startup_2_str;
             break;
         case SQL_QUERY:
             spec_info_2_str = info->is_query ? query_query_2_str : query_reply_2_str;
