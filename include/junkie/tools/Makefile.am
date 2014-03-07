@@ -23,5 +23,6 @@ thisinclude_HEADERS = \
 	bench.h \
 	proto_stack.h \
 	term.h \
+	string_buffer.h \
 	timebound.h
 
