@@ -42,7 +42,7 @@ void check_sql_set(struct sql_proto_info const *info, struct sql_proto_info cons
     unsigned expected_set = expected->set_values & set;
     unsigned value_set = info->set_values & set;
     if (expected_set != value_set) {
-        if (0 != expected) {
+        if (0 != expected_set) {
             printf("Expected %s to be set\n", set_value_2_str(set));
             assert(expected_set == value_set);
         } else {

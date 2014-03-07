@@ -727,6 +727,68 @@ static struct parse_test {
          .called = true,
      },
 
+     // A simple select version
+     {
+         .packet = (uint8_t const []) {
+//           Type Stat Length--- osef---------------
+             0x01,0x01,0x00,0x1a,0x00,0x00,0x00,0x00, 0x20,0x53,0x45,0x4c,0x45,0x43,0x54,0x20,
+             0x40,0x40,0x56,0x45,0x52,0x53,0x49,0x4f, 0x4e,0x20
+         },
+         .size = 0x1a,
+         .ret = PROTO_OK,
+         .way = FROM_SERVER,
+         .expected = {
+             .info = { .head_len = 0x1a - 8, .payload = 0},
+             .set_values = SQL_SQL,
+             .u = { .query = { .sql = " SELECT @@VERSION " } },
+             .msg_type = SQL_QUERY,
+         },
+         .called = true,
+     },
+
+     // Another simple select version
+     {
+         .packet = (uint8_t const []) {
+             0x01,0x01,0x00,0x18,0x00,0x00,0x00,0x00,0x73,0x65,0x6c,0x65,0x63,0x74,0x20,0x40,
+             0x40,0x76,0x65,0x72,0x73,0x69,0x6f,0x6e
+         },
+         .size = 0x18,
+         .ret = PROTO_OK,
+         .way = FROM_SERVER,
+         .expected = {
+             .info = { .head_len = 0x18 - 8, .payload = 0},
+             .set_values = SQL_SQL,
+             .u = { .query = { .sql = "select @@version" } },
+             .msg_type = SQL_QUERY,
+         },
+         .called = true,
+     },
+
+     // An sql batch
+     {
+         .packet = (uint8_t const []) {
+             0x01,0x01,0x00,0x90,0x00,0x00,0x01,0x00,0x16,0x00,0x00,0x00,0x12,0x00,0x00,0x00,
+             0x02,0x00,0x50,0x00,0x00,0x00,0x3b,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x53,0x00,
+             0x45,0x00,0x4c,0x00,0x45,0x00,0x43,0x00,0x54,0x00,0x20,0x00,0x50,0x00,0x72,0x00,
+             0x69,0x00,0x76,0x00,0x69,0x00,0x6c,0x00,0x65,0x00,0x67,0x00,0x65,0x00,0x20,0x00,
+             0x46,0x00,0x52,0x00,0x4f,0x00,0x4d,0x00,0x20,0x00,0x4f,0x00,0x52,0x00,0x5f,0x00,
+             0x50,0x00,0x72,0x00,0x69,0x00,0x76,0x00,0x69,0x00,0x6c,0x00,0x65,0x00,0x67,0x00,
+             0x65,0x00,0x73,0x00,0x20,0x00,0x57,0x00,0x49,0x00,0x54,0x00,0x48,0x00,0x20,0x00,
+             0x28,0x00,0x58,0x00,0x4c,0x00,0x4f,0x00,0x43,0x00,0x4b,0x00,0x2c,0x00,0x20,0x00,
+             0x52,0x00,0x4f,0x00,0x57,0x00,0x4c,0x00,0x4f,0x00,0x43,0x00,0x4b,0x00,0x29,0x00
+         },
+         .size = 0x90,
+         .ret = PROTO_OK,
+         .way = FROM_SERVER,
+         .expected = {
+             .info = { .head_len = 0x90 - 8, .payload = 0},
+             .set_values = SQL_SQL,
+             .u = { .query = { .sql = "SELECT Privilege FROM OR_Privileges WITH (XLOCK, ROWLOCK)" } },
+             .msg_type = SQL_QUERY,
+         },
+         .called = true,
+     },
+
 };
 
 static unsigned cur_test;
@@ -776,42 +838,16 @@ static void parse_check(void)
     hook_subscriber_dtor(&pkt_hook, &sub);
 }
 
-static void append_unicode_check(struct tds_msg_parser *tds_msg_parser)
+static void check_string_buffer(struct string_buffer *buffer, char *expected, bool truncated)
 {
-    static uint8_t unicode_strings[] =
-        "o\0c\0t\0o\0n\0"   // 5 chars
-        "o\0c\0t\0o\0n\0"   // 5 chars
-        "p\0e\0t\0i\0t\0p\0a\0t\0a\0p\0o\0n\0"; // 12 chars
-    struct cursor cursor;
-    cursor_ctor(&cursor, unicode_strings, sizeof(unicode_strings));
-    size_t len = 0;
-    char big[22+1];
-    memset(big, 'x', sizeof(big));
-    append_from_unicode(tds_msg_parser, big, sizeof(big), &len, &cursor, 10);
-    assert(0 == strcmp(big, "octon"));
-    append_from_unicode(tds_msg_parser, big, sizeof(big), &len, &cursor, 10);
-    assert(0 == strcmp(big, "octonocton"));
-    append_from_unicode(tds_msg_parser, big, sizeof(big), &len, &cursor, 24);
-    assert(0 == strcmp(big, "octonoctonpetitpatapon"));
-
-    cursor_ctor(&cursor, unicode_strings, sizeof(unicode_strings));
-    len = 0;
-    char sht[10+1]; // place for two
-    memset(sht, 'x', sizeof(sht));
-    append_from_unicode(tds_msg_parser, sht, sizeof(sht), &len, &cursor, 10);
-    assert(0 == strcmp(sht, "octon"));
-    append_from_unicode(tds_msg_parser, sht, sizeof(sht), &len, &cursor, 10);
-    append_from_unicode(tds_msg_parser, sht, sizeof(sht), &len, &cursor, 24);
-    assert(0 == strcmp(sht, "octonocton"));
-
-    cursor_ctor(&cursor, unicode_strings, sizeof(unicode_strings));
-    len = 0;
-    char tny[2+1];
-    memset(tny, 'x', sizeof(tny));
-    append_from_unicode(tds_msg_parser, tny, sizeof(tny), &len, &cursor, 10);
-    append_from_unicode(tds_msg_parser, tny, sizeof(tny), &len, &cursor, 10);
-    append_from_unicode(tds_msg_parser, tny, sizeof(tny), &len, &cursor, 24);
-    assert(0 == strcmp(tny, "oc"));
+    if (truncated != buffer->truncated) {
+        printf("Buffer %s should %s be truncated\n", string_buffer_2_str(buffer), truncated ? "" : "not");
+        assert(truncated == buffer->truncated);
+    }
+    if (0 != strcmp(buffer->head, expected)) {
+        printf("Buffer %s string should be %s\n", string_buffer_2_str(buffer), expected);
+        assert(0 == strcmp(buffer->head, expected));
+    }
 }
 
 static void append_us_varchar_check(struct tds_msg_parser *tds_msg_parser)
@@ -822,49 +858,13 @@ static void append_us_varchar_check(struct tds_msg_parser *tds_msg_parser)
         0x6e,0x00,0x61,0x00,0x6d,0x00,0x65,0x00,0x20,0x00,0x27,0x00,0x54,0x00,0x6f,0x00,
         0x74,0x00,0x6f,0x00,0x32,0x00,0x27,0x00,0x2e,0x00};
     char dst[256];
-    size_t len = 0;
+    struct string_buffer buffer;
+    string_buffer_ctor(&buffer, dst, sizeof(dst));
     struct cursor cursor;
     cursor_ctor(&cursor, unicode_strings, sizeof(unicode_strings));
-    append_us_varchar(tds_msg_parser, dst, sizeof(dst), &len, &cursor);
-    assert(0 == strcmp(dst, "Invalid object name 'Toto2'."));
-}
 
-static void append_unicode_check_with_special_chars(struct tds_msg_parser *tds_msg_parser)
-{
-    static uint8_t str[] = {
-        0x53,0x00,0x45, 0x00,0x4c,0x00,0x45,0x00,0x43,0x00,0x54,0x00,0x20,0x00,0x2a,0x00,
-        0x20,0x00,0x46, 0x00,0x52,0x00,0x4f,0x00,0x4d,0x00,0x20,0x00,0x54,0x00,0x6f,0x00,
-        0x74,0x00,0x6f, 0x00,0x20,0x00,0x57,0x00,0x48,0x00,0x45,0x00,0x52,0x00,0x45,0x00,
-        0x20,0x00,0x6e, 0x00,0x61,0x00,0x6d,0x00,0x65,0x00,0x20,0x00,0x3d,0x00,0x20,0x00,
-        0x27,0x00,0x72, 0x00,0xe9,0x00,0x70,0x00,0xe9,0x00,0x74,0x00,0xe9,0x00,0x73,0x00,
-        0x27,0x00 };
-    size_t len = 0;
-    char dst[0x52];
-    struct cursor cursor;
-    cursor_ctor(&cursor, str, sizeof(str));
-    append_from_unicode(tds_msg_parser, dst, sizeof(dst), &len, &cursor, 0x52);
-    assert(0 == strcmp(dst, "SELECT * FROM Toto WHERE name = 'répétés'"));
-
-    uint8_t str2[] = {
-        0x6b, 0x00, 0x75, 0x00, 0x0a, 0x00, 0x7a, 0x00
-    };
-    cursor_ctor(&cursor, str2, sizeof(str2));
-    len = 0;
-    append_from_unicode(tds_msg_parser, dst, sizeof(dst), &len, &cursor, 0x8);
-    assert(0 == strcmp(dst, "ku\nz"));
-}
-
-static void append_hexstring_check(void)
-{
-    static uint8_t unicode_strings[] = { 0x00,0x11,0x22,0x33,0x44,0x55,0x66,0x77, 0x88,0x99,0xaa,0xbb,0xcc,0xdd,0xee,0xff };
-
-    struct cursor cursor;
-    cursor_ctor(&cursor, unicode_strings, sizeof(unicode_strings));
-    size_t len = 0;
-
-    char dst[22+1];
-    append_hexstring(dst, sizeof(dst), &len, &cursor, 5);
-    assert(0 == strcmp(dst, "0011223344"));
+    append_us_varchar(tds_msg_parser, &buffer, &cursor);
+    check_string_buffer(&buffer, "Invalid object name 'Toto2'.", false);
 }
 
 int main(void)
@@ -888,10 +888,7 @@ int main(void)
 
     struct tds_msg_parser tds_msg_parser;
     tds_msg_parser_ctor(&tds_msg_parser, proto_tds_msg);
-    append_unicode_check(&tds_msg_parser);
     append_us_varchar_check(&tds_msg_parser);
-    append_unicode_check_with_special_chars(&tds_msg_parser);
-    append_hexstring_check();
     struct parser *parser = &tds_msg_parser.parser;
     parser_unref(&parser);
     tds_msg_parser_dtor(&tds_msg_parser);
