@@ -99,7 +99,7 @@ PostgreSQL: head_len=5, payload=0, Clt->Srv, exit, Status=Completed
 PostgreSQL: head_len=8, payload=0, Clt->Srv, startup, SSL requested
 PostgreSQL: head_len=1, payload=0, Srv->Clt, startup, SSL refused
 PostgreSQL: head_len=33, payload=0, Clt->Srv, version=3.0, startup, No SSL, user=sora, dbname=sora
-PostgreSQL: head_len=324, payload=0, Srv->Clt, startup, No SSL, encoding=Unknown, Status=Completed
+PostgreSQL: head_len=324, payload=0, Srv->Clt, startup, No SSL, encoding=Latin9, Status=Completed
 PostgreSQL: head_len=285, payload=0, Clt->Srv, query, query='SELECT * FROM                                                                                                                                                                                                                                                                octonions;'
 PostgreSQL: head_len=71, payload=0, Srv->Clt, query, nb_rows=0, nb_fields=2, Status=Completed
 PostgreSQL: head_len=5, payload=0, Clt->Srv, exit, Status=Completed

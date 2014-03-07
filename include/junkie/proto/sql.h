@@ -76,6 +76,7 @@ struct sql_proto_info {
                 SQL_ENCODING_UNKNOWN=0,
                 SQL_ENCODING_UTF8,
                 SQL_ENCODING_LATIN1,
+                SQL_ENCODING_LATIN9,
                 SQL_ENCODING_MAX
             } encoding;
         } startup;

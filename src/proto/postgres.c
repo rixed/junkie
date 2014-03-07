@@ -125,6 +125,7 @@ char const *sql_encoding_2_str(enum sql_encoding encoding)
     switch (encoding) {
         case SQL_ENCODING_UTF8: return "UTF8";
         case SQL_ENCODING_LATIN1: return "Latin1";
+        case SQL_ENCODING_LATIN9: return "Latin9";
         case SQL_ENCODING_UNKNOWN: return "Unknown";
         default:
             assert(!"Unknown sql_encoding");
@@ -316,6 +317,8 @@ static void pg_parse_client_encoding(struct sql_proto_info *info, char const *va
         info->u.startup.encoding = SQL_ENCODING_UTF8;
     } else if (0 == strcmp(value, "LATIN1")) {
         info->u.startup.encoding = SQL_ENCODING_LATIN1;
+    } else if (0 == strcmp(value, "LATIN9")) {
+        info->u.startup.encoding = SQL_ENCODING_LATIN9;
     } else {
         SLOG(LOG_DEBUG, "Unknown client encoding (%s)", value);
         info->u.startup.encoding = SQL_ENCODING_UNKNOWN;
