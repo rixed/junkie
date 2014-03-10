@@ -119,11 +119,14 @@ void timebound_touch(struct timebound *t, struct timeval const *now)
     // ?
 #   endif
     if (! t->monitored) return;
+    // TODO timebound can be destroyed between the monitored check and the mutex lock
 
     SLOG(LOG_DEBUG, "Touching timebound object @%p", t);
     WITH_LOCK(&t->bucket->mutex) {
-        TAILQ_REMOVE(&t->bucket->list, t, entry);
-        TAILQ_INSERT_HEAD(&t->bucket->list, t, entry);
+        if (t->monitored) {
+            TAILQ_REMOVE(&t->bucket->list, t, entry);
+            TAILQ_INSERT_HEAD(&t->bucket->list, t, entry);
+        }
     }
     last_used = t->last_used = now->tv_sec;
 }
