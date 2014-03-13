@@ -124,7 +124,7 @@ static size_t search_utf8_start(struct string_buffer const *buffer, size_t start
     return start;
 }
 
-inline size_t buffer_append_char(struct string_buffer *buffer, char src)
+size_t buffer_append_char(struct string_buffer *buffer, char src)
 {
     if (!buffer) return 0;
     CHECK_BUFFER_TRUNCATED(buffer);
