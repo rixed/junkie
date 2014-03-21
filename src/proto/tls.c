@@ -116,22 +116,22 @@ static uint32_t tls_session_key_hash(uint8_t id_len, uint8_t const *id)
     return hashfun(id, id_len);
 }
 
+// caller must own keyfile->lock
 static void tls_session_dtor(struct tls_session *session, struct tls_keyfile *keyfile)
 {
     SLOG(LOG_DEBUG, "Destruct TLS session@%p", session);
-    WITH_LOCK(&keyfile->lock) {
-        if ((session->id_hash | session->ticket_hash) & KEY_HASH_SET) {
-            TAILQ_REMOVE(&keyfile->sessions_lru, session, lru_entry);
-        }
-        if (session->id_hash & KEY_HASH_SET) {
-            HASH_REMOVE(&keyfile->sessions, session, h_entry_id);
-        }
-        if (session->ticket_hash & KEY_HASH_SET) {
-            HASH_REMOVE(&keyfile->sessions, session, h_entry_ticket);
-        }
+    if ((session->id_hash | session->ticket_hash) & KEY_HASH_SET) {
+        TAILQ_REMOVE(&keyfile->sessions_lru, session, lru_entry);
+    }
+    if (session->id_hash & KEY_HASH_SET) {
+        HASH_REMOVE(&keyfile->sessions, session, h_entry_id);
+    }
+    if (session->ticket_hash & KEY_HASH_SET) {
+        HASH_REMOVE(&keyfile->sessions, session, h_entry_ticket);
     }
 }
 
+// caller must own keyfile->lock
 static void tls_session_del(struct tls_session *session, struct tls_keyfile *keyfile)
 {
     tls_session_dtor(session, keyfile);
@@ -268,7 +268,9 @@ static void tls_keyfile_dtor(struct tls_keyfile *keyfile)
 
     struct tls_session *session;
     while (NULL != (session = TAILQ_LAST(&keyfile->sessions_lru, tls_sessions_lru))) {
-        tls_session_del(session, keyfile);
+        WITH_LOCK(&keyfile->lock) {
+            tls_session_del(session, keyfile);
+        }
     }
     assert(0 == HASH_SIZE(&keyfile->sessions));
     HASH_DEINIT(&keyfile->sessions);
