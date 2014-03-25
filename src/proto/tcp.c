@@ -391,7 +391,7 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
     struct port_key key;
     port_key_init(&key, sport, dport, way);
     struct mux_subparser *subparser = mux_subparser_lookup(mux_parser, NULL, NULL, &key, now);
-    if (subparser) SLOG(LOG_DEBUG, "Found subparser@%p for this cnx, for proto %s", subparser->parser, subparser->parser->proto->name);
+    if (subparser) SLOG(LOG_DEBUG, "Found subparser@%p for this cnx, for proto %s", subparser->parser, subparser->parser ? subparser->parser->proto->name : NULL);
 
     if (! subparser) {
         struct proto *requestor = NULL;
