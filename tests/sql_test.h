@@ -14,7 +14,7 @@
     char *exp = (char *)EXP;                              \
     char *val = (char *)VAL;                              \
     if (0 != strcmp(exp, val)) {                  \
-        printf("Expected '%s' got '%s' from field %s\n", exp, val, #VAL); \
+        printf("Expected '%s'\nGot      '%s' from field %s\n", exp, val, #VAL); \
         return 1;                                 \
     } } while (0)
 

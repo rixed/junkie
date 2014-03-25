@@ -97,6 +97,12 @@ int compare_expected_sql(struct sql_proto_info const *info, struct sql_proto_inf
         CHECK_STR(info->u.query.sql, expected->u.query.sql);
     if ((expected->set_values & (SQL_ENCODING)) == (SQL_ENCODING))
         CHECK_INT(info->u.startup.encoding, expected->u.startup.encoding);
+    if ((expected->set_values & (SQL_USER)) == (SQL_USER))
+        CHECK_STR(info->u.startup.user, expected->u.startup.user);
+    if ((expected->set_values & (SQL_DBNAME)) == (SQL_DBNAME))
+        CHECK_STR(info->u.startup.dbname, expected->u.startup.dbname);
+    if ((expected->set_values & (SQL_PASSWD)) == (SQL_PASSWD))
+        CHECK_STR(info->u.startup.passwd, expected->u.startup.passwd);
     return 0;
 }
 
