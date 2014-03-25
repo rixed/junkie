@@ -21,6 +21,7 @@
 static struct parse_test {
     uint8_t const *packet;
     int size;
+    int cap_len;
     enum proto_parse_status ret;         // Expected proto status
     struct sql_proto_info expected;
     enum way way;
@@ -42,6 +43,7 @@ static struct parse_test {
             0x00,0x00,0x00
         },
         .size = 0x43,
+        .cap_len = 0x43,
         .ret = PROTO_OK,
         .way = FROM_CLIENT,
         .expected = {
@@ -63,6 +65,7 @@ static struct parse_test {
             0x00,0x01,0x05,0x00,0x17,0x00,0x00,0xff, 0x0b,0x00,0x0c,0x38,0x00,0x00,0x00
         },
         .size = 0x1f,
+        .cap_len = 0x1f,
         .ret = PROTO_OK,
         .way = FROM_SERVER,
         .expected = {
@@ -92,6 +95,7 @@ static struct parse_test {
             0x01,0x00
         },
         .size = 0xa2,
+        .cap_len = 0xa2,
         .ret = PROTO_OK,
         .way = FROM_CLIENT,
         .expected = {
@@ -123,6 +127,7 @@ static struct parse_test {
             0xa3
         },
         .size = 0x145,
+        .cap_len = 0x145,
         .ret = PROTO_OK,
         .way = FROM_CLIENT,
         .expected = {
@@ -187,6 +192,7 @@ static struct parse_test {
             0xfd,0x00,0x00,0x00,0x00,0x00,0x00,0x00, 0x00
         },
         .size = 0x199,
+        .cap_len = 0x199,
         .ret = PROTO_OK,
         .way = FROM_CLIENT,
         .expected = {
@@ -214,6 +220,7 @@ static struct parse_test {
             0x00,0x54,0x00,0x6f,0x00,0x74,0x00,0x6f, 0x00
         },
         .size = 0x69,
+        .cap_len = 0x69,
         .ret = PROTO_OK,
         .way = FROM_CLIENT,
         .expected = {
@@ -253,6 +260,7 @@ static struct parse_test {
             0x00,0x3e,0x00,0x00,0x00,0x00,0x00
         },
         .size = 0xc7,
+        .cap_len = 0xc7,
         .ret = PROTO_OK,
         .way = FROM_CLIENT,
         .expected = {
@@ -283,6 +291,7 @@ static struct parse_test {
             0x00,0x20,0x00,0x20,0x00,0x20,0x00,0x20
         },
         .size = 0x98,
+        .cap_len = 0x98,
         .ret = PROTO_OK,
         .way = FROM_CLIENT,
         .called = false,
@@ -304,6 +313,7 @@ static struct parse_test {
             0x04,0x04,0x01,0x00,0x00,0x00
         },
         .size = 0xa6,
+        .cap_len = 0xa6,
         .ret = PROTO_OK,
         .way = FROM_CLIENT,
         .expected = {
@@ -335,6 +345,7 @@ static struct parse_test {
               0x00,0x6e,0x00,0x6f,0x00,0x74,0x00,0x68, 0x00,0x65,0x00,0x72,0x00,0x32,0x00
           },
           .size = 0xdf,
+          .cap_len = 0xdf,
           .ret = PROTO_OK,
           .way = FROM_CLIENT,
           .expected = {
@@ -357,6 +368,7 @@ static struct parse_test {
               0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00, 0x00
           },
           .size = 0x39,
+          .cap_len = 0x39,
           .ret = PROTO_OK,
           .way = FROM_SERVER,
           .expected = {
@@ -406,6 +418,7 @@ static struct parse_test {
               0x00,0x20,0x00,0x20,0x00,0x20,0x00,0x20, 0x00,0x20,0x00,0x20,0x00,0x20,0x00,0x20,
           },
           .size = 0x200,
+          .cap_len = 0x200,
           .ret = PROTO_OK,
           .way = FROM_SERVER,
           // Only tds header is advertised here
@@ -423,6 +436,7 @@ static struct parse_test {
               0x00
           },
           .size = 0x51,
+          .cap_len = 0x51,
           .ret = PROTO_OK,
           .way = FROM_SERVER,
           .expected = {
@@ -460,6 +474,7 @@ static struct parse_test {
              0x00,0xe0,0x00,0x00,0x00,0x00,0x00,0x00, 0x00,0x00,0x00
          },
          .size = 0x9b,
+         .cap_len = 0x9b,
          .ret = PROTO_OK,
          .way = FROM_SERVER,
          .expected = {
@@ -488,6 +503,7 @@ static struct parse_test {
              0x00,0x00,0xfe,0x00,0x00,0xe0,0x00,0x00, 0x00,0x00,0x00,0x00,0x00,0x00,0x00,
          },
          .size = 0x7f,
+         .cap_len = 0x7f,
          .ret = PROTO_OK,
          .way = FROM_SERVER,
          .expected = {
@@ -539,6 +555,7 @@ static struct parse_test {
              0x26,0x04,0x00,0xfe,0x02,0x00,0xe0,0x00, 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
          },
          .size = 0x110,
+         .cap_len = 0x110,
          .ret = PROTO_OK,
          .way = FROM_SERVER,
          .expected = {
@@ -574,6 +591,7 @@ static struct parse_test {
              0x26,0x04,0x00,0xfe,0x02,0x00,0xe0,0x00, 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
          },
          .size = 0x110,
+         .cap_len = 0x110,
          .ret = PROTO_OK,
          .way = FROM_SERVER,
          .expected = {
@@ -638,6 +656,7 @@ static struct parse_test {
              0x00,0x00,0x00,0x00,0x00,0x00
          },
          .size = 0x166,
+         .cap_len = 0x166,
          .ret = PROTO_OK,
          .way = FROM_SERVER,
          .expected = {
@@ -659,6 +678,7 @@ static struct parse_test {
              0x00
          },
          .size = 0x11,
+         .cap_len = 0x11,
          .ret = PROTO_OK,
          .way = FROM_SERVER,
          .expected = {
@@ -690,6 +710,7 @@ static struct parse_test {
              0x63,0x00,0x6b,0x00,0x00,0x26,0x01,0x01, 0x00
          },
          .size = 0xb9,
+         .cap_len = 0xb9,
          .ret = PROTO_OK,
          .way = FROM_SERVER,
          .expected = {
@@ -715,6 +736,7 @@ static struct parse_test {
              0x00,0x00,0x00,0x00,0x00
          },
          .size = 0x35,
+         .cap_len = 0x35,
          .ret = PROTO_OK,
          .way = FROM_SERVER,
          .expected = {
@@ -735,6 +757,7 @@ static struct parse_test {
              0x40,0x40,0x56,0x45,0x52,0x53,0x49,0x4f, 0x4e,0x20
          },
          .size = 0x1a,
+         .cap_len = 0x1a,
          .ret = PROTO_OK,
          .way = FROM_SERVER,
          .expected = {
@@ -753,6 +776,7 @@ static struct parse_test {
              0x40,0x76,0x65,0x72,0x73,0x69,0x6f,0x6e
          },
          .size = 0x18,
+         .cap_len = 0x18,
          .ret = PROTO_OK,
          .way = FROM_SERVER,
          .expected = {
@@ -778,6 +802,7 @@ static struct parse_test {
              0x52,0x00,0x4f,0x00,0x57,0x00,0x4c,0x00,0x4f,0x00,0x43,0x00,0x4b,0x00,0x29,0x00
          },
          .size = 0x90,
+         .cap_len = 0x90,
          .ret = PROTO_OK,
          .way = FROM_SERVER,
          .expected = {
@@ -824,8 +849,8 @@ static void parse_check(void)
         tds_parser->channels[0] = 0;
         tds_parser->channels[1] = 0;
         if (*tds_msg_parser) (*tds_msg_parser)->pre_7_2 = false;
-        enum proto_parse_status ret = tds_parse(parser, NULL, test->way, test->packet, test->size,
-                test->size, &now, test->size, test->packet);
+        enum proto_parse_status ret = tds_parse(parser, NULL, test->way, test->packet, test->cap_len,
+                test->size, &now, test->cap_len, test->packet);
         if (test->called && (old_check + 1 != check_called)) {
             printf("Expected callback to be called\n");
             assert(old_check + 1 == check_called);

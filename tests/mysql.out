@@ -24,7 +24,7 @@ head_len=108, payload=0, Srv->Clt, query, nb_rows=2, nb_fields=1, Status=Complet
 head_len=16, payload=0, Clt->Srv, query, query='show tables'
 head_len=98, payload=0, Srv->Clt, query, nb_rows=1, nb_fields=1, Status=Completed
 head_len=15, payload=0, Clt->Srv, query, query='SHOW FIELDS FROM testtable'
-head_len=119, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=3, Status=Completed
+head_len=119, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=2, Status=Completed
 head_len=37, payload=0, Clt->Srv, query, query='select @@version_comment limit 1'
 head_len=79, payload=0, Srv->Clt, query, nb_rows=1, nb_fields=1, Status=Completed
 head_len=65, payload=0, Clt->Srv, query, query='insert into testtable (foo, bar) values (42, 'tirelipimpon')'
@@ -39,7 +39,7 @@ head_len=108, payload=0, Srv->Clt, query, nb_rows=2, nb_fields=1, Status=Complet
 head_len=16, payload=0, Clt->Srv, query, query='show tables'
 head_len=98, payload=0, Srv->Clt, query, nb_rows=1, nb_fields=1, Status=Completed
 head_len=15, payload=0, Clt->Srv, query, query='SHOW FIELDS FROM testtable'
-head_len=119, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=3, Status=Completed
+head_len=119, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=2, Status=Completed
 head_len=37, payload=0, Clt->Srv, query, query='select @@version_comment limit 1'
 head_len=79, payload=0, Srv->Clt, query, nb_rows=1, nb_fields=1, Status=Completed
 head_len=28, payload=0, Clt->Srv, query, query='select * from testtable'

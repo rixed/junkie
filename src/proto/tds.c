@@ -57,6 +57,7 @@ struct tds_header {
     size_t len;
     uint16_t channel;
     uint8_t pkt_number;
+    uint8_t window;
 };
 
 struct tds_parser {
@@ -71,12 +72,13 @@ struct tds_parser {
     size_t data_left;
     uint16_t channels[2];
     bool had_gap;
+    uint8_t pkt_number;
 };
 
 static char const *tds_header_2_str(struct tds_header *header)
 {
-    return tempstr_printf("Type: %s, Status: %d, Length: %zu, Channel %"PRIu16", Pkt number %"PRIu8"",
-        tds_packet_type_2_str(header->type), header->status, header->len, header->channel, header->pkt_number);
+    return tempstr_printf("Type: %s, Status: %d, Length: %zu, Channel %"PRIu16", Pkt number %"PRIu8", Window %"PRIu8"",
+        tds_packet_type_2_str(header->type), header->status, header->len, header->channel, header->pkt_number, header->window);
 }
 
 char const *tds_packet_type_2_str(enum tds_packet_type type)
@@ -127,6 +129,7 @@ static int tds_parser_ctor(struct tds_parser *tds_parser, struct proto *proto)
     tds_parser->data_left = 0;
     tds_parser->channels[0] = 0;
     tds_parser->channels[1] = 0;
+    tds_parser->pkt_number = 1;
     if (0 != streambuf_ctor(&tds_parser->sbuf, tds_sbuf_parse, 30000)) return -1;
 
     return 0;
@@ -169,10 +172,10 @@ char const *tds_info_2_str(struct proto_info const *info_)
     struct tds_proto_info const *info = DOWNCAST(info_, info, tds_proto_info);
     char *str = tempstr();
 
-    snprintf(str, TEMPSTR_SIZE, "%s, type=%s, status=0x%x",
+    snprintf(str, TEMPSTR_SIZE, "%s, type=%s, status=0x%x, length=%"PRIu16"",
         proto_info_2_str(info_),
         tds_packet_type_2_str(info->type),
-        info->status);
+        info->status, info->length);
     return str;
 }
 
@@ -198,10 +201,9 @@ static enum proto_parse_status tds_parse_header(struct cursor *cursor, struct td
     header.len = cursor_read_u16n(cursor);
     header.channel = cursor_read_u16n(cursor);
     header.pkt_number = cursor_read_u8(cursor);
+    header.window = cursor_read_u8(cursor);
     SLOG(LOG_DEBUG, "Reading new TDS packet %s", tds_header_2_str(&header));
 
-    // Drop window
-    cursor_drop(cursor, 1);
     // sanity check
     if (header.len < TDS_PKT_HDR_LEN) return PROTO_PARSE_ERR;
     switch (header.type) {
@@ -220,6 +222,10 @@ static enum proto_parse_status tds_parse_header(struct cursor *cursor, struct td
             SLOG(LOG_DEBUG, "Unknown tds type %u", header.type);
             if (unknown_token) *unknown_token = true;
             return PROTO_PARSE_ERR;
+    }
+    if (header.window != 0) {
+        SLOG(LOG_DEBUG, "Window is %"PRIu8" instead of 0", header.window);
+        return PROTO_PARSE_ERR;
     }
     size_t data_left = header.len - TDS_PKT_HDR_LEN;
     if ((data_left > 0) != tds_packet_has_data(header.type)) {
@@ -244,11 +250,11 @@ static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct prot
     }
     tds_parser->had_gap = has_gap;
 
-    struct tds_header header;
+    struct tds_header tds_header;
     bool unknown_token = false;
     struct cursor cursor;
     cursor_ctor(&cursor, payload, cap_len);
-    enum proto_parse_status status = tds_parse_header(&cursor, &header, &unknown_token);
+    enum proto_parse_status status = tds_parse_header(&cursor, &tds_header, &unknown_token);
 
     if (status != PROTO_OK) {
         // We have an unknown token if the payload is encrypted after a ssl handshake
@@ -258,13 +264,29 @@ static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct prot
         return status;
     }
 
-    if (tds_parser->channels[way] && (tds_parser->channels[way] != header.channel)) {
+    // Sanity check on pkt number
+    if (tds_header.pkt_number > 1 && ((tds_parser->pkt_number + 1) != tds_header.pkt_number)) {
+        SLOG(LOG_DEBUG, "Expected pkt number %"PRIu8", got %"PRIu8"",
+                tds_parser->pkt_number + 1, tds_header.pkt_number);
+        tds_parser->pkt_number = 1;
+        return PROTO_OK;
+    } else if (tds_header.pkt_number <= 1 || (tds_header.status & TDS_EOM)) {
+        SLOG(LOG_DEBUG, "Reset pkt number from %"PRIu8"", tds_parser->pkt_number);
+        tds_parser->pkt_number = 1;
+    }
+
+    // Sanity check on channels
+    if (tds_parser->channels[way] && (tds_parser->channels[way] != tds_header.channel)) {
         SLOG(LOG_DEBUG, "Expected channel %"PRIu16", got channel %"PRIu16"",
-                tds_parser->channels[way], header.channel);
+                tds_parser->channels[way], tds_header.channel);
         return PROTO_OK;
     }
 
-    tds_parser->data_left = wire_len >= header.len ? 0 : header.len - wire_len;
+    if (wire_len > tds_header.len) {
+        SLOG(LOG_DEBUG, "Wire len %zu unexpected (> %zu), considering a gap", wire_len, tds_header.len);
+        has_gap = true;
+    }
+    tds_parser->data_left = wire_len >= tds_header.len ? 0 : tds_header.len - wire_len;
     SLOG(LOG_DEBUG, "Data left after wire %zu", tds_parser->data_left);
     if (tds_parser->data_left > 0 && !has_gap) {
         SLOG(LOG_DEBUG, "Incomplete tds packet, buffering it");
@@ -273,23 +295,25 @@ static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct prot
     }
 
     struct tds_proto_info info;
-    proto_info_ctor(&info.info, parser, parent, TDS_PKT_HDR_LEN, header.len - TDS_PKT_HDR_LEN);
-    info.type = header.type;
-    info.status = header.status;
-    if (header.channel > 0) {
-        SLOG(LOG_DEBUG, "Saving channel %"PRIu16"", header.channel);
-        tds_parser->channels[way] = header.channel;
+    proto_info_ctor(&info.info, parser, parent, TDS_PKT_HDR_LEN, tds_header.len - TDS_PKT_HDR_LEN);
+    info.type = tds_header.type;
+    info.status = tds_header.status;
+    info.length = tds_header.len;
+    if (tds_header.channel > 0) {
+        SLOG(LOG_DEBUG, "Saving channel %"PRIu16"", tds_header.channel);
+        tds_parser->channels[way] = tds_header.channel;
     }
+    SLOG(LOG_DEBUG, "Saving pkt number %"PRIu8"", tds_header.pkt_number);
+    tds_parser->pkt_number = tds_header.pkt_number;
 
-    SLOG(LOG_DEBUG, "Parsing %s", tds_header_2_str(&header));
+    SLOG(LOG_DEBUG, "Parsing %s", tds_header_2_str(&tds_header));
     if (! tds_parser->msg_parser) {
         SLOG(LOG_DEBUG, "Building new tds_msg_parser");
         tds_parser->msg_parser = proto_tds_msg->ops->parser_new(proto_tds_msg);
     }
     if (tds_parser->msg_parser) {
-        enum proto_parse_status status = proto_parse(tds_parser->msg_parser, &info.info, way,
+        proto_parse(tds_parser->msg_parser, &info.info, way,
                 cursor.head, cursor.cap_len, wire_len - TDS_PKT_HDR_LEN, now, tot_cap_len, tot_packet);
-        if (status != PROTO_OK) return status;
     }
 
     // Advertise this packet if it was not done already

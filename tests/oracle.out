@@ -5,15 +5,15 @@ head_len=165, payload=0, Clt->Srv, version=3.8, startup, No SSL, user=
 head_len=24, payload=0, Srv->Clt, version=3.8, startup, No SSL, Status=Completed
 head_len=152, payload=0, Clt->Srv, unknown
 head_len=127, payload=0, Srv->Clt, unknown
-head_len=33, payload=0, Clt->Srv, unknown
+head_len=33, payload=0, Clt->Srv, startup, No SSL
 head_len=237, payload=0, Srv->Clt, startup, No SSL, encoding=UTF8
-head_len=779, payload=0, Clt->Srv, unknown
-head_len=834, payload=0, Srv->Clt, unknown
-head_len=19, payload=0, Clt->Srv, unknown
+head_len=779, payload=0, Clt->Srv, startup, No SSL
+head_len=834, payload=0, Srv->Clt, startup, No SSL
+head_len=19, payload=0, Clt->Srv, query
 head_len=71, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
-head_len=160, payload=0, Clt->Srv, unknown
+head_len=160, payload=0, Clt->Srv, query
 head_len=73, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
-head_len=569, payload=0, Clt->Srv, unknown
+head_len=569, payload=0, Clt->Srv, query
 head_len=11, payload=0, Srv->Clt, unknown
 head_len=11, payload=0, Srv->Clt, unknown
 head_len=11, payload=0, Clt->Srv, unknown
@@ -26,15 +26,15 @@ head_len=165, payload=0, Clt->Srv, version=3.8, startup, No SSL, user=
 head_len=24, payload=0, Srv->Clt, version=3.8, startup, No SSL, Status=Completed
 head_len=152, payload=0, Clt->Srv, unknown
 head_len=127, payload=0, Srv->Clt, unknown
-head_len=33, payload=0, Clt->Srv, unknown
+head_len=33, payload=0, Clt->Srv, startup, No SSL
 head_len=237, payload=0, Srv->Clt, startup, No SSL, encoding=UTF8
-head_len=779, payload=0, Clt->Srv, unknown
-head_len=834, payload=0, Srv->Clt, unknown
-head_len=19, payload=0, Clt->Srv, unknown
+head_len=779, payload=0, Clt->Srv, startup, No SSL
+head_len=834, payload=0, Srv->Clt, startup, No SSL
+head_len=19, payload=0, Clt->Srv, query
 head_len=71, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
-head_len=159, payload=0, Clt->Srv, unknown
+head_len=159, payload=0, Clt->Srv, query
 head_len=73, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
-head_len=568, payload=0, Clt->Srv, unknown
+head_len=568, payload=0, Clt->Srv, query
 head_len=1170, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=109, payload=0, Clt->Srv, query, query='INSERT INTO "Toto" ( "TotoName" ) VALUES ( "aName" ) '
 head_len=11, payload=0, Srv->Clt, unknown
@@ -48,15 +48,15 @@ head_len=165, payload=0, Clt->Srv, version=3.8, startup, No SSL, user=
 head_len=24, payload=0, Srv->Clt, version=3.8, startup, No SSL, Status=Completed
 head_len=152, payload=0, Clt->Srv, unknown
 head_len=127, payload=0, Srv->Clt, unknown
-head_len=33, payload=0, Clt->Srv, unknown
+head_len=33, payload=0, Clt->Srv, startup, No SSL
 head_len=237, payload=0, Srv->Clt, startup, No SSL, encoding=UTF8
-head_len=779, payload=0, Clt->Srv, unknown
-head_len=834, payload=0, Srv->Clt, unknown
-head_len=19, payload=0, Clt->Srv, unknown
+head_len=779, payload=0, Clt->Srv, startup, No SSL
+head_len=834, payload=0, Srv->Clt, startup, No SSL
+head_len=19, payload=0, Clt->Srv, query
 head_len=71, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
-head_len=159, payload=0, Clt->Srv, unknown
+head_len=159, payload=0, Clt->Srv, query
 head_len=73, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
-head_len=568, payload=0, Clt->Srv, unknown
+head_len=568, payload=0, Clt->Srv, query
 head_len=1168, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=76, payload=0, Clt->Srv, query, query='SELECT * FROM "Toto"'
 head_len=444, payload=0, Srv->Clt, query, nb_rows=0, nb_fields=2
@@ -69,20 +69,20 @@ head_len=165, payload=0, Clt->Srv, version=3.8, startup, No SSL, user=
 head_len=24, payload=0, Srv->Clt, version=3.8, startup, No SSL, Status=Completed
 head_len=152, payload=0, Clt->Srv, unknown
 head_len=127, payload=0, Srv->Clt, unknown
-head_len=33, payload=0, Clt->Srv, unknown
+head_len=33, payload=0, Clt->Srv, startup, No SSL
 head_len=237, payload=0, Srv->Clt, startup, No SSL, encoding=UTF8
-head_len=779, payload=0, Clt->Srv, unknown
-head_len=834, payload=0, Srv->Clt, unknown
-head_len=19, payload=0, Clt->Srv, unknown
+head_len=779, payload=0, Clt->Srv, startup, No SSL
+head_len=834, payload=0, Srv->Clt, startup, No SSL
+head_len=19, payload=0, Clt->Srv, query
 head_len=71, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
-head_len=159, payload=0, Clt->Srv, unknown
+head_len=159, payload=0, Clt->Srv, query
 head_len=73, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
-head_len=568, payload=0, Clt->Srv, unknown
+head_len=568, payload=0, Clt->Srv, query
 head_len=1169, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=76, payload=0, Clt->Srv, query, query='SELECT * FROM "Toto"'
 head_len=443, payload=0, Srv->Clt, query, nb_rows=0, nb_fields=2
 head_len=17, payload=0, Clt->Srv, query
-head_len=90, payload=0, Srv->Clt, query, nb_rows=1, nb_fields=-1, Status=Completed, ErrorCode=ORA-01403, ErrorMessage=no data found
+head_len=90, payload=0, Srv->Clt, query, nb_rows=1, nb_fields=2, Status=Completed, ErrorCode=ORA-01403, ErrorMessage=no data found
 -- pcap/oracle/two_row_response.pcap --
 head_len=165, payload=0, Clt->Srv, version=3.8, startup, No SSL, user=
 head_len=8, payload=0, Srv->Clt, unknown
@@ -90,20 +90,20 @@ head_len=165, payload=0, Clt->Srv, version=3.8, startup, No SSL, user=
 head_len=24, payload=0, Srv->Clt, version=3.8, startup, No SSL, Status=Completed
 head_len=152, payload=0, Clt->Srv, unknown
 head_len=127, payload=0, Srv->Clt, unknown
-head_len=33, payload=0, Clt->Srv, unknown
+head_len=33, payload=0, Clt->Srv, startup, No SSL
 head_len=229, payload=0, Srv->Clt, startup, No SSL, encoding=UTF8
-head_len=779, payload=0, Clt->Srv, unknown
-head_len=834, payload=0, Srv->Clt, unknown
-head_len=19, payload=0, Clt->Srv, unknown
+head_len=779, payload=0, Clt->Srv, startup, No SSL
+head_len=834, payload=0, Srv->Clt, startup, No SSL
+head_len=19, payload=0, Clt->Srv, query
 head_len=87, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
-head_len=159, payload=0, Clt->Srv, unknown
+head_len=159, payload=0, Clt->Srv, query
 head_len=73, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
-head_len=568, payload=0, Clt->Srv, unknown
+head_len=568, payload=0, Clt->Srv, query
 head_len=1140, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=76, payload=0, Clt->Srv, query, query='SELECT * FROM "Toto"'
 head_len=444, payload=0, Srv->Clt, query, nb_rows=0, nb_fields=2
 head_len=17, payload=0, Clt->Srv, query
-head_len=107, payload=0, Srv->Clt, query, nb_rows=2, nb_fields=-1, Status=Completed, ErrorCode=ORA-01403, ErrorMessage=no data found
+head_len=107, payload=0, Srv->Clt, query, nb_rows=2, nb_fields=2, Status=Completed, ErrorCode=ORA-01403, ErrorMessage=no data found
 -- pcap/oracle/error_no_table.pcap --
 head_len=165, payload=0, Clt->Srv, version=3.8, startup, No SSL, user=
 head_len=8, payload=0, Srv->Clt, unknown
@@ -111,15 +111,15 @@ head_len=165, payload=0, Clt->Srv, version=3.8, startup, No SSL, user=
 head_len=24, payload=0, Srv->Clt, version=3.8, startup, No SSL, Status=Completed
 head_len=152, payload=0, Clt->Srv, unknown
 head_len=127, payload=0, Srv->Clt, unknown
-head_len=33, payload=0, Clt->Srv, unknown
+head_len=33, payload=0, Clt->Srv, startup, No SSL
 head_len=229, payload=0, Srv->Clt, startup, No SSL, encoding=UTF8
-head_len=779, payload=0, Clt->Srv, unknown
-head_len=834, payload=0, Srv->Clt, unknown
-head_len=19, payload=0, Clt->Srv, unknown
+head_len=779, payload=0, Clt->Srv, startup, No SSL
+head_len=834, payload=0, Srv->Clt, startup, No SSL
+head_len=19, payload=0, Clt->Srv, query
 head_len=87, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
-head_len=159, payload=0, Clt->Srv, unknown
+head_len=159, payload=0, Clt->Srv, query
 head_len=73, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
-head_len=568, payload=0, Clt->Srv, unknown
+head_len=568, payload=0, Clt->Srv, query
 head_len=1140, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
 head_len=76, payload=0, Clt->Srv, query, query='SELECT * FROM "Toto"'
 head_len=11, payload=0, Srv->Clt, unknown
