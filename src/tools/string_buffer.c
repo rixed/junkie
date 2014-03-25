@@ -128,7 +128,6 @@ size_t buffer_append_char(struct string_buffer *buffer, char src)
 {
     if (!buffer) return 0;
     CHECK_BUFFER_TRUNCATED(buffer);
-    SLOG(LOG_DEBUG, "Appending a char '%c' to %s", src, string_buffer_2_str(buffer));
     size_t left_size = buffer_left_size(buffer);
     if (left_size == 0) {
         SLOG(LOG_DEBUG, "No more space, truncate it");
@@ -186,6 +185,7 @@ void buffer_rollback_incomplete_utf8_char(struct string_buffer *buffer)
 {
     if (!buffer) return;
     if (buffer->pos == 0) return;
+    SLOG(LOG_DEBUG, "Rollback of %s of incomplete utf8 char", string_buffer_2_str(buffer));
     size_t start = search_utf8_start(buffer, buffer->pos - 1);
     size_t num_bytes = utf8_num_bytes(buffer->head[start]);
     size_t size_in_buffer = buffer->pos - start;

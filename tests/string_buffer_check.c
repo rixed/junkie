@@ -105,6 +105,7 @@ static void string_buffer_append_ucs2_check(void)
         0x27,0x00,0x72,0x00,0xe9,0x00,0x70,0x00,0xe9,0x00,0x74,0x00,0xe9,0x00,0x73,0x00,
         0x27,0x00 };
     char dst[0x52];
+    memset(dst, 'x', sizeof(dst));
     struct string_buffer buffer;
     string_buffer_ctor(&buffer, dst, sizeof(dst));
     buffer_append_unicode(&buffer, cd, (char*) str, sizeof(str));
@@ -124,6 +125,7 @@ static void string_buffer_append_hex_check(void)
 {
     struct string_buffer buffer;
     char buf[13];
+    memset(buf, 'x', sizeof(buf));
     string_buffer_ctor(&buffer, buf, sizeof(buf));
 
     static const char src[5] = {0x01, 0x02, 0x03, 0x04, 0x05};
@@ -138,15 +140,17 @@ static void string_buffer_append_hex_check(void)
     static const char src_2[] = { 0x00,0x11,0x22,0x33,0x44,0x55,0x66,0x77,
         0x88,0x99,0xaa,0xbb,0xcc,0xdd,0xee,0xff };
     char dst[22+1];
+    memset(dst, 'x', sizeof(dst));
     string_buffer_ctor(&buffer, dst, sizeof(dst));
     buffer_append_hexstring(&buffer, src_2, 5);
-    assert(0 == strcmp(dst, "0011223344"));
+    check_string_buffer(&buffer, "0011223344", false);
 }
 
 static void string_buffer_append_string_check(void)
 {
     struct string_buffer buffer;
     char buf[10];
+    memset(buf, 'x', sizeof(buf));
     string_buffer_ctor(&buffer, buf, sizeof(buf));
     size_t written = buffer_append_string(&buffer, "first");
     assert(written == 5);
@@ -163,6 +167,7 @@ static void string_buffer_append_stringn_check(void)
 {
     struct string_buffer buffer;
     char buf[5];
+    memset(buf, 'x', sizeof(buf));
     string_buffer_ctor(&buffer, buf, sizeof(buf));
     size_t written = buffer_append_stringn(&buffer, "tot", sizeof("tot"));
     assert(written == 3);
@@ -190,6 +195,7 @@ static void string_buffer_rollback_utf8_check(void)
 {
     struct string_buffer buffer;
     char buf[12];
+    memset(buf, 'x', sizeof(buf));
     string_buffer_ctor(&buffer, buf, sizeof(buf));
     const char ellipsis[] = {0xe2, 0x80, 0xa6};
     buffer_append_stringn(&buffer, ellipsis, sizeof(ellipsis));
@@ -213,6 +219,7 @@ static void string_buffer_rollback_incomplete_utf8_check(void)
 {
     struct string_buffer buffer;
     char buf[12];
+    memset(buf, 'x', sizeof(buf));
     string_buffer_ctor(&buffer, buf, sizeof(buf));
     const char ellipsis[] = {0xe2, 0x80, 0xa6};
     buffer_append_stringn(&buffer, ellipsis, sizeof(ellipsis));
