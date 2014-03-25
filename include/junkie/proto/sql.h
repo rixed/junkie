@@ -92,6 +92,7 @@ struct sql_proto_info {
 char const *sql_encoding_2_str(enum sql_encoding encoding);
 char const *sql_msg_type_2_str(enum sql_msg_type type);
 char const *sql_info_2_str(struct proto_info const *);
+char const *sql_request_status_2_str(enum sql_request_status status);
 void const *sql_info_addr(struct proto_info const *, size_t *);
 int sql_set_query(struct sql_proto_info *info, char const *fmt, ...);
 
@@ -103,5 +104,49 @@ void tns_init(void);
 void tns_fini(void);
 void tds_msg_init(void);
 void tds_msg_fini(void);
+
+static inline void sql_set_field_count(struct sql_proto_info *info, unsigned field_count)
+{
+    info->set_values |= SQL_NB_FIELDS;
+    info->u.query.nb_fields = field_count;
+}
+
+static inline void sql_increment_field_count(struct sql_proto_info *info, unsigned count)
+{
+    if (info->set_values & SQL_NB_FIELDS) {
+        info->u.query.nb_fields += count;
+    } else {
+        info->set_values |= SQL_NB_FIELDS;
+        info->u.query.nb_fields = count;
+    }
+}
+
+static inline void sql_set_row_count(struct sql_proto_info *info, unsigned count)
+{
+    info->set_values |= SQL_NB_ROWS;
+    info->u.query.nb_rows = count;
+}
+
+static inline void sql_set_encoding(struct sql_proto_info *info, enum sql_encoding encoding)
+{
+    info->set_values |= SQL_ENCODING;
+    info->u.startup.encoding = encoding;
+}
+
+static inline void sql_increment_row_count(struct sql_proto_info *info, unsigned count)
+{
+    if (info->set_values & SQL_NB_ROWS) {
+        info->u.query.nb_rows += count;
+    } else {
+        info->set_values |= SQL_NB_ROWS;
+        info->u.query.nb_rows = count;
+    }
+}
+
+static inline void sql_set_request_status(struct sql_proto_info *info, enum sql_request_status status)
+{
+    info->set_values |= SQL_REQUEST_STATUS;
+    info->request_status = status;
+}
 
 #endif

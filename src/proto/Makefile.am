@@ -13,6 +13,7 @@ libproto_la_SOURCES = \
 	sdp.c sdper.c sdper.h \
 	sip.c \
 	tcp.c udp.c \
+	sql.c \
 	postgres.c \
 	mysql.c \
 	tns.c \
