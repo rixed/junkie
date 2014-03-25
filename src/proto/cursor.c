@@ -103,8 +103,8 @@ uint_least64_t cursor_read_u64le(struct cursor *cursor)
 
 uint_least8_t cursor_peek_u8(struct cursor *cursor, size_t offset)
 {
-    assert(cursor->cap_len >= 1 + offset);
-    SLOG(LOG_DEBUG, "Reading byte 0x%x, %zu left, %zu offset", *(cursor->head + offset),
+    assert(offset < cursor->cap_len);
+    SLOG(LOG_DEBUG, "Peeking byte 0x%x, %zu left, %zu offset", *(cursor->head + offset),
             cursor->cap_len, offset);
     return *(cursor->head + offset);
 }
@@ -168,7 +168,7 @@ uint_least64_t cursor_peek_u64le(struct cursor *cursor, size_t offset)
 }
 
 
-enum proto_parse_status cursor_read_fix_string(struct cursor *cursor, char **out_str, size_t str_len)
+enum proto_parse_status cursor_read_fixed_string(struct cursor *cursor, char **out_str, size_t str_len)
 {
     SLOG(LOG_DEBUG, "Reading string of size %zu", str_len);
     if (cursor->cap_len < str_len) return PROTO_PARSE_ERR;
@@ -177,11 +177,11 @@ enum proto_parse_status cursor_read_fix_string(struct cursor *cursor, char **out
         return PROTO_OK;
     }
     char *str = tempstr();
-    unsigned parsed_len = MIN(str_len, TEMPSTR_SIZE - 1);
-    cursor_copy(str, cursor, parsed_len);
-    str[parsed_len] = '\0';
-    if (str_len - parsed_len > 0) {
-        cursor_drop(cursor, str_len - parsed_len);
+    unsigned copied_len = MIN(str_len, TEMPSTR_SIZE - 1);
+    cursor_copy(str, cursor, copied_len);
+    str[copied_len] = '\0';
+    if (copied_len < str_len) {
+        cursor_drop(cursor, str_len - copied_len);
     }
     if(out_str) *out_str = str;
     return PROTO_OK;
@@ -203,7 +203,7 @@ enum proto_parse_status cursor_read_string(struct cursor *cursor, char **out_str
         return PROTO_TOO_SHORT;
     }
     str[len] = '\0';
-    SLOG(LOG_DEBUG, "Reading string '%s'", str);
+    SLOG(LOG_DEBUG, "Reading string '%s' of size %u", str, len);
     if (out_str) *out_str = str;
     return PROTO_OK;
 }
@@ -230,7 +230,7 @@ bool cursor_is_empty(struct cursor const *cursor)
     return cursor->cap_len == 0;
 }
 
-enum proto_parse_status cursor_read_fix_int_n(struct cursor *cursor, uint_least64_t *out_res, unsigned len)
+enum proto_parse_status cursor_read_fixed_int_n(struct cursor *cursor, uint_least64_t *out_res, unsigned len)
 {
     uint_least64_t res;
     if (cursor->cap_len < len) return PROTO_TOO_SHORT;
@@ -261,7 +261,7 @@ enum proto_parse_status cursor_read_fix_int_n(struct cursor *cursor, uint_least6
     return PROTO_OK;
 }
 
-enum proto_parse_status cursor_read_fix_int_le(struct cursor *cursor, uint_least64_t *out_res, unsigned len)
+enum proto_parse_status cursor_read_fixed_int_le(struct cursor *cursor, uint_least64_t *out_res, unsigned len)
 {
     uint_least64_t res;
     if (cursor->cap_len < len) return PROTO_TOO_SHORT;

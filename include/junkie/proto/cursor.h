@@ -62,10 +62,10 @@ enum proto_parse_status cursor_read_string(struct cursor *, char **out_str, size
 /*
  * Reads a specific length string
  */
-enum proto_parse_status cursor_read_fix_string(struct cursor *cursor, char **out_str, size_t src_len);
+enum proto_parse_status cursor_read_fixed_string(struct cursor *cursor, char **out_str, size_t src_len);
 
-enum proto_parse_status cursor_read_fix_int_n(struct cursor *cursor, uint_least64_t *res, unsigned len);
-enum proto_parse_status cursor_read_fix_int_le(struct cursor *cursor, uint_least64_t *res, unsigned len);
+enum proto_parse_status cursor_read_fixed_int_n(struct cursor *cursor, uint_least64_t *res, unsigned len);
+enum proto_parse_status cursor_read_fixed_int_le(struct cursor *cursor, uint_least64_t *res, unsigned len);
 
 /// Copy from cursor into a buffer
 void cursor_copy(void *, struct cursor *, size_t n);
