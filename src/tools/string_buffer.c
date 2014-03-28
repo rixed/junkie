@@ -149,6 +149,7 @@ size_t buffer_append_hexstring(struct string_buffer *buffer, char const *src, si
     SLOG(LOG_DEBUG, "Appending an hexadecimal of size %zu to %s", src_len, string_buffer_2_str(buffer));
     CHECK_BUFFER_TRUNCATED(buffer);
     size_t start_size = buffer_left_size(buffer);
+    buffer_append_string(buffer, "0x");
     for (unsigned i = 0; i < src_len; ++i) {
         size_t left_size = buffer_left_size(buffer);
         uint8_t c = src[i];

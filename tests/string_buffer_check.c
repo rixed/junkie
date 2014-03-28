@@ -124,18 +124,18 @@ static void string_buffer_append_ucs2_check(void)
 static void string_buffer_append_hex_check(void)
 {
     struct string_buffer buffer;
-    char buf[13];
+    char buf[17];
     memset(buf, 'x', sizeof(buf));
     string_buffer_ctor(&buffer, buf, sizeof(buf));
 
     static const char src[5] = {0x01, 0x02, 0x03, 0x04, 0x05};
     size_t written = buffer_append_hexstring(&buffer, src, 5);
-    assert(written == 10);
-    check_string_buffer(&buffer, "0102030405", false);
+    assert(written == 12);
+    check_string_buffer(&buffer, "0x0102030405", false);
 
     written = buffer_append_hexstring(&buffer, src, 2);
-    assert(written == 2);
-    check_string_buffer(&buffer, "010203040501", true);
+    assert(written == 4);
+    check_string_buffer(&buffer, "0x01020304050x01", true);
 
     static const char src_2[] = { 0x00,0x11,0x22,0x33,0x44,0x55,0x66,0x77,
         0x88,0x99,0xaa,0xbb,0xcc,0xdd,0xee,0xff };
@@ -143,7 +143,7 @@ static void string_buffer_append_hex_check(void)
     memset(dst, 'x', sizeof(dst));
     string_buffer_ctor(&buffer, dst, sizeof(dst));
     buffer_append_hexstring(&buffer, src_2, 5);
-    check_string_buffer(&buffer, "0011223344", false);
+    check_string_buffer(&buffer, "0x0011223344", false);
 }
 
 static void string_buffer_append_string_check(void)

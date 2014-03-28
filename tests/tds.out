@@ -51,13 +51,13 @@ TDS(msg): head_len=363, payload=0, Clt->Srv, query, query='p_SetBogusSample(@Bog
 TDS: head_len=8, payload=80, type=RPC, status=0x9, length=88
 TDS(msg): head_len=80, payload=0, Clt->Srv, query, query='p_GetMyExampleTableRowCount()'
 TDS: head_len=8, payload=210, type=RPC, status=0x1, length=218
-TDS(msg): head_len=210, payload=0, Clt->Srv, query, query='proc_GetMyExampleTableSampleMetaData(?=33221100554477668899aabbccddeeff,?=NULL,?=NULL,?=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij,?=1,?=45,?=0123456789abcdeffedcba98,?=108)'
+TDS(msg): head_len=210, payload=0, Clt->Srv, query, query='proc_GetMyExampleTableSampleMetaData(?=0x33221100554477668899aabbccddeeff,?=NULL,?=NULL,?=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij,?=1,?=45,?=0x0123456789abcdeffedcba98,?=108)'
 TDS: head_len=8, payload=191, type=RPC, status=0x9, length=199
-TDS(msg): head_len=191, payload=0, Clt->Srv, query, query='proc_GetMyExampleTableSampleMetaData(?=00112233445566778899aabbccddeeff,?=NULL,?=Bogus,?=NULL,?=1,?=45,?=0123456789abcdefedcba9876543210123456789abcdefedcba98765,?=18)'
+TDS(msg): head_len=191, payload=0, Clt->Srv, query, query='proc_GetMyExampleTableSampleMetaData(?=0x00112233445566778899aabbccddeeff,?=NULL,?=Bogus,?=NULL,?=1,?=45,?=0x0123456789abcdefedcba9876543210123456789abcdefedcba98765,?=18)'
 TDS: head_len=8, payload=260, type=RPC, status=0x9, length=268
-TDS(msg): head_len=260, payload=0, Clt->Srv, query, query='proc_FetchMyExampleData(?=0123456789abcdef0123456789abcdef,?=NULL,?=BOGUS,?=0,?=4294967294,?=0,?=0,?=NULL,?=NULL,?=NULL,?=0,?=0123456789abcdef0123456789abcdef0123456789abcdef01234567,?=NULL,?=1,?=5242880,?=45,?=1,?=0,?=NULL,?*=NULL)'
+TDS(msg): head_len=260, payload=0, Clt->Srv, query, query='proc_FetchMyExampleData(?=0x0123456789abcdef0123456789abcdef,?=NULL,?=BOGUS,?=0,?=4294967294,?=0,?=0,?=NULL,?=NULL,?=NULL,?=0,?=0x0123456789abcdef0123456789abcdef0123456789abcdef01234567,?=NULL,?=1,?=5242880,?=45,?=1,?=0,?=NULL,?*=NULL)'
 TDS: head_len=8, payload=312, type=RPC, status=0x9, length=320
-TDS(msg): head_len=312, payload=0, Clt->Srv, query, query='dbo.proc_GetMySampleDataItems(@SampleItemId=661ac34e14a25348a77ee7060fffff07,@DataId=NULL,@DataItemType=9b45b9bca8836445b1d3e9e198478f4e,@TableId=NULL,@MaxFetchSize=100,@SomeOtherSampleId=0)'
+TDS(msg): head_len=312, payload=0, Clt->Srv, query, query='dbo.proc_GetMySampleDataItems(@SampleItemId=0x661ac34e14a25348a77ee7060fffff07,@DataId=NULL,@DataItemType=0x9b45b9bca8836445b1d3e9e198478f4e,@TableId=NULL,@MaxFetchSize=100,@SomeOtherSampleId=0)'
 -- pcap/tds/mssql_truncated.pcap --
 TDS: head_len=8, payload=59, type=Pre-login, status=0x1, length=67
 TDS(msg): head_len=59, payload=0, Clt->Srv, version=0.0, startup, No SSL
