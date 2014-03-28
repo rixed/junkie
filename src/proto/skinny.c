@@ -269,7 +269,7 @@ static int skinny_parser_ctor(struct skinny_parser *skinny_parser, struct proto 
     assert(proto == proto_skinny);
     if (0 != parser_ctor(&skinny_parser->parser, proto)) return -1;
 #   define SKINNY_MAX_HDR_SIZE 1000   // in bytes
-    if (0 != streambuf_ctor(&skinny_parser->sbuf, skinny_sbuf_parse, SKINNY_MAX_HDR_SIZE)) return -1;
+    if (0 != streambuf_ctor(&skinny_parser->sbuf, skinny_sbuf_parse, SKINNY_MAX_HDR_SIZE, NULL)) return -1;
 
     return 0;
 }

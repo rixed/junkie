@@ -592,7 +592,7 @@ static int tls_parser_ctor(struct tls_parser *tls_parser, struct proto *proto)
     tls_parser->spec[0].cipher = tls_parser->spec[1].cipher = TLS_NULL_WITH_NULL_NULL;
     tls_parser->subparser = NULL;
 #   define MAX_TLS_BUFFER (16383 + 5)
-    if (0 != streambuf_ctor(&tls_parser->sbuf, tls_sbuf_parse, MAX_TLS_BUFFER)) return -1;
+    if (0 != streambuf_ctor(&tls_parser->sbuf, tls_sbuf_parse, MAX_TLS_BUFFER, NULL)) return -1;
 
     return 0;
 }

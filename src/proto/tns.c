@@ -88,7 +88,7 @@ static int tns_parser_ctor(struct tns_parser *tns_parser, struct proto *proto)
     tns_parser->c2s_way = UNSET;    // unset
     tns_parser->nb_fields = UNSET;
     tns_parser->msg_type = SQL_UNKNOWN;
-    if (0 != streambuf_ctor(&tns_parser->sbuf, tns_sbuf_parse, 30000)) return -1;
+    if (0 != streambuf_ctor(&tns_parser->sbuf, tns_sbuf_parse, 30000, NULL)) return -1;
 
     return 0;
 }

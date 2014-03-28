@@ -47,7 +47,7 @@ struct streambuf {
     } dir[2];
 };
 
-int streambuf_ctor(struct streambuf *, parse_fun *parse, size_t max_size);
+int streambuf_ctor(struct streambuf *, parse_fun *parse, size_t max_size, struct mutex_pool *);
 void streambuf_dtor(struct streambuf *);
 
 /// When a parser want to be called later with (part of) current data

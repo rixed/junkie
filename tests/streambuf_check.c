@@ -48,7 +48,7 @@ static void setup(void)
 {
     nb_calls = 0;
     nb_chunks = 0;
-    assert(0 == streambuf_ctor(&sbuf, parse, 80));
+    assert(0 == streambuf_ctor(&sbuf, parse, 80, NULL));
 }
 
 static void teardown(void)

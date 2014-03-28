@@ -160,7 +160,7 @@ static int pg_parser_ctor(struct pgsql_parser *pg_parser, struct proto *proto)
     if (0 != parser_ctor(&pg_parser->parser, proto)) return -1;
     pg_parser->phase = NONE;
     pg_parser->c2s_way = UNSET;    // unset
-    if (0 != streambuf_ctor(&pg_parser->sbuf, pg_sbuf_parse, 30000)) return -1;
+    if (0 != streambuf_ctor(&pg_parser->sbuf, pg_sbuf_parse, 30000, NULL)) return -1;
 
     return 0;
 }

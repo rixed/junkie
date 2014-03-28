@@ -39,13 +39,13 @@ static struct mutex_pool streambuf_locks;
  * Construction
  */
 
-int streambuf_ctor(struct streambuf *sbuf, parse_fun *parse, size_t max_size)
+int streambuf_ctor(struct streambuf *sbuf, parse_fun *parse, size_t max_size, struct mutex_pool *pool)
 {
     SLOG(LOG_DEBUG, "Constructing a streambuf@%p of max size %zu", sbuf, max_size);
 
     sbuf->parse = parse;
     sbuf->max_size = max_size;
-    sbuf->mutex = mutex_pool_anyone(&streambuf_locks);
+    sbuf->mutex = mutex_pool_anyone(pool ? pool : &streambuf_locks);
 
     for (unsigned d = 0; d < 2; d++) {
         sbuf->dir[d].buffer = NULL;

@@ -35,6 +35,10 @@
 #include "junkie/proto/cursor.h"
 #include "junkie/tools/string_buffer.h"
 
+// We need a different mutex pool to avoid possible reuse of mutex between
+// tds streambuf and tds_msg streambuf
+static struct mutex_pool streambuf_locks;
+
 // Use same logger as TDS 'transport'
 #undef LOG_CAT
 #define LOG_CAT proto_tds_log_category
@@ -339,11 +343,11 @@ static int tds_msg_parser_ctor(struct tds_msg_parser *tds_msg_parser, struct pro
     tds_msg_parser->option_flag_1 = 0;  // ASCII + LittleEndian by default
     tds_msg_parser->pre_7_2 = false;    // assume recent protocol version
     tds_msg_parser->had_gap = false;
-    if (0 != streambuf_ctor(&tds_msg_parser->sbuf, tds_msg_sbuf_parse, MAX_TDS_MSG_BUFFER)) return -1;
+    if (0 != streambuf_ctor(&tds_msg_parser->sbuf, tds_msg_sbuf_parse, MAX_TDS_MSG_BUFFER, &streambuf_locks)) return -1;
 
     tds_msg_parser->iconv_cd = iconv_open("UTF8//IGNORE", "UCS2");
     if (tds_msg_parser->iconv_cd == ((iconv_t) - 1)) {
-        SLOG(LOG_NOTICE, "Could not open iconv: %s", strerror(errno));
+        SLOG(LOG_INFO, "Could not open iconv: %s", strerror(errno));
         streambuf_dtor(&tds_msg_parser->sbuf);
         return -1;
     }
@@ -1600,11 +1604,14 @@ void tds_msg_init(void)
         .info_addr   = sql_info_addr
     };
     proto_ctor(&proto_tds_msg_, &ops, "TDS(msg)", PROTO_CODE_TDS_MSG);
+    mutex_pool_ctor(&streambuf_locks, "streambuf(TDS msg)");
 }
 
 void tds_msg_fini(void)
 {
 #   ifdef DELETE_ALL_AT_EXIT
     proto_dtor(&proto_tds_msg_);
+    mutex_pool_dtor(&streambuf_locks);
 #   endif
 }
+

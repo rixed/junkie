@@ -65,7 +65,7 @@ struct tds_parser {
     // each tds parser comes with its tds_msg parser
     struct parser *msg_parser;
 
-    struct streambuf sbuf;  // yep, one more level of buffering
+    struct streambuf sbuf;
     // We give up parsing if capture has been truncated until we change way
     // However, we still advertise those packets as part of the current query
     // Keep track of tds data left if we have truncated packet
@@ -130,7 +130,7 @@ static int tds_parser_ctor(struct tds_parser *tds_parser, struct proto *proto)
     tds_parser->channels[0] = 0;
     tds_parser->channels[1] = 0;
     tds_parser->pkt_number = 1;
-    if (0 != streambuf_ctor(&tds_parser->sbuf, tds_sbuf_parse, 30000)) return -1;
+    if (0 != streambuf_ctor(&tds_parser->sbuf, tds_sbuf_parse, 30000, NULL)) return -1;
 
     return 0;
 }

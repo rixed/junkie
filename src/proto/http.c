@@ -223,7 +223,7 @@ static int http_parser_ctor(struct http_parser *http_parser, struct proto *proto
         http_parser->state[way].last_method = UNSET;
     }
 #   define HTTP_MAX_HDR_SIZE 10000   // in bytes
-    if (0 != streambuf_ctor(&http_parser->sbuf, http_sbuf_parse, HTTP_MAX_HDR_SIZE)) return -1;
+    if (0 != streambuf_ctor(&http_parser->sbuf, http_sbuf_parse, HTTP_MAX_HDR_SIZE, NULL)) return -1;
 
     return 0;
 }
