@@ -817,10 +817,10 @@ static enum proto_parse_status parse_type_info_value(struct tds_msg_parser const
                         CHECK(length);
                         if (type_is_text(type_info->token)) {
                             buffer_append_unicode(buffer, tds_msg_parser->iconv_cd, (char *)cursor->head, length);
-                            cursor_drop(cursor, length);
                         } else {
                             buffer_append_hexstring(buffer, (char *)cursor->head, length);
                         }
+                        cursor_drop(cursor, length);
                         tot_len -= length;
                     }
                     break;
