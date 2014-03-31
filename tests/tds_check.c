@@ -865,6 +865,7 @@ static void parse_check(void)
 
 static void check_string_buffer(struct string_buffer *buffer, char *expected, bool truncated)
 {
+    buffer_get_string(buffer);
     if (truncated != buffer->truncated) {
         printf("Buffer %s should %s be truncated\n", string_buffer_2_str(buffer), truncated ? "" : "not");
         assert(truncated == buffer->truncated);
@@ -875,8 +876,9 @@ static void check_string_buffer(struct string_buffer *buffer, char *expected, bo
     }
 }
 
-static void append_us_varchar_check(struct tds_msg_parser *tds_msg_parser)
+static void append_us_varchar_check(struct parser *parser)
 {
+    struct tds_msg_parser *tds_msg_parser = DOWNCAST(parser, parser, tds_msg_parser);
     static uint8_t unicode_strings[] = {
         0x1c,0x00,0x49,0x00,0x6e,0x00,0x76,0x00,0x61,0x00,0x6c,0x00,0x69,0x00,0x64,0x00,
         0x20,0x00,0x6f,0x00,0x62,0x00,0x6a,0x00,0x65,0x00,0x63,0x00,0x74,0x00,0x20,0x00,
@@ -911,12 +913,9 @@ int main(void)
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("tds_check.log");
 
-    struct tds_msg_parser tds_msg_parser;
-    tds_msg_parser_ctor(&tds_msg_parser, proto_tds_msg);
-    append_us_varchar_check(&tds_msg_parser);
-    struct parser *parser = &tds_msg_parser.parser;
-    parser_unref(&parser);
-    tds_msg_parser_dtor(&tds_msg_parser);
+    struct parser *tds_msg_parser = proto_tds_msg->ops->parser_new(proto_tds_msg);
+    append_us_varchar_check(tds_msg_parser);
+    parser_unref(&tds_msg_parser);
 
     parse_check();
 
@@ -940,3 +939,4 @@ int main(void)
     log_fini();
     return EXIT_SUCCESS;
 }
+
