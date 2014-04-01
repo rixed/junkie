@@ -665,6 +665,7 @@ static bool lookup_query(struct cursor *cursor)
 
 static enum proto_parse_status tns_parse_sql_query_oci(struct sql_proto_info *info, struct cursor *cursor)
 {
+    SLOG(LOG_DEBUG, "Parsing an oci query");
     enum proto_parse_status status;
     char pattern[] = {0xfe, MAX_OCI_CHUNK};
     uint8_t const *new_head = memmem(cursor->head, cursor->cap_len, pattern, sizeof(pattern));
@@ -690,6 +691,7 @@ static enum proto_parse_status tns_parse_sql_query_oci(struct sql_proto_info *in
 
 static enum proto_parse_status tns_parse_sql_query_jdbc(struct sql_proto_info *info, struct cursor *cursor)
 {
+    SLOG(LOG_DEBUG, "Parsing a jdbc query");
     enum proto_parse_status status;
 
     DROP_FIX(cursor, 1);
@@ -712,28 +714,30 @@ static enum proto_parse_status tns_parse_sql_query_jdbc(struct sql_proto_info *i
     DROP_FIX(cursor, 6);
     DROP_VAR(cursor);
 
-    // Some unknown bytes
-    while (cursor->cap_len > 0 && !isprint(cursor_peek_u8(cursor, 1))) {
-        cursor_drop(cursor, 1);
-    }
-
-    char *sql;
-    CHECK(1);
-    if (sql_len > 0xff && 0xff == cursor_peek_u8(cursor, 0)) {
-        SLOG(LOG_DEBUG, "Looks like prefixed length chunks of size 0xff...");
-        status = cursor_read_chunked_string(cursor, &sql, 0xff);
-    } else if (sql_len > 0x40 && 0x40 == cursor_peek_u8(cursor, 1)) {
-        SLOG(LOG_DEBUG, "Looks like prefixed length chunks of size 0x40...");
-        cursor_drop(cursor, 1);
-        status = cursor_read_chunked_string(cursor, &sql, 0x40);
-    } else {
-        if (!isprint(cursor_peek_u8(cursor, 0))) {
+    char *sql = "";
+    if (sql_len > 0) {
+        // Some unknown bytes
+        while (cursor->cap_len > 1 && !isprint(cursor_peek_u8(cursor, 1))) {
             cursor_drop(cursor, 1);
         }
-        SLOG(LOG_DEBUG, "Looks like a fixed string of size %zu", sql_len);
-        status = cursor_read_fixed_string(cursor, &sql, sql_len);
+
+        CHECK(1);
+        if (sql_len > 0xff && 0xff == cursor_peek_u8(cursor, 0)) {
+            SLOG(LOG_DEBUG, "Looks like prefixed length chunks of size 0xff...");
+            status = cursor_read_chunked_string(cursor, &sql, 0xff);
+        } else if (sql_len > 0x40 && 0x40 == cursor_peek_u8(cursor, 1)) {
+            SLOG(LOG_DEBUG, "Looks like prefixed length chunks of size 0x40...");
+            cursor_drop(cursor, 1);
+            status = cursor_read_chunked_string(cursor, &sql, 0x40);
+        } else {
+            if (!isprint(cursor_peek_u8(cursor, 0))) {
+                cursor_drop(cursor, 1);
+            }
+            SLOG(LOG_DEBUG, "Looks like a fixed string of size %zu", sql_len);
+            status = cursor_read_fixed_string(cursor, &sql, sql_len);
+        }
+        if (status != PROTO_OK) return status;
     }
-    if (status != PROTO_OK) return status;
     SLOG(LOG_DEBUG, "Sql parsed: %s", sql);
     sql_set_query(info, "%s", sql);
 
