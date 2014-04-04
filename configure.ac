@@ -72,6 +72,7 @@ AC_ARG_VAR([CONFDIR], [Where to store configuration files [SYSCONFDIR/junkie]])
 AS_IF([test "x$CONFDIR" = x], [CONFDIR="$sysconfdir/junkie"])
 
 AC_ARG_ENABLE(bench, AC_HELP_STRING([--enable-bench], [Include benchmarking code]), [AC_DEFINE([WITH_BENCH], [], [Include benchmarking code])], [])
+AC_ARG_ENABLE(delete_all_at_exit, AC_HELP_STRING([--enable-delete-all-at-exit], [Delete all at exit]), [AC_DEFINE([DELETE_ALL_AT_EXIT], [], [Delete all at exit])], [])
 
 AC_CONFIG_FILES([
 	Makefile
