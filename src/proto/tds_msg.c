@@ -307,6 +307,19 @@ static char const *type_info_2_str(struct type_info const *type_info)
              type_info->size);
 }
 
+static pthread_key_t iconv_pthread_key;
+
+static iconv_t get_iconv()
+{
+    iconv_t iconv_cd = pthread_getspecific(iconv_pthread_key);
+    if (iconv_cd == NULL) {
+        iconv_cd = iconv_open("UTF8//IGNORE", "UCS2");
+        assert(iconv_cd != (iconv_t)-1);
+        pthread_setspecific(iconv_pthread_key, (void *)iconv_cd);
+    }
+    return iconv_cd;
+}
+
 # define MAX_TYPE_INFO 100
 struct tds_msg_parser {
     struct parser parser;
@@ -325,7 +338,6 @@ struct tds_msg_parser {
     struct streambuf sbuf;  // yep, one more level of buffering
     unsigned column_count;
     struct type_info type_info[MAX_TYPE_INFO]; // Type info extracted from COLMETADATA
-    iconv_t iconv_cd;               // Conversion descriptor for reading unicode
     bool had_gap;
 };
 
@@ -344,13 +356,6 @@ static int tds_msg_parser_ctor(struct tds_msg_parser *tds_msg_parser, struct pro
     tds_msg_parser->pre_7_2 = false;    // assume recent protocol version
     tds_msg_parser->had_gap = false;
     if (0 != streambuf_ctor(&tds_msg_parser->sbuf, tds_msg_sbuf_parse, MAX_TDS_MSG_BUFFER, &streambuf_locks)) return -1;
-
-    tds_msg_parser->iconv_cd = iconv_open("UTF8//IGNORE", "UCS2");
-    if (tds_msg_parser->iconv_cd == ((iconv_t) - 1)) {
-        SLOG(LOG_INFO, "Could not open iconv: %s", strerror(errno));
-        streambuf_dtor(&tds_msg_parser->sbuf);
-        return -1;
-    }
 
     return 0;
 }
@@ -373,7 +378,6 @@ static void tds_msg_parser_dtor(struct tds_msg_parser *tds_msg_parser)
     SLOG(LOG_DEBUG, "Destructing tds_msg_parser@%p", tds_msg_parser);
     parser_dtor(&tds_msg_parser->parser);
     streambuf_dtor(&tds_msg_parser->sbuf);
-    iconv_close(tds_msg_parser->iconv_cd);
 }
 
 static void tds_msg_parser_del(struct parser *parser)
@@ -388,7 +392,7 @@ static void tds_msg_parser_del(struct parser *parser)
  */
 
 // Varchar with a size on 1 byte followed by unicode string
-static enum proto_parse_status append_b_varchar(struct tds_msg_parser const *tds_msg_parser, struct string_buffer *buffer,
+static enum proto_parse_status append_b_varchar(struct string_buffer *buffer,
         struct cursor *cursor, char const *default_str)
 {
     CHECK(1);
@@ -400,7 +404,7 @@ static enum proto_parse_status append_b_varchar(struct tds_msg_parser const *tds
         if (default_str) buffer_append_string(buffer, default_str);
     } else {
         SLOG(LOG_DEBUG, "Appending a B_VARCHAR of length %zu into %s", str_len, string_buffer_2_str(buffer));
-        buffer_append_unicode(buffer, tds_msg_parser->iconv_cd, (char*)cursor->head, str_len * 2);
+        buffer_append_unicode(buffer, get_iconv(), (char*)cursor->head, str_len * 2);
         cursor_drop(cursor, str_len * 2);
     }
     return PROTO_OK;
@@ -408,12 +412,11 @@ static enum proto_parse_status append_b_varchar(struct tds_msg_parser const *tds
 
 static enum proto_parse_status skip_b_varchar(struct cursor *cursor)
 {
-    return append_b_varchar(NULL, NULL, cursor, NULL);
+    return append_b_varchar(NULL, cursor, NULL);
 }
 
 // Varchar with a size on 2 byte followed by unicode string
-static enum proto_parse_status append_us_varchar(struct tds_msg_parser const *tds_msg_parser,
-        struct string_buffer *buffer, struct cursor *cursor)
+static enum proto_parse_status append_us_varchar(struct string_buffer *buffer, struct cursor *cursor)
 {
     CHECK(2);
     size_t str_len = cursor_read_u16le(cursor);
@@ -423,14 +426,14 @@ static enum proto_parse_status append_us_varchar(struct tds_msg_parser const *td
         return PROTO_OK;
     }
     SLOG(LOG_DEBUG, "Appending a US_VARCHAR of length %zu into %s", str_len, string_buffer_2_str(buffer));
-    buffer_append_unicode(buffer, tds_msg_parser->iconv_cd, (char*)cursor->head, str_len * 2);
+    buffer_append_unicode(buffer, get_iconv(), (char*)cursor->head, str_len * 2);
     cursor_drop(cursor, str_len * 2);
     return PROTO_OK;
 }
 
 static enum proto_parse_status skip_us_varchar(struct cursor *cursor)
 {
-    return append_us_varchar(NULL, NULL, cursor);
+    return append_us_varchar(NULL, cursor);
 }
 
 /*
@@ -708,8 +711,7 @@ static enum proto_parse_status parse_type_info(struct tds_msg_parser const *tds_
  * Parse value from a given type info
  * if buffer is NULL, it skips the type info value.
  */
-static enum proto_parse_status parse_type_info_value(struct tds_msg_parser const *tds_msg_parser,
-        struct sql_proto_info *info, struct string_buffer *buffer,
+static enum proto_parse_status parse_type_info_value(struct string_buffer *buffer,
         struct cursor *cursor, struct type_info *type_info)
 {
     SLOG(LOG_DEBUG, "Parsing type info value");
@@ -748,7 +750,7 @@ static enum proto_parse_status parse_type_info_value(struct tds_msg_parser const
                     buffer_append_string(buffer, "NULL");
                 } else if (type_is_text(type_info->token)) {  // display all kind of texts + Binary + varBinary as text
                     if (type_info->token == NVARCHARTYPE || type_info->token == NTEXTTYPE) {
-                        buffer_append_unicode(buffer, tds_msg_parser->iconv_cd, (char*)cursor->head, length_parsed);
+                        buffer_append_unicode(buffer, get_iconv(), (char*)cursor->head, length_parsed);
                         cursor_drop(cursor, length_parsed);
                     } else {
                         char *str;
@@ -827,7 +829,7 @@ static enum proto_parse_status parse_type_info_value(struct tds_msg_parser const
                         }
                         CHECK(length);
                         if (type_is_text(type_info->token)) {
-                            buffer_append_unicode(buffer, tds_msg_parser->iconv_cd, (char *)cursor->head, length);
+                            buffer_append_unicode(buffer, get_iconv(), (char *)cursor->head, length);
                         } else {
                             buffer_append_hexstring(buffer, (char *)cursor->head, length);
                         }
@@ -841,9 +843,9 @@ static enum proto_parse_status parse_type_info_value(struct tds_msg_parser const
     return PROTO_OK;
 }
 
-static enum proto_parse_status skip_type_info_value(struct tds_msg_parser const *tds_msg_parser, struct cursor *cursor, struct type_info *type_info)
+static enum proto_parse_status skip_type_info_value(struct cursor *cursor, struct type_info *type_info)
 {
-    return  parse_type_info_value(tds_msg_parser, NULL, NULL, cursor, type_info);
+    return  parse_type_info_value(NULL, cursor, type_info);
 }
 
 static enum proto_parse_status tds_prelogin(struct cursor *cursor, struct sql_proto_info *info, bool is_client)
@@ -1005,8 +1007,7 @@ static enum proto_parse_status skip_all_headers(struct cursor *cursor)
     return PROTO_OK;
 }
 
-static enum proto_parse_status tds_sql_batch(struct tds_msg_parser const *tds_msg_parser, struct cursor *cursor,
-        struct sql_proto_info *info)
+static enum proto_parse_status tds_sql_batch(struct cursor *cursor, struct sql_proto_info *info)
 {
     SLOG(LOG_DEBUG, "Parsing SQL-Batch");
     assert(info->msg_type == SQL_QUERY);
@@ -1022,7 +1023,7 @@ static enum proto_parse_status tds_sql_batch(struct tds_msg_parser const *tds_ms
     // Sometimes, we have 1 bytes string here instead of ucs2... try to guess
     bool is_usc2 = (0x00 == cursor_peek_u8(cursor, 1)) && !(sql_size & 1);
     if (likely_(is_usc2)) {
-        buffer_append_unicode(&buffer, tds_msg_parser->iconv_cd, (char *)cursor->head, sql_size);
+        buffer_append_unicode(&buffer, get_iconv(), (char *)cursor->head, sql_size);
     } else {
         buffer_append_stringn(&buffer, (char *)cursor->head, sql_size);
     }
@@ -1035,13 +1036,13 @@ static enum proto_parse_status tds_sql_batch(struct tds_msg_parser const *tds_ms
 
 // read ParamMetaData and write param name+value in dst (sql string)
 static enum proto_parse_status rpc_parameter_data(struct tds_msg_parser const *tds_msg_parser,
-        struct sql_proto_info *info, struct string_buffer *buffer, struct cursor *cursor)
+        struct string_buffer *buffer, struct cursor *cursor)
 {
     SLOG(LOG_DEBUG, "Parsing RPCParameterData");
     enum proto_parse_status status;
 
     // Fetch Parameter name
-    if (PROTO_OK != (status = append_b_varchar(tds_msg_parser, buffer, cursor, "?"))) return status;
+    if (PROTO_OK != (status = append_b_varchar(buffer, cursor, "?"))) return status;
     CHECK(1);
     uint8_t status_flag = cursor_read_u8(cursor);
     SLOG(LOG_DEBUG, "Status Flag: %"PRIu8, status_flag);
@@ -1052,7 +1053,7 @@ static enum proto_parse_status rpc_parameter_data(struct tds_msg_parser const *t
     struct type_info type_info;
     if (PROTO_OK != (status = parse_type_info(tds_msg_parser, cursor, &type_info))) return status;
 
-    return parse_type_info_value(tds_msg_parser, info, buffer, cursor, &type_info);
+    return parse_type_info_value(buffer, cursor, &type_info);
 }
 
 static enum proto_parse_status rpc_req_batch(struct tds_msg_parser const *tds_msg_parser, struct cursor *cursor, struct sql_proto_info *info)
@@ -1103,7 +1104,7 @@ static enum proto_parse_status rpc_req_batch(struct tds_msg_parser const *tds_ms
         // name as us_varchar
         info->u.query.sql[0] = '\0';    // for the debug strings
 
-        if (PROTO_OK != (status = append_us_varchar(tds_msg_parser, &buffer, cursor)))
+        if (PROTO_OK != (status = append_us_varchar(&buffer, cursor)))
             goto quit;
 
         info->set_values |= SQL_SQL;
@@ -1125,7 +1126,7 @@ static enum proto_parse_status rpc_req_batch(struct tds_msg_parser const *tds_ms
         } else {
             buffer_append_string(&buffer, ",");
         }
-        if (PROTO_OK != (status = rpc_parameter_data(tds_msg_parser, info, &buffer, cursor)))
+        if (PROTO_OK != (status = rpc_parameter_data(tds_msg_parser, &buffer, cursor)))
             goto quit;
     }
     buffer_append_string(&buffer, ")");
@@ -1161,8 +1162,7 @@ static enum proto_parse_status tds_rpc(struct tds_msg_parser const *tds_msg_pars
     return status;
 }
 
-static enum proto_parse_status tds_parse_env_change(struct tds_msg_parser *tds_msg_parser, struct cursor *cursor,
-        struct sql_proto_info *info)
+static enum proto_parse_status tds_parse_env_change(struct cursor *cursor, struct sql_proto_info *info)
 {
     CHECK(4);
     size_t length = cursor_read_u16le(cursor);
@@ -1176,7 +1176,7 @@ static enum proto_parse_status tds_parse_env_change(struct tds_msg_parser *tds_m
             {
                 struct string_buffer buffer;
                 string_buffer_ctor(&buffer, info->u.startup.dbname, sizeof(info->u.startup.dbname));
-                status = append_b_varchar(tds_msg_parser, &buffer, cursor, "?");
+                status = append_b_varchar(&buffer, cursor, "?");
                 if (status != PROTO_OK) return status;
                 char *dbname = buffer_get_string(&buffer);
                 SLOG(LOG_DEBUG, "Setting dbname to %s", dbname);
@@ -1188,7 +1188,7 @@ static enum proto_parse_status tds_parse_env_change(struct tds_msg_parser *tds_m
             {
                 struct string_buffer buffer;
                 string_buffer_ctor(&buffer, tempstr(), TEMPSTR_SIZE);
-                status = append_b_varchar(tds_msg_parser, &buffer, cursor, "?");
+                status = append_b_varchar(&buffer, cursor, "?");
                 const char *encoding = buffer_get_string(&buffer);
                 if (status != PROTO_OK) return status;
                 if (0 == strcmp("ISO-8859-1", encoding)) {
@@ -1281,7 +1281,7 @@ static enum proto_parse_status tds_result_token(struct tds_msg_parser *tds_msg_p
                 cursor_drop(&value, 2);
                 struct string_buffer buffer;
                 string_buffer_ctor(&buffer, info->error_message, sizeof(info->error_message));
-                append_us_varchar(tds_msg_parser, &buffer, &value);
+                append_us_varchar(&buffer, &value);
                 buffer_get_string(&buffer);
                 info->set_values |= SQL_ERROR_MESSAGE;
             }
@@ -1309,7 +1309,7 @@ static enum proto_parse_status tds_result_token(struct tds_msg_parser *tds_msg_p
                 struct type_info type_info;
                 if (PROTO_OK != (status = parse_type_info(tds_msg_parser, cursor, &type_info))) return status;
                 // Type info Value
-                skip_type_info_value(tds_msg_parser, cursor, &type_info);
+                skip_type_info_value(cursor, &type_info);
             }
             break;
         case COLMETADATA_TOKEN:
@@ -1366,7 +1366,7 @@ static enum proto_parse_status tds_result_token(struct tds_msg_parser *tds_msg_p
                 }
                 for (unsigned i = 0; i < tds_msg_parser->column_count; i++) {
                     SLOG(LOG_DEBUG, "Reading column %u/%u", i, tds_msg_parser->column_count);
-                    skip_type_info_value(tds_msg_parser, cursor, tds_msg_parser->type_info + i);
+                    skip_type_info_value(cursor, tds_msg_parser->type_info + i);
                 }
                 sql_increment_row_count(info, 1);
                 SLOG(LOG_DEBUG, "Incremented row count to %u", info->u.query.nb_rows);
@@ -1415,7 +1415,7 @@ static enum proto_parse_status tds_result_token(struct tds_msg_parser *tds_msg_p
             break;
         case ENV_CHANGE_TOKEN:
             {
-                return tds_parse_env_change(tds_msg_parser, cursor, info);
+                return tds_parse_env_change(cursor, info);
             }
         case ORDER_TOKEN:
             {
@@ -1548,7 +1548,7 @@ static enum proto_parse_status tds_msg_sbuf_parse(struct parser *parser, struct 
             status = tds_login7(tds_msg_parser, &cursor, &info);
             break;
         case TDS_PKT_TYPE_SQL_BATCH:
-            status = tds_sql_batch(tds_msg_parser, &cursor, &info);
+            status = tds_sql_batch(&cursor, &info);
             break;
         case TDS_PKT_TYPE_RPC:
             status = tds_rpc(tds_msg_parser, &cursor, &info);
@@ -1594,6 +1594,11 @@ static enum proto_parse_status tds_msg_parse(struct parser *parser, struct proto
 static struct proto proto_tds_msg_;
 struct proto *proto_tds_msg = &proto_tds_msg_;
 
+void cleanup_iconv(void *arg)
+{
+    if (arg) iconv_close(arg);
+}
+
 void tds_msg_init(void)
 {
     static struct proto_ops const ops = {
@@ -1605,6 +1610,7 @@ void tds_msg_init(void)
     };
     proto_ctor(&proto_tds_msg_, &ops, "TDS(msg)", PROTO_CODE_TDS_MSG);
     mutex_pool_ctor(&streambuf_locks, "streambuf(TDS msg)");
+    pthread_key_create(&iconv_pthread_key, cleanup_iconv);
 }
 
 void tds_msg_fini(void)
@@ -1612,6 +1618,7 @@ void tds_msg_fini(void)
 #   ifdef DELETE_ALL_AT_EXIT
     proto_dtor(&proto_tds_msg_);
     mutex_pool_dtor(&streambuf_locks);
+    pthread_key_delete(iconv_pthread_key);
 #   endif
 }
 
