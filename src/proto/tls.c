@@ -37,6 +37,10 @@
 #include "junkie/proto/ber.h"
 #include "junkie/proto/tls.h"
 
+// We need a different mutex pool to avoid possible reuse of mutex between
+// tls and http
+static struct mutex_pool streambuf_locks;
+
 // We use directly session_id digest as a hash key
 #undef HASH_FUNC
 #define HASH_FUNC(key) (*(key))
@@ -592,7 +596,7 @@ static int tls_parser_ctor(struct tls_parser *tls_parser, struct proto *proto)
     tls_parser->spec[0].cipher = tls_parser->spec[1].cipher = TLS_NULL_WITH_NULL_NULL;
     tls_parser->subparser = NULL;
 #   define MAX_TLS_BUFFER (16383 + 5)
-    if (0 != streambuf_ctor(&tls_parser->sbuf, tls_sbuf_parse, MAX_TLS_BUFFER, NULL)) return -1;
+    if (0 != streambuf_ctor(&tls_parser->sbuf, tls_sbuf_parse, MAX_TLS_BUFFER, &streambuf_locks)) return -1;
 
     return 0;
 }
@@ -1563,6 +1567,7 @@ void tls_init(void)
     port_muxer_ctor(&tcp_port_muxer_https, &tcp_port_muxers, 443, 443, proto_tls);
     port_muxer_ctor(&tcp_port_muxer_skinny, &tcp_port_muxers, 2443, 2443, proto_tls);
     port_muxer_ctor(&tcp_port_muxer_ftps, &tcp_port_muxers, 989, 990, proto_tls);
+    mutex_pool_ctor(&streambuf_locks, "streambuf(tls)");
 
 	tls_ok = scm_permanent_object(scm_from_latin1_symbol("tls-ok"));
 	tls_error = scm_permanent_object(scm_from_latin1_symbol("tls-error"));
@@ -1599,6 +1604,7 @@ void tls_fini(void)
         tls_keyfile_del(keyfile);
     }
     mutex_dtor(&tls_keyfiles_lock);
+    mutex_pool_dtor(&streambuf_locks);
 #   endif
 
     ext_param_max_sessions_per_key_fini();
