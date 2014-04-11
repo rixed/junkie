@@ -226,7 +226,7 @@ static struct parse_test {
         .expected = {
             .info = { .head_len = 0x69 - 8, .payload = 0},
             .set_values = SQL_SQL,
-            .u = { .query = { .sql = "PrepExec(?*=0,?=NULL,?=SELECT * FROM Toto)" } },
+            .u = { .query = { .sql = "PrepExec(0,NULL,SELECT * FROM Toto)", .truncated=false } },
             .msg_type = SQL_QUERY,
         },
         .called = true,
@@ -266,7 +266,7 @@ static struct parse_test {
         .expected = {
             .info = { .head_len = 0xc7 - 0x8, .payload = 0x0},
             .set_values = SQL_SQL,
-            .u = { .query = { .sql = "PrepExec(?*=0,?=@P0 xml,?=EXEC SampleProc @P0        ,?=<root><toto1/></root>)" } },
+            .u = { .query = { .sql = "PrepExec(0,@P0 xml,EXEC SampleProc @P0        ,<root><toto1/></root>)", .truncated=false } },
             .msg_type = SQL_QUERY,
         },
         .called = true,
@@ -320,8 +320,7 @@ static struct parse_test {
             .info = { .head_len = 0x13e - 8, .payload = 0},
             .set_values = SQL_SQL,
             .msg_type = SQL_QUERY,
-            .u = { .query = { .sql = "Prepare(?*=NULL,?=NULL,?=SELECT *                                                                                                                    FROM Toto,?=1)"
-                } } ,
+            .u = { .query = { .sql = "Prepare(NULL,NULL,SELECT *                                                                                                                    FROM Toto,1)" , .truncated=false} } ,
         },
         .called = true,
     },
@@ -352,7 +351,7 @@ static struct parse_test {
               .info = { .head_len = 0xdf - 8, .payload = 0},
               .set_values = SQL_SQL,
               .msg_type = SQL_QUERY,
-              .u = { .query = { .sql = "PrepExec(?*=0,?=@P0 nvarchar(4000),?=INSERT INTO Toto (name) VALUES (@P0)         ,?=another2)" } },
+              .u = { .query = { .sql = "PrepExec(0,@P0 nvarchar(4000),INSERT INTO Toto (name) VALUES (@P0)         ,another2)", .truncated=false } },
           },
         .called = true,
       },
@@ -443,7 +442,7 @@ static struct parse_test {
               // We have 2 headers here since tds msg has been transported by two tds pdu
               .info = { .head_len = 0x251 - 8 - 8, .payload = 0},
               .set_values = SQL_SQL,
-              .u = { .query = { .sql = "PrepExec(?*=0,?=NULL,?=SELECT *                                                                                                                                                                                                                                                 FROM Toto)" } },
+              .u = { .query = { .sql = "PrepExec(0,NULL,SELECT *                                                                                                                                                                                                                                                 FROM Toto)", .truncated=false } },
               .msg_type = SQL_QUERY,
           },
           .called = true,
@@ -763,7 +762,7 @@ static struct parse_test {
          .expected = {
              .info = { .head_len = 0x1a - 8, .payload = 0},
              .set_values = SQL_SQL,
-             .u = { .query = { .sql = " SELECT @@VERSION " } },
+             .u = { .query = { .sql = " SELECT @@VERSION ", .truncated=false } },
              .msg_type = SQL_QUERY,
          },
          .called = true,
@@ -782,7 +781,7 @@ static struct parse_test {
          .expected = {
              .info = { .head_len = 0x18 - 8, .payload = 0},
              .set_values = SQL_SQL,
-             .u = { .query = { .sql = "select @@version" } },
+             .u = { .query = { .sql = "select @@version", .truncated=false } },
              .msg_type = SQL_QUERY,
          },
          .called = true,
@@ -808,7 +807,7 @@ static struct parse_test {
          .expected = {
              .info = { .head_len = 0x90 - 8, .payload = 0},
              .set_values = SQL_SQL,
-             .u = { .query = { .sql = "SELECT Privilege FROM OR_Privileges WITH (XLOCK, ROWLOCK)" } },
+             .u = { .query = { .sql = "SELECT Privilege FROM OR_Privileges WITH (XLOCK, ROWLOCK)", .truncated=false } },
              .msg_type = SQL_QUERY,
          },
          .called = true,
@@ -840,7 +839,7 @@ static struct parse_test {
          .expected = {
              .info = { .head_len = 0x1f40 - 8, .payload = 0},
              .set_values = SQL_SQL,
-             .u = { .query = { .sql = "ExecuteSql(?=SELECT [a01].[TotololID], [a01].[OctoID], [a01].[NumeroOctonio], [a01].[value] AS [Oct" } },
+             .u = { .query = { .sql = "ExecuteSql(SELECT [a01].[TotololID], [a01].[OctoID], [a01].[NumeroOctonio], [a01].[value] AS [Oct" , .truncated = true} },
              .msg_type = SQL_QUERY,
          },
          .called = true,

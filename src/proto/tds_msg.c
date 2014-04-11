@@ -393,16 +393,15 @@ static void tds_msg_parser_del(struct parser *parser)
 
 // Varchar with a size on 1 byte followed by unicode string
 static enum proto_parse_status append_b_varchar(struct string_buffer *buffer,
-        struct cursor *cursor, char const *default_str)
+        struct cursor *cursor, bool *had_value)
 {
     CHECK(1);
     size_t str_len = cursor_read_u8(cursor);
     CHECK(str_len*2);
+    if (had_value) *had_value = (str_len > 0);
     if (!buffer) {
         cursor_drop(cursor, str_len*2);
-    } else if (0 == str_len) {
-        if (default_str) buffer_append_string(buffer, default_str);
-    } else {
+    } else if (str_len > 0) {
         SLOG(LOG_DEBUG, "Appending a B_VARCHAR of length %zu into %s", str_len, string_buffer_2_str(buffer));
         buffer_append_unicode(buffer, get_iconv(), (char*)cursor->head, str_len * 2);
         cursor_drop(cursor, str_len * 2);
@@ -767,10 +766,7 @@ static enum proto_parse_status parse_type_info_value(struct string_buffer *buffe
                         cursor_drop(cursor, length_parsed);
                     }
                 }
-                if (truncated) {
-                    if (info) info->u.query.truncated = true;
-                    return PROTO_TOO_SHORT;
-                }
+                if (truncated) return PROTO_TOO_SHORT;
             }
             break;
         case VARIABLE_COUNT_TOKEN:
@@ -1041,14 +1037,15 @@ static enum proto_parse_status rpc_parameter_data(struct tds_msg_parser const *t
     SLOG(LOG_DEBUG, "Parsing RPCParameterData");
     enum proto_parse_status status;
 
+    bool had_value;
     // Fetch Parameter name
-    if (PROTO_OK != (status = append_b_varchar(buffer, cursor, "?"))) return status;
+    if (PROTO_OK != (status = append_b_varchar(buffer, cursor, &had_value))) return status;
     CHECK(1);
     uint8_t status_flag = cursor_read_u8(cursor);
     SLOG(LOG_DEBUG, "Status Flag: %"PRIu8, status_flag);
 #   define BY_REF_VALUE 0x01
 #   define DEFAULT_VALUE 0x02
-    buffer_append_string(buffer, status_flag & BY_REF_VALUE ? "*=":"=");
+    if (had_value) buffer_append_string(buffer, status_flag & BY_REF_VALUE ? "*=":"=");
 
     struct type_info type_info;
     if (PROTO_OK != (status = parse_type_info(tds_msg_parser, cursor, &type_info))) return status;
@@ -1132,7 +1129,7 @@ static enum proto_parse_status rpc_req_batch(struct tds_msg_parser const *tds_ms
     buffer_append_string(&buffer, ")");
 
 quit:
-    info->u.query.truncated = buffer.truncated;
+    info->u.query.truncated = buffer.truncated || status == PROTO_TOO_SHORT;
     buffer_get_string(&buffer);
     return status;
 }
@@ -1176,7 +1173,7 @@ static enum proto_parse_status tds_parse_env_change(struct cursor *cursor, struc
             {
                 struct string_buffer buffer;
                 string_buffer_ctor(&buffer, info->u.startup.dbname, sizeof(info->u.startup.dbname));
-                status = append_b_varchar(&buffer, cursor, "?");
+                status = append_b_varchar(&buffer, cursor, NULL);
                 if (status != PROTO_OK) return status;
                 char *dbname = buffer_get_string(&buffer);
                 SLOG(LOG_DEBUG, "Setting dbname to %s", dbname);
@@ -1188,7 +1185,7 @@ static enum proto_parse_status tds_parse_env_change(struct cursor *cursor, struc
             {
                 struct string_buffer buffer;
                 string_buffer_ctor(&buffer, tempstr(), TEMPSTR_SIZE);
-                status = append_b_varchar(&buffer, cursor, "?");
+                status = append_b_varchar(&buffer, cursor, NULL);
                 const char *encoding = buffer_get_string(&buffer);
                 if (status != PROTO_OK) return status;
                 if (0 == strcmp("ISO-8859-1", encoding)) {

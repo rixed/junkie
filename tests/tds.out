@@ -4,7 +4,7 @@ TDS(msg): head_len=182, payload=0, Clt->Srv, query, query=' set transaction isol
 TDS: head_len=8, payload=26, type=Tabular result, status=0x1, length=34
 TDS(msg): head_len=26, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1, Status=Completed
 TDS: head_len=8, payload=284, type=RPC, status=0x1, length=292
-TDS(msg): head_len=284, payload=0, Clt->Srv, query, query='PrepExec(?*=0,?=@P0 nvarchar(4000),@P1 int,?=select * from test_table_1 where name = @P0 and id = @P1                ,?=zzz,?=2)'
+TDS(msg): head_len=284, payload=0, Clt->Srv, query, query='PrepExec(0,@P0 nvarchar(4000),@P1 int,select * from test_table_1 where name = @P0 and id = @P1                ,zzz,2)'
 TDS: head_len=8, payload=350, type=Tabular result, status=0x1, length=358
 TDS(msg): head_len=350, payload=0, Srv->Clt, query, nb_rows=1, nb_fields=4, Status=Completed
 TDS: head_len=8, payload=36, type=SQL batch, status=0x1, length=44
@@ -14,33 +14,33 @@ TDS(msg): head_len=9, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1, Stat
 TDS: head_len=8, payload=177, type=RPC, status=0x9, length=185
 TDS(msg): head_len=177, payload=0, Clt->Srv, query, query='p_GetBogusData(@SearchType=1,@MaxWaitTimeInSeconds=0,@ProcessNegativeAck=0)'
 TDS: head_len=8, payload=1074, type=RPC, status=0x9, length=1082
-TDS(msg): head_len=1074, payload=0, Clt->Srv, query, query='sp_executesql(?=SELECT TOP 88 [dbo].[MyExampleTable].[ID], [dbo].[MyExampleTable].[EntityID], [dbo].[MyExampleTable].[EntityHistoryID], [dbo].[MyExampleTable].[EntityTypeID], [dbo].[MyExampleTable].[EntityVersion], [dbo].[MyExampleTable].[HandlingStatus], [dbo].[MyExampleTable].[OperationTypeID] FROM [dbo].[MyExampleTable]  WHERE ( ( ( [dbo].[MyExampleTable].[HandlingStatus] = @HandlingStatus1))) ORDER BY [dbo].[MyExampleTable].[EntityVersion] ASC,[dbo].[MyExampleTable].[ID] ASC,?=@HandlingStatus1 tinyint,@HandlingStatus1=0)'
+TDS(msg): head_len=1074, payload=0, Clt->Srv, query, query='sp_executesql(SELECT TOP 88 [dbo].[MyExampleTable].[ID], [dbo].[MyExampleTable].[EntityID], [dbo].[MyExampleTable].[EntityHistoryID], [dbo].[MyExampleTable].[EntityTypeID], [dbo].[MyExampleTable].[EntityVersion], [dbo].[MyExampleTable].[HandlingStatus], [dbo].[MyExampleTable].[OperationTypeID] FROM [dbo].[MyExampleTable]  WHERE ( ( ( [dbo].[MyExampleTable].[HandlingStatus] = @HandlingStatus1))) ORDER BY [dbo].[MyExampleTable].[EntityVersion] ASC,[dbo].[MyExampleTable].[ID] ASC,@HandlingStatus1 tinyint,@HandlingStatus1=0)'
 TDS: head_len=8, payload=182, type=SQL batch, status=0x1, length=190
 TDS(msg): head_len=182, payload=0, Clt->Srv, query, query=' set transaction isolation level  read committed  set implicit_transactions off '
 TDS: head_len=8, payload=26, type=Tabular result, status=0x1, length=34
 TDS(msg): head_len=26, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1, Status=Completed
 TDS: head_len=8, payload=245, type=RPC, status=0x1, length=253
-TDS(msg): head_len=245, payload=0, Clt->Srv, query, query='PrepExec(?*=0,?=NULL,?=create table newsyb (column1 char(30) not null, column2 char(30) null,column3 char(30) null))'
+TDS(msg): head_len=245, payload=0, Clt->Srv, query, query='PrepExec(0,NULL,create table newsyb (column1 char(30) not null, column2 char(30) null,column3 char(30) null))'
 TDS: head_len=8, payload=49, type=Tabular result, status=0x1, length=57
 TDS(msg): head_len=49, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1, Status=Completed
 TDS: head_len=8, payload=225, type=RPC, status=0x1, length=233
-TDS(msg): head_len=225, payload=0, Clt->Srv, query, query='PrepExec(?*=0,?=NULL,?=insert INTO newsyb (column1, column2, column3) VALUES ('first', 'second', 'third'))'
+TDS(msg): head_len=225, payload=0, Clt->Srv, query, query='PrepExec(0,NULL,insert INTO newsyb (column1, column2, column3) VALUES ('first', 'second', 'third'))'
 TDS: head_len=8, payload=49, type=Tabular result, status=0x1, length=57
 TDS(msg): head_len=49, payload=0, Srv->Clt, query, nb_rows=1, nb_fields=-1, Status=Completed
 TDS: head_len=8, payload=53, type=RPC, status=0x1, length=61
-TDS(msg): head_len=53, payload=0, Clt->Srv, query, query='Execute(?=2)'
+TDS(msg): head_len=53, payload=0, Clt->Srv, query, query='Execute(2)'
 TDS: head_len=8, payload=72, type=Tabular result, status=0x1, length=80
 TDS(msg): head_len=72, payload=0, Srv->Clt, query, nb_rows=1, nb_fields=-1, Status=Completed
 TDS: head_len=8, payload=101, type=RPC, status=0x1, length=109
-TDS(msg): head_len=101, payload=0, Clt->Srv, query, query='PrepExec(?*=0,?=NULL,?=select * from newsyb)'
+TDS(msg): head_len=101, payload=0, Clt->Srv, query, query='PrepExec(0,NULL,select * from newsyb)'
 TDS: head_len=8, payload=430, type=Tabular result, status=0x1, length=438
 TDS(msg): head_len=430, payload=0, Srv->Clt, query, nb_rows=3, nb_fields=3, Status=Completed
 TDS: head_len=8, payload=37, type=RPC, status=0x1, length=45
-TDS(msg): head_len=37, payload=0, Clt->Srv, query, query='Execute(?=3)'
+TDS(msg): head_len=37, payload=0, Clt->Srv, query, query='Execute(3)'
 TDS: head_len=8, payload=412, type=Tabular result, status=0x1, length=420
 TDS(msg): head_len=412, payload=0, Srv->Clt, query, nb_rows=3, nb_fields=3, Status=Completed
 TDS: head_len=8, payload=95, type=RPC, status=0x1, length=103
-TDS(msg): head_len=95, payload=0, Clt->Srv, query, query='PrepExec(?*=0,?=NULL,?=drop table newsyb)'
+TDS(msg): head_len=95, payload=0, Clt->Srv, query, query='PrepExec(0,NULL,drop table newsyb)'
 TDS: head_len=8, payload=49, type=Tabular result, status=0x1, length=57
 TDS(msg): head_len=49, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1, Status=Completed
 TDS: head_len=8, payload=7992, type=RPC, status=0x4, length=8000
@@ -51,11 +51,11 @@ TDS(msg): head_len=363, payload=0, Clt->Srv, query, query='p_SetBogusSample(@Bog
 TDS: head_len=8, payload=80, type=RPC, status=0x9, length=88
 TDS(msg): head_len=80, payload=0, Clt->Srv, query, query='p_GetMyExampleTableRowCount()'
 TDS: head_len=8, payload=210, type=RPC, status=0x1, length=218
-TDS(msg): head_len=210, payload=0, Clt->Srv, query, query='proc_GetMyExampleTableSampleMetaData(?=0x33221100554477668899aabbccddeeff,?=NULL,?=NULL,?=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij,?=1,?=45,?=0x0123456789abcdeffedcba98,?=108)'
+TDS(msg): head_len=210, payload=0, Clt->Srv, query, query='proc_GetMyExampleTableSampleMetaData(0x33221100554477668899aabbccddeeff,NULL,NULL,ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij,1,45,0x0123456789abcdeffedcba98,108)'
 TDS: head_len=8, payload=191, type=RPC, status=0x9, length=199
-TDS(msg): head_len=191, payload=0, Clt->Srv, query, query='proc_GetMyExampleTableSampleMetaData(?=0x00112233445566778899aabbccddeeff,?=NULL,?=Bogus,?=NULL,?=1,?=45,?=0x0123456789abcdefedcba9876543210123456789abcdefedcba98765,?=18)'
+TDS(msg): head_len=191, payload=0, Clt->Srv, query, query='proc_GetMyExampleTableSampleMetaData(0x00112233445566778899aabbccddeeff,NULL,Bogus,NULL,1,45,0x0123456789abcdefedcba9876543210123456789abcdefedcba98765,18)'
 TDS: head_len=8, payload=260, type=RPC, status=0x9, length=268
-TDS(msg): head_len=260, payload=0, Clt->Srv, query, query='proc_FetchMyExampleData(?=0x0123456789abcdef0123456789abcdef,?=NULL,?=BOGUS,?=0,?=4294967294,?=0,?=0,?=NULL,?=NULL,?=NULL,?=0,?=0x0123456789abcdef0123456789abcdef0123456789abcdef01234567,?=NULL,?=1,?=5242880,?=45,?=1,?=0,?=NULL,?*=NULL)'
+TDS(msg): head_len=260, payload=0, Clt->Srv, query, query='proc_FetchMyExampleData(0x0123456789abcdef0123456789abcdef,NULL,BOGUS,0,4294967294,0,0,NULL,NULL,NULL,0,0x0123456789abcdef0123456789abcdef0123456789abcdef01234567,NULL,1,5242880,45,1,0,NULL,NULL)'
 TDS: head_len=8, payload=312, type=RPC, status=0x9, length=320
 TDS(msg): head_len=312, payload=0, Clt->Srv, query, query='dbo.proc_GetMySampleDataItems(@SampleItemId=0x661ac34e14a25348a77ee7060fffff07,@DataId=NULL,@DataItemType=0x9b45b9bca8836445b1d3e9e198478f4e,@TableId=NULL,@MaxFetchSize=100,@SomeOtherSampleId=0)'
 -- pcap/tds/mssql_truncated.pcap --
@@ -74,7 +74,7 @@ TDS(msg): head_len=59, payload=0, Srv->Clt, startup, No SSL
 TDS: head_len=8, payload=409, type=Tabular result, status=0x1, length=417
 TDS(msg): head_len=409, payload=0, Srv->Clt, version=7.4, startup, No SSL, dbname=octo, Status=Completed
 TDS: head_len=8, payload=99, type=RPC, status=0x1, length=107
-TDS(msg): head_len=99, payload=0, Clt->Srv, query, query='PrepExec(?*=0,?=NULL,?=SELECT * FROM Toto )'
+TDS(msg): head_len=99, payload=0, Clt->Srv, query, query='PrepExec(0,NULL,SELECT * FROM Toto )'
 TDS: head_len=8, payload=7992, type=Tabular result, status=0x0, length=8000
 TDS(msg): head_len=2888, payload=0, Srv->Clt, query, nb_rows=57, nb_fields=2
 TDS: head_len=8, payload=7992, type=Tabular result, status=0x0, length=8000
@@ -101,6 +101,6 @@ TDS(msg): head_len=59, payload=0, Srv->Clt, startup, No SSL
 TDS: head_len=8, payload=429, type=Tabular result, status=0x1, length=437
 TDS(msg): head_len=429, payload=0, Srv->Clt, version=7.4, startup, No SSL, dbname=ç é ààààà, Status=Completed
 TDS: head_len=8, payload=227, type=RPC, status=0x1, length=235
-TDS(msg): head_len=227, payload=0, Clt->Srv, query, query='PrepExec(?*=0,?=@P0 nvarchar(4000),?=DELETE FROM Toto WHERE name = @P0ç é ààààà        ,?=ç é ààààà)'
+TDS(msg): head_len=227, payload=0, Clt->Srv, query, query='PrepExec(0,@P0 nvarchar(4000),DELETE FROM Toto WHERE name = @P0ç é ààààà        ,ç é ààààà)'
 TDS: head_len=8, payload=288, type=Tabular result, status=0x1, length=296
 TDS(msg): head_len=288, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1, Status=Error, ErrorCode=137, ErrorMessage=Must declare the scalar variable "@P0ç".
