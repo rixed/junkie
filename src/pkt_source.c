@@ -313,9 +313,11 @@ static int set_filter(pcap_t *pcap_handle, char const *filter)
     }
     if (0 != pcap_setfilter(pcap_handle, &fp)) {
         SLOG(LOG_ERR, "Cannot install filter %s: %s", filter, pcap_geterr(pcap_handle));
+        pcap_freecode(&fp);
         return -1;
     }
 
+    pcap_freecode(&fp);
     return 0;
 }
 
