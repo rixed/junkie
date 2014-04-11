@@ -15,16 +15,15 @@
 
 static void tls_check(void)
 {
-    struct tls_keyfile keyfile;
     char *passphrase_key = "passphrase.key";
     char *passless_key = "passless.key";
     static struct ip_addr const net = IP4(1, 2, 3, 4);
     static struct ip_addr const mask = IP4(1, 2, 3, 4);
     struct proto proto;
     proto.name = "";
-    assert(TLS_OK == tls_keyfile_ctor(&keyfile, passless_key, NULL, &net, &mask, false, &proto));
-    assert(TLS_MISSING_PASSPHRASE == tls_keyfile_ctor(&keyfile, passphrase_key, NULL, &net, &mask, false, &proto));
-    assert(TLS_OK == tls_keyfile_ctor(&keyfile, passphrase_key, "toto", &net, &mask, false, &proto));
+    assert(TLS_OK == tls_keyfile_new(passless_key, NULL, &net, &mask, false, &proto));
+    assert(TLS_MISSING_PASSPHRASE == tls_keyfile_new(passphrase_key, NULL, &net, &mask, false, &proto));
+    assert(TLS_OK == tls_keyfile_new(passphrase_key, "toto", &net, &mask, false, &proto));
 }
 
 int main(void)
