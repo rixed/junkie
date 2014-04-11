@@ -31,6 +31,7 @@
 #include "junkie/tools/objalloc.h"
 #include "junkie/tools/mallocer.h"
 #include "junkie/tools/tempstr.h"
+#include "junkie/tools/files.h"
 #include "nettrack.h"
 
 LOG_CATEGORY_DEF(nettrack);
@@ -409,9 +410,7 @@ static int nt_graph_ctor(struct nt_graph *graph, char const *name, char const *l
     }
 
     graph->lib = lt_dlopen(libname);
-    if (-1 == unlink(libname)) {
-        SLOG(LOG_INFO, "Could not delete shared object %s", libname);
-    }
+    (void)file_unlink(libname);
     if (! graph->lib) {
         SLOG(LOG_ERR, "Cannot load nettrack shared object %s: %s", libname, lt_dlerror());
         return -1;

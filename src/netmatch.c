@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include "junkie/tools/objalloc.h"
+#include "junkie/tools/files.h"
 #include "junkie/netmatch.h"
 
 int netmatch_filter_ctor(struct netmatch_filter *netmatch, char const *libname)
@@ -30,9 +31,7 @@ int netmatch_filter_ctor(struct netmatch_filter *netmatch, char const *libname)
     }
 
     netmatch->handle = lt_dlopen(libname);
-    if (-1 == unlink(libname)) {
-        SLOG(LOG_INFO, "Could not delete shared object %s", libname);
-    }
+    (void)file_unlink(libname);
     if (! netmatch->handle) {
         SLOG(LOG_CRIT, "Cannot load netmatch shared object %s: %s", libname, lt_dlerror());
         goto err1;
