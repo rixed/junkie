@@ -93,8 +93,10 @@ int compare_expected_sql(struct sql_proto_info const *info, struct sql_proto_inf
         CHECK_STR(info->error_message, expected->error_message);
     if ((expected->set_values & (SQL_NB_ROWS)) == (SQL_NB_ROWS))
         CHECK_INT(info->u.query.nb_rows, expected->u.query.nb_rows);
-    if ((expected->set_values & (SQL_SQL)) == (SQL_SQL))
+    if ((expected->set_values & (SQL_SQL)) == (SQL_SQL)) {
         CHECK_STR(info->u.query.sql, expected->u.query.sql);
+        CHECK_INT(info->u.query.truncated, expected->u.query.truncated);
+    }
     if ((expected->set_values & (SQL_ENCODING)) == (SQL_ENCODING))
         CHECK_INT(info->u.startup.encoding, expected->u.startup.encoding);
     if ((expected->set_values & (SQL_USER)) == (SQL_USER))
