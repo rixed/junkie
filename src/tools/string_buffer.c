@@ -70,7 +70,9 @@ size_t buffer_append_unicode(struct string_buffer *buffer, iconv_t cd, char cons
     start_size = output_size = buffer_left_size(buffer);
     size_t ret = iconv(cd, (char **)&src, &src_len, &output, &output_size);
     if (ret == (size_t) -1) {
-        if (errno != E2BIG) SLOG(LOG_WARNING, "Iconv error: %s", strerror(errno));
+        // Can happen if dest buffer is too small or when last multibyte character
+        // is truncated
+        SLOG(LOG_INFO, "Iconv error: %s", strerror(errno));
         buffer->truncated = true;
     }
     size_t written_bytes = start_size - output_size;
@@ -107,7 +109,8 @@ static size_t utf8_num_bytes(unsigned char c)
     if (c < 0xf8) return 4;
     if (c < 0xfc) return 5;
     if (c < 0xfe) return 6;
-    assert(!"invalid utf8 sequence");
+    SLOG(LOG_INFO, "Invalid utf8 sequence");
+    return 0;
 }
 
 static size_t search_utf8_start(struct string_buffer const *buffer, size_t start)
@@ -189,6 +192,7 @@ void buffer_rollback_incomplete_utf8_char(struct string_buffer *buffer)
     SLOG(LOG_DEBUG, "Rollback of %s of incomplete utf8 char", string_buffer_2_str(buffer));
     size_t start = search_utf8_start(buffer, buffer->pos - 1);
     size_t num_bytes = utf8_num_bytes(buffer->head[start]);
+    if (num_bytes == 0) return;
     size_t size_in_buffer = buffer->pos - start;
     if (num_bytes > size_in_buffer) {
         buffer->pos = start;
