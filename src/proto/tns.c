@@ -67,6 +67,7 @@ enum ttc_code {
 
 enum query_subcode {
     TTC_QUERY_FETCH         = 0x05,
+    TTC_QUERY_ALL_7         = 0x47,
     TTC_QUERY_SQL           = 0x5e,
     TTC_CLOSE_STATEMENT     = 0x69,
 };
@@ -155,14 +156,13 @@ static void tns_parser_del(struct parser *parser)
     if ((status = cursor_read_chunked_string_with_size(cursor, NULL, MAX_OCI_CHUNK) != PROTO_OK)) \
         return status;
 
+/* TNS PDU have a header consisting of (in network byte order) :
+ *
+ * | 2 bytes | 2 bytes  | 1 byte | 1 byte | 2 byte          |
+ * | Length  | Checksum | Type   | a zero | Header checksum |
+ */
 static enum proto_parse_status cursor_read_tns_hdr(struct cursor *cursor, size_t *out_len, unsigned *out_type)
 {
-    /* TNS PDU have a header consisting of (in network byte order) :
-     * - a 2 bytes length
-     * - a 2 bytes checksum
-     * - a one byte type
-     * - a one byte 0
-     * - a 2 bytes header checksum (or 0) */
     SLOG(LOG_DEBUG, "Reading a TNS PDU");
 
     CHECK_LEN(cursor, 8, 0);
@@ -249,8 +249,8 @@ static enum proto_parse_status cursor_read_chunked_string(struct cursor *cursor,
 }
 
 /* Read an int prefixed by 1 byte size
- * Size  Int------
- * 0x02  0x01 0xdd
+ * | Size | Int------ |
+ * | 0x02 | 0x01 0xdd |
  */
 static enum proto_parse_status cursor_read_variable_int(struct cursor *cursor, uint_least64_t *res)
 {
@@ -262,8 +262,8 @@ static enum proto_parse_status cursor_read_variable_int(struct cursor *cursor, u
 
 /* Read a splitted string prefixed by a global variable size
  * Each chunk of string is prefixed by it's size
- * Size of Size  Size  Size  String---  Size  String---
- *         0x01  0x04  0x02  0x40 0x41  0x02  0x50 0x51
+ * | Size of Size | Size  Size  String---  Size  String---
+ * |         0x01 | 0x04  0x02  0x40 0x41  0x02  0x50 0x51
  */
 static enum proto_parse_status cursor_read_chunked_string_with_size(struct cursor *cursor, char **res, size_t max_chunk)
 {
@@ -399,20 +399,23 @@ static enum proto_parse_status read_field_count(struct tns_parser *tns_parser,
     return PROTO_OK;
 }
 
+/*
+ * | 1 byte | 1 + 0-8 bytes | up to 5 vars |
+ * | Flag   | Number column | unknown      |
+ */
 static enum proto_parse_status tns_parse_row_prefix(struct tns_parser *tns_parser,
         struct sql_proto_info *info, struct cursor *cursor)
 {
     enum proto_parse_status status;
     SLOG(LOG_DEBUG, "Parsing Row prefix");
 
-    /* A row prefix contains
-     * - 1 byte flag
-     * - Number column
-     * - 5 var
-     */
     DROP_FIX(cursor, 1);
     if (PROTO_OK != (status = read_field_count(tns_parser, info, cursor))) return status;
-    DROP_VARS(cursor, 5);
+    for (unsigned i = 0; i < 5; i++) {
+        char c = cursor_peek_u8(cursor, 0);
+        if (c == TTC_ROW_DATA || c == TTC_END_MESSAGE) return PROTO_OK;
+        DROP_VAR(cursor);
+    }
     return PROTO_OK;
 }
 
@@ -436,6 +439,12 @@ static enum proto_parse_status tns_parse_row_data(struct tns_parser *tns_parser,
     return PROTO_OK;
 }
 
+/*
+ * After a query, server sends a list of column name with their types
+ *
+ * | 1 byte | 1 byte                | 0-8 bytes     | variable bytes           |
+ * | Length | Size number of fields | Number fields | unknown flags and fields |
+ */
 static enum proto_parse_status tns_parse_row_description_prefix(struct tns_parser *tns_parser, struct sql_proto_info *info, struct cursor *cursor)
 {
     enum proto_parse_status status;
@@ -467,6 +476,10 @@ static enum proto_parse_status tns_parse_row_description_prefix(struct tns_parse
     return PROTO_OK;
 }
 
+/*
+ * | 1 byte | (length + 1) * variable | 1 + 0-8 bytes | nb_ignore * variable | Variable until new ttc |
+ * | length | ?                       | Nb ignore     | ?                    | ?                      |
+ */
 static enum proto_parse_status tns_parse_row_description(struct cursor *cursor)
 {
     enum proto_parse_status status;
@@ -555,18 +568,27 @@ static enum proto_parse_status tns_parse_end(struct sql_proto_info *info, struct
     uint_least64_t nb_rows;
     uint_least64_t error_code;
 
-    if (var0 != 0 && var4 == 0 && var5 == 0) {
-        // First var is unknown?
+    // let's use the double 0x00 to guess the position of row number and error code
+    if (var0 > 0 && var4 == 0 && var5 == 0) {
+        // var0 is unknown?
+        // var1 == sequence
+        // var2 == rows
+        // var3 == error code
         SLOG(LOG_DEBUG, "Unknown bits after ttc code");
         nb_rows = var2;
         error_code = var3;
         DROP_VAR(cursor);
-    } else {
+    } else if (var3 == 0 && var4 == 0) {
         // var0 == sequence
         // var1 == rows
         // var2 == error code
         nb_rows = var1;
         error_code = var2;
+    } else {
+        // var0 == rows
+        // var1 == error code
+        nb_rows = var0;
+        error_code = var1;
     }
 
     if (info->msg_type == SQL_QUERY) {
@@ -582,18 +604,17 @@ static enum proto_parse_status tns_parse_end(struct sql_proto_info *info, struct
     DROP_VARS(cursor, 2);
     DROP_FIX(cursor, 1);
     DROP_VARS(cursor, 3);
-    DROP_FIX(cursor, 2);
-    DROP_VARS(cursor, 2);
 
     if (error_code != 0) {
         SLOG(LOG_DEBUG, "Parsing error message");
         char *error_msg;
         unsigned error_len;
 
-        // Drop an unknown number of column here
-        while(cursor->cap_len > 1 && !isprint(*(cursor->head + 1))){
+        // Drop an unknown number of bytes here
+        while(cursor->cap_len > 1 && (cursor_peek_u8(cursor, 0) == 0 || !isprint(cursor_peek_u8(cursor, 1)))){
             DROP_FIX(cursor, 1);
         }
+        SLOG(LOG_DEBUG, "First printable char is %c", cursor_peek_u8(cursor, 1));
         status = cursor_read_variable_string(cursor, &error_msg, &error_len);
         if (status != PROTO_OK) return status;
         // Split "ORA-XXXX: msg"
@@ -654,6 +675,11 @@ static bool lookup_query(struct cursor *cursor)
         if (potential_size < MIN_QUERY_SIZE || potential_size > cursor->cap_len) continue;
         // We check if last character is printable
         if (!isprint(cursor_peek_u8(cursor, potential_size - 1))) continue;
+        // We check if last character + 1 is not printable. If it is printable, size might be incorrect
+
+        uint8_t next_pos = potential_size + 1;
+        if ((next_pos < cursor->cap_len) && isprint(cursor_peek_u8(cursor, potential_size))) continue;
+
         // We check if first characters are printable
         if (PROTO_OK == is_range_print(cursor, MIN_QUERY_SIZE)) {
             cursor_rollback(cursor, 1);
@@ -689,6 +715,10 @@ static enum proto_parse_status tns_parse_sql_query_oci(struct sql_proto_info *in
     return PROTO_OK;
 }
 
+/*
+ * | 1 byte | 1 + 0-8 bytes | 1 byte | 1 + 0-4 bytes  | Lots of unknown bytes | variable  |
+ * | Unk    | Sql len       | Unk    | Num end fields | Unk                   | sql query |
+ */
 static enum proto_parse_status tns_parse_sql_query_jdbc(struct sql_proto_info *info, struct cursor *cursor)
 {
     SLOG(LOG_DEBUG, "Parsing a jdbc query");
@@ -746,6 +776,15 @@ static enum proto_parse_status tns_parse_sql_query_jdbc(struct sql_proto_info *i
     return PROTO_OK;
 }
 
+/*
+ * If oci, we will fallback on start query guesstimation
+ * | 1 byte                        |
+ * | Some flags (generally > 0x04) |
+ *
+ * If jdbc:
+ * | 1 byte      | 0-4 bytes | 1 byte   | 0-4 bytes |
+ * | Option size | Options   | Var size | Var value |
+ */
 static bool is_oci(struct cursor *cursor)
 {
     CHECK(1);
@@ -767,12 +806,18 @@ static bool is_oci(struct cursor *cursor)
 static enum proto_parse_status tns_parse_sql_query(struct sql_proto_info *info, struct cursor *cursor)
 {
     DROP_FIX(cursor, 1);
-
     if (is_oci(cursor)) {
         // Option is not prefix based, seems like an oci query
         return tns_parse_sql_query_oci(info, cursor);
     } else {
-        return tns_parse_sql_query_jdbc(info, cursor);
+        struct cursor save_cursor = *cursor;
+        if (tns_parse_sql_query_jdbc(info, cursor) != PROTO_OK) {
+            // Fallback to query guessing
+            *cursor = save_cursor;
+            return tns_parse_sql_query_oci(info, cursor);
+        } else {
+            return PROTO_OK;
+        }
     }
 }
 
@@ -784,18 +829,16 @@ static enum proto_parse_status tns_parse_query(struct tns_parser *tns_parser, st
     SLOG(LOG_DEBUG, "Parsing tns query, subcode is %u", query_subcode);
     switch (query_subcode) {
         case TTC_QUERY_SQL:
+        case TTC_QUERY_ALL_7:
             tns_parser->nb_fields = UNSET;
             status = tns_parse_sql_query(info, cursor);
-            cursor_drop(cursor, cursor->cap_len);
             break;
         case TTC_QUERY_FETCH:
-            cursor_drop(cursor, cursor->cap_len);
-            break;
         default:
             // Probably initialization queries
-            cursor_drop(cursor, cursor->cap_len);
             break;
     }
+    cursor_drop(cursor, cursor->cap_len);
     return status;
 }
 
@@ -838,6 +881,10 @@ static enum proto_parse_status tns_parse_login_property(struct sql_proto_info *i
     return PROTO_OK;
 }
 
+/*
+ * | 2 bytes | 1 byte   | Variable |
+ * | Flags   | TTC code | TTC body |
+ */
 static enum proto_parse_status tns_parse_data(struct tns_parser *tns_parser, struct sql_proto_info *info, struct cursor *cursor,
         unsigned way)
 {
@@ -1023,3 +1070,4 @@ void tns_fini(void)
 #   endif
     log_category_proto_tns_fini();
 }
+
