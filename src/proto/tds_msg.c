@@ -711,7 +711,7 @@ static enum proto_parse_status parse_type_info(struct tds_msg_parser const *tds_
  * if buffer is NULL, it skips the type info value.
  */
 static enum proto_parse_status parse_type_info_value(struct string_buffer *buffer,
-        struct cursor *cursor, struct type_info *type_info)
+        struct cursor *cursor, struct type_info *type_info, bool *is_null)
 {
     SLOG(LOG_DEBUG, "Parsing type info value");
     enum proto_parse_status status;
@@ -719,6 +719,7 @@ static enum proto_parse_status parse_type_info_value(struct string_buffer *buffe
         case ZERO_LENGTH_TOKEN:
             {
                 buffer_append_string(buffer, "NULL");
+                if (is_null) *is_null = true;
             }
             break;
         case FIXED_LENGTH_TOKEN:
@@ -747,6 +748,7 @@ static enum proto_parse_status parse_type_info_value(struct string_buffer *buffe
                 // TODO: specific printer for more complex types
                 if (0 == length) {
                     buffer_append_string(buffer, "NULL");
+                    if (is_null) *is_null = true;
                 } else if (type_is_text(type_info->token)) {  // display all kind of texts + Binary + varBinary as text
                     if (type_info->token == NVARCHARTYPE || type_info->token == NTEXTTYPE) {
                         buffer_append_unicode(buffer, get_iconv(), (char*)cursor->head, length_parsed);
@@ -841,7 +843,7 @@ static enum proto_parse_status parse_type_info_value(struct string_buffer *buffe
 
 static enum proto_parse_status skip_type_info_value(struct cursor *cursor, struct type_info *type_info)
 {
-    return  parse_type_info_value(NULL, cursor, type_info);
+    return  parse_type_info_value(NULL, cursor, type_info, NULL);
 }
 
 static enum proto_parse_status tds_prelogin(struct cursor *cursor, struct sql_proto_info *info, bool is_client)
@@ -1043,14 +1045,43 @@ static enum proto_parse_status rpc_parameter_data(struct tds_msg_parser const *t
     CHECK(1);
     uint8_t status_flag = cursor_read_u8(cursor);
     SLOG(LOG_DEBUG, "Status Flag: %"PRIu8, status_flag);
-#   define BY_REF_VALUE 0x01
-#   define DEFAULT_VALUE 0x02
-    if (had_value) buffer_append_string(buffer, status_flag & BY_REF_VALUE ? "*=":"=");
+    if (had_value) buffer_append_string(buffer, "=");
 
     struct type_info type_info;
     if (PROTO_OK != (status = parse_type_info(tds_msg_parser, cursor, &type_info))) return status;
 
-    return parse_type_info_value(buffer, cursor, &type_info);
+    struct string_buffer buffer_parameter;
+    string_buffer_ctor(&buffer_parameter, tempstr(), TEMPSTR_SIZE);
+    bool is_null = false;
+    status = parse_type_info_value(&buffer_parameter, cursor, &type_info, &is_null);
+
+    SLOG(LOG_DEBUG, "%s", string_buffer_2_str(&buffer_parameter));
+    if (is_null) {
+        buffer_append_stringn(buffer, buffer_parameter.head, buffer_parameter.size);
+        return status;
+    }
+    switch (type_info.token) {
+        case XMLTYPE:
+        case NCHARTYPE:
+        case NTEXTTYPE:
+        case NVARCHARTYPE:
+            buffer_append_char(buffer, 'N');
+        case VARCHARTYPE:
+        case TEXTTYPE:
+        case CHARTYPE:
+        case BIGBINARYTYPE:
+        case BIGCHARTYPE:
+        case BIGVARCHRTYPE:
+            buffer_append_char(buffer, '\'');
+            buffer_append_escape_quotes(buffer, buffer_parameter.head, buffer_parameter.pos,
+                    '\'', false);
+            if (status != PROTO_TOO_SHORT) buffer_append_char(buffer, '\'');
+            break;
+        default:
+            buffer_append_stringn(buffer, buffer_parameter.head, buffer_parameter.pos);
+            break;
+    }
+    return status;
 }
 
 static enum proto_parse_status rpc_req_batch(struct tds_msg_parser const *tds_msg_parser, struct cursor *cursor, struct sql_proto_info *info)
@@ -1071,21 +1102,21 @@ static enum proto_parse_status rpc_req_batch(struct tds_msg_parser const *tds_ms
         unsigned const proc_id = cursor_read_u16le(cursor);
         char const *name = NULL;
         switch (proc_id) {
-            case  1: name = "Cursor"; break;
-            case  2: name = "CursorOpen"; break;
-            case  3: name = "CursorPrepare"; break;
-            case  4: name = "CursorExecute"; break;
-            case  5: name = "CursorPrepExec"; break;
-            case  6: name = "CursorUnprepare"; break;
-            case  7: name = "CursorFetch"; break;
-            case  8: name = "CursorOption"; break;
-            case  9: name = "CursorClose"; break;
-            case 10: name = "ExecuteSql"; break;
-            case 11: name = "Prepare"; break;
-            case 12: name = "Execute"; break;
-            case 13: name = "PrepExec"; break;
-            case 14: name = "PrepExecRpc"; break;
-            case 15: name = "Unprepare"; break;
+            case  1: name = "Sp_Cursor"; break;
+            case  2: name = "Sp_CursorOpen"; break;
+            case  3: name = "Sp_CursorPrepare"; break;
+            case  4: name = "Sp_CursorExecute"; break;
+            case  5: name = "Sp_CursorPrepExec"; break;
+            case  6: name = "Sp_CursorUnprepare"; break;
+            case  7: name = "Sp_CursorFetch"; break;
+            case  8: name = "Sp_CursorOption"; break;
+            case  9: name = "Sp_CursorClose"; break;
+            case 10: name = "Sp_ExecuteSql"; break;
+            case 11: name = "Sp_Prepare"; break;
+            case 12: name = "Sp_Execute"; break;
+            case 13: name = "Sp_PrepExec"; break;
+            case 14: name = "Sp_PrepExecRpc"; break;
+            case 15: name = "Sp_Unprepare"; break;
             default:
                 SLOG(LOG_DEBUG, "Unknown well-known procedure id: %u", proc_id);
                 status = PROTO_PARSE_ERR;
@@ -1112,8 +1143,7 @@ static enum proto_parse_status rpc_req_batch(struct tds_msg_parser const *tds_ms
     CHECK(2);
     cursor_drop(cursor, 2);
 
-    buffer_append_string(&buffer, "(");
-
+    buffer_append_string(&buffer, " ");
     bool first = true;
     while (! cursor_is_empty(cursor)) {
         uint8_t const next_byte = cursor->head[0];
@@ -1126,7 +1156,6 @@ static enum proto_parse_status rpc_req_batch(struct tds_msg_parser const *tds_ms
         if (PROTO_OK != (status = rpc_parameter_data(tds_msg_parser, &buffer, cursor)))
             goto quit;
     }
-    buffer_append_string(&buffer, ")");
 
 quit:
     info->u.query.truncated = buffer.truncated || status == PROTO_TOO_SHORT;
@@ -1591,11 +1620,6 @@ static enum proto_parse_status tds_msg_parse(struct parser *parser, struct proto
 static struct proto proto_tds_msg_;
 struct proto *proto_tds_msg = &proto_tds_msg_;
 
-void cleanup_iconv(void *arg)
-{
-    if (arg) iconv_close(arg);
-}
-
 void tds_msg_init(void)
 {
     static struct proto_ops const ops = {
@@ -1607,7 +1631,7 @@ void tds_msg_init(void)
     };
     proto_ctor(&proto_tds_msg_, &ops, "TDS(msg)", PROTO_CODE_TDS_MSG);
     mutex_pool_ctor(&streambuf_locks, "streambuf(TDS msg)");
-    pthread_key_create(&iconv_pthread_key, cleanup_iconv);
+    pthread_key_create(&iconv_pthread_key, (void (*)(void *))iconv_close);
 }
 
 void tds_msg_fini(void)

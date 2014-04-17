@@ -18,6 +18,7 @@
  * along with Junkie.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -196,6 +197,55 @@ void buffer_rollback_incomplete_utf8_char(struct string_buffer *buffer)
     size_t size_in_buffer = buffer->pos - start;
     if (num_bytes > size_in_buffer) {
         buffer->pos = start;
+    }
+}
+
+void buffer_append_escape_quotes(struct string_buffer *buffer, char const *src, size_t src_max, char quoted_char, bool normalize)
+{
+    enum escape_state {
+        ESC_IGNORE,  // Ignore following spaces
+        ESC_SPACE,   // Add a space before the first non space, except before ), } and ]
+        ESC_OTHER    // Undecided
+    } state = ESC_IGNORE;
+    size_t block_start = 0;
+    unsigned cur = 0;
+    for (cur = 0; cur < src_max && !buffer->truncated && src[cur] != '\0'; cur++) {
+        char c = src[cur];
+        // On space, we enter space state if previous char was not an opening char
+        if (normalize && isspace(c)) {
+            if (state != ESC_IGNORE) {
+                state = ESC_SPACE;
+            }
+            // We write the current block before first space encountered
+            if (block_start < cur) buffer_append_stringn(buffer, src + block_start, cur - block_start);
+            block_start = cur + 1;
+        } else {
+            if (state == ESC_SPACE && !(c == ')' || c == '}' || c == ']')) {
+                buffer_append_char(buffer, ' ');
+            }
+            // We escape quote and starts a new block after this quote
+            if (c == quoted_char) {
+                if (block_start < cur) buffer_append_stringn(buffer, src + block_start, cur - block_start);
+                block_start = cur + 1;
+                if (buffer_left_size(buffer) >= 2) {
+                    char str[2] = {quoted_char, quoted_char};
+                    buffer_append_stringn(buffer, str, 2);
+                } else {
+                    buffer->truncated = true;
+                    break;
+                }
+            }
+            if (c == '(' || c == '{' || c == '[') {
+                state = ESC_IGNORE;
+            } else {
+                state = ESC_OTHER;
+            }
+        }
+    }
+    if (block_start < cur) buffer_append_stringn(buffer, src + block_start, cur - block_start);
+    // Just drop char if we are in the middle of a multi byte character
+    if (buffer->pos > 0) {
+        buffer_rollback_incomplete_utf8_char(buffer);
     }
 }
 

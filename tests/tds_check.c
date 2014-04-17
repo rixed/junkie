@@ -226,7 +226,7 @@ static struct parse_test {
         .expected = {
             .info = { .head_len = 0x69 - 8, .payload = 0},
             .set_values = SQL_SQL,
-            .u = { .query = { .sql = "PrepExec(0,NULL,SELECT * FROM Toto)", .truncated=false } },
+            .u = { .query = { .sql = "Sp_PrepExec 0,NULL,N'SELECT * FROM Toto'", .truncated=false } },
             .msg_type = SQL_QUERY,
         },
         .called = true,
@@ -266,7 +266,7 @@ static struct parse_test {
         .expected = {
             .info = { .head_len = 0xc7 - 0x8, .payload = 0x0},
             .set_values = SQL_SQL,
-            .u = { .query = { .sql = "PrepExec(0,@P0 xml,EXEC SampleProc @P0        ,<root><toto1/></root>)", .truncated=false } },
+            .u = { .query = { .sql = "Sp_PrepExec 0,N'@P0 xml',N'EXEC SampleProc @P0        ',N'<root><toto1/></root>'", .truncated=false } },
             .msg_type = SQL_QUERY,
         },
         .called = true,
@@ -320,7 +320,7 @@ static struct parse_test {
             .info = { .head_len = 0x13e - 8, .payload = 0},
             .set_values = SQL_SQL,
             .msg_type = SQL_QUERY,
-            .u = { .query = { .sql = "Prepare(NULL,NULL,SELECT *                                                                                                                    FROM Toto,1)" , .truncated=false} } ,
+            .u = { .query = { .sql = "Sp_Prepare NULL,NULL,N'SELECT *                                                                                                                    FROM Toto',1" , .truncated=false} } ,
         },
         .called = true,
     },
@@ -351,7 +351,7 @@ static struct parse_test {
               .info = { .head_len = 0xdf - 8, .payload = 0},
               .set_values = SQL_SQL,
               .msg_type = SQL_QUERY,
-              .u = { .query = { .sql = "PrepExec(0,@P0 nvarchar(4000),INSERT INTO Toto (name) VALUES (@P0)         ,another2)", .truncated=false } },
+              .u = { .query = { .sql = "Sp_PrepExec 0,N'@P0 nvarchar(4000)',N'INSERT INTO Toto (name) VALUES (@P0)         ',N'another2'", .truncated=false } },
           },
         .called = true,
       },
@@ -442,7 +442,7 @@ static struct parse_test {
               // We have 2 headers here since tds msg has been transported by two tds pdu
               .info = { .head_len = 0x251 - 8 - 8, .payload = 0},
               .set_values = SQL_SQL,
-              .u = { .query = { .sql = "PrepExec(0,NULL,SELECT *                                                                                                                                                                                                                                                 FROM Toto)", .truncated=false } },
+              .u = { .query = { .sql = "Sp_PrepExec 0,NULL,N'SELECT *                                                                                                                                                                                                                                                 FROM Toto'", .truncated=false } },
               .msg_type = SQL_QUERY,
           },
           .called = true,
@@ -716,7 +716,7 @@ static struct parse_test {
              .info = { .head_len = 0xb9 - 8, .payload = 0},
              .request_status = SQL_REQUEST_COMPLETE,
              .set_values = SQL_SQL,
-             .u = { .query = { .sql = "p_GetBogusData(@SearchType=1,@MaxWaitTimeInSeconds=0,@ProcessNegativeAck=0)" } },
+             .u = { .query = { .sql = "p_GetBogusData @SearchType=1,@MaxWaitTimeInSeconds=0,@ProcessNegativeAck=0" } },
              .msg_type = SQL_QUERY,
          },
          .called = true,
@@ -813,6 +813,33 @@ static struct parse_test {
          .called = true,
      },
 
+     {
+         .packet = (uint8_t const []) {
+             0x03, 0x01, 0x00, 0xa1, 0x00, 0x36, 0x01, 0x00, 0x16, 0x00, 0x00, 0x00, 0x12, 0x00, 0x00, 0x00,
+             0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0xff, 0xff,
+             0x0d, 0x00, 0x00, 0x00, 0x00, 0x01, 0x26, 0x04, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xe7,
+             0x40, 0x1f, 0x0c, 0x04, 0xd0, 0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0xe7, 0x40, 0x1f, 0x0c, 0x04,
+             0xd0, 0x00, 0x00, 0x5c, 0x00, 0x53, 0x00, 0x61, 0x00, 0x6d, 0x00, 0x70, 0x00, 0x6c, 0x00, 0x65,
+             0x00, 0x50, 0x00, 0x72, 0x00, 0x6f, 0x00, 0x63, 0x00, 0x32, 0x00, 0x20, 0x00, 0x27, 0x00, 0x3c,
+             0x00, 0x72, 0x00, 0x6f, 0x00, 0x6f, 0x00, 0x74, 0x00, 0x3e, 0x00, 0x3c, 0x00, 0x74, 0x00, 0x6f,
+             0x00, 0x74, 0x00, 0x6f, 0x00, 0x31, 0x00, 0x2f, 0x00, 0x3e, 0x00, 0x3c, 0x00, 0x2f, 0x00, 0x72,
+             0x00, 0x6f, 0x00, 0x6f, 0x00, 0x74, 0x00, 0x3e, 0x00, 0x27, 0x00, 0x2c, 0x00, 0x20, 0x00, 0x27,
+             0x00, 0x74, 0x00, 0x65, 0x00, 0x73, 0x00, 0x74, 0x00, 0x27, 0x00, 0x2c, 0x00, 0x20, 0x00, 0x34,
+             0x00
+         },
+         .size = 0xa1,
+         .cap_len = 0xa1,
+         .ret = PROTO_OK,
+         .way = FROM_CLIENT,
+         .expected = {
+             .info = { .head_len = 0xa1 - 8, .payload = 0},
+             .set_values = SQL_SQL,
+             .u = { .query = { .sql = "Sp_PrepExec 0,NULL,N'SampleProc2 ''<root><toto1/></root>'', ''test'', 4'" , .truncated = false} },
+             .msg_type = SQL_QUERY,
+         },
+         .called = true,
+     },
+
      // A partial query
      {
          .packet = (uint8_t const []) {
@@ -835,15 +862,16 @@ static struct parse_test {
          .size = 0x1f40,
          .cap_len = 0xe0,
          .ret = PROTO_OK,
-         .way = FROM_SERVER,
+         .way = FROM_CLIENT,
          .expected = {
              .info = { .head_len = 0x1f40 - 8, .payload = 0},
              .set_values = SQL_SQL,
-             .u = { .query = { .sql = "ExecuteSql(SELECT [a01].[TotololID], [a01].[OctoID], [a01].[NumeroOctonio], [a01].[value] AS [Oct" , .truncated = true} },
+             .u = { .query = { .sql = "Sp_ExecuteSql N'SELECT [a01].[TotololID], [a01].[OctoID], [a01].[NumeroOctonio], [a01].[value] AS [Oct" , .truncated = true} },
              .msg_type = SQL_QUERY,
          },
          .called = true,
      },
+
 
 };
 

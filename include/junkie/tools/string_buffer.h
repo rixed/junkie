@@ -36,6 +36,13 @@ void buffer_rollback(struct string_buffer *buffer, size_t size);
 void buffer_rollback_utf8_char(struct string_buffer *buffer, size_t size);
 void buffer_rollback_incomplete_utf8_char(struct string_buffer *buffer);
 
+/* Remove superfluous spaces. Double the quoted char as required by the CSV syntax.
+ * *truncated will be set to true if the output was not large enough
+ * to hold the resulting escaped string.
+ * Src is expected to be utf8
+ */
+void buffer_append_escape_quotes(struct string_buffer *buffer, char const *src, size_t src_max, char quoted_char, bool normalize);
+
 static inline size_t buffer_left_size(struct string_buffer *buffer)
 {
     return buffer->size - buffer->pos;

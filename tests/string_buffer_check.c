@@ -7,6 +7,7 @@
 #include <string.h>
 #include "junkie/tools/string_buffer.h"
 #include "junkie/tools/log.h"
+#include "junkie/tools/miscmacs.h"
 
 static void check_string_buffer(struct string_buffer const *buffer, char const *expected, bool truncated)
 {
@@ -233,6 +234,32 @@ static void string_buffer_rollback_incomplete_utf8_check(void)
     check_string_buffer(&buffer, "…ἀ", false);
 }
 
+static struct escape_test {
+    char const *text;
+    char const *expected;
+    size_t buffer_size;
+    bool truncated;
+    bool expected_truncated;
+    bool normalize;
+    char quoted_char;
+} escape_test[] = {
+    { "tot\"o" , "tot\"\"" , 6 , false , true , true , '"'}  ,
+    { "t'ot\"o" , "t''ot"    , 6 , false , true , true , '\''} ,
+};
+
+static void string_buffer_escape_quotes_check(void)
+{
+    for (unsigned cur_test = 0; cur_test < NB_ELEMS(escape_test); cur_test++) {
+        printf("Check escape csv %u\n", cur_test);
+        struct escape_test test = escape_test[cur_test];
+        char dst[test.buffer_size];
+        struct string_buffer buffer;
+        string_buffer_ctor(&buffer, dst, sizeof(dst));
+        buffer_append_escape_quotes(&buffer, test.text, strlen(test.text) + 1, test.quoted_char, test.normalize);
+        check_string_buffer(&buffer, test.expected, test.expected_truncated);
+    }
+}
+
 int main(void)
 {
     log_init();
@@ -249,6 +276,7 @@ int main(void)
     string_buffer_rollback_check();
     string_buffer_rollback_utf8_check();
     string_buffer_rollback_incomplete_utf8_check();
+    string_buffer_escape_quotes_check();
 
     log_fini();
     return EXIT_SUCCESS;
