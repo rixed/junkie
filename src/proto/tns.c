@@ -158,7 +158,7 @@ static void tns_parser_del(struct parser *parser)
 
 /* TNS PDU have a header consisting of (in network byte order) :
  *
- * | 2 bytes | 2 bytes  | 1 byte | 1 byte | 2 byte          |
+ * | 2 bytes | 2 bytes  | 1 byte | 1 byte | 2 bytes         |
  * | Length  | Checksum | Type   | a zero | Header checksum |
  */
 static enum proto_parse_status cursor_read_tns_hdr(struct cursor *cursor, size_t *out_len, unsigned *out_type)
@@ -676,10 +676,10 @@ static bool lookup_query(struct cursor *cursor)
         // We check if last character is printable
         if (!isprint(cursor_peek_u8(cursor, potential_size - 1))) continue;
         // We check if last character + 1 is not printable. If it is printable, size might be incorrect
-
+        // We assume chunked string if size > 0x40
         uint8_t next_pos = potential_size + 1;
-        if ((next_pos < cursor->cap_len) && isprint(cursor_peek_u8(cursor, potential_size))) continue;
-
+        if (potential_size < 0x40 && (next_pos < cursor->cap_len)
+                && isprint(cursor_peek_u8(cursor, potential_size))) continue;
         // We check if first characters are printable
         if (PROTO_OK == is_range_print(cursor, MIN_QUERY_SIZE)) {
             cursor_rollback(cursor, 1);
@@ -700,7 +700,7 @@ static enum proto_parse_status tns_parse_sql_query_oci(struct sql_proto_info *in
         SLOG(LOG_DEBUG, "%zu bytes before sql", gap_size);
         DROP_FIX(cursor, gap_size + 1);
     } else {
-        SLOG(LOG_DEBUG, "{0xfe 0x40} not found, size might be < 0x40");
+        SLOG(LOG_DEBUG, "{0xfe 0x40} not found, size might be < 0x40 or > 0x40");
         if (!lookup_query(cursor)) return PROTO_PARSE_ERR;
     }
 
