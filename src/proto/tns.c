@@ -48,7 +48,7 @@ enum tns_type {
     TNS_MARKER    = 12,
     TNS_ATTENTION = 13,
     TNS_CONTROL   = 14,
-    TNS_TYPE_MAX  = 19
+    TNS_TYPE_MAX  = 15
 };
 
 enum ttc_code {
@@ -161,21 +161,32 @@ static void tns_parser_del(struct parser *parser)
  * | 2 bytes | 2 bytes  | 1 byte | 1 byte | 2 bytes         |
  * | Length  | Checksum | Type   | a zero | Header checksum |
  */
-static enum proto_parse_status cursor_read_tns_hdr(struct cursor *cursor, size_t *out_len, unsigned *out_type)
+static enum proto_parse_status cursor_read_tns_hdr(struct cursor *cursor, size_t *out_len, unsigned *out_type, size_t wire_len)
 {
     SLOG(LOG_DEBUG, "Reading a TNS PDU");
 
     CHECK_LEN(cursor, 8, 0);
     size_t len = cursor_read_u16n(cursor);
-    if (len < 8) return PROTO_PARSE_ERR;
+    if (len < 8 || len < wire_len) return PROTO_PARSE_ERR;
     len -= 8;
     SLOG(LOG_DEBUG, "TNS PDU len == %zu", len);
-    // skip packet checksum (2 bytes)
-    cursor_drop(cursor, 2);
+    // Checksum should be 0
+    uint_least16_t checksum = cursor_read_u16n(cursor);
+    if (checksum > 0) {
+        SLOG(LOG_DEBUG, "Tns checksum should be 0, got %u", checksum);
+        return PROTO_PARSE_ERR;
+    }
     unsigned type = cursor_read_u8(cursor);
-    // Skip Reserved byte and header checksum (1 + 2 bytes)
-    cursor_drop(cursor, 3);
-    if (type > TNS_TYPE_MAX) return PROTO_PARSE_ERR;
+    if (type >= TNS_TYPE_MAX) {
+        SLOG(LOG_DEBUG, "Tns type invalid, sould be < %u, got %u", TNS_TYPE_MAX, type);
+        return PROTO_PARSE_ERR;
+    }
+    // reserved byte and header checksum should be 0
+    uint_least32_t head_checksum =cursor_read_u24(cursor);
+    if (head_checksum  > 0) {
+        SLOG(LOG_DEBUG, "Reserved byte and checksum should be 0, got %u", head_checksum);
+        return PROTO_PARSE_ERR;
+    }
 
     // Check we have the msg payload
     CHECK_LEN(cursor, len, 8);
@@ -230,11 +241,11 @@ static enum proto_parse_status cursor_read_chunked_string(struct cursor *cursor,
     char *str = tempstr();
     unsigned pos = 0;
     while (pos < TEMPSTR_SIZE) {
-        CHECK(1);
+        if (cursor->cap_len < 1) break;
         unsigned str_len = cursor_read_u8(cursor);
         SLOG(LOG_DEBUG, "Chunk of size of %u", str_len);
 
-        CHECK(str_len);
+        if (cursor->cap_len < str_len) break;
         size_t copied_len = MIN(TEMPSTR_SIZE - (pos + str_len + 1), str_len);
         cursor_copy(str + pos, cursor, copied_len);
         pos += str_len;
@@ -271,10 +282,13 @@ static enum proto_parse_status cursor_read_chunked_string_with_size(struct curso
     enum proto_parse_status status;
     status = cursor_read_variable_int(cursor, &size);
     if (status != PROTO_OK) return status;
-    if (size > 0) {
-        status = cursor_read_chunked_string(cursor, res, max_chunk);
-    }
+    if (size > 0) status = cursor_read_chunked_string(cursor, res, max_chunk);
     return status;
+}
+
+static bool is_print(char c)
+{
+    return c != MAX_OCI_CHUNK && (isprint(c) || isspace(c));
 }
 
 static bool is_delim(char c)
@@ -611,7 +625,7 @@ static enum proto_parse_status tns_parse_end(struct sql_proto_info *info, struct
         unsigned error_len;
 
         // Drop an unknown number of bytes here
-        while(cursor->cap_len > 1 && (cursor_peek_u8(cursor, 0) == 0 || !isprint(cursor_peek_u8(cursor, 1)))){
+        while(cursor->cap_len > 1 && (cursor_peek_u8(cursor, 0) == 0 || !is_print(cursor_peek_u8(cursor, 1)))){
             DROP_FIX(cursor, 1);
         }
         SLOG(LOG_DEBUG, "First printable char is %c", cursor_peek_u8(cursor, 1));
@@ -653,7 +667,7 @@ static enum proto_parse_status is_range_print(struct cursor *cursor, size_t size
 {
     CHECK(size);
     for (size_t i = 0; i < size; i++) {
-        if (!isprint(cursor_peek_u8(cursor, i)))
+        if (!is_print(cursor_peek_u8(cursor, i)))
             return PROTO_PARSE_ERR;
     }
     return PROTO_OK;
@@ -669,17 +683,24 @@ static bool lookup_query(struct cursor *cursor)
         do {
             c = cursor_peek_u8(cursor, 1);
             potential_size = cursor_read_u8(cursor);
-        } while (cursor->cap_len > QUERY_WITH_SIZE && !isprint(c));
+            if (potential_size == TTC_ROW_DATA) {
+                SLOG(LOG_DEBUG, "Looks like a data row, we found no matching query...");
+                return false;
+            }
+        } while (cursor->cap_len > QUERY_WITH_SIZE && !is_print(c));
         SLOG(LOG_DEBUG, "Found potential size 0x%02x and first printable %c", potential_size, c);
         // Check on found size
         if (potential_size < MIN_QUERY_SIZE || potential_size > cursor->cap_len) continue;
         // We check if last character is printable
-        if (!isprint(cursor_peek_u8(cursor, potential_size - 1))) continue;
+        char last_char = cursor_peek_u8(cursor, potential_size - 1);
+        if (!is_print(last_char)) continue;
         // We check if last character + 1 is not printable. If it is printable, size might be incorrect
-        // We assume chunked string if size > 0x40
+        // We assume chunked string if size >= 0x40
         uint8_t next_pos = potential_size + 1;
-        if (potential_size < 0x40 && (next_pos < cursor->cap_len)
-                && isprint(cursor_peek_u8(cursor, potential_size))) continue;
+        if (potential_size < MAX_OCI_CHUNK && (next_pos < cursor->cap_len)) {
+            char next_char = cursor_peek_u8(cursor, next_pos);
+            if (is_print(next_char)) continue;
+        }
         // We check if first characters are printable
         if (PROTO_OK == is_range_print(cursor, MIN_QUERY_SIZE)) {
             cursor_rollback(cursor, 1);
@@ -692,23 +713,14 @@ static bool lookup_query(struct cursor *cursor)
 static enum proto_parse_status tns_parse_sql_query_oci(struct sql_proto_info *info, struct cursor *cursor)
 {
     SLOG(LOG_DEBUG, "Parsing an oci query");
-    enum proto_parse_status status;
-    char pattern[] = {0xfe, MAX_OCI_CHUNK};
-    uint8_t const *new_head = memmem(cursor->head, cursor->cap_len, pattern, sizeof(pattern));
-    if (new_head != NULL) {
-        size_t gap_size = new_head - cursor->head;
-        SLOG(LOG_DEBUG, "%zu bytes before sql", gap_size);
-        DROP_FIX(cursor, gap_size + 1);
-    } else {
-        SLOG(LOG_DEBUG, "{0xfe 0x40} not found, size might be < 0x40 or > 0x40");
-        if (!lookup_query(cursor)) return PROTO_PARSE_ERR;
+    char *sql = "";
+    bool has_query = lookup_query(cursor);
+    if (has_query) {
+        SLOG(LOG_DEBUG, "Found a query, parsing it");
+        cursor_read_chunked_string(cursor, &sql, MAX_OCI_CHUNK);
     }
-
-    char *sql;
-    if (PROTO_OK != (status = cursor_read_chunked_string(cursor, &sql, MAX_OCI_CHUNK))) return status;
     SLOG(LOG_DEBUG, "Sql parsed: %s", sql);
     sql_set_query(info, "%s", sql);
-
     // Drop the rest
     if(cursor->cap_len > 0) cursor_drop(cursor, cursor->cap_len - 1);
 
@@ -747,7 +759,7 @@ static enum proto_parse_status tns_parse_sql_query_jdbc(struct sql_proto_info *i
     char *sql = "";
     if (sql_len > 0) {
         // Some unknown bytes
-        while (cursor->cap_len > 1 && !isprint(cursor_peek_u8(cursor, 1))) {
+        while (cursor->cap_len > 1 && !is_print(cursor_peek_u8(cursor, 1))) {
             cursor_drop(cursor, 1);
         }
 
@@ -755,12 +767,12 @@ static enum proto_parse_status tns_parse_sql_query_jdbc(struct sql_proto_info *i
         if (sql_len > 0xff && 0xff == cursor_peek_u8(cursor, 0)) {
             SLOG(LOG_DEBUG, "Looks like prefixed length chunks of size 0xff...");
             status = cursor_read_chunked_string(cursor, &sql, 0xff);
-        } else if (sql_len > 0x40 && 0x40 == cursor_peek_u8(cursor, 1)) {
+        } else if (sql_len > MAX_OCI_CHUNK && MAX_OCI_CHUNK == cursor_peek_u8(cursor, 1)) {
             SLOG(LOG_DEBUG, "Looks like prefixed length chunks of size 0x40...");
             cursor_drop(cursor, 1);
-            status = cursor_read_chunked_string(cursor, &sql, 0x40);
+            status = cursor_read_chunked_string(cursor, &sql, MAX_OCI_CHUNK);
         } else {
-            if (!isprint(cursor_peek_u8(cursor, 0))) {
+            if (!is_print(cursor_peek_u8(cursor, 0))) {
                 cursor_drop(cursor, 1);
             }
             SLOG(LOG_DEBUG, "Looks like a fixed string of size %zu", sql_len);
@@ -946,7 +958,6 @@ static enum proto_parse_status tns_parse_data(struct tns_parser *tns_parser, str
             }
             // Fix c2s_way
             switch (ttc_code) {
-                case TTC_ROW_DATA:
                 case TTC_ROW_DESCRIPTION_PREFIX:
                 case TTC_ROW_RECAP:
                 case TTC_ROW_DESCRIPTION:
@@ -990,8 +1001,11 @@ static enum proto_parse_status tns_sbuf_parse(struct parser *parser, struct prot
     uint8_t const *const msg_start = cursor.head;
     size_t pdu_len;
     enum tns_type pdu_type;
-    enum proto_parse_status status = cursor_read_tns_hdr(&cursor, &pdu_len, &pdu_type);
-    if (status == PROTO_PARSE_ERR) return status;
+    enum proto_parse_status status = cursor_read_tns_hdr(&cursor, &pdu_len, &pdu_type, wire_len);
+    if (status == PROTO_PARSE_ERR) {
+        SLOG(LOG_DEBUG, "Error while parsing tns header");
+        return status;
+    }
     if (status == PROTO_TOO_SHORT) {
         streambuf_set_restart(&tns_parser->sbuf, way, msg_start, true);
         SLOG(LOG_DEBUG, "Payload too short for parsing message, will restart @ %zu", tns_parser->sbuf.dir->restart_offset);
