@@ -15,6 +15,12 @@
     char *val = (char *)VAL;                              \
     if (0 != strcmp(exp, val)) {                  \
         printf("Expected '%s'\nGot      '%s' from field %s\n", exp, val, #VAL); \
+        for (unsigned i = 0; i < strlen(val); i++) { \
+            if (val[i] != exp[i]) { \
+               printf("Diff at character %d, got 0x%02x, expected 0x%02x\n", i, val[i], exp[i]); \
+               break; \
+            } \
+        } \
         return 1;                                 \
     } } while (0)
 
