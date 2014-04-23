@@ -391,20 +391,30 @@ static void tds_msg_parser_del(struct parser *parser)
  * Some parse helper
  */
 
-// Varchar with a size on 1 byte followed by unicode string
+static bool is_ucs2(struct cursor *cursor, size_t offset)
+{
+    return (0x00 == cursor_peek_u8(cursor, offset + 1));
+}
+
+/*
+ * Varchar with a size on 1 byte followed by unicode string
+ */
 static enum proto_parse_status append_b_varchar(struct string_buffer *buffer,
         struct cursor *cursor, bool *had_value)
 {
-    CHECK(1);
+    CHECK(3);
     size_t str_len = cursor_read_u8(cursor);
-    CHECK(str_len*2);
     if (had_value) *had_value = (str_len > 0);
+    bool ucs2 = is_ucs2(cursor, 0);
+    size_t size_str = ucs2 ? str_len * 2 : str_len;
+    CHECK(size_str);
     if (!buffer) {
-        cursor_drop(cursor, str_len*2);
+        cursor_drop(cursor, size_str);
     } else if (str_len > 0) {
-        SLOG(LOG_DEBUG, "Appending a B_VARCHAR of length %zu into %s", str_len, string_buffer_2_str(buffer));
-        buffer_append_unicode(buffer, get_iconv(), (char*)cursor->head, str_len * 2);
-        cursor_drop(cursor, str_len * 2);
+        SLOG(LOG_DEBUG, "Appending a B_VARCHAR of length %zu into %s, %s ucs2", str_len, string_buffer_2_str(buffer), ucs2 ? "" : "not");
+        if (ucs2) buffer_append_unicode(buffer, get_iconv(), (char*)cursor->head, size_str);
+        else buffer_append_stringn(buffer, (char*)cursor->head, size_str);
+        cursor_drop(cursor, size_str);
     }
     return PROTO_OK;
 }
@@ -883,6 +893,7 @@ static enum proto_parse_status tds_prelogin(struct cursor *cursor, struct sql_pr
                 info->version_min = cursor_read_u8(&value);
                 // The rest of version 'string' is not important
                 info->set_values |= SQL_VERSION;
+                SLOG(LOG_DEBUG, "Read version: %d.%d", info->version_maj, info->version_min);
                 break;
             case TDS_ENCRYPTION:
                 if (size != 1) return PROTO_PARSE_ERR;
@@ -1019,8 +1030,7 @@ static enum proto_parse_status tds_sql_batch(struct cursor *cursor, struct sql_p
     string_buffer_ctor(&buffer, info->u.query.sql, sizeof(info->u.query.sql));
     CHECK(2);
     // Sometimes, we have 1 bytes string here instead of ucs2... try to guess
-    bool is_usc2 = (0x00 == cursor_peek_u8(cursor, 1)) && !(sql_size & 1);
-    if (likely_(is_usc2)) {
+    if (likely_(is_ucs2(cursor, 0) && !(sql_size & 1))) {
         buffer_append_unicode(&buffer, get_iconv(), (char *)cursor->head, sql_size);
     } else {
         buffer_append_stringn(&buffer, (char *)cursor->head, sql_size);
@@ -1217,7 +1227,7 @@ static enum proto_parse_status tds_parse_env_change(struct cursor *cursor, struc
                 status = append_b_varchar(&buffer, cursor, NULL);
                 const char *encoding = buffer_get_string(&buffer);
                 if (status != PROTO_OK) return status;
-                if (0 == strcmp("ISO-8859-1", encoding)) {
+                if (0 == strcmp("ISO-8859-1", encoding) || 0 == strcmp("iso_1", encoding)) {
                     sql_set_encoding(info, SQL_ENCODING_LATIN1);
                 } else if (0 == strcmp("UTF8", encoding)) {
                     sql_set_encoding(info, SQL_ENCODING_UTF8);

@@ -26,6 +26,7 @@ static struct parse_test {
     struct sql_proto_info expected;
     enum way way;
     bool called;
+    enum tds_packet_type last_pkt_type;
 } parse_tests[] = {
 
     // First prelogin
@@ -54,6 +55,7 @@ static struct parse_test {
             .msg_type = SQL_STARTUP,
         },
         .called = true,
+        .last_pkt_type = 0,
     },
 
     // Server response to first prelogin
@@ -76,6 +78,7 @@ static struct parse_test {
             .msg_type = SQL_STARTUP,
         },
         .called = true,
+        .last_pkt_type = TDS_PKT_TYPE_PRELOGIN,
     },
 
     // Second prelogin. Looks like an ssl handshake...
@@ -103,6 +106,7 @@ static struct parse_test {
             .msg_type = SQL_STARTUP,
         },
         .called = true,
+        .last_pkt_type = TDS_PKT_TYPE_RPC,
     },
 
     // Encrypted login... yeah
@@ -135,6 +139,7 @@ static struct parse_test {
             .msg_type = SQL_STARTUP,
         },
         .called = false,
+        .last_pkt_type = TDS_PKT_TYPE_TDS7_LOGIN,
     },
 
     // Login response
@@ -205,6 +210,7 @@ static struct parse_test {
             .u = { .startup = { .dbname = "octo" } },
         },
         .called = true,
+        .last_pkt_type = TDS_PKT_TYPE_TDS7_LOGIN,
     },
 
     // A select
@@ -230,6 +236,7 @@ static struct parse_test {
             .msg_type = SQL_QUERY,
         },
         .called = true,
+        .last_pkt_type = TDS_PKT_TYPE_RPC,
     },
 
     // An rpc with xml
@@ -270,6 +277,7 @@ static struct parse_test {
             .msg_type = SQL_QUERY,
         },
         .called = true,
+        .last_pkt_type = TDS_PKT_TYPE_RESULT,
     },
 
     // First part long query
@@ -295,6 +303,7 @@ static struct parse_test {
         .ret = PROTO_OK,
         .way = FROM_CLIENT,
         .called = false,
+        .last_pkt_type = TDS_PKT_TYPE_RESULT,
     },
 
     // Second part long query
@@ -323,6 +332,7 @@ static struct parse_test {
             .u = { .query = { .sql = "Sp_Prepare NULL,NULL,N'SELECT *                                                                                                                    FROM Toto',1" , .truncated=false} } ,
         },
         .called = true,
+        .last_pkt_type = TDS_PKT_TYPE_RESULT,
     },
 
       // An insert
@@ -354,6 +364,7 @@ static struct parse_test {
               .u = { .query = { .sql = "Sp_PrepExec 0,N'@P0 nvarchar(4000)',N'INSERT INTO Toto (name) VALUES (@P0)         ',N'another2'", .truncated=false } },
           },
         .called = true,
+        .last_pkt_type = TDS_PKT_TYPE_RESULT,
       },
 
       // A response packet
@@ -378,6 +389,7 @@ static struct parse_test {
               .msg_type = SQL_QUERY,
           },
         .called = true,
+        .last_pkt_type = TDS_PKT_TYPE_RPC,
       },
 
       // Splitted packet First
@@ -422,9 +434,10 @@ static struct parse_test {
           .way = FROM_SERVER,
           // Only tds header is advertised here
           .called = true,
+          .last_pkt_type = TDS_PKT_TYPE_RESULT,
       },
 
-      // Splitted packet First
+      // Splitted packet Second
       {
           .packet = (uint8_t const []) {
               0x03,0x01,0x00,0x51,0x00,0x33,0x02,0x00, 0x00,0x20,0x00,0x20,0x00,0x20,0x00,0x20,
@@ -446,6 +459,7 @@ static struct parse_test {
               .msg_type = SQL_QUERY,
           },
           .called = true,
+          .last_pkt_type = TDS_PKT_TYPE_RESULT,
       },
 
      // A select response with two row
@@ -484,6 +498,7 @@ static struct parse_test {
              .msg_type = SQL_QUERY,
          },
          .called = true,
+         .last_pkt_type = TDS_PKT_TYPE_RESULT,
      },
 
      // A select response with one row
@@ -513,6 +528,7 @@ static struct parse_test {
              .msg_type = SQL_QUERY,
          },
          .called = true,
+         .last_pkt_type = TDS_PKT_TYPE_RESULT,
      },
 
      // An error pdu
@@ -566,6 +582,7 @@ static struct parse_test {
              .msg_type = SQL_QUERY,
          },
          .called = true,
+         .last_pkt_type = TDS_PKT_TYPE_RPC,
      },
 
      // Another error pdu
@@ -602,6 +619,7 @@ static struct parse_test {
              .msg_type = SQL_QUERY,
          },
          .called = true,
+         .last_pkt_type = TDS_PKT_TYPE_RPC,
      },
 
      // Yet another response
@@ -666,6 +684,7 @@ static struct parse_test {
              .msg_type = SQL_QUERY,
          },
          .called = true,
+         .last_pkt_type = TDS_PKT_TYPE_RPC,
      },
 
      // Yet another another response
@@ -687,6 +706,7 @@ static struct parse_test {
              .msg_type = SQL_QUERY,
          },
          .called = true,
+         .last_pkt_type = TDS_PKT_TYPE_RPC,
      },
 
      // An rpc
@@ -720,6 +740,7 @@ static struct parse_test {
              .msg_type = SQL_QUERY,
          },
          .called = true,
+         .last_pkt_type = TDS_PKT_TYPE_RESULT,
      },
 
      // An rpc
@@ -746,6 +767,7 @@ static struct parse_test {
              .u = { .query = { .nb_fields = 1, .nb_rows = 1 } },
          },
          .called = true,
+         .last_pkt_type = TDS_PKT_TYPE_RESULT,
      },
 
      // A simple select version
@@ -766,6 +788,7 @@ static struct parse_test {
              .msg_type = SQL_QUERY,
          },
          .called = true,
+         .last_pkt_type = TDS_PKT_TYPE_RESULT,
      },
 
      // Another simple select version
@@ -785,6 +808,7 @@ static struct parse_test {
              .msg_type = SQL_QUERY,
          },
          .called = true,
+         .last_pkt_type = TDS_PKT_TYPE_RESULT,
      },
 
      // An sql batch
@@ -838,6 +862,7 @@ static struct parse_test {
              .msg_type = SQL_QUERY,
          },
          .called = true,
+         .last_pkt_type = TDS_PKT_TYPE_RESULT,
      },
 
      // A partial query
@@ -870,8 +895,8 @@ static struct parse_test {
              .msg_type = SQL_QUERY,
          },
          .called = true,
+         .last_pkt_type = TDS_PKT_TYPE_RESULT,
      },
-
 
 };
 
@@ -897,17 +922,20 @@ static void parse_check(void)
     timeval_set_now(&now);
     struct parser *parser = proto_tds->ops->parser_new(proto_tds);
     struct tds_parser *tds_parser = DOWNCAST(parser, parser, tds_parser);
-    struct tds_msg_parser **tds_msg_parser = (struct tds_msg_parser **)&tds_parser->msg_parser;
     assert(tds_parser);
     struct proto_subscriber sub;
     hook_subscriber_ctor(&pkt_hook, &sub, tds_info_check);
     for (cur_test = 0; cur_test < NB_ELEMS(parse_tests); cur_test++) {
+        struct tds_msg_parser *tds_msg_parser = (struct tds_msg_parser *)tds_parser->msg_parser;
         struct parse_test const *test = parse_tests + cur_test;
         printf("Check packet %d of size 0x%x (%d)\n", cur_test, test->size, test->size);
         unsigned old_check = check_called;
         tds_parser->channels[0] = 0;
         tds_parser->channels[1] = 0;
-        if (*tds_msg_parser) (*tds_msg_parser)->pre_7_2 = false;
+        if (tds_msg_parser) {
+            tds_msg_parser->pre_7_2 = false;
+            tds_msg_parser->last_pkt_type = test->last_pkt_type;
+        }
         enum proto_parse_status ret = tds_parse(parser, NULL, test->way, test->packet, test->cap_len,
                 test->size, &now, test->cap_len, test->packet);
         if (test->called && (old_check + 1 != check_called)) {
