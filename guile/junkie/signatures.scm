@@ -271,7 +271,7 @@
                                            ((rest @16n 0) == (nb-bytes rest)) ; Check length
                                            ((rest @16n 2) == 0) ; Checksum is generally to 0...
                                            ((rest @ 4) >= #x01) ; Check data type
-                                           ((rest @ 4) <= #x19))))
+                                           ((rest @ 4) <= #xf))))
 
 (add-proto-signature "PostgreSQL" 26 'medium
                      (nm:compile

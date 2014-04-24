@@ -288,7 +288,7 @@ static enum proto_parse_status cursor_read_chunked_string_with_size(struct curso
 
 static bool is_print(char c)
 {
-    return c != MAX_OCI_CHUNK && (isprint(c) || isspace(c));
+    return c != MAX_OCI_CHUNK && (isprint(c) || c == '\n' || c == '\r');
 }
 
 static bool is_delim(char c)
@@ -663,11 +663,11 @@ static enum proto_parse_status tns_parse_end(struct sql_proto_info *info, struct
     return PROTO_OK;
 }
 
-static enum proto_parse_status is_range_print(struct cursor *cursor, size_t size)
+static enum proto_parse_status is_range_print(struct cursor *cursor, size_t size, size_t offset)
 {
     CHECK(size);
     for (size_t i = 0; i < size; i++) {
-        if (!is_print(cursor_peek_u8(cursor, i)))
+        if (!is_print(cursor_peek_u8(cursor, i + offset)))
             return PROTO_PARSE_ERR;
     }
     return PROTO_OK;
@@ -675,8 +675,8 @@ static enum proto_parse_status is_range_print(struct cursor *cursor, size_t size
 
 static bool lookup_query(struct cursor *cursor)
 {
-    #define MIN_QUERY_SIZE 10
-    #define QUERY_WITH_SIZE 12
+#define MIN_QUERY_SIZE 10
+#define QUERY_WITH_SIZE 12
     while (cursor->cap_len > QUERY_WITH_SIZE) {
         uint8_t c;
         uint8_t potential_size = 0;
@@ -702,7 +702,7 @@ static bool lookup_query(struct cursor *cursor)
             if (is_print(next_char)) continue;
         }
         // We check if first characters are printable
-        if (PROTO_OK == is_range_print(cursor, MIN_QUERY_SIZE)) {
+        if (PROTO_OK == is_range_print(cursor, MIN_QUERY_SIZE, 0)) {
             cursor_rollback(cursor, 1);
             return true;
         }
@@ -713,6 +713,11 @@ static bool lookup_query(struct cursor *cursor)
 static enum proto_parse_status tns_parse_sql_query_oci(struct sql_proto_info *info, struct cursor *cursor)
 {
     SLOG(LOG_DEBUG, "Parsing an oci query");
+#define QUERY_HEADER 0x12
+    //  Just skip query header to reach the query string and avoid false negative with
+    //  data row heuristic
+    CHECK(QUERY_HEADER);
+    cursor_drop(cursor, QUERY_HEADER);
     char *sql = "";
     bool has_query = lookup_query(cursor);
     if (has_query) {
@@ -739,42 +744,29 @@ static enum proto_parse_status tns_parse_sql_query_jdbc(struct sql_proto_info *i
     DROP_FIX(cursor, 1);
 
     uint_least64_t sql_len;
-    status = cursor_read_variable_int(cursor, &sql_len);
-    if (status != PROTO_OK) return status;
+    if (PROTO_OK != (status = cursor_read_variable_int(cursor, &sql_len))) return status;
     SLOG(LOG_DEBUG, "Size sql %zu", sql_len);
 
     DROP_FIX(cursor, 1);
-    // We have a number of fields at the end of the query
-    uint_least64_t end_len;
-    status = cursor_read_variable_int(cursor, &end_len);
-    if (status != PROTO_OK) return status;
-
+    DROP_VAR(cursor);
     DROP_FIX(cursor, 2);
-    DROP_VARS(cursor, 3);
-    DROP_FIX(cursor, 1);
-    DROP_VAR(cursor);
-    DROP_FIX(cursor, 6);
-    DROP_VAR(cursor);
 
     char *sql = "";
     if (sql_len > 0) {
         // Some unknown bytes
-        while (cursor->cap_len > 1 && !is_print(cursor_peek_u8(cursor, 1))) {
+        while (cursor->cap_len > 1 && PROTO_OK != is_range_print(cursor, MIN(MIN_QUERY_SIZE, sql_len), 1)) {
             cursor_drop(cursor, 1);
         }
-
         CHECK(1);
         if (sql_len > 0xff && 0xff == cursor_peek_u8(cursor, 0)) {
             SLOG(LOG_DEBUG, "Looks like prefixed length chunks of size 0xff...");
             status = cursor_read_chunked_string(cursor, &sql, 0xff);
-        } else if (sql_len > MAX_OCI_CHUNK && MAX_OCI_CHUNK == cursor_peek_u8(cursor, 1)) {
+        } else if (sql_len > MAX_OCI_CHUNK && MAX_OCI_CHUNK == cursor_peek_u8(cursor, 0)) {
             SLOG(LOG_DEBUG, "Looks like prefixed length chunks of size 0x40...");
-            cursor_drop(cursor, 1);
             status = cursor_read_chunked_string(cursor, &sql, MAX_OCI_CHUNK);
         } else {
-            if (!is_print(cursor_peek_u8(cursor, 0))) {
-                cursor_drop(cursor, 1);
-            }
+            if (!is_print(cursor_peek_u8(cursor, 0))) cursor_drop(cursor, 1);
+            if (cursor_peek_u8(cursor, 0) == sql_len) cursor_drop(cursor, 1);
             SLOG(LOG_DEBUG, "Looks like a fixed string of size %zu", sql_len);
             status = cursor_read_fixed_string(cursor, &sql, sql_len);
         }
@@ -783,8 +775,6 @@ static enum proto_parse_status tns_parse_sql_query_jdbc(struct sql_proto_info *i
     SLOG(LOG_DEBUG, "Sql parsed: %s", sql);
     sql_set_query(info, "%s", sql);
 
-    SLOG(LOG_DEBUG, "Skipping %zu end variable fields", end_len);
-    DROP_VARS(cursor, end_len);
     return PROTO_OK;
 }
 
