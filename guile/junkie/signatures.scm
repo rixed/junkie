@@ -263,15 +263,17 @@
 
 
 ; Sql signatures
-; FIXME: length checks should compare wire-length!
 (add-proto-signature "TNS" 25 'medium
                      (nm:compile
                        type:bool '(tcp) '(and
-                                           ((nb-bytes rest) >= 5)
-                                           ((rest @16n 0) == (nb-bytes rest)) ; Check length
+                                           ((nb-bytes rest) >= 8)
+                                           ((rest @16n 0) <= (payload)) ; Check length
                                            ((rest @16n 2) == 0) ; Checksum is generally to 0...
                                            ((rest @ 4) >= #x01) ; Check data type
-                                           ((rest @ 4) <= #xf))))
+                                           ((rest @ 4) <= #x0f)
+                                           ((rest @ 5) == 0) ; Reserved byte is 0
+                                           ((rest @16n 6) == 0)))) ; Another checksum at 0...
+
 
 (add-proto-signature "PostgreSQL" 26 'medium
                      (nm:compile
@@ -280,7 +282,7 @@
                                            (or
                                              ; Check for startup
                                              (and
-                                               ((rest @32n 0) == (nb-bytes rest)) ; Check length
+                                               ((rest @32n 0) == (payload)) ; Check length
                                                ((rest @32n 4) == #x30000)) ; Check protocol version
                                              ; Check for ssl request
                                              (and
@@ -297,7 +299,7 @@
                                              ((rest @ 0) == 7)                           ; Bulk load
                                              ((rest @ 0) == 14)                          ; Manager Req
                                              (and ((rest @ 0) >= 16) ((rest @ 0) <= 18))); Login, Sspi, Pre login
-                                           ((rest @16n 2) == (nb-bytes rest))
+                                           ((rest @16n 2) == (payload)) ; Check length
                                            ((rest @16n 4) < 100) ; Channel number should not be too high...
                                            ((rest @ 6) < 10)))) ; Packet number should not be too high
 
