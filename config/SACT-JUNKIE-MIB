@@ -12,6 +12,8 @@ sactJunkieModule MODULE-IDENTITY
 	ORGANIZATION "SecurActive SA"
 	CONTACT-INFO "info@securactive.net"
 	DESCRIPTION  "Junkie MIB"
+	REVISION     "201404300000Z"
+	DESCRIPTION  "Change malloc unit"
 	REVISION     "201210300000Z"
 	DESCRIPTION  "Fix typo"
 	REVISION     "201209070000Z"
@@ -440,7 +442,7 @@ entrySize OBJECT-TYPE
 
 MallocLimit OBJECT-TYPE
 	SYNTAX Gauge32
-	UNITS "bytes"
+	UNITS "KiB"
 	MAX-ACCESS read-only
 	STATUS current
 	DESCRIPTION

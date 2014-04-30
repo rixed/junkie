@@ -23,7 +23,7 @@
   (cons 'gauge32 (guile-mem-stats)))
 
 (define (getoid-malloced-max)
-  (cons 'gauge32 (get-malloced-max)))
+  (cons 'gauge32 (/ (get-malloced-max) 1024)))
 
 (define (getoid-denied-parsers)
   (cons 'counter32 (get-denied-parsers)))
