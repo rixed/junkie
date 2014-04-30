@@ -190,6 +190,11 @@ void const *tds_info_addr(struct proto_info const *info_, size_t *size)
  * Parse
  */
 
+/*
+ * Tds header, integers are in big-endians.
+ * | 1 byte | 1 byte | 2 bytes | 2 bytes | 1 byte        | 1 byte  |
+ * | Type   | Flag   | Length  | Channel | Packet number | Window  |
+ */
 static enum proto_parse_status tds_parse_header(struct cursor *cursor, struct tds_header *out_header, bool *unknown_token)
 {
 #   define TDS_PKT_HDR_LEN 8
@@ -253,9 +258,21 @@ static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct prot
     struct tds_header tds_header;
     bool unknown_token = false;
     struct cursor cursor;
+    enum proto_parse_status status;
     cursor_ctor(&cursor, payload, cap_len);
-    enum proto_parse_status status = tds_parse_header(&cursor, &tds_header, &unknown_token);
 
+// Just drop the smp layer
+// | 1 byte      | 1 byte | 2 bytes | 4 bytes | 4 bytes | 4 bytes |
+// | SMID (0x53) | Flag   | SID     | Length  | Seq num | Window  |
+// TODO handle the multiple session inside the smp connexion
+#   define SMP_PKT_HDR_LEN 0x10
+#   define SMP_SMID 0x53
+    if (cursor_peek_u8(&cursor, 0) == SMP_SMID) {
+        CHECK_LEN(&cursor, SMP_PKT_HDR_LEN, 0);
+        cursor_drop(&cursor, SMP_PKT_HDR_LEN);
+    }
+
+    status = tds_parse_header(&cursor, &tds_header, &unknown_token);
     if (status != PROTO_OK) {
         // We have an unknown token if the payload is encrypted after a ssl handshake
         // It is valid but we don't know how to parse it yet

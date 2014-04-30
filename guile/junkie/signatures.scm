@@ -289,6 +289,7 @@
                                                ((rest @32n 0) == 8)
                                                ((rest @32n 4) == 80877103)))))) ; Check ssl magic value
 
+; TODO add smp detection
 (add-proto-signature "TDS" 27 'medium
                      (nm:compile
                        type:bool '(tcp) '(and
