@@ -699,6 +699,7 @@ static enum proto_parse_status parse_type_info(struct tds_msg_parser const *tds_
         case XMLTYPE:
             {
                 type_info.type = PARTIALY_LENGTH_PREFIXED;
+                CHECK(1);
                 uint8_t schema_present = cursor_read_u8(cursor);
                 if (schema_present) {
                     skip_b_varchar(cursor);  // dbname
@@ -889,6 +890,7 @@ static enum proto_parse_status tds_prelogin(struct cursor *cursor, struct sql_pr
         switch (token) {
             case TDS_VERSION:   // fetch version
                 if (size != 6) return PROTO_PARSE_ERR;
+                CHECK(2);
                 info->version_maj = cursor_read_u8(&value);
                 info->version_min = cursor_read_u8(&value);
                 // The rest of version 'string' is not important
