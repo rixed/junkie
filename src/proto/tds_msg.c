@@ -1069,7 +1069,7 @@ static enum proto_parse_status rpc_parameter_data(struct tds_msg_parser const *t
 
     SLOG(LOG_DEBUG, "%s", string_buffer_2_str(&buffer_parameter));
     if (is_null) {
-        buffer_append_stringn(buffer, buffer_parameter.head, buffer_parameter.size);
+        buffer_append_stringn(buffer, buffer_get_string(&buffer_parameter), buffer_parameter.size);
         return status;
     }
     switch (type_info.token) {
@@ -1085,12 +1085,12 @@ static enum proto_parse_status rpc_parameter_data(struct tds_msg_parser const *t
         case BIGCHARTYPE:
         case BIGVARCHRTYPE:
             buffer_append_char(buffer, '\'');
-            buffer_append_escape_quotes(buffer, buffer_parameter.head, buffer_parameter.pos,
+            buffer_append_escape_quotes(buffer, buffer_get_string(&buffer_parameter), buffer_parameter.pos,
                     '\'', false);
             if (status != PROTO_TOO_SHORT) buffer_append_char(buffer, '\'');
             break;
         default:
-            buffer_append_stringn(buffer, buffer_parameter.head, buffer_parameter.pos);
+            buffer_append_stringn(buffer, buffer_get_string(&buffer_parameter), buffer_parameter.pos);
             break;
     }
     return status;
@@ -1225,7 +1225,8 @@ static enum proto_parse_status tds_parse_env_change(struct cursor *cursor, struc
         case ENV_CHARACTER_SET:
             {
                 struct string_buffer buffer;
-                string_buffer_ctor(&buffer, tempstr(), TEMPSTR_SIZE);
+                char encoding_buffer[11];
+                string_buffer_ctor(&buffer, encoding_buffer, sizeof(encoding_buffer));
                 status = append_b_varchar(&buffer, cursor, NULL);
                 const char *encoding = buffer_get_string(&buffer);
                 if (status != PROTO_OK) return status;
