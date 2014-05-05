@@ -35,6 +35,7 @@ size_t buffer_append_hexstring(struct string_buffer *buffer, char const *src, si
 void buffer_rollback(struct string_buffer *buffer, size_t size);
 void buffer_rollback_utf8_char(struct string_buffer *buffer, size_t size);
 void buffer_rollback_incomplete_utf8_char(struct string_buffer *buffer);
+size_t buffer_append_printf(struct string_buffer *buffer, char const *fmt, ...);
 
 /* Remove superfluous spaces. Double the quoted char as required by the CSV syntax.
  * *truncated will be set to true if the output was not large enough

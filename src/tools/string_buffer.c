@@ -44,7 +44,7 @@ char *buffer_get_string(struct string_buffer const *buffer)
 
 const char *string_buffer_2_str(struct string_buffer const *buffer)
 {
-    return tempstr_printf("string buffer @%p, pos %zu, size %zu, %s, head: %s",
+    return tempstr_printf("string buffer @%p, pos %zu, size %zu, %s, head: '%s'",
             buffer->head, buffer->pos, buffer->size, buffer->truncated ? "truncated" : "not truncated",
             buffer_get_string(buffer));
 }
@@ -100,6 +100,22 @@ size_t buffer_append_stringn(struct string_buffer *buffer, char const *src, size
 size_t buffer_append_string(struct string_buffer *buffer, char const *src)
 {
     return buffer_append_stringn(buffer, src, strlen(src));
+}
+
+size_t buffer_append_printf(struct string_buffer *buffer, char const *fmt, ...)
+{
+    if (!buffer) return 0;
+    va_list ap;
+    va_start(ap, fmt);
+    size_t left_size = buffer_left_size(buffer);
+    int n = vsnprintf(buffer->head + buffer->pos, left_size + /*include \0*/ 1, fmt, ap);
+    va_end(ap);
+    if (n < 0) return 0;
+    size_t written_bytes = n;
+    if (written_bytes >= left_size)
+        buffer->truncated = true;
+    buffer->pos += MIN(written_bytes, left_size);
+    return n;
 }
 
 static size_t utf8_num_bytes(unsigned char c)

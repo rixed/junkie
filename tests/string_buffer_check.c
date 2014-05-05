@@ -16,7 +16,7 @@ static void check_string_buffer(struct string_buffer const *buffer, char const *
         assert(truncated == buffer->truncated);
     }
     if (0 != strcmp(buffer_get_string(buffer), expected)) {
-        printf("Buffer %s string should be %s\n", string_buffer_2_str(buffer), expected);
+        printf("Buffer %s string should be '%s'\n", string_buffer_2_str(buffer), expected);
         assert(0 == strcmp(buffer->head, expected));
     }
 }
@@ -216,6 +216,18 @@ static void string_buffer_rollback_utf8_check(void)
     check_string_buffer(&buffer, "", false);
 }
 
+static void string_buffer_printf_check(void)
+{
+    struct string_buffer buffer;
+    char buf[15];
+    memset(buf, 'x', sizeof(buf));
+    string_buffer_ctor(&buffer, buf, sizeof(buf));
+    buffer_append_printf(&buffer, "%d, %s", 4, "test");
+    check_string_buffer(&buffer, "4, test", false);
+    buffer_append_printf(&buffer, ", %d, %s", 5, "test2");
+    check_string_buffer(&buffer, "4, test, 5, te", true);
+}
+
 static void string_buffer_rollback_incomplete_utf8_check(void)
 {
     struct string_buffer buffer;
@@ -277,6 +289,7 @@ int main(void)
     string_buffer_rollback_utf8_check();
     string_buffer_rollback_incomplete_utf8_check();
     string_buffer_escape_quotes_check();
+    string_buffer_printf_check();
 
     log_fini();
     return EXIT_SUCCESS;

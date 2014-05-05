@@ -738,7 +738,7 @@ static enum proto_parse_status parse_type_info_value(struct string_buffer *buffe
                 uint_least64_t res;
                 CHECK(type_info->size);
                 cursor_read_fixed_int_le(cursor, &res, type_info->size);
-                buffer_append_string(buffer, tempstr_printf("%"PRIu64, res));
+                buffer_append_printf(buffer, "%"PRIu64, res);
             }
             break;
         case VARIABLE_LENGTH_TOKEN:
@@ -773,7 +773,7 @@ static enum proto_parse_status parse_type_info_value(struct string_buffer *buffe
                 } else {    // rest as number
                     uint_least64_t value;
                     if (!truncated && PROTO_OK == cursor_read_fixed_int_le(cursor, &value, length_parsed)) {
-                        buffer_append_string(buffer, tempstr_printf("%"PRIuLEAST64, value));
+                        buffer_append_printf(buffer, "%"PRIuLEAST64, value);
                     } else {
                         buffer_append_hexstring(buffer, (char*)cursor->head, length_parsed);
                         cursor_drop(cursor, length_parsed);
