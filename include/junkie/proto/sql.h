@@ -21,6 +21,7 @@ extern struct proto *proto_tds_msg;
 #define tds_msg_proto_info sql_proto_info
 
 #define SQL_ERROR_SQL_STATUS_SIZE 5 // Size of generic sql error code
+#define SQL_QUERY_SIZE 4096
 
 /// Description of a sql message
 struct sql_proto_info {
@@ -81,7 +82,7 @@ struct sql_proto_info {
             } encoding;
         } startup;
         struct sql_query {
-            char sql[4096];             // UTF-8
+            char sql[SQL_QUERY_SIZE];    // UTF-8
             unsigned nb_rows;
             unsigned nb_fields;
             bool truncated;
