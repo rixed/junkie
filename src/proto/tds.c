@@ -170,12 +170,10 @@ static void tds_parser_del(struct parser *parser)
 char const *tds_info_2_str(struct proto_info const *info_)
 {
     struct tds_proto_info const *info = DOWNCAST(info_, info, tds_proto_info);
-    char *str = tempstr();
-
-    snprintf(str, TEMPSTR_SIZE, "%s, type=%s, status=0x%x, length=%"PRIu16"",
-        proto_info_2_str(info_),
-        tds_packet_type_2_str(info->type),
-        info->status, info->length);
+    char *str = tempstr_printf("%s, type=%s, status=0x%x, length=%"PRIu16"",
+            proto_info_2_str(info_),
+            tds_packet_type_2_str(info->type),
+            info->status, info->length);
     return str;
 }
 
