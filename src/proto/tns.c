@@ -882,9 +882,11 @@ static enum proto_parse_status tns_parse_query(struct tns_parser *tns_parser, st
             status = tns_parse_sql_query(info, cursor);
             break;
         case TTC_QUERY_FETCH:
-        default:
-            // Probably initialization queries
             break;
+        default:
+            // Probably initialization queries. Since we are unsure, don't
+            // return PROTO_OK to avoid fix of c2s_way
+            return PROTO_PARSE_ERR;
     }
     cursor_drop(cursor, cursor->cap_len);
     return status;
@@ -993,6 +995,7 @@ static enum proto_parse_status tns_parse_data(struct tns_parser *tns_parser, str
                 tns_parser->msg_type = ttc_msg_type;
             }
             // Fix c2s_way
+            bool old_c2s_way = tns_parser->c2s_way;
             switch (ttc_code) {
                 case TTC_ROW_DESCRIPTION_PREFIX:
                 case TTC_ROW_RECAP:
@@ -1007,6 +1010,9 @@ static enum proto_parse_status tns_parse_data(struct tns_parser *tns_parser, str
                 default:
                     break;
             }
+            if (old_c2s_way != tns_parser->c2s_way) {
+                SLOG(LOG_DEBUG, "Fix c2s way from %d to %d", old_c2s_way, tns_parser->c2s_way);
+            }
             info->is_query = way == tns_parser->c2s_way;
         }
     }
@@ -1019,7 +1025,9 @@ static enum proto_parse_status tns_sbuf_parse(struct parser *parser, struct prot
 
     // If this is the first time we are called, init c2s_way
     if (tns_parser->c2s_way == UNSET) {
-        tns_parser->c2s_way = way;
+        ASSIGN_INFO_OPT(tcp, parent);
+        if (tcp) tns_parser->c2s_way = tcp->to_srv ? way : !way;
+        else tns_parser->c2s_way = way;
         SLOG(LOG_DEBUG, "First packet, init c2s_way to %u", tns_parser->c2s_way);
     }
 
