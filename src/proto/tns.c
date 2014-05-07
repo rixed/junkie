@@ -811,6 +811,7 @@ static enum proto_parse_status tns_parse_sql_query_jdbc(struct sql_proto_info *i
             status = cursor_read_chunked_string(cursor, &sql, MAX_OCI_CHUNK);
         } else {
             if (!is_print(cursor_peek_u8(cursor, 0))) cursor_drop(cursor, 1);
+            CHECK(1);
             if (cursor_peek_u8(cursor, 0) == sql_len) cursor_drop(cursor, 1);
             SLOG(LOG_DEBUG, "Looks like a fixed string of size %zu", sql_len);
             status = cursor_read_fixed_string(cursor, &sql, sql_len);
