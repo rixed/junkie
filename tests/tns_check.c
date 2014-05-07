@@ -425,13 +425,15 @@ static void check_lookup_query()
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x09, '0' , '1', '2', '3', '4', '5', '6', '7', '8',
     };
     struct cursor cursor = { .head = packet, .cap_len = sizeof(packet) };
-    assert(!lookup_query(&cursor));
+    bool is_chunked;
+    uint8_t sql_size = 0;
+    assert(!lookup_query(&cursor, &is_chunked, sql_size));
     uint8_t packet2[] = {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0d,
         '0',  '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 0x00, 0x00, 0x00,
     };
     struct cursor cursor2 = { .head = packet2, .cap_len = sizeof(packet2) };
-    assert(lookup_query(&cursor2));
+    assert(lookup_query(&cursor2, &is_chunked, sql_size));
 }
 
 int main(void)

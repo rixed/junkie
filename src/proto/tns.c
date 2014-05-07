@@ -667,54 +667,90 @@ static enum proto_parse_status is_range_print(struct cursor *cursor, size_t size
     return PROTO_OK;
 }
 
-static bool lookup_query(struct cursor *cursor)
-{
 #define MIN_QUERY_SIZE 10
 #define QUERY_WITH_SIZE 12
+static bool is_query_valid(struct cursor *cursor, uint8_t potential_size)
+{
+    if (cursor->cap_len <= QUERY_WITH_SIZE) return false;
+    // We check if last character is printable
+    uint8_t left_size = potential_size - 1; // Since we already read the first char
+    uint8_t last_char_pos = MIN(cursor->cap_len, left_size) - 1;
+    uint8_t last_char = cursor_peek_u8(cursor, last_char_pos);
+    if (!is_print(last_char)) {
+        SLOG(LOG_DEBUG, "Last char 0x%02x is not printable", last_char);
+        return false;
+    }
+    // We check if last character + 1 is not printable. If it is printable, size might be incorrect
+    // We assume chunked string if size >= 0x40
+    if (potential_size < MAX_OCI_CHUNK && (potential_size < cursor->cap_len)) {
+        char next_char = cursor_peek_u8(cursor, left_size);
+        if (is_print(next_char)) {
+            SLOG(LOG_DEBUG, "Char following last char 0x%02x is printable", next_char);
+            return false;
+        }
+    }
+    // We check if first characters are printable
+    if (PROTO_OK == is_range_print(cursor, MIN_QUERY_SIZE, 0)) {
+        return true;
+    }
+    return false;
+}
 
+/*
+ *  Sometimes, we have 10 {0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff} patterns. Skip them to avoid
+ *  breaking on an eventual 0x07 (TTC_ROW_DATA)
+ *  The query size seems to be at the end of the first pattern
+ */
+static uint8_t parse_query_header(struct cursor *cursor)
+{
     uint8_t const *new_head = cursor->head;
-    //  Sometimes, we have 10 {0xfe, 0xff} patterns. Skip them to avoid
-    //  breaking on an eventual 0x07 (TTC_ROW_DATA)
+    uint8_t sql_size = 0;
     for (unsigned i = 0; i < 10 && new_head; i++) {
-        char pattern[2] = {0xfe, 0xff};
+        char pattern[8] = {0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
         new_head = memmem(cursor->head, cursor->cap_len, pattern, sizeof(pattern));
         if (new_head) {
             size_t gap_size = new_head - cursor->head;
-            DROP_FIX(cursor, gap_size + 1);
+            DROP_FIX(cursor, gap_size + sizeof(pattern));
+            if (i == 0) {
+                sql_size = cursor_read_u8(cursor);
+                SLOG(LOG_DEBUG, "Found potential sql size: %d", sql_size);
+            }
         }
     };
+    return sql_size;
+}
 
+/*
+ * Check if query is valid.
+ * @param cursor to read
+ * @param is_chunked Filled to true if string is preceded by size
+ * @param sql_size Potential sql size parsed in query headers
+ * @return True if a correct query has been found and cursor is positioned at the begin of the query
+ */
+static bool lookup_query(struct cursor *cursor, bool *is_chunked, uint8_t sql_size)
+{
     SLOG(LOG_DEBUG, "Start looking for query");
+    uint8_t prec = 0;
+    uint8_t current = 0;
     while (cursor->cap_len > QUERY_WITH_SIZE) {
-        uint8_t c;
-        uint8_t potential_size = 0;
-        do {
-            c = cursor_peek_u8(cursor, 1);
-            potential_size = cursor_read_u8(cursor);
-            if (potential_size == TTC_ROW_DATA) {
-                SLOG(LOG_DEBUG, "Looks like a data row, we found no matching query...");
-                return false;
-            }
-        } while (cursor->cap_len > QUERY_WITH_SIZE && (!is_print(c) || potential_size < MIN_QUERY_SIZE));
-        if (cursor->cap_len <= QUERY_WITH_SIZE) return false;
-        SLOG(LOG_DEBUG, "Found potential size 0x%02x and first printable %c", potential_size, c);
-        // We check if last character is printable
-        uint8_t last_char_pos = MIN(cursor->cap_len, potential_size) - 1;
-        uint8_t last_char = cursor_peek_u8(cursor, last_char_pos);
-        if (!is_print(last_char)) {
-            SLOG(LOG_DEBUG, "Last char %u is not printable", last_char);
-            continue;
+        prec = current;
+        current = cursor_read_u8(cursor);
+        if (current == TTC_ROW_DATA) {
+            SLOG(LOG_DEBUG, "Looks like a data row, we found no matching query...");
+            return false;
         }
-        // We check if last character + 1 is not printable. If it is printable, size might be incorrect
-        // We assume chunked string if size >= 0x40
-        uint8_t next_pos = potential_size + 1;
-        if (potential_size < MAX_OCI_CHUNK && (next_pos < cursor->cap_len)) {
-            char next_char = cursor_peek_u8(cursor, next_pos);
-            if (is_print(next_char)) continue;
+        if (!is_print(current)) continue;
+        SLOG(LOG_DEBUG, "Found potential first printable %c, previous 0x%02x", current, prec);
+        if (prec > MIN_QUERY_SIZE && is_query_valid(cursor, prec)) {
+            SLOG(LOG_DEBUG, "Found potential size 0x%02x and first printable %c", prec, current);
+            cursor_rollback(cursor, 2);
+            *is_chunked = true;
+            return true;
         }
-        // We check if first characters are printable
-        if (PROTO_OK == is_range_print(cursor, MIN_QUERY_SIZE, 0)) {
+        if (sql_size > MIN_QUERY_SIZE && current != sql_size && is_query_valid(cursor, sql_size)) {
+            SLOG(LOG_DEBUG, "Found query with sql size 0x%02x and first printable %c", sql_size, current);
             cursor_rollback(cursor, 1);
+            *is_chunked = false;
             return true;
         }
     }
@@ -725,10 +761,13 @@ static enum proto_parse_status tns_parse_sql_query_oci(struct sql_proto_info *in
 {
     SLOG(LOG_DEBUG, "Parsing an oci query");
     char *sql = "";
-    bool has_query = lookup_query(cursor);
+    uint8_t sql_size = parse_query_header(cursor);
+    bool is_chunked;
+    bool has_query = lookup_query(cursor, &is_chunked, sql_size);
     if (has_query) {
         SLOG(LOG_DEBUG, "Found a query, parsing it");
-        cursor_read_chunked_string(cursor, &sql, MAX_OCI_CHUNK);
+        if (is_chunked) cursor_read_chunked_string(cursor, &sql, MAX_OCI_CHUNK);
+        else cursor_read_fixed_string(cursor, &sql, sql_size);
     }
     SLOG(LOG_DEBUG, "Sql parsed: %s", sql);
     sql_set_query(info, "%s", sql);
