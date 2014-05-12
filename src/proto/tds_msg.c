@@ -642,6 +642,18 @@ static enum proto_parse_status parse_type_info(struct tds_msg_parser const *tds_
                 type_info.size = 1 << ((type_info.token >> 2) & 3);
                 break;
             }
+        case DATETIME2NTYPE:
+        case DATETIMEOFFSETNTYPE:
+        case TIMENTYPE:
+            {
+                type_info.type = VARIABLE_LENGTH_TOKEN;
+                CHECK(1);
+                uint8_t scale = cursor_read_u8(cursor);
+                if (scale > 0x7) return PROTO_PARSE_ERR;
+                // We could deduce the length from the scale but since the length is repeated in the type info value, we ignore the scale
+                type_info.size = 1;
+                break;
+            }
         case GUIDTYPE:
         case INTNTYPE:
         case DECIMALTYPE:
@@ -653,9 +665,6 @@ static enum proto_parse_status parse_type_info(struct tds_msg_parser const *tds_
         case MONEYNTYPE:
         case DATETIMNTYPE:
         case DATENTYPE:
-        case TIMENTYPE:
-        case DATETIME2NTYPE:
-        case DATETIMEOFFSETNTYPE:
         case CHARTYPE:
         case VARCHARTYPE:
         case BINARYTYPE:
@@ -1044,7 +1053,12 @@ static enum proto_parse_status tds_sql_batch(struct cursor *cursor, struct sql_p
     return PROTO_OK;
 }
 
-// read ParamMetaData and write param name+value in dst (sql string)
+/*
+ * read ParamMetaData and write param name+value in dst (sql string)
+ *
+ * | bvar           | 1 byte |           |
+ * | Parameter name | Flag   | Type info |
+ */
 static enum proto_parse_status rpc_parameter_data(struct tds_msg_parser const *tds_msg_parser,
         struct string_buffer *buffer, struct cursor *cursor)
 {
@@ -1114,21 +1128,21 @@ static enum proto_parse_status rpc_req_batch(struct tds_msg_parser const *tds_ms
         unsigned const proc_id = cursor_read_u16le(cursor);
         char const *name = NULL;
         switch (proc_id) {
-            case  1: name = "Sp_Cursor"; break;
-            case  2: name = "Sp_CursorOpen"; break;
-            case  3: name = "Sp_CursorPrepare"; break;
-            case  4: name = "Sp_CursorExecute"; break;
-            case  5: name = "Sp_CursorPrepExec"; break;
-            case  6: name = "Sp_CursorUnprepare"; break;
-            case  7: name = "Sp_CursorFetch"; break;
-            case  8: name = "Sp_CursorOption"; break;
-            case  9: name = "Sp_CursorClose"; break;
-            case 10: name = "Sp_ExecuteSql"; break;
-            case 11: name = "Sp_Prepare"; break;
-            case 12: name = "Sp_Execute"; break;
-            case 13: name = "Sp_PrepExec"; break;
-            case 14: name = "Sp_PrepExecRpc"; break;
-            case 15: name = "Sp_Unprepare"; break;
+            case 0x1: name = "Sp_Cursor"; break;
+            case 0x2: name = "Sp_CursorOpen"; break;
+            case 0x3: name = "Sp_CursorPrepare"; break;
+            case 0x4: name = "Sp_CursorExecute"; break;
+            case 0x5: name = "Sp_CursorPrepExec"; break;
+            case 0x6: name = "Sp_CursorUnprepare"; break;
+            case 0x7: name = "Sp_CursorFetch"; break;
+            case 0x8: name = "Sp_CursorOption"; break;
+            case 0x9: name = "Sp_CursorClose"; break;
+            case 0xa: name = "Sp_ExecuteSql"; break;
+            case 0xb: name = "Sp_Prepare"; break;
+            case 0xc: name = "Sp_Execute"; break;
+            case 0xd: name = "Sp_PrepExec"; break;
+            case 0xe: name = "Sp_PrepExecRpc"; break;
+            case 0xf: name = "Sp_Unprepare"; break;
             default:
                 SLOG(LOG_DEBUG, "Unknown well-known procedure id: %u", proc_id);
                 status = PROTO_PARSE_ERR;
