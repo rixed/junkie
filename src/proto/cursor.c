@@ -187,7 +187,7 @@ enum proto_parse_status cursor_read_fixed_string(struct cursor *cursor, char **o
     return PROTO_OK;
 }
 
-enum proto_parse_status cursor_read_string(struct cursor *cursor, char **out_str, size_t max_len)
+enum proto_parse_status cursor_read_string(struct cursor *cursor, char **out_str, size_t *out_len, size_t max_len)
 {
     char *str = tempstr();
     unsigned len;
@@ -204,6 +204,7 @@ enum proto_parse_status cursor_read_string(struct cursor *cursor, char **out_str
     }
     str[len] = '\0';
     SLOG(LOG_DEBUG, "Reading string '%s' of size %u", str, len);
+    if (out_len) *out_len = len;
     if (out_str) *out_str = str;
     return PROTO_OK;
 }

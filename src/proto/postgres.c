@@ -210,9 +210,10 @@ static enum proto_parse_status pg_parse_error(struct sql_proto_info *info, struc
         if (type == 0x00) {
             break;
         }
-        status = cursor_read_string(cursor, &str, len - size);
+        size_t read_len;
+        status = cursor_read_string(cursor, &str, &read_len, len - size);
         if (status != PROTO_OK) return status;
-        size += strlen(str) + 1;
+        size += read_len + 1;
         switch (type) {
             case 'C':
                 info->set_values |= SQL_ERROR_SQL_STATUS;
@@ -267,10 +268,10 @@ static void pg_parse_client_encoding(struct sql_proto_info *info, char const *va
 
 static enum proto_parse_status pg_parse_parameter_value(struct cursor *cursor, char **name, char **value, size_t len)
 {
-    enum proto_parse_status status = cursor_read_string(cursor, name, len);
+    enum proto_parse_status status = cursor_read_string(cursor, name, NULL, len);
     if (status != PROTO_OK) return status;
     if (name[0] == '\0') return PROTO_OK;
-    return cursor_read_string(cursor, value, len);
+    return cursor_read_string(cursor, value, NULL, len);
 }
 
 static enum proto_parse_status pg_parse_init_phase(struct pgsql_parser *pg_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
@@ -376,7 +377,7 @@ static enum proto_parse_status pg_parse_startup_phase(struct pgsql_parser *pg_pa
     if (info->is_query) {   // password message
         if (header.type != PGSQL_PASSWORD_MESSAGE) return PROTO_PARSE_ERR;
         char *passwd;
-        status = cursor_read_string(&cursor, &passwd, header.length);
+        status = cursor_read_string(&cursor, &passwd, NULL, header.length);
         if (status == PROTO_PARSE_ERR) return status;
         if (status == PROTO_TOO_SHORT) {    // in case of GSSAPI or SSPI authentication then the "string" is in fact arbitrary bytes
             passwd = "GSSAPI/SSPI";
@@ -484,7 +485,7 @@ static enum proto_parse_status pg_parse_query_client(struct pgsql_parser *pg_par
             case PGSQL_QUERY:
                 {
                     char *sql;
-                    status = cursor_read_string(cursor, &sql, header->length);
+                    status = cursor_read_string(cursor, &sql, NULL, header->length);
                     if (status != PROTO_OK) return status;
                     sql_set_query(info, "%s", sql);
                 }
@@ -493,9 +494,9 @@ static enum proto_parse_status pg_parse_query_client(struct pgsql_parser *pg_par
                 {
                     uint8_t const *const msg_end = cursor->head + header->length;
                     // Skip statement
-                    if (PROTO_OK != (status = cursor_read_string(cursor, NULL, header->length))) return status;
+                    if (PROTO_OK != (status = cursor_read_string(cursor, NULL, NULL, header->length))) return status;
                     char *sql;
-                    if (PROTO_OK != (status = cursor_read_string(cursor, &sql, header->length))) return status;
+                    if (PROTO_OK != (status = cursor_read_string(cursor, &sql, NULL, header->length))) return status;
                     sql_set_query(info, "%s", sql);
                     cursor_drop(cursor, msg_end - cursor->head);
                 }
@@ -550,7 +551,7 @@ static enum proto_parse_status pg_parse_query_server(struct cursor *cursor, stru
                 {
                     char *result;
                     sql_set_request_status(info, SQL_REQUEST_COMPLETE);
-                    status = cursor_read_string(cursor, &result, header->length);
+                    status = cursor_read_string(cursor, &result, NULL, header->length);
                     if (status != PROTO_OK) return status;
                     status = fetch_nb_rows(result, &info->u.query.nb_rows);
                     if (status == PROTO_OK) {

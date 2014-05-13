@@ -57,7 +57,7 @@ uint_least64_t cursor_peek_u64le(struct cursor *cursor, size_t offset);
  *                PROTO_TOO_SHORT is returned (and the cursor is rollbacked).
  * @param str will be set to the tempstr.
  */
-enum proto_parse_status cursor_read_string(struct cursor *, char **out_str, size_t max_len);
+enum proto_parse_status cursor_read_string(struct cursor *, char **out_str, size_t *out_len, size_t max_len);
 
 /*
  * Reads a specific length string
