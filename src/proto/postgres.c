@@ -266,14 +266,29 @@ static void pg_parse_client_encoding(struct sql_proto_info *info, char const *va
     }
 }
 
-static enum proto_parse_status pg_parse_parameter_value(struct cursor *cursor, char **name, char **value, size_t len)
+static enum proto_parse_status pg_parse_parameter_value(struct cursor *cursor, char **out_name, char **out_value, size_t *out_len, size_t left_size)
 {
-    enum proto_parse_status status = cursor_read_string(cursor, name, NULL, len);
+    size_t read_len = 0;
+    enum proto_parse_status status = cursor_read_string(cursor, out_name, &read_len, left_size);
     if (status != PROTO_OK) return status;
-    if (name[0] == '\0') return PROTO_OK;
-    return cursor_read_string(cursor, value, NULL, len);
+    if (out_len) *out_len = read_len;
+    if (read_len == 0) return PROTO_OK;
+
+    left_size -= read_len;
+    status = cursor_read_string(cursor, out_value, &read_len, left_size);
+    if (out_len) *out_len += read_len;
+    return status;
 }
 
+/*
+ * SSL request:
+ * | 4 bytes                         | 4 bytes              |
+ * | Length message (including self) | SSL request 80877103 |
+ *
+ * Startup message:
+ * | 4 bytes                         | 4 bytes                        | string                                    | string           |
+ * | Length message (including self) | Protocol version number 196608 | parameters name (user, database, options) | parameters value |
+ */
 static enum proto_parse_status pg_parse_init_phase(struct pgsql_parser *pg_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     enum proto_parse_status status;
@@ -287,12 +302,14 @@ static enum proto_parse_status pg_parse_init_phase(struct pgsql_parser *pg_parse
         cursor_ctor(&cursor, payload, cap_len);
 
         // Startup message starts with the length
-        CHECK_LEN(&cursor, 4, 0);
+        CHECK_LEN(&cursor, 8, 0);
         size_t len = cursor_read_u32n(&cursor);
 
         SLOG(LOG_DEBUG, "Msg of length %zu", len);
-        if (len < 4) return PROTO_PARSE_ERR;
+        if (len < 8) return PROTO_PARSE_ERR;
+        size_t left_size = len - 8;;
         uint32_t msg = cursor_read_u32n(&cursor);
+
         if (msg == 80877103) {  // magic value for SSL request
             SLOG(LOG_DEBUG, "Msg is an SSL request");
             info->set_values |= SQL_SSL_REQUEST;
@@ -305,9 +322,11 @@ static enum proto_parse_status pg_parse_init_phase(struct pgsql_parser *pg_parse
             // fine, now parse all the strings that follow
             do {
                 char *name, *value;
-                status = pg_parse_parameter_value(&cursor, &name, &value, len);
-                if (name[0] == '\0') break;
+                size_t read_len = 0;
+                status = pg_parse_parameter_value(&cursor, &name, &value, &read_len, left_size);
                 if (status != PROTO_OK) return status;
+                if (read_len == 0) break;
+                left_size -= read_len;
 
                 if (0 == strcmp(name, "user")) {
                     info->set_values |= SQL_USER;
@@ -344,7 +363,7 @@ static enum proto_parse_status pg_parse_init_phase(struct pgsql_parser *pg_parse
 static enum proto_parse_status pg_parse_parameter_status(struct sql_proto_info *info, struct cursor *cursor)
 {
     SLOG(LOG_DEBUG, "Parse of parameters stats");
-    do {
+    while (1) {
         struct pgsql_header header;
         enum proto_parse_status status = cursor_read_msg(cursor, &header, info->is_query);
         if (status != PROTO_OK) return status;
@@ -353,13 +372,14 @@ static enum proto_parse_status pg_parse_parameter_status(struct sql_proto_info *
             return PROTO_OK;
         }
         char *name, *value;
-        status = pg_parse_parameter_value(cursor, &name, &value, header.length);
+        status = pg_parse_parameter_value(cursor, &name, &value, NULL, header.length);
+        if (status != PROTO_OK) return status;
         if (0 == strcmp(name, "client_encoding")) {
             pg_parse_client_encoding(info, value);
             // We only care of client encoding for now
             return PROTO_OK;
         }
-    } while(1);
+    }
 }
 
 static enum proto_parse_status pg_parse_startup_phase(struct pgsql_parser *pg_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
@@ -493,10 +513,13 @@ static enum proto_parse_status pg_parse_query_client(struct pgsql_parser *pg_par
             case PGSQL_PARSE:
                 {
                     uint8_t const *const msg_end = cursor->head + header->length;
+                    size_t read_len;
                     // Skip statement
-                    if (PROTO_OK != (status = cursor_read_string(cursor, NULL, NULL, header->length))) return status;
+                    if (PROTO_OK != (status = cursor_read_string(cursor, NULL, &read_len, header->length)))
+                        return status;
                     char *sql;
-                    if (PROTO_OK != (status = cursor_read_string(cursor, &sql, NULL, header->length))) return status;
+                    if (PROTO_OK != (status = cursor_read_string(cursor, &sql, NULL, header->length - read_len)))
+                        return status;
                     sql_set_query(info, "%s", sql);
                     cursor_drop(cursor, msg_end - cursor->head);
                 }
