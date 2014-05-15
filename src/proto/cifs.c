@@ -113,7 +113,7 @@ static char const *smb_command_2_str(enum smb_command command)
 
 struct cifs_hdr {
     uint32_t code;      // Must contains 0xff 'SMB'
-    enum smb_command command;
+    uint8_t command;
     uint32_t status;
 
     // flags
