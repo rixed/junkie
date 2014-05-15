@@ -93,5 +93,6 @@ bool cursor_is_empty(struct cursor const *);
     if ((cursor)->cap_len  < (x)) { cursor_rollback(cursor, rollback); return PROTO_TOO_SHORT; } \
 } while(0)
 #define CHECK(n) CHECK_LEN(cursor, n, 0)
+#define CHECK_AND_DROP(n) CHECK(n); cursor_drop(cursor, n);
 
 #endif
