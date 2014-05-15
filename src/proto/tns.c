@@ -525,7 +525,7 @@ static enum proto_parse_status tns_parse_close_statement(struct cursor *cursor)
 
     // We seek the next query
     uint8_t marker[2] = {0x03, 0x5e};
-    if (cursor_drop_until(cursor, marker, sizeof(marker)) < 0) return PROTO_PARSE_ERR;
+    if (cursor_drop_until(cursor, marker, sizeof(marker), cursor->cap_len) < 0) return PROTO_PARSE_ERR;
 
     SLOG(LOG_DEBUG, "Found a possible query ttc, exiting close statement");
     return PROTO_OK;
@@ -901,7 +901,7 @@ static enum proto_parse_status tns_parse_login_property(struct sql_proto_info *i
     DROP_FIX(cursor, 3);
     // Drop Server version text
     uint8_t marker = 0x00;
-    if (cursor_drop_until(cursor, &marker, sizeof(marker)) < 0) return PROTO_PARSE_ERR;
+    if (cursor_drop_until(cursor, &marker, sizeof(marker), cursor->cap_len) < 0) return PROTO_PARSE_ERR;
     // Drop Null byte
     DROP_FIX(cursor, 1);
     CHECK(2);
