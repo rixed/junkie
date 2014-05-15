@@ -219,6 +219,7 @@ int cursor_lookup_marker(struct cursor *cursor, const void *marker, size_t marke
 int cursor_drop_until(struct cursor *cursor, const void *marker, size_t marker_len, size_t max_len)
 {
     int dropped_bytes = cursor_lookup_marker(cursor, marker, marker_len, max_len);
+    if (dropped_bytes < 0) return -1;
     cursor_drop(cursor, dropped_bytes);
     return dropped_bytes;
 }
@@ -227,6 +228,8 @@ int cursor_drop_string(struct cursor *cursor, size_t max_len)
 {
     uint8_t marker[1] = {0x00};
     int dropped_bytes = cursor_lookup_marker(cursor, marker, sizeof(marker), max_len);
+    if (dropped_bytes < 0) return -1;
+    dropped_bytes += sizeof(marker);
     cursor_drop(cursor, dropped_bytes);
     return dropped_bytes;
 }
