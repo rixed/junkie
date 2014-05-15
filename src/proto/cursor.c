@@ -167,7 +167,6 @@ uint_least64_t cursor_peek_u64le(struct cursor *cursor, size_t offset)
     return a | (b << 32);
 }
 
-
 enum proto_parse_status cursor_read_fixed_string(struct cursor *cursor, char **out_str, size_t str_len)
 {
     SLOG(LOG_DEBUG, "Reading string of size %zu", str_len);
@@ -207,6 +206,17 @@ enum proto_parse_status cursor_read_string(struct cursor *cursor, char **out_str
     if (out_len) *out_len = len;
     if (out_str) *out_str = str;
     return PROTO_OK;
+}
+
+int cursor_drop_until(struct cursor *cursor, const void *marker, size_t marker_len)
+{
+    uint8_t *new_head = memmem(cursor->head, cursor->cap_len, marker, marker_len);
+    if (!new_head) return -1;
+    int dropped_bytes = new_head - cursor->head;
+    cursor_drop(cursor, dropped_bytes);
+    return dropped_bytes;
+}
+
 }
 
 void cursor_copy(void *dst, struct cursor *cursor, size_t n)

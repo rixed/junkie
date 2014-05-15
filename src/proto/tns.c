@@ -198,15 +198,6 @@ static enum proto_parse_status cursor_read_tns_hdr(struct cursor *cursor, size_t
     return PROTO_OK;
 }
 
-static enum proto_parse_status cursor_drop_until(struct cursor *cursor, const void *marker, size_t marker_len)
-{
-    uint8_t *new_head = memmem(cursor->head, cursor->cap_len, marker, marker_len);
-    if (!new_head) return PROTO_PARSE_ERR;
-    size_t gap_size = new_head - cursor->head;
-    cursor_drop(cursor, gap_size);
-    return PROTO_OK;
-}
-
 /* Read a string prefixed by 1 byte size
  * Size  String-------------
  * 0x04  0x41 0x42 0x42 0x40
@@ -534,8 +525,7 @@ static enum proto_parse_status tns_parse_close_statement(struct cursor *cursor)
 
     // We seek the next query
     uint8_t marker[2] = {0x03, 0x5e};
-    enum proto_parse_status status = cursor_drop_until(cursor, marker, sizeof(marker));
-    if (status != PROTO_OK) return status;
+    if (cursor_drop_until(cursor, marker, sizeof(marker)) < 0) return PROTO_PARSE_ERR;
 
     SLOG(LOG_DEBUG, "Found a possible query ttc, exiting close statement");
     return PROTO_OK;
@@ -911,8 +901,7 @@ static enum proto_parse_status tns_parse_login_property(struct sql_proto_info *i
     DROP_FIX(cursor, 3);
     // Drop Server version text
     uint8_t marker = 0x00;
-    enum proto_parse_status status = cursor_drop_until(cursor, &marker, sizeof(marker));
-    if (status != PROTO_OK) return status;
+    if (cursor_drop_until(cursor, &marker, sizeof(marker)) < 0) return PROTO_PARSE_ERR;
     // Drop Null byte
     DROP_FIX(cursor, 1);
     CHECK(2);

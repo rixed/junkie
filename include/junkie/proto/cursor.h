@@ -67,10 +67,18 @@ enum proto_parse_status cursor_read_fixed_string(struct cursor *cursor, char **o
 enum proto_parse_status cursor_read_fixed_int_n(struct cursor *cursor, uint_least64_t *res, unsigned len);
 enum proto_parse_status cursor_read_fixed_int_le(struct cursor *cursor, uint_least64_t *res, unsigned len);
 
-/// Copy from cursor into a buffer
+/*
+ * Copy from cursor into a buffer
+ */
 void cursor_copy(void *, struct cursor *, size_t n);
 
 void cursor_drop(struct cursor *, size_t);
+
+/*
+ * Drop cursor until marker is reached.
+ * @return -1 if marker has not been found. Otherwise, return the number of dropped bytes.
+ */
+int cursor_drop_until(struct cursor *cursor, const void *marker, size_t marker_len);
 
 bool cursor_is_empty(struct cursor const *);
 
