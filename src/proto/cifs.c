@@ -172,10 +172,26 @@ int cursor_copy_utf16(struct cursor *cursor, iconv_t cd, size_t max_src, char *b
     int str_len = cursor_lookup_marker(cursor, marker, sizeof marker, max_src);
     if (str_len < 0) return -1;
     uint8_t const *src = cursor->head;
-    size_t str_size = str_len + sizeof marker;
+    size_t str_size = str_len + sizeof(marker);
+    // we might stop in middle of the last character, fix it here
+    if (str_size % 2) str_size++;
+    size_t to_drop = str_size;
+    SLOG(LOG_DEBUG, "Reading and converting %zu bytes", str_size);
     iconv(cd, (char **)&src, &str_size, &buf, &buf_size);
-    cursor_drop(cursor, str_size);
-    return str_size;
+    cursor_drop(cursor, to_drop);
+    return to_drop;
+}
+
+int cursor_drop_utf16(struct cursor *cursor, size_t max_len)
+{
+    SLOG(LOG_DEBUG, "Drop utf16 string");
+    uint8_t marker[2] = {0x00, 0x00};
+    int dropped_bytes = cursor_lookup_marker(cursor, marker, sizeof(marker), max_len);
+    if (dropped_bytes < 0) return -1;
+    dropped_bytes += sizeof(marker);
+    if (dropped_bytes % 2) dropped_bytes++;
+    cursor_drop(cursor, dropped_bytes);
+    return dropped_bytes;
 }
 
 /*
@@ -267,6 +283,15 @@ static void cifs_proto_info_ctor(struct cifs_proto_info *info, struct parser *pa
     info->set_values = 0;
 }
 
+int drop_smb_string(struct cifs_parser *cifs_parser, struct cursor *cursor)
+{
+    if (cifs_parser->unicode)
+        return cursor_drop_utf16(cursor, cursor->cap_len);
+    else
+        return cursor_drop_string(cursor, cursor->cap_len);
+}
+
+#define DROP_SMB_STRING() if (drop_smb_string(cifs_parser, cursor) < 0) return PROTO_PARSE_ERR;
 
 /*
  * Can be either uchar or unicode (utf-16le) depending on capabilities in negociate response
@@ -294,6 +319,29 @@ static void parse_capabilities(struct cifs_parser *cifs_parser, struct cursor *c
     SLOG(LOG_DEBUG, "Found capabilities 0x%04"PRIx16, capabilities);
 }
 
+static uint8_t parse_and_check_word_count(struct cursor *cursor, uint8_t expected_word_count)
+{
+    if (cursor->cap_len < expected_word_count + 1) return 0;
+    uint8_t word_count = cursor_read_u8(cursor);
+    if (expected_word_count != word_count) {
+        SLOG(LOG_DEBUG, "Expected word count of 0x%02"PRIx8", got 0x%02"PRIx8, expected_word_count, word_count);
+        return 0;
+    }
+    return word_count;
+}
+
+static uint16_t parse_and_check_byte_count(struct cursor *cursor, uint8_t minimum_byte_count)
+{
+    if (cursor->cap_len < 2) return 0;
+    uint16_t byte_count = cursor_read_u16le(cursor);
+    if (byte_count < minimum_byte_count) {
+        SLOG(LOG_DEBUG, "Byte count is too small  (%02"PRIx8" > %02"PRIx16, minimum_byte_count, byte_count);
+        return 0;
+    }
+    if (cursor->cap_len < byte_count) return 0;
+    return byte_count;
+}
+
 /*
  * Negociate response:
  * Parameters
@@ -309,24 +357,15 @@ static enum proto_parse_status parse_negociate(struct cifs_parser *cifs_parser, 
     SLOG(LOG_DEBUG, "Parse of negociate to_srv: %d", to_srv);
     // We are only interested in negociate response
     if (!to_srv) return PROTO_OK;
-    CHECK(0x12);
-    uint8_t word_count = cursor_read_u8(cursor);
-    if (0x11 != word_count) {
-        SLOG(LOG_DEBUG, "Negociation response must have a word count of 0x11, got 0x%02"PRIx8, word_count);
+    if (parse_and_check_word_count(cursor, 0x11) == 0)
         return PROTO_PARSE_ERR;
-    }
     // Reach capabilities
     cursor_drop(cursor, 19);
     parse_capabilities(cifs_parser, cursor);
 
     cursor_drop(cursor, 10);
     uint8_t challenge_length = cursor_read_u8(cursor);
-    uint16_t byte_count = cursor_read_u16le(cursor);
-    CHECK(byte_count);
-    if (challenge_length > byte_count) {
-        SLOG(LOG_DEBUG, "Challenge length must be inferior to byte count (%02"PRIx8" > %02"PRIx16, challenge_length, byte_count);
-        return PROTO_PARSE_ERR;
-    }
+    if (parse_and_check_byte_count(cursor, challenge_length) == 0) return PROTO_PARSE_ERR;
     cursor_drop(cursor, challenge_length);
 
     if (parse_smb_string(cifs_parser, cursor, info->domain, sizeof(info->domain)) < 0)
@@ -337,8 +376,14 @@ static enum proto_parse_status parse_negociate(struct cifs_parser *cifs_parser, 
     return PROTO_OK;
 }
 
+static uint8_t compute_padding(struct cursor *cursor, uint8_t offset)
+{
+    return (cursor->cap_len - offset) % 2;
+}
+
 /*
- * Session initialisation
+ * Query:
+ *
  * Parameters
  * | UCHAR (0x0d) | UCHAR       | UCHAR        | USHORT     | USHORT        | USHORT      | USHORT   | ULONG      | USHORT         | USHORT             | ULONG    | ULONG        |
  * | Word count   | AndXCommand | AndXReserved | AndXOffset | MaxBufferSize | MaxMpxCount | VcNumber | SessionKey | OEMPasswordLen | UnicodePasswordLen | Reserved | Capabilities |
@@ -346,29 +391,20 @@ static enum proto_parse_status parse_negociate(struct cifs_parser *cifs_parser, 
  * | USHORT     | UCHAR         | UCHAR             | UCHAR | SMB_STRING    | SMB_STRING      | SMB_STRING | SMB_STRING     |
  * | Byte count | OEMPassword[] | UnicodePassword[] | Pad[] | AccountName[] | PrimaryDomain[] | NativeOS[] | NativeLanMan[] |
  */
-static enum proto_parse_status parse_session_setup(struct cifs_parser *cifs_parser, unsigned to_srv,
+static enum proto_parse_status parse_session_setup_query(struct cifs_parser *cifs_parser,
         struct cursor *cursor, struct cifs_proto_info *info)
 {
-    if (to_srv) return PROTO_OK;
-    CHECK(0x0d + 0x02);
-    uint8_t word_count = cursor_read_u8(cursor);
-    if (0x0d != word_count) {
-        SLOG(LOG_DEBUG, "Session setup andx request must have a word count of 0x0d, got 0x%02"PRIx8, word_count);
+    SLOG(LOG_DEBUG, "Parse of setup query");
+    if (parse_and_check_word_count(cursor, 0x0d) == 0)
         return PROTO_PARSE_ERR;
-    }
     cursor_drop(cursor, 14);
     uint16_t oem_password_len = cursor_read_u16le(cursor);
     uint16_t unicode_password_len = cursor_read_u16le(cursor);
     cursor_drop(cursor, 4);
     parse_capabilities(cifs_parser, cursor);
 
-    uint16_t byte_count = cursor_read_u16le(cursor);
-    CHECK(byte_count);
-    uint8_t padding = (oem_password_len + unicode_password_len) % 1 + 1;
-    if (byte_count < (oem_password_len + unicode_password_len + padding)) {
-        SLOG(LOG_DEBUG, "Byte count must be superior to passwords length (%02"PRIx8" > %02"PRIx16, byte_count, oem_password_len + unicode_password_len);
-        return PROTO_PARSE_ERR;
-    }
+    uint8_t padding = compute_padding(cursor, oem_password_len + unicode_password_len);
+    if (parse_and_check_byte_count(cursor, oem_password_len + unicode_password_len + padding) == 0) return PROTO_PARSE_ERR;
     cursor_drop(cursor, oem_password_len + unicode_password_len + padding);
     if (parse_smb_string(cifs_parser, cursor, info->user, sizeof(info->user)) < 0)
         return PROTO_PARSE_ERR;
@@ -376,6 +412,46 @@ static enum proto_parse_status parse_session_setup(struct cifs_parser *cifs_pars
     SLOG(LOG_DEBUG, "Found user %s", info->user);
 
     return PROTO_OK;
+}
+
+/*
+ * Session initialisation
+ *
+ * Response:
+ * Parameters
+ * | UCHAR (0x03) | UCHAR       | UCHAR        | USHORT     | USHORT |
+ * | Word count   | AndXCommand | AndXReserved | AndXOffset | Action |
+ * Data
+ * | UCHAR | SMB_STRING | SMB_STRING     | SMB_STRING      |
+ * | Pad[] | NativeOS[] | NativeLanMan[] | PrimaryDomain[] |
+ */
+static enum proto_parse_status parse_session_setup_response(struct cifs_parser *cifs_parser,
+        struct cursor *cursor, struct cifs_proto_info *info)
+{
+    SLOG(LOG_DEBUG, "Parse of setup response");
+    if (parse_and_check_word_count(cursor, 0x03) == 0)
+        return PROTO_PARSE_ERR;
+    cursor_drop(cursor, 0x03 * 2);
+
+    if (parse_and_check_byte_count(cursor, 0) == 0) return PROTO_PARSE_ERR;
+    uint8_t padding = compute_padding(cursor, 0);
+    CHECK_AND_DROP(padding);
+    DROP_SMB_STRING(); // native os
+    DROP_SMB_STRING(); // native lan man
+    if (parse_smb_string(cifs_parser, cursor, info->domain, sizeof(info->domain)) < 0)
+        return PROTO_PARSE_ERR;
+    info->set_values |= SMB_DOMAIN;
+    SLOG(LOG_DEBUG, "Found domain %s", info->domain);
+    return PROTO_OK;
+}
+
+static enum proto_parse_status parse_session_setup(struct cifs_parser *cifs_parser, unsigned to_srv,
+        struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if (to_srv)
+        return parse_session_setup_response(cifs_parser, cursor, info);
+    else
+        return parse_session_setup_query(cifs_parser, cursor, info);
 }
 
 static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_info *parent,
@@ -415,7 +491,10 @@ static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_in
         default:
             break;
     }
-    if (status != PROTO_OK) SLOG(LOG_DEBUG, "Probleme when parsing cifs: %s", proto_parse_status_2_str(status));
+    if (status != PROTO_OK) {
+        SLOG(LOG_DEBUG, "Probleme when parsing cifs: %s", proto_parse_status_2_str(status));
+        return status;
+    }
 
     return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }

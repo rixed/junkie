@@ -18,6 +18,7 @@ static char const *set_value_2_str(unsigned value)
 {
     switch (value) {
         case SMB_DOMAIN: return "SMB_DOMAIN";
+        case SMB_USER: return "SMB_USER";
         default: return tempstr_printf("Unknown value %d", value);
     }
 }
@@ -57,7 +58,7 @@ static struct parse_test {
         },
     },
 
-    // session setup andx
+    // session setup andx query
     {
         .packet = (uint8_t const []) {
 //          Header {
@@ -91,6 +92,27 @@ static struct parse_test {
             .command = SMB_COM_SESSION_SETUP_ANDX,
             .user = "Tototest",
             .set_values = SMB_USER,
+        },
+    },
+
+    // session setup andx response
+    {
+        .packet = (uint8_t const []) {
+            0xff, 0x53, 0x4d, 0x42, 0x73, 0x00, 0x00, 0x00, 0x00, 0x80, 0x03, 0xc0, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x78, 0x47, 0x64, 0x00, 0x02, 0x00,
+            0x03, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x37, 0x00, 0x00, 0x55, 0x00, 0x6e, 0x00, 0x69, 0x00,
+            0x78, 0x00, 0x00, 0x00, 0x53, 0x00, 0x61, 0x00, 0x6d, 0x00, 0x62, 0x00, 0x61, 0x00, 0x20, 0x00,
+            0x33, 0x00, 0x2e, 0x00, 0x35, 0x00, 0x2e, 0x00, 0x36, 0x00, 0x00, 0x00, 0x57, 0x00, 0x4f, 0x00,
+            0x52, 0x00, 0x4b, 0x00, 0x47, 0x00, 0x52, 0x00, 0x4f, 0x00, 0x55, 0x00, 0x50, 0x00, 0x00, 0x00
+        },
+        .size = 0x60,
+        .ret = PROTO_OK,
+        .way = FROM_SERVER,
+        .expected = {
+            .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x60 - CIFS_HEADER_SIZE},
+            .command = SMB_COM_SESSION_SETUP_ANDX,
+            .domain = "WORKGROUP",
+            .set_values = SMB_DOMAIN,
         },
     },
 
@@ -144,6 +166,13 @@ static void parse_check(void)
     }
 }
 
+static void compute_padding_check()
+{
+    struct cursor cursor = {.cap_len = 0x37 };
+    assert(1 == compute_padding(&cursor, 0));
+    assert(0 == compute_padding(&cursor, 1));
+}
+
 int main(void)
 {
     log_init();
@@ -162,6 +191,7 @@ int main(void)
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("cifs_check.log");
 
+    compute_padding_check();
     parse_check();
 
     cifs_fini();
