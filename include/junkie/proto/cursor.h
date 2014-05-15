@@ -81,6 +81,7 @@ int cursor_lookup_marker(struct cursor *cursor, const void *marker, size_t marke
 void cursor_drop(struct cursor *, size_t);
 /*
  * Drop cursor until marker is reached.
+ * @param max_len Maximum of bytes read from cursor
  * @return -1 if marker has not been found. Otherwise, return the number of dropped bytes.
  */
 int cursor_drop_until(struct cursor *cursor, const void *marker, size_t marker_len, size_t max_len);
