@@ -38,20 +38,8 @@ static char const *set_value_2_str(unsigned value)
     return "Unknown";
 }
 
-void check_sql_set(struct sql_proto_info const *info, struct sql_proto_info const *expected, unsigned set)
-{
-    unsigned expected_set = expected->set_values & set;
-    unsigned value_set = info->set_values & set;
-    if (expected_set != value_set) {
-        if (0 != expected_set) {
-            printf("Expected %s to be set\n", set_value_2_str(set));
-            assert(expected_set == value_set);
-        } else {
-            printf("Unexpected %s value\n", set_value_2_str(set));
-            assert(expected_set != value_set);
-        }
-    }
-}
+#define CHECK_SQL_SET(INFO, EXPECTED, MASK) \
+    check_set_values(INFO->set_values, EXPECTED->set_values, MASK, set_value_2_str);
 
 int compare_expected_sql(struct sql_proto_info const *info, struct sql_proto_info const *expected)
 {
@@ -64,47 +52,47 @@ int compare_expected_sql(struct sql_proto_info const *info, struct sql_proto_inf
         return -1;
     }
 
-    check_sql_set(info, expected, SQL_VERSION);
-    check_sql_set(info, expected, SQL_REQUEST_STATUS);
-    check_sql_set(info, expected, SQL_ERROR_CODE);
-    check_sql_set(info, expected, SQL_ERROR_SQL_STATUS);
-    check_sql_set(info, expected, SQL_ERROR_MESSAGE);
-    check_sql_set(info, expected, SQL_SSL_REQUEST);
-    check_sql_set(info, expected, SQL_USER);
-    check_sql_set(info, expected, SQL_DBNAME);
-    check_sql_set(info, expected, SQL_PASSWD);
-    check_sql_set(info, expected, SQL_ENCODING);
-    check_sql_set(info, expected, SQL_SQL);
-    check_sql_set(info, expected, SQL_NB_ROWS);
-    check_sql_set(info, expected, SQL_NB_FIELDS);
+    CHECK_SQL_SET(info, expected, SQL_VERSION);
+    CHECK_SQL_SET(info, expected, SQL_REQUEST_STATUS);
+    CHECK_SQL_SET(info, expected, SQL_ERROR_CODE);
+    CHECK_SQL_SET(info, expected, SQL_ERROR_SQL_STATUS);
+    CHECK_SQL_SET(info, expected, SQL_ERROR_MESSAGE);
+    CHECK_SQL_SET(info, expected, SQL_SSL_REQUEST);
+    CHECK_SQL_SET(info, expected, SQL_USER);
+    CHECK_SQL_SET(info, expected, SQL_DBNAME);
+    CHECK_SQL_SET(info, expected, SQL_PASSWD);
+    CHECK_SQL_SET(info, expected, SQL_ENCODING);
+    CHECK_SQL_SET(info, expected, SQL_SQL);
+    CHECK_SQL_SET(info, expected, SQL_NB_ROWS);
+    CHECK_SQL_SET(info, expected, SQL_NB_FIELDS);
 
     CHECK_INT(expected->set_values, info->set_values);
     printf("%s\n", sql_info_2_str(&info->info));
-    if ((expected->set_values & SQL_VERSION) == SQL_VERSION) {
+    if (VALUES_ARE_SET(expected, SQL_VERSION)) {
         CHECK_INT(info->version_maj, expected->version_maj);
         CHECK_INT(info->version_min, expected->version_min);
     }
-    if ((expected->set_values & (SQL_NB_FIELDS)) == (SQL_NB_FIELDS))
+    if (VALUES_ARE_SET(expected, (SQL_NB_FIELDS)))
         CHECK_INT(info->u.query.nb_fields, expected->u.query.nb_fields);
-    if ((expected->set_values & (SQL_REQUEST_STATUS)) == (SQL_REQUEST_STATUS))
+    if (VALUES_ARE_SET(expected, SQL_REQUEST_STATUS))
         CHECK_INT(info->request_status, expected->request_status);
-    if ((expected->set_values & (SQL_ERROR_CODE)) == (SQL_ERROR_CODE))
+    if (VALUES_ARE_SET(expected, SQL_ERROR_CODE))
         CHECK_STR(info->error_code, expected->error_code);
-    if ((expected->set_values & (SQL_ERROR_MESSAGE)) == (SQL_ERROR_MESSAGE))
+    if (VALUES_ARE_SET(expected, SQL_ERROR_MESSAGE))
         CHECK_STR(info->error_message, expected->error_message);
-    if ((expected->set_values & (SQL_NB_ROWS)) == (SQL_NB_ROWS))
+    if (VALUES_ARE_SET(expected, SQL_NB_ROWS))
         CHECK_INT(info->u.query.nb_rows, expected->u.query.nb_rows);
-    if ((expected->set_values & (SQL_SQL)) == (SQL_SQL)) {
+    if (VALUES_ARE_SET(expected, SQL_SQL)) {
         CHECK_STR(info->u.query.sql, expected->u.query.sql);
         CHECK_INT(info->u.query.truncated, expected->u.query.truncated);
     }
-    if ((expected->set_values & (SQL_ENCODING)) == (SQL_ENCODING))
+    if (VALUES_ARE_SET(expected, SQL_ENCODING))
         CHECK_INT(info->u.startup.encoding, expected->u.startup.encoding);
-    if ((expected->set_values & (SQL_USER)) == (SQL_USER))
+    if (VALUES_ARE_SET(expected, SQL_USER))
         CHECK_STR(info->u.startup.user, expected->u.startup.user);
-    if ((expected->set_values & (SQL_DBNAME)) == (SQL_DBNAME))
+    if (VALUES_ARE_SET(expected, SQL_DBNAME))
         CHECK_STR(info->u.startup.dbname, expected->u.startup.dbname);
-    if ((expected->set_values & (SQL_PASSWD)) == (SQL_PASSWD))
+    if (VALUES_ARE_SET(expected, SQL_PASSWD))
         CHECK_STR(info->u.startup.passwd, expected->u.startup.passwd);
     return 0;
 }

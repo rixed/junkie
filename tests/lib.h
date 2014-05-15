@@ -32,6 +32,8 @@ ssize_t tcp_stream_next(struct tcp_stream *stream, unsigned *way);
 
 enum way { FROM_CLIENT, FROM_SERVER };
 
+#define VALUES_ARE_SET(proto, x) ((proto->set_values & (x)) == (x))
+
 #define CHECK_INT(VAL, EXP) do {                  \
     unsigned exp = EXP;                           \
     unsigned val = VAL;                           \
@@ -53,5 +55,7 @@ enum way { FROM_CLIENT, FROM_SERVER };
         } \
         return 1;                                 \
     } } while (0)
+
+void check_set_values(unsigned value, unsigned expected, unsigned mask, char const *mask_2_str(unsigned));
 
 #endif
