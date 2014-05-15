@@ -14,6 +14,14 @@
 #include "lib.h"
 #include "proto/cifs.c"
 
+static char const *set_value_2_str(unsigned value)
+{
+    switch (value) {
+        case SMB_DOMAIN: return "SMB_DOMAIN";
+        default: return tempstr_printf("Unknown value %d", value);
+    }
+}
+
 static struct parse_test {
     uint8_t const *packet;
     int size;
@@ -25,10 +33,15 @@ static struct parse_test {
     // a negociate response
     {
         .packet = (uint8_t const []) {
+//          Header-{-               Nego
             0xff, 0x53, 0x4d, 0x42, 0x72, 0x00, 0x00, 0x00, 0x00, 0x80, 0x03, 0xc0, 0x00, 0x00, 0x00, 0x00,
+//                                                                                                      -}
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x78, 0x47, 0x00, 0x00, 0x01, 0x00,
+//          WC-
             0x11, 0x02, 0x00, 0x03, 0x32, 0x00, 0x01, 0x00, 0x04, 0x41, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00,
+//                                  Capabilities----------
             0xcc, 0x77, 0x00, 0x00, 0xfd, 0xf3, 0x80, 0x00, 0x00, 0xb5, 0x65, 0x00, 0x86, 0x6f, 0xcf, 0x01,
+//                      Chal  BC--------
             0x88, 0xff, 0x08, 0x1c, 0x00, 0xbc, 0x52, 0x94, 0xe1, 0x5d, 0xf2, 0x8f, 0x5f, 0x57, 0x00, 0x4f,
             0x00, 0x52, 0x00, 0x4b, 0x00, 0x47, 0x00, 0x52, 0x00, 0x4f, 0x00, 0x55, 0x00, 0x50, 0x00, 0x00,
             0x00
@@ -38,12 +51,16 @@ static struct parse_test {
         .way = FROM_SERVER,
         .expected = {
             .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x61 - CIFS_HEADER_SIZE},
-            /*.command = SMB_COM_NEGOCIATE,*/
             .command = SMB_COM_NEGOCIATE,
+            .domain = "WORKGROUP",
+            .set_values = SMB_DOMAIN,
         },
     },
 
 };
+
+#define CHECK_SMB_SET(INFO, EXPECTED, MASK) \
+    check_set_values(INFO->set_values, EXPECTED->set_values, MASK, set_value_2_str);
 
 static unsigned cur_test;
 
@@ -53,10 +70,11 @@ static bool compare_expected_cifs(struct cifs_proto_info const *const info,
     CHECK_INT(info->info.head_len, expected->info.head_len);
     CHECK_INT(info->info.payload, expected->info.payload);
 
-    if (info->command != expected->command) {
-        printf("Expected command %s, got command %s\n", smb_command_2_str(info->command),
-                smb_command_2_str(expected->command));
-    }
+    CHECK_SMB_SET(info, expected, SMB_DOMAIN);
+
+    CHECK_INT(info->command, expected->command);
+    if (VALUES_ARE_SET(info, SMB_DOMAIN))
+        CHECK_STR(info->domain, expected->domain);
 
     return 0;
 }
