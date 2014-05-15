@@ -208,15 +208,27 @@ enum proto_parse_status cursor_read_string(struct cursor *cursor, char **out_str
     return PROTO_OK;
 }
 
-int cursor_drop_until(struct cursor *cursor, const void *marker, size_t marker_len)
+int cursor_lookup_marker(struct cursor *cursor, const void *marker, size_t marker_len, size_t max_len)
 {
-    uint8_t *new_head = memmem(cursor->head, cursor->cap_len, marker, marker_len);
+    uint8_t *new_head = memmem(cursor->head, MIN(cursor->cap_len, max_len), marker, marker_len);
     if (!new_head) return -1;
-    int dropped_bytes = new_head - cursor->head;
+    int gap_size = new_head - cursor->head;
+    return gap_size;
+}
+
+int cursor_drop_until(struct cursor *cursor, const void *marker, size_t marker_len, size_t max_len)
+{
+    int dropped_bytes = cursor_lookup_marker(cursor, marker, marker_len, max_len);
     cursor_drop(cursor, dropped_bytes);
     return dropped_bytes;
 }
 
+int cursor_drop_string(struct cursor *cursor, size_t max_len)
+{
+    uint8_t marker[1] = {0x00};
+    int dropped_bytes = cursor_lookup_marker(cursor, marker, sizeof(marker), max_len);
+    cursor_drop(cursor, dropped_bytes);
+    return dropped_bytes;
 }
 
 void cursor_copy(void *dst, struct cursor *cursor, size_t n)
