@@ -14,7 +14,7 @@ check_PROGRAMS = \
 	tcp_reorder_check streambuf_check cli_check \
 	postgres_check endianness_check \
 	cursor_check string_buffer_check mutex_check \
-	mysql_check tns_check tls_check tds_check
+	mysql_check tns_check tls_check tds_check cifs_check
 
 dist_check_SCRIPTS = \
 	postgres.test mysql.test oracle.test tds.test dns.test \
@@ -119,6 +119,8 @@ tls_check_SOURCES = tls_check.c lib.c lib.h
 tls_check_LDADD = ../src/tools/libjunkietools.la ../src/proto/libproto.la -lm
 mysql_check_SOURCES = mysql_check.c lib.c lib.h sql_test.c sql_test.h
 mysql_check_LDADD = ../src/tools/libjunkietools.la ../src/proto/libproto.la -lm
+cifs_check_SOURCES = cifs_check.c lib.c lib.h
+cifs_check_LDADD = ../src/tools/libjunkietools.la ../src/proto/libproto.la -lm
 tds_check_SOURCES = tds_check.c lib.c lib.h sql_test.c sql_test.h
 tds_check_LDADD = ../src/tools/libjunkietools.la ../src/proto/libproto.la -lm
 tns_check_SOURCES = tns_check.c lib.c lib.h sql_test.c sql_test.h
