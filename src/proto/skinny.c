@@ -462,7 +462,7 @@ static enum proto_parse_status skinny_sbuf_parse(struct parser *parser, struct p
             // From now on, informations are nul terminated strings
             if (PROTO_OK != (status = read_string(info.calling_party, sizeof(info.calling_party), &curs))) return status; // Calling party
             if (header_ver == SKINNY_CM7_TYPE_A || header_ver == SKINNY_CM7_TYPE_B || header_ver == SKINNY_CM7_TYPE_C) {
-                    cursor_read_string(&curs, NULL, NULL, 24); // Drop calling party voice mailbox
+                cursor_drop_string(&curs, 24); // Drop calling party voice mailbox
             }
             if (PROTO_OK != (status = read_string(info.called_party,  sizeof(info.called_party),  &curs))) return status; // Called party
             // discard the rest of informations
