@@ -94,6 +94,10 @@ struct cifs_proto_info {
     struct proto_info info;
     enum smb_command command;
     uint32_t status;
+
+#   define SMB_DOMAIN 0x0001
+    unsigned set_values;
+    char domain[250];
 };
 
 void cifs_init(void);
