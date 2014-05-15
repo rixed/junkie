@@ -2,29 +2,6 @@
 // vim:sw=4 ts=4 sts=4 expandtab
 #include <junkie/proto/sql.h>
 
-#define CHECK_INT(VAL, EXP) do {                  \
-    unsigned exp = EXP;                           \
-    unsigned val = VAL;                           \
-    if (exp != val) {                             \
-        printf("Expected %d got %d from field %s\n", exp, val, #VAL); \
-        return 1;                                 \
-    } } while (0)
-
-#define CHECK_STR(VAL, EXP) do {               \
-    char *exp = (char *)EXP;                              \
-    char *val = (char *)VAL;                              \
-    if (0 != strcmp(exp, val)) {                  \
-        printf("Expected '%s'\nGot      '%s' from field %s\n", exp, val, #VAL); \
-        for (unsigned i = 0; i < strlen(val); i++) { \
-            if (val[i] != exp[i]) { \
-               printf("Diff at character %d, got 0x%02x, expected 0x%02x\n", i, val[i], exp[i]); \
-               break; \
-            } \
-        } \
-        return 1;                                 \
-    } } while (0)
-
-enum way { FROM_CLIENT, FROM_SERVER };
 int compare_expected_sql(struct sql_proto_info const *info, struct sql_proto_info const *expected);
 void check_sql_set(struct sql_proto_info const *info, struct sql_proto_info const *expected, unsigned set);
 

@@ -2,6 +2,7 @@
 // vim:sw=4 ts=4 sts=4 expandtab
 #include <junkie/proto/sql.h>
 #include "sql_test.h"
+#include "lib.h"
 
 static char const *set_value_2_str(unsigned value)
 {
