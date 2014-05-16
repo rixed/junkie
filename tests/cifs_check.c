@@ -57,6 +57,7 @@ static struct parse_test {
             .command = SMB_COM_NEGOCIATE,
             .domain = "WORKGROUP",
             .set_values = SMB_DOMAIN,
+            .status = SMB_STATUS_OK,
         },
     },
 
@@ -87,6 +88,7 @@ static struct parse_test {
             .command = SMB_COM_SESSION_SETUP_ANDX,
             .user = "root",
             .set_values = SMB_USER,
+            .status = SMB_STATUS_OK,
         },
     },
 
@@ -108,6 +110,7 @@ static struct parse_test {
             .command = SMB_COM_SESSION_SETUP_ANDX,
             .domain = "WORKGROUP",
             .set_values = SMB_DOMAIN,
+            .status = SMB_STATUS_OK,
         },
     },
 
@@ -124,6 +127,7 @@ static struct parse_test {
         .expected = {
             .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x23 - CIFS_HEADER_SIZE},
             .command = SMB_COM_SESSION_SETUP_ANDX,
+            .status = SMB_STATUS_LOGON_FAILURE,
         },
     },
 
@@ -144,6 +148,7 @@ static struct parse_test {
             .command = SMB_COM_TRANSACTION2,
             .set_values = SMB_TRANS2_SUBCMD,
             .trans2_subcmd = SMB_TRANS2_QUERY_FS_INFO,
+            .status = SMB_STATUS_OK,
         },
     },
 
@@ -167,6 +172,25 @@ static struct parse_test {
             .set_values = SMB_TRANS2_SUBCMD | SMB_PATH,
             .trans2_subcmd = SMB_TRANS2_QUERY_PATH_INFORMATION,
             .path = "/libpthread.so.0",
+            .status = SMB_STATUS_OK,
+        },
+    },
+
+    // Trans2 request, query path info response
+    {
+        .packet = (uint8_t const []) {
+            0xff, 0x53, 0x4d, 0x42, 0x32, 0x34, 0x00, 0x00, 0xc0, 0x80, 0x03, 0xc0, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0xec, 0x1a, 0x64, 0x00, 0x19, 0x00,
+            0x00, 0x00, 0x00
+        },
+        .size = 0x23,
+        .ret = PROTO_OK,
+        .way = FROM_CLIENT,
+        .expected = {
+            .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x23 - CIFS_HEADER_SIZE },
+            .command = SMB_COM_TRANSACTION2,
+            .trans2_subcmd = SMB_TRANS2_QUERY_PATH_INFORMATION,
+            .status = SMB_STATUS_OBJECT_NAME_NOT_FOUND,
         },
     },
 
@@ -188,6 +212,7 @@ static bool compare_expected_cifs(struct cifs_proto_info const *const info,
     CHECK_SMB_SET(info, expected, SMB_PATH);
     CHECK_SMB_SET(info, expected, SMB_TRANS2_SUBCMD);
 
+    CHECK_INT(info->status, expected->status);
     CHECK_INT(info->command, expected->command);
     if (VALUES_ARE_SET(info, SMB_DOMAIN))
         CHECK_STR(info->domain, expected->domain);
