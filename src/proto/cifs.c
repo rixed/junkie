@@ -505,9 +505,9 @@ static enum proto_parse_status parse_negociate(struct cifs_parser *cifs_parser, 
     return PROTO_OK;
 }
 
-static uint8_t compute_padding(struct cursor *cursor, uint8_t offset)
+static uint8_t compute_padding(struct cursor *cursor, uint8_t offset, size_t alignment)
 {
-    return (cursor->cap_len - offset) % 2;
+    return (cursor->cap_len - offset) % alignment;
 }
 
 /*
@@ -532,7 +532,7 @@ static enum proto_parse_status parse_session_setup_query(struct cifs_parser *cif
     cursor_drop(cursor, 4);
     parse_capabilities(cifs_parser, cursor);
 
-    uint8_t padding = compute_padding(cursor, oem_password_len + unicode_password_len);
+    uint8_t padding = compute_padding(cursor, oem_password_len + unicode_password_len, 2);
     if (parse_and_check_byte_count(cursor, oem_password_len + unicode_password_len + padding) == 0) return PROTO_PARSE_ERR;
     cursor_drop(cursor, oem_password_len + unicode_password_len + padding);
     if (parse_smb_string(cifs_parser, cursor, info->user, sizeof(info->user)) < 0)
@@ -561,7 +561,7 @@ static enum proto_parse_status parse_session_setup_response(struct cifs_parser *
     cursor_drop(cursor, 0x03 * 2);
 
     if (parse_and_check_byte_count(cursor, 0) == 0) return PROTO_PARSE_ERR;
-    uint8_t padding = compute_padding(cursor, 0);
+    uint8_t padding = compute_padding(cursor, 0, 2);
     CHECK_AND_DROP(padding);
     DROP_SMB_STRING(); // native os
     DROP_SMB_STRING(); // native lan man
@@ -590,7 +590,7 @@ static enum proto_parse_status parse_tree_connect_and_request_query(struct cifs_
     cursor_drop(cursor, 6);
     uint16_t password_len = cursor_read_u16le(cursor);
 
-    uint8_t padding = compute_padding(cursor, password_len);
+    uint8_t padding = compute_padding(cursor, password_len, 2);
     if (parse_and_check_byte_count(cursor, password_len + padding) == 0) return PROTO_PARSE_ERR;
     cursor_drop(cursor, password_len + padding);
     if (parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
@@ -615,7 +615,8 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
         struct cursor *cursor, struct cifs_proto_info *info)
 {
     SLOG(LOG_DEBUG, "Parse trans2 request");
-    if (parse_and_check_word_count_superior(cursor, 0x0e) == 0) return PROTO_PARSE_ERR;
+    uint8_t word_count = parse_and_check_word_count_superior(cursor, 0x0e);
+    if (word_count == 0) return PROTO_PARSE_ERR;
 
     uint16_t total_parameter_count = cursor_read_u16le(cursor);
     uint16_t total_data_count = cursor_read_u16le(cursor);
@@ -634,9 +635,14 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
     // TODO handle multiple setup count
     info->trans2_subcmd = cursor_read_u16le(cursor);
     info->set_values |= SMB_TRANS2_SUBCMD;
-    SLOG(LOG_DEBUG, "Found trans2 subcommand 0x%02"PRIx16, info->trans2_subcmd);
 
-    uint8_t padding = compute_padding(cursor, 0);
+    uint8_t start_parameter = CIFS_HEADER_SIZE + word_count * 2 + 2 + 1;
+    if (start_parameter > parameter_offset) {
+        SLOG(LOG_DEBUG, "Start_parameter is greated than parameter offset (%"PRIu8" > %"PRIu8")", start_parameter, parameter_offset);
+        return PROTO_PARSE_ERR;
+    }
+    uint8_t padding = parameter_offset - start_parameter;
+    SLOG(LOG_DEBUG, "Found trans2 subcommand 0x%02"PRIx16" and padding of %"PRIu8, info->trans2_subcmd, padding);
     parse_and_check_byte_count(cursor, padding);
     cursor_drop(cursor, padding);
 
@@ -654,6 +660,15 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
             {
                 CHECK(2 + 2 + 2 + 2 + 4 + 2);
                 cursor_drop(cursor, 2 + 2 + 2 + 2 + 4);
+                if (parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
+                    return PROTO_PARSE_ERR;
+                info->set_values |= SMB_PATH;
+            }
+            break;
+        case SMB_TRANS2_SET_PATH_INFORMATION:
+            {
+                CHECK(8);
+                cursor_drop(cursor, 6);
                 if (parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
                     return PROTO_PARSE_ERR;
                 info->set_values |= SMB_PATH;
