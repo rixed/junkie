@@ -19,6 +19,7 @@ static char const *set_value_2_str(unsigned value)
     switch (value) {
         case SMB_DOMAIN: return "SMB_DOMAIN";
         case SMB_USER: return "SMB_USER";
+        case SMB_PATH: return "SMB_PATH";
         default: return tempstr_printf("Unknown value %d", value);
     }
 }
@@ -116,6 +117,27 @@ static struct parse_test {
         },
     },
 
+    // Tree connect query
+    {
+        .packet = (uint8_t const []) {
+            0xff, 0x53, 0x4d, 0x42, 0x75, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xd0, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x78, 0x47, 0x64, 0x00, 0x03, 0x00,
+            0x04, 0xff, 0x00, 0x00, 0x00, 0x08, 0x00, 0x01, 0x00, 0x2f, 0x00, 0x00, 0x5c, 0x00, 0x5c, 0x00,
+            0x66, 0x00, 0x69, 0x00, 0x6c, 0x00, 0x65, 0x00, 0x73, 0x00, 0x65, 0x00, 0x72, 0x00, 0x76, 0x00,
+            0x65, 0x00, 0x72, 0x00, 0x5c, 0x00, 0x70, 0x00, 0x75, 0x00, 0x62, 0x00, 0x6c, 0x00, 0x69, 0x00,
+            0x63, 0x00, 0x00, 0x00, 0x3f, 0x3f, 0x3f, 0x3f, 0x3f, 0x00
+        },
+        .size = 0x5a,
+        .ret = PROTO_OK,
+        .way = FROM_SERVER,
+        .expected = {
+            .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x5a - CIFS_HEADER_SIZE},
+            .command = SMB_COM_TREE_CONNECT_ANDX,
+            .path = "\\\\fileserver\\public",
+            .set_values = SMB_PATH,
+        },
+    },
+
 };
 
 #define CHECK_SMB_SET(INFO, EXPECTED, MASK) \
@@ -130,12 +152,16 @@ static bool compare_expected_cifs(struct cifs_proto_info const *const info,
     CHECK_INT(info->info.payload, expected->info.payload);
 
     CHECK_SMB_SET(info, expected, SMB_DOMAIN);
+    CHECK_SMB_SET(info, expected, SMB_USER);
+    CHECK_SMB_SET(info, expected, SMB_PATH);
 
     CHECK_INT(info->command, expected->command);
     if (VALUES_ARE_SET(info, SMB_DOMAIN))
         CHECK_STR(info->domain, expected->domain);
     if (VALUES_ARE_SET(info, SMB_USER))
         CHECK_STR(info->user, expected->user);
+    if (VALUES_ARE_SET(info, SMB_PATH))
+        CHECK_STR(info->path, expected->path);
 
     return 0;
 }

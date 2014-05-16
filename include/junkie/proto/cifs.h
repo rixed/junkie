@@ -66,7 +66,8 @@ enum smb_command {
     SMB_COM_TREE_DISCONNECT,
     SMB_COM_NEGOCIATE,
     SMB_COM_SESSION_SETUP_ANDX,
-    SMB_COM_LOGOFF_ANDX             = 0x75,
+    SMB_COM_LOGOFF_ANDX,
+    SMB_COM_TREE_CONNECT_ANDX       = 0x75,
 
     SMB_COM_SECURITY_PACKAGE_ANDX   = 0x7e,
     SMB_COM_QUERY_INFORMATION_DISK  = 0x80,
@@ -97,9 +98,11 @@ struct cifs_proto_info {
 
 #define   SMB_DOMAIN   0x0001
 #define   SMB_USER     0x0002
+#define   SMB_PATH     0x0004
     unsigned set_values;
     char domain[50];
     char user[50];
+    char path[50];
 };
 
 void cifs_init(void);
