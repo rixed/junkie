@@ -649,6 +649,16 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
                     return PROTO_PARSE_ERR;
                 info->set_values |= SMB_PATH;
             }
+            break;
+        case SMB_TRANS2_FIND_FIRST2:
+            {
+                CHECK(2 + 2 + 2 + 2 + 4 + 2);
+                cursor_drop(cursor, 2 + 2 + 2 + 2 + 4);
+                if (parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
+                    return PROTO_PARSE_ERR;
+                info->set_values |= SMB_PATH;
+            }
+            break;
         default:
             break;
     }
