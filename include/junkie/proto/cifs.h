@@ -123,6 +123,26 @@ enum smb_status {
     SMB_STATUS_WRONG_VOLUME                     = 0xC0000012,
 };
 
+enum smb_trans2_subcommand {
+    SMB_TRANS2_OPEN2 = 0x0000,
+    SMB_TRANS2_FIND_FIRST2 = 0x0001,
+    SMB_TRANS2_FIND_NEXT2 = 0x0002,
+    SMB_TRANS2_QUERY_FS_INFO = 0x0003,
+    SMB_TRANS2_SET_FS_INFORMATION = 0x0004,
+    SMB_TRANS2_QUERY_PATH_INFORMATION = 0x0005,
+    SMB_TRANS2_SET_PATH_INFORMATION = 0x0006,
+    SMB_TRANS2_QUERY_FILE_INFORMATION = 0x0007,
+    SMB_TRANS2_SET_FILE_INFORMATION = 0x0008,
+    SMB_TRANS2_FSCTL = 0x0009,
+    SMB_TRANS2_IOCTL2 = 0x000a,
+    SMB_TRANS2_FIND_NOTIFY_FIRST = 0x000b,
+    SMB_TRANS2_FIND_NOTIFY_NEXT = 0x000c,
+    SMB_TRANS2_CREATE_DIRECTORY = 0x000d,
+    SMB_TRANS2_SESSION_SETUP = 0x000e,
+    SMB_TRANS2_GET_DFS_REFERRAL = 0x0010,
+    SMB_TRANS2_REPORT_DFS_INCONSISTENCY = 0x0011,
+};
+
 enum smb_command {
     SMB_COM_CREATE_DIRECTORY        = 0x00,
     SMB_COM_DELETE_DIRECTORY,
@@ -209,13 +229,15 @@ struct cifs_proto_info {
     enum smb_command command;
     enum smb_status status;
 
-#define   SMB_DOMAIN   0x0001
-#define   SMB_USER     0x0002
-#define   SMB_PATH     0x0004
+#define         SMB_DOMAIN                            0x0001
+#define         SMB_USER                              0x0002
+#define         SMB_PATH                              0x0004
+#define         SMB_TRANS2_SUBCMD                     0x0008
     unsigned set_values;
     char domain[50];
     char user[50];
     char path[50];
+    enum smb_trans2_subcommand trans2_subcmd;
 };
 
 void cifs_init(void);

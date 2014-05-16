@@ -447,6 +447,17 @@ static uint8_t parse_and_check_word_count(struct cursor *cursor, uint8_t expecte
     return word_count;
 }
 
+static uint8_t parse_and_check_word_count_superior(struct cursor *cursor, uint8_t minimum_word_count)
+{
+    if (cursor->cap_len < minimum_word_count + 1) return 0;
+    uint8_t word_count = cursor_read_u8(cursor);
+    if (minimum_word_count >= word_count) {
+        SLOG(LOG_DEBUG, "Expected word count should be >= 0x%02"PRIx8", got 0x%02"PRIx8, minimum_word_count, word_count);
+        return 0;
+    }
+    return word_count;
+}
+
 static uint16_t parse_and_check_byte_count(struct cursor *cursor, uint8_t minimum_byte_count)
 {
     if (cursor->cap_len < 2) return 0;
@@ -588,6 +599,46 @@ static enum proto_parse_status parse_tree_connect_and_request_query(struct cifs_
     return PROTO_OK;
 }
 
+/*
+ * Trans2 request
+ * Word count > 0x0e
+ * Parameters
+ * | USHORT              | USHORT         | USHORT            | USHORT       | UCHAR         | UCHAR     | USHORT | ULONG   | USHORT    |
+ * | TotalParameterCount | TotalDataCount | MaxParameterCount | MaxDataCount | MaxSetupCount | Reserved1 | Flags  | Timeout | Reserved2 |
+ * | USHORT         | USHORT          | USHORT    | USHORT     | UCHAR      | UCHAR     | USHORT            |
+ * | ParameterCount | ParameterOffset | DataCount | DataOffset | SetupCount | Reserved3 | Setup[SetupCount] |
+ * Data
+ * | SMB_STRING | UCHAR  | UCHAR                             | UCHAR  | UCHAR                  |
+ * | Name       | Pad1[] | Trans2_Parameters[ParameterCount] | Pad2[] | Trans2_Data[DataCount] |
+ */
+static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_parser,
+        struct cursor *cursor, struct cifs_proto_info *info)
+{
+    SLOG(LOG_DEBUG, "Parse trans2 request");
+    if (parse_and_check_word_count_superior(cursor, 0x0e) == 0) return PROTO_PARSE_ERR;
+
+    uint16_t total_parameter_count = cursor_read_u16le(cursor);
+    uint16_t total_data_count = cursor_read_u16le(cursor);
+    uint16_t max_parameter_count = cursor_read_u16le(cursor);
+    uint16_t max_data_count = cursor_read_u16le(cursor);
+    uint8_t max_setup_count = cursor_read_u8(cursor);
+    cursor_drop(cursor, 1 + 2 + 4 + 2);
+
+    uint16_t parameter_count = cursor_read_u16le(cursor);
+    uint16_t parameter_offset = cursor_read_u16le(cursor);
+    uint16_t data_count = cursor_read_u16le(cursor);
+    uint16_t data_offset = cursor_read_u16le(cursor);
+    uint8_t setup_count = cursor_read_u8(cursor);
+    cursor_drop(cursor, 1);
+
+    // TODO handle multiple setup count
+    info->trans2_subcmd = cursor_read_u16le(cursor);
+    info->set_values |= SMB_TRANS2_SUBCMD;
+    SLOG(LOG_DEBUG, "Found trans2 subcommand %02x", info->trans2_subcmd);
+
+    return PROTO_OK;
+}
+
 static enum proto_parse_status parse_session_setup(struct cifs_parser *cifs_parser, unsigned to_srv,
         struct cursor *cursor, struct cifs_proto_info *info)
 {
@@ -624,18 +675,23 @@ static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_in
 
     SLOG(LOG_DEBUG, "Parse of a cifs command %s (0x%02x)", smb_command_2_str(info.command), info.command);
     enum proto_parse_status status = PROTO_OK;
-    switch (info.command) {
-        case SMB_COM_SESSION_SETUP_ANDX:
-            status = parse_session_setup(cifs_parser, to_srv, &cursor, &info);
-            break;
-        case SMB_COM_TREE_CONNECT_ANDX:
-            status = parse_tree_connect_and_request_query(cifs_parser, &cursor, &info);
-            break;
-        case SMB_COM_NEGOCIATE:
-            status = parse_negociate(cifs_parser, to_srv, &cursor, &info);
-            break;
-        default:
-            break;
+    if (info.status == SMB_STATUS_OK) {
+        switch (info.command) {
+            case SMB_COM_SESSION_SETUP_ANDX:
+                status = parse_session_setup(cifs_parser, to_srv, &cursor, &info);
+                break;
+            case SMB_COM_TREE_CONNECT_ANDX:
+                status = parse_tree_connect_and_request_query(cifs_parser, &cursor, &info);
+                break;
+            case SMB_COM_NEGOCIATE:
+                status = parse_negociate(cifs_parser, to_srv, &cursor, &info);
+                break;
+            case SMB_COM_TRANSACTION2:
+                if (!to_srv) status = parse_trans2_request(cifs_parser, &cursor, &info);
+                break;
+            default:
+                break;
+        }
     }
     if (status != PROTO_OK) {
         SLOG(LOG_DEBUG, "Probleme when parsing cifs: %s", proto_parse_status_2_str(status));

@@ -38,7 +38,7 @@ enum way { FROM_CLIENT, FROM_SERVER };
     unsigned exp = EXP;                           \
     unsigned val = VAL;                           \
     if (exp != val) {                             \
-        printf("Expected %d got %d from field %s\n", exp, val, #VAL); \
+        printf("Expected %d (0x%02x) got %d (0x%02x) from field %s\n", exp, exp, val, val, #VAL); \
         return 1;                                 \
     } } while (0)
 
