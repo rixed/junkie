@@ -634,7 +634,24 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
     // TODO handle multiple setup count
     info->trans2_subcmd = cursor_read_u16le(cursor);
     info->set_values |= SMB_TRANS2_SUBCMD;
-    SLOG(LOG_DEBUG, "Found trans2 subcommand %02x", info->trans2_subcmd);
+    SLOG(LOG_DEBUG, "Found trans2 subcommand 0x%02"PRIx16, info->trans2_subcmd);
+
+    uint8_t padding = compute_padding(cursor, 0);
+    parse_and_check_byte_count(cursor, padding);
+    cursor_drop(cursor, padding);
+
+    switch (info->trans2_subcmd) {
+        case SMB_TRANS2_QUERY_PATH_INFORMATION:
+            {
+                CHECK(2 + 4);
+                cursor_drop(cursor, 2 + 4);
+                if (parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
+                    return PROTO_PARSE_ERR;
+                info->set_values |= SMB_PATH;
+            }
+        default:
+            break;
+    }
 
     return PROTO_OK;
 }
