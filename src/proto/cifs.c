@@ -113,6 +113,122 @@ static char const *smb_command_2_str(enum smb_command command)
     }
 }
 
+static char const *smb_status_2_str(enum smb_status status)
+{
+    switch (status) {
+        case SMB_STATUS_OK                             : return "SMB_STATUS_OK";
+        case SMB_STATUS_ACCESS_DENIED                  : return "SMB_STATUS_ACCESS_DENIED";
+        case SMB_STATUS_NETWORK_ACCESS_DENIED          : return "SMB_STATUS_NETWORK_ACCESS_DENIED";
+        case SMB_STATUS_ACCOUNT_DISABLED               : return "SMB_STATUS_ACCOUNT_DISABLED";
+        case SMB_STATUS_ACCOUNT_EXPIRED                : return "SMB_STATUS_ACCOUNT_EXPIRED";
+        case SMB_STATUS_ALREADY_COMMITTED              : return "SMB_STATUS_ALREADY_COMMITTED";
+        case SMB_STATUS_BAD_DEVICE_TYPE                : return "SMB_STATUS_BAD_DEVICE_TYPE";
+        case SMB_STATUS_BAD_NETWORK_NAME               : return "SMB_STATUS_BAD_NETWORK_NAME";
+        case SMB_STATUS_BUFFER_OVERFLOW                : return "SMB_STATUS_BUFFER_OVERFLOW";
+        case SMB_STATUS_CANNOT_DELETE                  : return "SMB_STATUS_CANNOT_DELETE";
+        case SMB_STATUS_CRC_ERROR                      : return "SMB_STATUS_CRC_ERROR";
+        case SMB_STATUS_DATA_ERROR                     : return "SMB_STATUS_DATA_ERROR";
+        case SMB_STATUS_DATA_ERROR_UNUSED              : return "SMB_STATUS_DATA_ERROR_UNUSED";
+        case SMB_STATUS_DELETE_PENDING                 : return "SMB_STATUS_DELETE_PENDING";
+        case SMB_STATUS_DEVICE_PAPER_EMPTY             : return "SMB_STATUS_DEVICE_PAPER_EMPTY";
+        case SMB_STATUS_DFS_EXIT_PATH_FOUND            : return "SMB_STATUS_DFS_EXIT_PATH_FOUND";
+        case SMB_STATUS_DIRECTORY_NOT_EMPTY            : return "SMB_STATUS_DIRECTORY_NOT_EMPTY";
+        case SMB_STATUS_DISK_CORRUPT_ERROR             : return "SMB_STATUS_DISK_CORRUPT_ERROR";
+        case SMB_STATUS_DISK_FULL                      : return "SMB_STATUS_DISK_FULL";
+        case SMB_STATUS_EAS_NOT_SUPPORTED              : return "SMB_STATUS_EAS_NOT_SUPPORTED";
+        case SMB_STATUS_EA_TOO_LARGE                   : return "SMB_STATUS_EA_TOO_LARGE";
+        case SMB_STATUS_END_OF_FILE                    : return "SMB_STATUS_END_OF_FILE";
+        case SMB_STATUS_FILE_CLOSED                    : return "SMB_STATUS_FILE_CLOSED";
+        case SMB_STATUS_FILE_DELETED                   : return "SMB_STATUS_FILE_DELETED";
+        case SMB_STATUS_FILE_IS_A_DIRECTORY            : return "SMB_STATUS_FILE_IS_A_DIRECTORY";
+        case SMB_STATUS_FILE_LOCK_CONFLICT             : return "SMB_STATUS_FILE_LOCK_CONFLICT";
+        case SMB_STATUS_FILE_RENAMED                   : return "SMB_STATUS_FILE_RENAMED";
+        case SMB_STATUS_HANDLE_NOT_CLOSABLE            : return "SMB_STATUS_HANDLE_NOT_CLOSABLE";
+        case SMB_STATUS_ILLEGAL_FUNCTION               : return "SMB_STATUS_ILLEGAL_FUNCTION";
+        case SMB_STATUS_INSTANCE_NOT_AVAILABLE         : return "SMB_STATUS_INSTANCE_NOT_AVAILABLE";
+        case SMB_STATUS_INSUFF_SERVER_RESOURCES        : return "SMB_STATUS_INSUFF_SERVER_RESOURCES";
+        case SMB_STATUS_INVALID_DEVICE_REQUEST         : return "SMB_STATUS_INVALID_DEVICE_REQUEST";
+        case SMB_STATUS_INVALID_DEVICE_STATE           : return "SMB_STATUS_INVALID_DEVICE_STATE";
+        case SMB_STATUS_INVALID_HANDLE                 : return "SMB_STATUS_INVALID_HANDLE";
+        case SMB_STATUS_INVALID_INFO_CLASS             : return "SMB_STATUS_INVALID_INFO_CLASS";
+        case SMB_STATUS_INVALID_LOCK_SEQUENCE          : return "SMB_STATUS_INVALID_LOCK_SEQUENCE";
+        case SMB_STATUS_INVALID_LOGON_HOURS            : return "SMB_STATUS_INVALID_LOGON_HOURS";
+        case SMB_STATUS_INVALID_PARAMETER              : return "SMB_STATUS_INVALID_PARAMETER";
+        case SMB_STATUS_INVALID_PIPE_STATE             : return "SMB_STATUS_INVALID_PIPE_STATE";
+        case SMB_STATUS_INVALID_PORT_HANDLE            : return "SMB_STATUS_INVALID_PORT_HANDLE";
+        case SMB_STATUS_INVALID_READ_MODE              : return "SMB_STATUS_INVALID_READ_MODE";
+        case SMB_STATUS_INVALID_SMB                    : return "SMB_STATUS_INVALID_SMB";
+        case SMB_STATUS_INVALID_VIEW_SIZE              : return "SMB_STATUS_INVALID_VIEW_SIZE";
+        case SMB_STATUS_INVALID_WORKSTATION            : return "SMB_STATUS_INVALID_WORKSTATION";
+        case SMB_STATUS_IO_TIMEOUT                     : return "SMB_STATUS_IO_TIMEOUT";
+        case SMB_STATUS_LOCK_NOT_GRANTED               : return "SMB_STATUS_LOCK_NOT_GRANTED";
+        case SMB_STATUS_LOGON_FAILURE                  : return "SMB_STATUS_LOGON_FAILURE";
+        case SMB_STATUS_MEDIA_WRITE_PROTECTED          : return "SMB_STATUS_MEDIA_WRITE_PROTECTED";
+        case SMB_STATUS_MORE_PROCESSING_REQUIRED       : return "SMB_STATUS_MORE_PROCESSING_REQUIRED";
+        case SMB_STATUS_NETWORK_NAME_DELETED           : return "SMB_STATUS_NETWORK_NAME_DELETED";
+        case SMB_STATUS_NO_MEDIA_IN_DEVICE             : return "SMB_STATUS_NO_MEDIA_IN_DEVICE";
+        case SMB_STATUS_NO_MORE_FILES                  : return "SMB_STATUS_NO_MORE_FILES";
+        case SMB_STATUS_NONEXISTENT_SECTOR             : return "SMB_STATUS_NONEXISTENT_SECTOR";
+        case SMB_STATUS_NO_SPOOL_SPACE                 : return "SMB_STATUS_NO_SPOOL_SPACE";
+        case SMB_STATUS_NO_SUCH_DEVICE                 : return "SMB_STATUS_NO_SUCH_DEVICE";
+        case SMB_STATUS_NO_SUCH_FILE                   : return "SMB_STATUS_NO_SUCH_FILE";
+        case SMB_STATUS_NOTIFY_ENUM_DIR                : return "SMB_STATUS_NOTIFY_ENUM_DIR";
+        case SMB_STATUS_NOT_IMPLEMENTED                : return "SMB_STATUS_NOT_IMPLEMENTED";
+        case SMB_STATUS_NOT_SAME_DEVICE                : return "SMB_STATUS_NOT_SAME_DEVICE";
+        case SMB_STATUS_NOT_SUPPORTED                  : return "SMB_STATUS_NOT_SUPPORTED";
+        case SMB_STATUS_OBJECT_NAME_COLLISION          : return "SMB_STATUS_OBJECT_NAME_COLLISION";
+        case SMB_STATUS_OBJECT_NAME_NOT_FOUND          : return "SMB_STATUS_OBJECT_NAME_NOT_FOUND";
+        case SMB_STATUS_OBJECT_PATH_INVALID            : return "SMB_STATUS_OBJECT_PATH_INVALID";
+        case SMB_STATUS_OBJECT_PATH_NOT_FOUND          : return "SMB_STATUS_OBJECT_PATH_NOT_FOUND";
+        case SMB_STATUS_OBJECT_PATH_SYNTAX_BAD         : return "SMB_STATUS_OBJECT_PATH_SYNTAX_BAD";
+        case SMB_STATUS_OBJECT_TYPE_MISMATCH           : return "SMB_STATUS_OBJECT_TYPE_MISMATCH";
+        case SMB_STATUS_OS2_ATOMIC_LOCKS_NOT_SUPPORTED : return "SMB_STATUS_OS2_ATOMIC_LOCKS_NOT_SUPPORTED";
+        case SMB_STATUS_OS2_CANCEL_VIOLATION           : return "SMB_STATUS_OS2_CANCEL_VIOLATION";
+        case SMB_STATUS_OS2_CANNOT_COPY                : return "SMB_STATUS_OS2_CANNOT_COPY";
+        case SMB_STATUS_OS2_EA_ACCESS_DENIED           : return "SMB_STATUS_OS2_EA_ACCESS_DENIED";
+        case SMB_STATUS_OS2_EAS_DIDNT_FIT              : return "SMB_STATUS_OS2_EAS_DIDNT_FIT";
+        case SMB_STATUS_OS2_INVALID_ACCESS             : return "SMB_STATUS_OS2_INVALID_ACCESS";
+        case SMB_STATUS_OS2_INVALID_LEVEL              : return "SMB_STATUS_OS2_INVALID_LEVEL";
+        case SMB_STATUS_OS2_NEGATIVE_SEEK              : return "SMB_STATUS_OS2_NEGATIVE_SEEK";
+        case SMB_STATUS_OS2_NO_MORE_SIDS               : return "SMB_STATUS_OS2_NO_MORE_SIDS";
+        case SMB_STATUS_PASSWORD_EXPIRED               : return "SMB_STATUS_PASSWORD_EXPIRED";
+        case SMB_STATUS_PASSWORD_MUST_CHANGE           : return "SMB_STATUS_PASSWORD_MUST_CHANGE";
+        case SMB_STATUS_PATH_NOT_COVERED               : return "SMB_STATUS_PATH_NOT_COVERED";
+        case SMB_STATUS_PIPE_BUSY                      : return "SMB_STATUS_PIPE_BUSY";
+        case SMB_STATUS_PIPE_CLOSING                   : return "SMB_STATUS_PIPE_CLOSING";
+        case SMB_STATUS_PIPE_DISCONNECTED              : return "SMB_STATUS_PIPE_DISCONNECTED";
+        case SMB_STATUS_PIPE_EMPTY                     : return "SMB_STATUS_PIPE_EMPTY";
+        case SMB_STATUS_PIPE_NOT_AVAILABLE             : return "SMB_STATUS_PIPE_NOT_AVAILABLE";
+        case SMB_STATUS_PORT_CONNECTION_REFUSED        : return "SMB_STATUS_PORT_CONNECTION_REFUSED";
+        case SMB_STATUS_PORT_DISCONNECTED              : return "SMB_STATUS_PORT_DISCONNECTED";
+        case SMB_STATUS_PRINT_CANCELLED                : return "SMB_STATUS_PRINT_CANCELLED";
+        case SMB_STATUS_PRINT_QUEUE_FULL               : return "SMB_STATUS_PRINT_QUEUE_FULL";
+        case SMB_STATUS_PRIVILEGE_NOT_HELD             : return "SMB_STATUS_PRIVILEGE_NOT_HELD";
+        case SMB_STATUS_PROCESS_IS_TERMINATING         : return "SMB_STATUS_PROCESS_IS_TERMINATING";
+        case SMB_STATUS_RANGE_NOT_LOCKED               : return "SMB_STATUS_RANGE_NOT_LOCKED";
+        case SMB_STATUS_REDIRECTOR_NOT_STARTED         : return "SMB_STATUS_REDIRECTOR_NOT_STARTED";
+        case SMB_STATUS_REQUEST_NOT_ACCEPTED           : return "SMB_STATUS_REQUEST_NOT_ACCEPTED";
+        case SMB_STATUS_SECTION_TOO_BIG                : return "SMB_STATUS_SECTION_TOO_BIG";
+        case SMB_STATUS_SHARING_VIOLATION              : return "SMB_STATUS_SHARING_VIOLATION";
+        case SMB_STATUS_SMB_BAD_COMMAND                : return "SMB_STATUS_SMB_BAD_COMMAND";
+        case SMB_STATUS_SMB_BAD_FID                    : return "SMB_STATUS_SMB_BAD_FID";
+        case SMB_STATUS_SMB_BAD_TID                    : return "SMB_STATUS_SMB_BAD_TID";
+        case SMB_STATUS_SMB_BAD_UID                    : return "SMB_STATUS_SMB_BAD_UID";
+        case SMB_STATUS_SMB_CONTINUE_MPX               : return "SMB_STATUS_SMB_CONTINUE_MPX";
+        case SMB_STATUS_SMB_NO_SUPPORT                 : return "SMB_STATUS_SMB_NO_SUPPORT";
+        case SMB_STATUS_SMB_USE_MPX                    : return "SMB_STATUS_SMB_USE_MPX";
+        case SMB_STATUS_SMB_USE_STANDARD               : return "SMB_STATUS_SMB_USE_STANDARD";
+        case SMB_STATUS_THREAD_IS_TERMINATING          : return "SMB_STATUS_THREAD_IS_TERMINATING";
+        case SMB_STATUS_TOO_MANY_OPENED_FILES          : return "SMB_STATUS_TOO_MANY_OPENED_FILES";
+        case SMB_STATUS_TOO_MANY_PAGING_FILES          : return "SMB_STATUS_TOO_MANY_PAGING_FILES";
+        case SMB_STATUS_TOO_MANY_SESSIONS              : return "SMB_STATUS_TOO_MANY_SESSIONS";
+        case SMB_STATUS_UNEXPECTED_NETWORK_ERROR       : return "SMB_STATUS_UNEXPECTED_NETWORK_ERROR";
+        case SMB_STATUS_UNSUCCESSFUL                   : return "SMB_STATUS_UNSUCCESSFUL";
+        case SMB_STATUS_WRONG_PASSWORD                 : return "SMB_STATUS_WRONG_PASSWORD";
+        case SMB_STATUS_WRONG_VOLUME                   : return "SMB_STATUS_WRONG_VOLUME";
+    }
+}
+
 struct cifs_hdr {
     uint32_t code;      // Must contains 0xff 'SMB'
     uint8_t command;
@@ -264,10 +380,10 @@ static void const *cifs_info_addr(struct proto_info const *info_, size_t *size)
 static char const *cifs_info_2_str(struct proto_info const *info_)
 {
     struct cifs_proto_info const *info = DOWNCAST(info_, info, cifs_proto_info);
-    char *str = tempstr_printf("%s, command=%s, status=0x%08"PRIx32,
+    char *str = tempstr_printf("%s, command=%s, status=%s",
             proto_info_2_str(info_),
             smb_command_2_str(info->command),
-            info->status);
+            smb_status_2_str(info->status));
     return str;
 }
 
@@ -559,3 +675,4 @@ void cifs_fini(void)
 #   endif
     log_category_proto_cifs_fini();
 }
+
