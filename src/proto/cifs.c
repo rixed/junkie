@@ -894,6 +894,44 @@ static enum proto_parse_status parse_close_request(struct cifs_parser *cifs_pars
     return PROTO_OK;
 }
 
+/*
+ * Read AndX request
+ * Word count 0x0a or 0x0c
+ *
+ * Parameters
+ * | 4 bytes | USHORT | ULONG  | ULONG   |
+ * | AndX    | FID    | Offset | Timeout |
+ *
+ * | USHORT                  | USHORT                  | ULONG   | USHORT    | ULONG                 |
+ * | MaxCountOfBytesToReturn | MinCountOfBytesToReturn | Timeout | Remaining | OffsetHigh (optional) |
+ *
+ * No Data
+ */
+static enum proto_parse_status parse_read_andx_request(struct cifs_parser *cifs_parser,
+        struct cursor *cursor, struct cifs_proto_info *info)
+{
+    return PROTO_OK;
+}
+
+/*
+ * Read AndX response
+ * Word count 0x0a or 0x0c
+ *
+ * Parameters
+ * | 4 bytes | USHORT    | USHORT             | USHORT    | USHORT     | USHORT     | USHORT * 5   |
+ * | AndX    | Available | DataCompactionMode | Reserved1 | DataLength | DataOffset | Reserved2[5] |
+ *
+ * Data
+ * | UCHAR | UCHAR |
+ * | Pad[] | Data  |
+ */
+static enum proto_parse_status parse_read_andx_response(struct cifs_parser *cifs_parser,
+        struct cursor *cursor, struct cifs_proto_info *info)
+{
+    return PROTO_OK;
+}
+
+
 static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_info *parent,
         unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len,
         struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
@@ -943,6 +981,10 @@ static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_in
                 break;
             case SMB_COM_CLOSE:
                 if (to_srv) status = parse_close_request(cifs_parser, &cursor, &info);
+                break;
+            case SMB_COM_READ_ANDX:
+                if (to_srv) status = parse_read_andx_request(cifs_parser, &cursor, &info);
+                else status = parse_read_andx_response(cifs_parser, &cursor, &info);
                 break;
             default:
                 break;
