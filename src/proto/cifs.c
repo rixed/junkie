@@ -539,9 +539,11 @@ static void parse_fid(struct cursor *cursor, struct cifs_proto_info *info)
 /*
  * Negociate response:
  * Word count: 0x11
+ *
  * Parameters
  * | USHORT        | UCHAR         | USHORT      | USHORT       | ULONG         | ULONG      | ULONG      | ULONG        | 8 bytes    | USHORT         | UCHAR           |
  * | Dialect Index | Security mode | MaxMpxCount | MaxNumberVcs | MaxBufferSize | MaxRawSize | SessionKey | Capabilities | SystemTime | ServerTimeZone | ChallengeLength |
+ *
  * Data
  * | <Challenge length> bytes | smb string |
  * | Challenge                | domain     |
@@ -579,9 +581,11 @@ static uint8_t compute_padding(struct cursor *cursor, uint8_t offset, size_t ali
 /*
  * Session setup query
  * Word count: 0x0d
+ *
  * Parameters
- * | UCHAR       | UCHAR        | USHORT     | USHORT        | USHORT      | USHORT   | ULONG      | USHORT         | USHORT             | ULONG    | ULONG        |
- * | AndXCommand | AndXReserved | AndXOffset | MaxBufferSize | MaxMpxCount | VcNumber | SessionKey | OEMPasswordLen | UnicodePasswordLen | Reserved | Capabilities |
+ * | 4 bytes | USHORT        | USHORT      | USHORT   | ULONG      | USHORT         | USHORT             | ULONG    | ULONG        |
+ * | Andx    | MaxBufferSize | MaxMpxCount | VcNumber | SessionKey | OEMPasswordLen | UnicodePasswordLen | Reserved | Capabilities |
+ *
  * Data
  * | UCHAR         | UCHAR             | UCHAR | SMB_STRING    | SMB_STRING      | SMB_STRING | SMB_STRING     |
  * | OEMPassword[] | UnicodePassword[] | Pad[] | AccountName[] | PrimaryDomain[] | NativeOS[] | NativeLanMan[] |
@@ -615,8 +619,8 @@ static enum proto_parse_status parse_session_setup_query(struct cifs_parser *cif
  * Word count: 0x03
  *
  * Parameters
- * | UCHAR       | UCHAR        | USHORT     | USHORT |
- * | AndXCommand | AndXReserved | AndXOffset | Action |
+ * | 4 bytes | USHORT |
+ * | Andx    | Action |
  *
  * Data
  * | UCHAR | SMB_STRING | SMB_STRING     | SMB_STRING      |
@@ -646,8 +650,8 @@ static enum proto_parse_status parse_session_setup_response(struct cifs_parser *
  * Word count: 0x04
  *
  * Parameters
- * | UCHAR       | UCHAR        | USHORT     | USHORT | USHORT         |
- * | AndXCommand | AndXReserved | AndXOffset | Flags  | PasswordLength |
+ * | 4 bytes | USHORT | USHORT         |
+ * | Andx    | Flags  | PasswordLength |
  *
  * Data
  * | UCHAR                    | UCHAR | SMB_STRING | OEM_STRING |
@@ -694,19 +698,12 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
     uint8_t word_count = parse_and_check_word_count_superior(cursor, 0x0e);
     if (word_count == 0) return PROTO_PARSE_ERR;
 
-    uint16_t total_parameter_count = cursor_read_u16le(cursor);
-    uint16_t total_data_count = cursor_read_u16le(cursor);
-    uint16_t max_parameter_count = cursor_read_u16le(cursor);
-    uint16_t max_data_count = cursor_read_u16le(cursor);
-    uint8_t max_setup_count = cursor_read_u8(cursor);
-    cursor_drop(cursor, 1 + 2 + 4 + 2);
+    cursor_drop(cursor, 2 + 2 + 2 + 2 + 1); // total counts + max counts
+    cursor_drop(cursor, 1 + 2 + 4 + 2); // Reserved + flags + timeout + reserved
 
-    uint16_t parameter_count = cursor_read_u16le(cursor);
+    cursor_drop(cursor, 2); // parameter count
     uint16_t parameter_offset = cursor_read_u16le(cursor);
-    uint16_t data_count = cursor_read_u16le(cursor);
-    uint16_t data_offset = cursor_read_u16le(cursor);
-    uint8_t setup_count = cursor_read_u8(cursor);
-    cursor_drop(cursor, 1); // Reserved
+    cursor_drop(cursor, 2 + 2 + 1 + 1); // data count + data offset + setup count + reserved
 
     // TODO handle multiple setup count
     cifs_parser->trans2_subcmd = info->trans2_subcmd = cursor_read_u16le(cursor);
@@ -786,17 +783,12 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
     uint8_t word_count = parse_and_check_word_count_superior(cursor, 0x0a);
     if (word_count == 0) return PROTO_PARSE_ERR;
 
-    uint16_t total_parameter_count = cursor_read_u16le(cursor);
-    uint16_t total_data_count = cursor_read_u16le(cursor);
-    cursor_drop(cursor, 2); // Reserved bytes
+    cursor_drop(cursor, 2 + 2 + 2 + 2); // total counts + Reserved bytes + parameter count
 
-    uint16_t parameter_count = cursor_read_u16le(cursor);
     uint16_t parameter_offset = cursor_read_u16le(cursor);
-    uint16_t parameter_displacement = cursor_read_u16le(cursor);
-    uint16_t data_count = cursor_read_u16le(cursor);
+    cursor_drop(cursor, 2 + 2); // parameter displacement + data count
     uint16_t data_offset = cursor_read_u16le(cursor);
-    uint16_t data_displacement = cursor_read_u16le(cursor);
-    uint8_t setup_count = cursor_read_u8(cursor);
+    cursor_drop(cursor, 2 + 1); // data displacement + setup count
     cursor_drop(cursor, 1); // Reserved byte
 
     uint8_t start_parameter = CIFS_HEADER_SIZE + word_count * 2 + 2 + 1;
@@ -818,7 +810,7 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
             {
                 // Parameters
                 CHECK(2);
-                uint16_t ea_error_offset = cursor_read_u16le(cursor);
+                cursor_drop(cursor, 2); // ea error offset
                 cursor_drop(cursor, data_padding - 2);
                 switch (cifs_parser->level_of_interest) {
                     case SMB_POSIX_PATH_OPEN:
@@ -834,11 +826,13 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
                 }
             }
             break;
+
         case SMB_TRANS2_SET_FILE_INFORMATION:
             {
                 CHECK(2);
-                uint16_t ea_error_offset = cursor_read_u16le(cursor);
+                cursor_drop(cursor, 2); // ea error offset
                 cursor_drop(cursor, data_padding - 2);
+                // TODO Check error...
             }
             break;
         default:
@@ -847,13 +841,57 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
     return status;
 }
 
-static enum proto_parse_status parse_session_setup(struct cifs_parser *cifs_parser, unsigned to_srv,
+/*
+ * Write andx query
+ * Word count 0x0c or 0x0e
+ *
+ * Parameters
+ * | 4 bytes | USHORT | ULONG  | ULONG   |
+ * | AndX    | FID    | Offset | Timeout |
+ *
+ * | USHORT    | USHORT    | USHORT   | USHORT     | USHORT     | ULONG                 |
+ * | WriteMode | Remaining | Reserved | DataLength | DataOffset | OffsetHigh (optional) |
+ *
+ * Data
+ * | UCHAR | UCHAR            |
+ * | Pad   | Data[DataLength] |
+ */
+static enum proto_parse_status parse_write_andx_request(struct cifs_parser *cifs_parser,
         struct cursor *cursor, struct cifs_proto_info *info)
 {
-    if (to_srv)
-        return parse_session_setup_response(cifs_parser, cursor, info);
-    else
-        return parse_session_setup_query(cifs_parser, cursor, info);
+    return PROTO_OK;
+}
+
+/*
+ * Write andx response
+ * Word count 0x06
+ *
+ * Parameters
+ * | 4 bytes | USHORT | USHORT    | ULONG    |
+ * | AndX    | Count  | Available | Reserved |
+ *
+ * No Data
+ */
+static enum proto_parse_status parse_write_andx_response(struct cifs_parser *cifs_parser,
+        struct cursor *cursor, struct cifs_proto_info *info)
+{
+    return PROTO_OK;
+}
+
+/*
+ * Close request
+ * Word count 0x03
+ *
+ * Parameters
+ * | USHORT | UTIME            |
+ * | Count  | LastTimeModified |
+ *
+ * No Data
+ */
+static enum proto_parse_status parse_close_request(struct cifs_parser *cifs_parser,
+        struct cursor *cursor, struct cifs_proto_info *info)
+{
+    return PROTO_OK;
 }
 
 static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_info *parent,
@@ -886,7 +924,8 @@ static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_in
     if (info.status == SMB_STATUS_OK) {
         switch (info.command) {
             case SMB_COM_SESSION_SETUP_ANDX:
-                status = parse_session_setup(cifs_parser, to_srv, &cursor, &info);
+                if (to_srv) status = parse_session_setup_response(cifs_parser, &cursor, &info);
+                else status = parse_session_setup_query(cifs_parser, &cursor, &info);
                 break;
             case SMB_COM_TREE_CONNECT_ANDX:
                 status = parse_tree_connect_and_request_query(cifs_parser, &cursor, &info);
@@ -895,8 +934,15 @@ static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_in
                 status = parse_negociate(cifs_parser, to_srv, &cursor, &info);
                 break;
             case SMB_COM_TRANSACTION2:
-                if (!to_srv) status = parse_trans2_request(cifs_parser, &cursor, &info);
-                else status = parse_trans2_response(cifs_parser, &cursor, &info);
+                if (to_srv) status = parse_trans2_response(cifs_parser, &cursor, &info);
+                else status = parse_trans2_request(cifs_parser, &cursor, &info);
+                break;
+            case SMB_COM_WRITE_ANDX:
+                if (to_srv) status = parse_write_andx_request(cifs_parser, &cursor, &info);
+                else status = parse_write_andx_response(cifs_parser, &cursor, &info);
+                break;
+            case SMB_COM_CLOSE:
+                if (to_srv) status = parse_close_request(cifs_parser, &cursor, &info);
                 break;
             default:
                 break;
