@@ -281,6 +281,7 @@ static char const *smb_status_2_str(enum smb_status status)
         case SMB_STATUS_UNSUCCESSFUL                   : return "SMB_STATUS_UNSUCCESSFUL";
         case SMB_STATUS_WRONG_PASSWORD                 : return "SMB_STATUS_WRONG_PASSWORD";
         case SMB_STATUS_WRONG_VOLUME                   : return "SMB_STATUS_WRONG_VOLUME";
+        default                                        : return tempstr_printf("Unknown smb status %d", status);
     }
 }
 
@@ -945,8 +946,13 @@ static enum proto_parse_status parse_delete_directory_request(struct cifs_parser
 {
     if(parse_and_check_word_count(cursor, 0x00) == -1)
         return PROTO_PARSE_ERR;
-    uint16_t byte_count = parse_and_check_byte_count_superior(cursor, 0x01);
+    int byte_count = parse_and_check_byte_count_superior(cursor, 0x01);
     if (byte_count == -1) return PROTO_PARSE_ERR;
+    uint8_t buffer_format = cursor_read_u8(cursor);
+    if (buffer_format != 0x04) {
+        SLOG(LOG_DEBUG, "Buffer format must have value 0x04, got %"PRIu8, buffer_format);
+        return PROTO_PARSE_ERR;
+    }
     if (parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
         return PROTO_PARSE_ERR;
     info->set_values |= SMB_PATH;

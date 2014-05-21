@@ -466,7 +466,7 @@ static struct parse_test {
     },
 
     {
-        .name = "Com delete, Query Path Info, inexistant file, Query",
+        .name = "Com delete directory, Query",
         .packet = (uint8_t const []) {
             0xff, 0x53, 0x4d, 0x42, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xc0, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0xdb, 0x4f, 0x64, 0x00, 0x82, 0x00,
@@ -478,8 +478,10 @@ static struct parse_test {
         .way = FROM_CLIENT,
         .expected = {
             .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x3a - CIFS_HEADER_SIZE },
-            .command = SMB_COM_DELETE,
+            .command = SMB_COM_DELETE_DIRECTORY,
             .status = SMB_STATUS_OK,
+            .set_values = SMB_PATH,
+            .path = "/tmp/test2",
         },
     },
 
@@ -495,7 +497,7 @@ static struct parse_test {
         .way = FROM_CLIENT,
         .expected = {
             .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x23 - CIFS_HEADER_SIZE },
-            .command = SMB_COM_DELETE,
+            .command = SMB_COM_TRANSACTION2,
             .status = SMB_STATUS_OBJECT_NAME_NOT_FOUND,
         },
     },
