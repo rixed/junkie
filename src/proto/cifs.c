@@ -1272,10 +1272,23 @@ static void const *cifs_info_addr(struct proto_info const *info_, size_t *size)
 static char const *cifs_info_2_str(struct proto_info const *info_)
 {
     struct cifs_proto_info const *info = DOWNCAST(info_, info, cifs_proto_info);
-    char *str = tempstr_printf("%s, command=%s, status=%s",
+    char *str = tempstr_printf("%s, command=%s, status=%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
             proto_info_2_str(info_),
             smb_command_2_str(info->command),
-            smb_status_2_str(info->status));
+            smb_status_2_str(info->status),
+            info->set_values & SMB_DOMAIN ? ", domain=" : "",
+            info->set_values & SMB_DOMAIN ? info->domain : "",
+            info->set_values & SMB_USER ? ", user=" : "",
+            info->set_values & SMB_USER ? info->user : "",
+            info->set_values & SMB_PATH ? ", path=" : "",
+            info->set_values & SMB_PATH ? info->path : "",
+            info->set_values & SMB_TRANS2_SUBCMD ? ", subcmd=" : "",
+            info->set_values & SMB_TRANS2_SUBCMD ? smb_trans2_subcmd_2_str(info->trans2_subcmd) : "",
+            info->set_values & SMB_FID ? ", fid=" : "",
+            info->set_values & SMB_FID ? tempstr_printf("0x%"PRIx16, info->fid) : "",
+            info->flag_file & SMB_FILE_CREATE ? ", creation" : "",
+            info->flag_file & SMB_FILE_DIRECTORY ? ", directory" : "",
+            info->flag_file & SMB_FILE_UNLINK ? ", unlink" : "");
     return str;
 }
 
