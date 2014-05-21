@@ -31,6 +31,36 @@ LOG_CATEGORY_DEF(proto_cifs);
 
 #define CIFS_HEADER_SIZE sizeof(struct cifs_hdr)
 
+enum smb_file_info_levels {
+    QUERY_FILE_UNIX_BASIC = 0x0200,
+    QUERY_FILE_UNIX_LINK = 0x0201,
+    QUERY_POSIX_ACL = 0x0204,
+    QUERY_XATTR = 0x0205,
+    QUERY_ATTR_FLAGS = 0x0206,
+    QUERY_POSIX_PERMISSION = 0x0207,
+    QUERY_POSIX_LOCK = 0x0208,
+    SMB_POSIX_PATH_OPEN = 0x0209,
+    SMB_POSIX_PATH_UNLINK = 0x020a,
+    SMB_QUERY_FILE_UNIX_INFO2 = 0x020b,
+};
+
+static char const *smb_file_info_levels_2_str(enum smb_file_info_levels level)
+{
+    switch (level) {
+    case QUERY_FILE_UNIX_BASIC     : return "QUERY_FILE_UNIX_BASIC";
+    case QUERY_FILE_UNIX_LINK      : return "QUERY_FILE_UNIX_LINK";
+    case QUERY_POSIX_ACL           : return "QUERY_POSIX_ACL";
+    case QUERY_XATTR               : return "QUERY_XATTR";
+    case QUERY_ATTR_FLAGS          : return "QUERY_ATTR_FLAGS";
+    case QUERY_POSIX_PERMISSION    : return "QUERY_POSIX_PERMISSION";
+    case QUERY_POSIX_LOCK          : return "QUERY_POSIX_LOCK";
+    case SMB_POSIX_PATH_OPEN       : return "SMB_POSIX_PATH_OPEN";
+    case SMB_POSIX_PATH_UNLINK     : return "SMB_POSIX_PATH_UNLINK";
+    case SMB_QUERY_FILE_UNIX_INFO2  : return "SMB_QUERY_FILE_UNIX_INFO2";
+    default                             : return tempstr_printf("Unknown level of interest %d", level);
+    }
+}
+
 static char const *smb_command_2_str(enum smb_command command)
 {
     switch (command) {
@@ -112,6 +142,31 @@ static char const *smb_command_2_str(enum smb_command command)
         default                             : return tempstr_printf("Unknown smb command %d", command);
     }
 }
+
+static char const *smb_trans2_subcmd_2_str(enum smb_trans2_subcommand command)
+{
+    switch (command) {
+        case SMB_TRANS2_OPEN2                    : return "SMB_TRANS2_OPEN2";
+        case SMB_TRANS2_FIND_FIRST2              : return "SMB_TRANS2_FIND_FIRST2";
+        case SMB_TRANS2_FIND_NEXT2               : return "SMB_TRANS2_FIND_NEXT2";
+        case SMB_TRANS2_QUERY_FS_INFO            : return "SMB_TRANS2_QUERY_FS_INFO";
+        case SMB_TRANS2_SET_FS_INFORMATION       : return "SMB_TRANS2_SET_FS_INFORMATION";
+        case SMB_TRANS2_QUERY_PATH_INFORMATION   : return "SMB_TRANS2_QUERY_PATH_INFORMATION";
+        case SMB_TRANS2_SET_PATH_INFORMATION     : return "SMB_TRANS2_SET_PATH_INFORMATION";
+        case SMB_TRANS2_QUERY_FILE_INFORMATION   : return "SMB_TRANS2_QUERY_FILE_INFORMATION";
+        case SMB_TRANS2_SET_FILE_INFORMATION     : return "SMB_TRANS2_SET_FILE_INFORMATION";
+        case SMB_TRANS2_FSCTL                    : return "SMB_TRANS2_FSCTL";
+        case SMB_TRANS2_IOCTL2                   : return "SMB_TRANS2_IOCTL2";
+        case SMB_TRANS2_FIND_NOTIFY_FIRST        : return "SMB_TRANS2_FIND_NOTIFY_FIRST";
+        case SMB_TRANS2_FIND_NOTIFY_NEXT         : return "SMB_TRANS2_FIND_NOTIFY_NEXT";
+        case SMB_TRANS2_CREATE_DIRECTORY         : return "SMB_TRANS2_CREATE_DIRECTORY";
+        case SMB_TRANS2_SESSION_SETUP            : return "SMB_TRANS2_SESSION_SETUP";
+        case SMB_TRANS2_GET_DFS_REFERRAL         : return "SMB_TRANS2_GET_DFS_REFERRAL";
+        case SMB_TRANS2_REPORT_DFS_INCONSISTENCY : return "SMB_TRANS2_REPORT_DFS_INCONSISTENCY";
+        default                                  : return tempstr_printf("Unknown smb command %d", command);
+    }
+}
+
 
 static char const *smb_status_2_str(enum smb_status status)
 {
@@ -331,6 +386,8 @@ static iconv_t get_iconv()
 struct cifs_parser {
     struct parser parser;
     bool unicode;
+    uint16_t level_of_interest;
+    uint16_t trans2_subcmd;
 };
 
 static int cifs_parser_ctor(struct cifs_parser *cifs_parser, struct proto *proto)
@@ -339,6 +396,7 @@ static int cifs_parser_ctor(struct cifs_parser *cifs_parser, struct proto *proto
     assert(proto == proto_cifs);
     if (0 != parser_ctor(&cifs_parser->parser, proto)) return -1;
     cifs_parser->unicode = true;
+    cifs_parser->level_of_interest = 0;
     return 0;
 }
 
@@ -366,9 +424,7 @@ static void cifs_parser_del(struct parser *parser)
     objfree(cifs_parser);
 }
 
-/*
- * Parse functions
- */
+// Parse helpers
 
 static void const *cifs_info_addr(struct proto_info const *info_, size_t *size)
 {
@@ -451,7 +507,7 @@ static uint8_t parse_and_check_word_count_superior(struct cursor *cursor, uint8_
 {
     if (cursor->cap_len < minimum_word_count + 1) return 0;
     uint8_t word_count = cursor_read_u8(cursor);
-    if (minimum_word_count >= word_count) {
+    if (word_count < minimum_word_count) {
         SLOG(LOG_DEBUG, "Expected word count should be >= 0x%02"PRIx8", got 0x%02"PRIx8, minimum_word_count, word_count);
         return 0;
     }
@@ -462,6 +518,7 @@ static uint16_t parse_and_check_byte_count(struct cursor *cursor, uint8_t minimu
 {
     if (cursor->cap_len < 2) return 0;
     uint16_t byte_count = cursor_read_u16le(cursor);
+    SLOG(LOG_DEBUG, "Byte count is 0x%"PRIx16, byte_count);
     if (byte_count < minimum_byte_count) {
         SLOG(LOG_DEBUG, "Byte count is too small  (%02"PRIx8" > %02"PRIx16, minimum_byte_count, byte_count);
         return 0;
@@ -469,6 +526,15 @@ static uint16_t parse_and_check_byte_count(struct cursor *cursor, uint8_t minimu
     if (cursor->cap_len < byte_count) return 0;
     return byte_count;
 }
+
+static void parse_fid(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    info->fid = cursor_read_u16le(cursor);
+    SLOG(LOG_DEBUG, "Found fid 0x%"PRIx16, info->fid);
+    info->set_values |= SMB_FID;
+}
+
+// Parse functions
 
 /*
  * Negociate response:
@@ -545,10 +611,13 @@ static enum proto_parse_status parse_session_setup_query(struct cifs_parser *cif
 
 /*
  * Session setup response
+ *
  * Word count: 0x03
+ *
  * Parameters
  * | UCHAR       | UCHAR        | USHORT     | USHORT |
  * | AndXCommand | AndXReserved | AndXOffset | Action |
+ *
  * Data
  * | UCHAR | SMB_STRING | SMB_STRING     | SMB_STRING      |
  * | Pad[] | NativeOS[] | NativeLanMan[] | PrimaryDomain[] |
@@ -575,9 +644,11 @@ static enum proto_parse_status parse_session_setup_response(struct cifs_parser *
 /*
  * Tree connect query
  * Word count: 0x04
+ *
  * Parameters
  * | UCHAR       | UCHAR        | USHORT     | USHORT | USHORT         |
  * | AndXCommand | AndXReserved | AndXOffset | Flags  | PasswordLength |
+ *
  * Data
  * | UCHAR                    | UCHAR | SMB_STRING | OEM_STRING |
  * | Password[PasswordLength] | Pad[] | Path       | Service    |
@@ -602,11 +673,14 @@ static enum proto_parse_status parse_tree_connect_and_request_query(struct cifs_
 /*
  * Trans2 request
  * Word count > 0x0e
+ *
  * Parameters
  * | USHORT              | USHORT         | USHORT            | USHORT       | UCHAR         | UCHAR     | USHORT | ULONG   | USHORT    |
  * | TotalParameterCount | TotalDataCount | MaxParameterCount | MaxDataCount | MaxSetupCount | Reserved1 | Flags  | Timeout | Reserved2 |
- * | USHORT         | USHORT          | USHORT    | USHORT     | UCHAR      | UCHAR     | USHORT            |
- * | ParameterCount | ParameterOffset | DataCount | DataOffset | SetupCount | Reserved3 | Setup[SetupCount] |
+ *
+ * | USHORT         | USHORT          | USHORT    | USHORT     | UCHAR      | UCHAR    | USHORT            |
+ * | ParameterCount | ParameterOffset | DataCount | DataOffset | SetupCount | Reserved | Setup[SetupCount] |
+ *
  * Data
  * | SMB_STRING | UCHAR  | UCHAR                             | UCHAR  | UCHAR                  |
  * | Name       | Pad1[] | Trans2_Parameters[ParameterCount] | Pad2[] | Trans2_Data[DataCount] |
@@ -615,6 +689,8 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
         struct cursor *cursor, struct cifs_proto_info *info)
 {
     SLOG(LOG_DEBUG, "Parse trans2 request");
+    cifs_parser->level_of_interest = 0;
+    cifs_parser->trans2_subcmd = 0;
     uint8_t word_count = parse_and_check_word_count_superior(cursor, 0x0e);
     if (word_count == 0) return PROTO_PARSE_ERR;
 
@@ -630,10 +706,10 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
     uint16_t data_count = cursor_read_u16le(cursor);
     uint16_t data_offset = cursor_read_u16le(cursor);
     uint8_t setup_count = cursor_read_u8(cursor);
-    cursor_drop(cursor, 1);
+    cursor_drop(cursor, 1); // Reserved
 
     // TODO handle multiple setup count
-    info->trans2_subcmd = cursor_read_u16le(cursor);
+    cifs_parser->trans2_subcmd = info->trans2_subcmd = cursor_read_u16le(cursor);
     info->set_values |= SMB_TRANS2_SUBCMD;
 
     uint8_t start_parameter = CIFS_HEADER_SIZE + word_count * 2 + 2 + 1;
@@ -642,7 +718,7 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
         return PROTO_PARSE_ERR;
     }
     uint8_t padding = parameter_offset - start_parameter;
-    SLOG(LOG_DEBUG, "Found trans2 subcommand 0x%02"PRIx16" and padding of %"PRIu8, info->trans2_subcmd, padding);
+    SLOG(LOG_DEBUG, "Found start parameter %u, offset %u, padding %u", start_parameter, parameter_offset, padding);
     parse_and_check_byte_count(cursor, padding);
     cursor_drop(cursor, padding);
 
@@ -668,10 +744,17 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
         case SMB_TRANS2_SET_PATH_INFORMATION:
             {
                 CHECK(8);
-                cursor_drop(cursor, 6);
+                cifs_parser->level_of_interest = cursor_read_u16le(cursor);
+                cursor_drop(cursor, 4); // Reserved
                 if (parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
                     return PROTO_PARSE_ERR;
                 info->set_values |= SMB_PATH;
+            }
+            break;
+        case SMB_TRANS2_SET_FILE_INFORMATION:
+            {
+                CHECK(14);
+                parse_fid(cursor, info);
             }
             break;
         default:
@@ -679,6 +762,89 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
     }
 
     return PROTO_OK;
+}
+
+/*
+ * Trans2 response
+ *
+ * Parameters
+ *
+ * | USHORT              | USHORT         | USHORT    | USHORT         | USHORT          | USHORT                | USHORT    | USHORT     | USHORT           | UCHAR      | UCHAR     | USHORT            |
+ * | TotalParameterCount | TotalDataCount | Reserved1 | ParameterCount | ParameterOffset | ParameterDisplacement | DataCount | DataOffset | DataDisplacement | SetupCount | Reserved2 | Setup[SetupCount] |
+ *
+ * Data
+ *
+ * | UCHAR  | UCHAR                             | UCHAR  | UCHAR                  |
+ * | Pad1[] | Trans2_Parameters[ParameterCount] | Pad2[] | Trans2_Data[DataCount] |
+ *
+ */
+static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_parser,
+        struct cursor *cursor, struct cifs_proto_info *info)
+{
+    SLOG(LOG_DEBUG, "Parse trans2 response with previous subcmd %s",
+            smb_trans2_subcmd_2_str(cifs_parser->trans2_subcmd));
+    uint8_t word_count = parse_and_check_word_count_superior(cursor, 0x0a);
+    if (word_count == 0) return PROTO_PARSE_ERR;
+
+    uint16_t total_parameter_count = cursor_read_u16le(cursor);
+    uint16_t total_data_count = cursor_read_u16le(cursor);
+    cursor_drop(cursor, 2); // Reserved bytes
+
+    uint16_t parameter_count = cursor_read_u16le(cursor);
+    uint16_t parameter_offset = cursor_read_u16le(cursor);
+    uint16_t parameter_displacement = cursor_read_u16le(cursor);
+    uint16_t data_count = cursor_read_u16le(cursor);
+    uint16_t data_offset = cursor_read_u16le(cursor);
+    uint16_t data_displacement = cursor_read_u16le(cursor);
+    uint8_t setup_count = cursor_read_u8(cursor);
+    cursor_drop(cursor, 1); // Reserved byte
+
+    uint8_t start_parameter = CIFS_HEADER_SIZE + word_count * 2 + 2 + 1;
+    uint8_t padding = parameter_offset - start_parameter;
+    parse_and_check_byte_count(cursor, padding);
+    cursor_drop(cursor, padding);
+
+    enum proto_parse_status status = PROTO_OK;
+    uint8_t data_padding = data_offset - parameter_offset;
+    SLOG(LOG_DEBUG, "Parse trans2 specific subcmd with data padding %"PRIu8", level of interest %s",
+            data_padding, smb_file_info_levels_2_str(cifs_parser->level_of_interest));
+    switch (info->trans2_subcmd) {
+        /*
+         * Level of interest SMB_POSIX_PATH_OPEN
+         * | USHORT | USHORD | ULONG        | USHORD                  | USHORT  | Sizeof reply information |
+         * | Flags  | FID    | CreateAction | Reply information level | Padding | Reply information        |
+         */
+        case SMB_TRANS2_SET_PATH_INFORMATION:
+            {
+                // Parameters
+                CHECK(2);
+                uint16_t ea_error_offset = cursor_read_u16le(cursor);
+                cursor_drop(cursor, data_padding - 2);
+                switch (cifs_parser->level_of_interest) {
+                    case SMB_POSIX_PATH_OPEN:
+                        {
+                            CHECK(4);
+                            // Data
+                            cursor_drop(cursor, 2); // Flags
+                            parse_fid(cursor, info);
+                        }
+                        break;
+                    default:
+                        break;
+                }
+            }
+            break;
+        case SMB_TRANS2_SET_FILE_INFORMATION:
+            {
+                CHECK(2);
+                uint16_t ea_error_offset = cursor_read_u16le(cursor);
+                cursor_drop(cursor, data_padding - 2);
+            }
+            break;
+        default:
+            break;
+    }
+    return status;
 }
 
 static enum proto_parse_status parse_session_setup(struct cifs_parser *cifs_parser, unsigned to_srv,
@@ -730,6 +896,7 @@ static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_in
                 break;
             case SMB_COM_TRANSACTION2:
                 if (!to_srv) status = parse_trans2_request(cifs_parser, &cursor, &info);
+                else status = parse_trans2_response(cifs_parser, &cursor, &info);
                 break;
             default:
                 break;

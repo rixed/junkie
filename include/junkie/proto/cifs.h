@@ -228,16 +228,17 @@ struct cifs_proto_info {
     struct proto_info info;
     enum smb_command command;
     enum smb_status status;
-
 #define         SMB_DOMAIN                            0x0001
 #define         SMB_USER                              0x0002
 #define         SMB_PATH                              0x0004
 #define         SMB_TRANS2_SUBCMD                     0x0008
+#define         SMB_FID                               0x0010
     unsigned set_values;
     char domain[50];
     char user[50];
     char path[50];
     enum smb_trans2_subcommand trans2_subcmd;
+    uint16_t fid;
 };
 
 void cifs_init(void);
