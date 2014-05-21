@@ -56,6 +56,9 @@ enum way { FROM_CLIENT, FROM_SERVER };
         return 1;                                 \
     } } while (0)
 
-void check_set_values(unsigned value, unsigned expected, unsigned mask, char const *mask_2_str(unsigned));
+void check_set_values(unsigned value, unsigned expected, unsigned mask, char const *mask_name);
+
+#define CHECK_SET_VALUE(INFO, EXPECTED, MASK) \
+    check_set_values(INFO->set_values, EXPECTED->set_values, MASK, #MASK);
 
 #endif

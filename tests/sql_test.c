@@ -4,43 +4,6 @@
 #include "sql_test.h"
 #include "lib.h"
 
-static char const *set_value_2_str(unsigned value)
-{
-    switch (value) {
-        case SQL_VERSION:
-            return "SQL_VERSION";
-        case SQL_REQUEST_STATUS:
-            return "SQL_REQUEST_STATUS";
-        case SQL_ERROR_CODE:
-            return "SQL_ERROR_CODE";
-        case SQL_ERROR_SQL_STATUS:
-            return "SQL_ERROR_SQL_STATUS";
-        case SQL_ERROR_MESSAGE:
-            return "SQL_ERROR_MESSAGE";
-        case SQL_SSL_REQUEST:
-            return "SQL_SSL_REQUEST";
-        case SQL_USER:
-            return "SQL_USER";
-        case SQL_DBNAME:
-            return "SQL_DBNAME";
-        case SQL_PASSWD:
-            return "SQL_PASSWD";
-        case SQL_SQL:
-            return "SQL_SQL";
-        case SQL_NB_ROWS:
-            return "SQL_NB_ROWS";
-        case SQL_NB_FIELDS:
-            return "SQL_NB_FIELDS";
-        case SQL_ENCODING:
-            return "SQL_ENCODING";
-    }
-    printf("Unknown value %d\n", value);
-    return "Unknown";
-}
-
-#define CHECK_SQL_SET(INFO, EXPECTED, MASK) \
-    check_set_values(INFO->set_values, EXPECTED->set_values, MASK, set_value_2_str);
-
 int compare_expected_sql(struct sql_proto_info const *info, struct sql_proto_info const *expected)
 {
     CHECK_INT(info->info.head_len, expected->info.head_len);
@@ -52,19 +15,19 @@ int compare_expected_sql(struct sql_proto_info const *info, struct sql_proto_inf
         return -1;
     }
 
-    CHECK_SQL_SET(info, expected, SQL_VERSION);
-    CHECK_SQL_SET(info, expected, SQL_REQUEST_STATUS);
-    CHECK_SQL_SET(info, expected, SQL_ERROR_CODE);
-    CHECK_SQL_SET(info, expected, SQL_ERROR_SQL_STATUS);
-    CHECK_SQL_SET(info, expected, SQL_ERROR_MESSAGE);
-    CHECK_SQL_SET(info, expected, SQL_SSL_REQUEST);
-    CHECK_SQL_SET(info, expected, SQL_USER);
-    CHECK_SQL_SET(info, expected, SQL_DBNAME);
-    CHECK_SQL_SET(info, expected, SQL_PASSWD);
-    CHECK_SQL_SET(info, expected, SQL_ENCODING);
-    CHECK_SQL_SET(info, expected, SQL_SQL);
-    CHECK_SQL_SET(info, expected, SQL_NB_ROWS);
-    CHECK_SQL_SET(info, expected, SQL_NB_FIELDS);
+    CHECK_SET_VALUE(info, expected, SQL_VERSION);
+    CHECK_SET_VALUE(info, expected, SQL_REQUEST_STATUS);
+    CHECK_SET_VALUE(info, expected, SQL_ERROR_CODE);
+    CHECK_SET_VALUE(info, expected, SQL_ERROR_SQL_STATUS);
+    CHECK_SET_VALUE(info, expected, SQL_ERROR_MESSAGE);
+    CHECK_SET_VALUE(info, expected, SQL_SSL_REQUEST);
+    CHECK_SET_VALUE(info, expected, SQL_USER);
+    CHECK_SET_VALUE(info, expected, SQL_DBNAME);
+    CHECK_SET_VALUE(info, expected, SQL_PASSWD);
+    CHECK_SET_VALUE(info, expected, SQL_ENCODING);
+    CHECK_SET_VALUE(info, expected, SQL_SQL);
+    CHECK_SET_VALUE(info, expected, SQL_NB_ROWS);
+    CHECK_SET_VALUE(info, expected, SQL_NB_FIELDS);
 
     CHECK_INT(expected->set_values, info->set_values);
     printf("%s\n", sql_info_2_str(&info->info));
