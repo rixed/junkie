@@ -527,7 +527,6 @@ static bool compare_expected_cifs(struct cifs_proto_info const *const info,
 
     CHECK_INT(info->status, expected->status);
     CHECK_INT(info->command, expected->command);
-    CHECK_INT(info->query_read_bytes, expected->query_read_bytes);
     CHECK_INT(info->query_write_bytes, expected->query_write_bytes);
     CHECK_INT(info->response_read_bytes,  expected->response_read_bytes);
     CHECK_INT(info->response_write_bytes, expected->response_write_bytes);
