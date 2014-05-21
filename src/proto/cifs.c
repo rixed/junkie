@@ -494,7 +494,9 @@ static void parse_capabilities(struct cifs_parser *cifs_parser, struct cursor *c
 
 static uint8_t parse_and_check_word_count(struct cursor *cursor, uint8_t expected_word_count)
 {
-    if (cursor->cap_len < expected_word_count + 1) return 0;
+    if (expected_word_count == 0xff) return 0;
+    uint8_t total_expected = expected_word_count + 1;
+    if (cursor->cap_len < total_expected) return 0;
     uint8_t word_count = cursor_read_u8(cursor);
     if (expected_word_count != word_count) {
         SLOG(LOG_DEBUG, "Expected word count of 0x%02"PRIx8", got 0x%02"PRIx8, expected_word_count, word_count);
@@ -505,7 +507,9 @@ static uint8_t parse_and_check_word_count(struct cursor *cursor, uint8_t expecte
 
 static uint8_t parse_and_check_word_count_superior(struct cursor *cursor, uint8_t minimum_word_count)
 {
-    if (cursor->cap_len < minimum_word_count + 1) return 0;
+    if (minimum_word_count == 0xff) return 0;
+    uint8_t total_minimum = minimum_word_count + 1;
+    if (cursor->cap_len < total_minimum) return 0;
     uint8_t word_count = cursor_read_u8(cursor);
     if (word_count < minimum_word_count) {
         SLOG(LOG_DEBUG, "Expected word count should be >= 0x%02"PRIx8", got 0x%02"PRIx8, minimum_word_count, word_count);
