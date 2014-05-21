@@ -454,12 +454,13 @@ static void cifs_proto_info_ctor(struct cifs_proto_info *info, struct parser *pa
     info->command = READ_U8(&cifshdr->command);
     info->status = READ_U32(&cifshdr->status);
     info->set_values = 0;
-    info->query_read_bytes= 0;
-    info->query_write_bytes= 0;
-    info->response_read_bytes= 0;
-    info->response_write_bytes= 0;
-    info->meta_read_bytes= 0;
-    info->meta_write_bytes= 0;
+    info->query_read_bytes = 0;
+    info->query_write_bytes = 0;
+    info->response_read_bytes = 0;
+    info->response_write_bytes = 0;
+    info->meta_read_bytes = 0;
+    info->meta_write_bytes = 0;
+    info->flag_file = 0;
 }
 
 int drop_smb_string(struct cifs_parser *cifs_parser, struct cursor *cursor)
@@ -756,6 +757,24 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
                 if (parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
                     return PROTO_PARSE_ERR;
                 info->set_values |= SMB_PATH;
+
+                switch(cifs_parser->level_of_interest) {
+                    case SMB_POSIX_PATH_OPEN:
+                        cursor_drop(cursor, 4); // drop flag fields
+                        uint32_t posix_flags =cursor_read_u32le(cursor);
+#define SMB_O_CREAT 0x10
+#define SMB_O_DIRECTORY 0x200
+                        if(SMB_O_CREAT == (posix_flags & SMB_O_CREAT))
+                            info->flag_file |= SMB_FILE_CREATE;
+                        if(SMB_O_DIRECTORY == (posix_flags & SMB_O_DIRECTORY))
+                            info->flag_file |= SMB_FILE_DIRECTORY;
+                        break;
+                    case SMB_POSIX_PATH_UNLINK:
+                        info->flag_file |= SMB_FILE_UNLINK;
+                        break;
+                    default:
+                        break;
+                }
             }
             break;
         case SMB_TRANS2_SET_FILE_INFORMATION:

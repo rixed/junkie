@@ -249,6 +249,7 @@ struct cifs_proto_info {
 
 #define         SMB_FILE_CREATE                         0x0001
 #define         SMB_FILE_DIRECTORY                      0x0002
+#define         SMB_FILE_UNLINK                         0x0004
     unsigned flag_file;
 
 };

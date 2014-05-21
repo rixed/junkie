@@ -231,6 +231,7 @@ static struct parse_test {
             .set_values = SMB_TRANS2_SUBCMD | SMB_PATH,
             .trans2_subcmd = SMB_TRANS2_SET_PATH_INFORMATION,
             .status = SMB_STATUS_OK,
+            .flag_file = SMB_FILE_CREATE,
             .path = "/tmp/test/ga",
         },
     },
@@ -428,16 +429,41 @@ static struct parse_test {
         },
         .size = 0x72,
         .ret = PROTO_OK,
-        .way = FROM_SERVER,
+        .way = FROM_CLIENT,
         .expected = {
             .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x72 - CIFS_HEADER_SIZE },
             .command = SMB_COM_TRANSACTION2,
             .status = SMB_STATUS_OK,
-            .set_values = SMB_TRANS2_SUBCMD,
+            .set_values = SMB_TRANS2_SUBCMD | SMB_PATH,
             .flag_file = SMB_FILE_CREATE | SMB_FILE_DIRECTORY,
+            .path = "/tmp/test2",
+            .trans2_subcmd = SMB_TRANS2_SET_PATH_INFORMATION,
         },
     },
 
+    {
+        .name = "Set PAth Info with Directory deletion Request",
+        .packet = (uint8_t const []) {
+            0xff, 0x53, 0x4d, 0x42, 0x32, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xc0, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x2c, 0x51, 0x64, 0x00, 0xa6, 0x00,
+            0x0f, 0x1a, 0x00, 0x02, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x1a, 0x00, 0x44, 0x00, 0x02, 0x00, 0x5e, 0x00, 0x01, 0x00, 0x06, 0x00, 0x1f,
+            0x00, 0x00, 0x00, 0x00, 0x0a, 0x02, 0x00, 0x00, 0x00, 0x00, 0x2f, 0x00, 0x74, 0x00, 0x6d, 0x00,
+            0x70, 0x00, 0x2f, 0x00, 0x74, 0x00, 0x6f, 0x00, 0x74, 0x00, 0x6f, 0x00, 0x00, 0x00, 0x00, 0x00
+        },
+        .size = 0x60,
+        .ret = PROTO_OK,
+        .way = FROM_CLIENT,
+        .expected = {
+            .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x60 - CIFS_HEADER_SIZE },
+            .command = SMB_COM_TRANSACTION2,
+            .status = SMB_STATUS_OK,
+            .set_values = SMB_TRANS2_SUBCMD | SMB_PATH,
+            .flag_file = SMB_FILE_UNLINK,
+            .path = "/tmp/toto",
+            .trans2_subcmd = SMB_TRANS2_SET_PATH_INFORMATION,
+        },
+    },
 };
 
 #define CHECK_SMB_SET(INFO, EXPECTED, MASK) \
@@ -480,6 +506,7 @@ static bool compare_expected_cifs(struct cifs_proto_info const *const info,
 
     CHECK_FLAG_FILE(info, expected, SMB_FILE_CREATE);
     CHECK_FLAG_FILE(info, expected, SMB_FILE_DIRECTORY);
+    CHECK_FLAG_FILE(info, expected, SMB_FILE_UNLINK);
 
     return 0;
 }
