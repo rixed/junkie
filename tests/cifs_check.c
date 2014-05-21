@@ -333,6 +333,7 @@ static struct parse_test {
             .set_values = SMB_FID,
             .status = SMB_STATUS_OK,
             .fid = 0x1838,
+            .query_write_bytes = 0x05,
         },
     },
 
@@ -350,6 +351,7 @@ static struct parse_test {
             .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x2f - CIFS_HEADER_SIZE },
             .command = SMB_COM_WRITE_ANDX,
             .status = SMB_STATUS_OK,
+            .response_write_bytes = 0x05,
         },
     },
 
@@ -408,6 +410,31 @@ static struct parse_test {
             .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x43 - CIFS_HEADER_SIZE },
             .command = SMB_COM_READ_ANDX,
             .status = SMB_STATUS_OK,
+            .response_read_bytes = 8,
+        },
+    },
+
+    {
+        .name = "Set PAth Info with Directory creation Request",
+        .packet = (uint8_t const []) {
+            0xff, 0x53, 0x4d, 0x42, 0x32, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xc0, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x4a, 0x41, 0x64, 0x00, 0x4a, 0x00,
+            0x0f, 0x1c, 0x00, 0x12, 0x00, 0x02, 0x00, 0xe8, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x1c, 0x00, 0x44, 0x00, 0x12, 0x00, 0x60, 0x00, 0x01, 0x00, 0x06, 0x00, 0x31,
+            0x00, 0x00, 0x00, 0x00, 0x09, 0x02, 0x00, 0x00, 0x00, 0x00, 0x2f, 0x00, 0x74, 0x00, 0x6d, 0x00,
+            0x70, 0x00, 0x2f, 0x00, 0x74, 0x00, 0x65, 0x00, 0x73, 0x00, 0x74, 0x00, 0x32, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x10, 0x02, 0x00, 0x00, 0xed, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x02
+        },
+        .size = 0x72,
+        .ret = PROTO_OK,
+        .way = FROM_SERVER,
+        .expected = {
+            .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x72 - CIFS_HEADER_SIZE },
+            .command = SMB_COM_TRANSACTION2,
+            .status = SMB_STATUS_OK,
+            .set_values = SMB_TRANS2_SUBCMD,
+            .flag_file = SMB_FILE_CREATE | SMB_FILE_DIRECTORY,
         },
     },
 
@@ -417,6 +444,10 @@ static struct parse_test {
     check_set_values(INFO->set_values, EXPECTED->set_values, MASK, #MASK);
 
 static unsigned cur_test;
+
+
+#define CHECK_FLAG_FILE(INFO, EXPECTED, MASK) \
+    check_set_values(INFO->flag_file, EXPECTED->flag_file, MASK, #MASK);
 
 static bool compare_expected_cifs(struct cifs_proto_info const *const info,
         struct cifs_proto_info const *const expected)
@@ -432,6 +463,10 @@ static bool compare_expected_cifs(struct cifs_proto_info const *const info,
 
     CHECK_INT(info->status, expected->status);
     CHECK_INT(info->command, expected->command);
+    CHECK_INT(info->query_read_bytes, expected->query_read_bytes);
+    CHECK_INT(info->query_write_bytes, expected->query_write_bytes);
+    CHECK_INT(info->response_read_bytes,  expected->response_read_bytes);
+    CHECK_INT(info->response_write_bytes, expected->response_write_bytes);
     if (VALUES_ARE_SET(info, SMB_DOMAIN))
         CHECK_STR(info->domain, expected->domain);
     if (VALUES_ARE_SET(info, SMB_USER))
@@ -442,6 +477,9 @@ static bool compare_expected_cifs(struct cifs_proto_info const *const info,
         CHECK_INT(info->trans2_subcmd, expected->trans2_subcmd);
     if (VALUES_ARE_SET(info, SMB_FID))
         CHECK_INT(info->fid, expected->fid);
+
+    CHECK_FLAG_FILE(info, expected, SMB_FILE_CREATE);
+    CHECK_FLAG_FILE(info, expected, SMB_FILE_DIRECTORY);
 
     return 0;
 }

@@ -239,6 +239,18 @@ struct cifs_proto_info {
     char path[50];
     enum smb_trans2_subcommand trans2_subcmd;
     uint16_t fid;
+
+    unsigned query_read_bytes;
+    unsigned query_write_bytes;
+    unsigned response_read_bytes;
+    unsigned response_write_bytes;
+    unsigned meta_read_bytes;
+    unsigned meta_write_bytes;
+
+#define         SMB_FILE_CREATE                         0x0001
+#define         SMB_FILE_DIRECTORY                      0x0002
+    unsigned flag_file;
+
 };
 
 void cifs_init(void);

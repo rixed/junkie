@@ -454,6 +454,12 @@ static void cifs_proto_info_ctor(struct cifs_proto_info *info, struct parser *pa
     info->command = READ_U8(&cifshdr->command);
     info->status = READ_U32(&cifshdr->status);
     info->set_values = 0;
+    info->query_read_bytes= 0;
+    info->query_write_bytes= 0;
+    info->response_read_bytes= 0;
+    info->response_write_bytes= 0;
+    info->meta_read_bytes= 0;
+    info->meta_write_bytes= 0;
 }
 
 int drop_smb_string(struct cifs_parser *cifs_parser, struct cursor *cursor)
@@ -860,9 +866,14 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
  * | UCHAR | UCHAR            |
  * | Pad   | Data[DataLength] |
  */
-static enum proto_parse_status parse_write_andx_request(struct cifs_parser *cifs_parser,
-        struct cursor *cursor, struct cifs_proto_info *info)
+static enum proto_parse_status parse_write_andx_request(struct cursor *cursor, struct cifs_proto_info *info)
 {
+    if(0 == parse_and_check_word_count_superior(cursor, 0x0c))
+        return PROTO_PARSE_ERR;
+    cursor_drop(cursor, 4); // skip AndX
+    parse_fid(cursor, info);
+    cursor_drop(cursor, 4+4+2+2+2); // skip offset, timeout, writemode, remaining, reserved
+    info->query_write_bytes = cursor_read_u16le(cursor);
     return PROTO_OK;
 }
 
@@ -876,9 +887,12 @@ static enum proto_parse_status parse_write_andx_request(struct cifs_parser *cifs
  *
  * No Data
  */
-static enum proto_parse_status parse_write_andx_response(struct cifs_parser *cifs_parser,
-        struct cursor *cursor, struct cifs_proto_info *info)
+static enum proto_parse_status parse_write_andx_response(struct cursor *cursor, struct cifs_proto_info *info)
 {
+    if(0 == parse_and_check_word_count(cursor, 0x06))
+        return PROTO_PARSE_ERR;
+    cursor_drop(cursor, 4); // skip AndX
+    info->response_write_bytes = cursor_read_u16le(cursor);
     return PROTO_OK;
 }
 
@@ -892,9 +906,11 @@ static enum proto_parse_status parse_write_andx_response(struct cifs_parser *cif
  *
  * No Data
  */
-static enum proto_parse_status parse_close_request(struct cifs_parser *cifs_parser,
-        struct cursor *cursor, struct cifs_proto_info *info)
+static enum proto_parse_status parse_close_request(struct cursor *cursor, struct cifs_proto_info *info)
 {
+    if(0 == parse_and_check_word_count(cursor, 0x03))
+        return PROTO_PARSE_ERR;
+    parse_fid(cursor, info);
     return PROTO_OK;
 }
 
@@ -911,15 +927,18 @@ static enum proto_parse_status parse_close_request(struct cifs_parser *cifs_pars
  *
  * No Data
  */
-static enum proto_parse_status parse_read_andx_request(struct cifs_parser *cifs_parser,
-        struct cursor *cursor, struct cifs_proto_info *info)
+static enum proto_parse_status parse_read_andx_request(struct cursor *cursor, struct cifs_proto_info *info)
 {
+    if(0 == parse_and_check_word_count_superior(cursor, 0x0a))
+        return PROTO_PARSE_ERR;
+    cursor_drop(cursor, 4); // skip AndX
+    parse_fid(cursor, info);
     return PROTO_OK;
 }
 
 /*
  * Read AndX response
- * Word count 0x0a or 0x0c
+ * Word count 0x0c
  *
  * Parameters
  * | 4 bytes | USHORT    | USHORT             | USHORT    | USHORT     | USHORT     | USHORT * 5   |
@@ -929,9 +948,12 @@ static enum proto_parse_status parse_read_andx_request(struct cifs_parser *cifs_
  * | UCHAR | UCHAR |
  * | Pad[] | Data  |
  */
-static enum proto_parse_status parse_read_andx_response(struct cifs_parser *cifs_parser,
-        struct cursor *cursor, struct cifs_proto_info *info)
+static enum proto_parse_status parse_read_andx_response(struct cursor *cursor, struct cifs_proto_info *info)
 {
+    if(0 == parse_and_check_word_count(cursor, 0x0c))
+        return PROTO_PARSE_ERR;
+    cursor_drop(cursor, 4+2+2+2); // skip AndX, Available, DataCompressionMode, Reserved
+    info->response_read_bytes = cursor_read_u16le(cursor);
     return PROTO_OK;
 }
 
@@ -980,15 +1002,15 @@ static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_in
                 else status = parse_trans2_request(cifs_parser, &cursor, &info);
                 break;
             case SMB_COM_WRITE_ANDX:
-                if (to_srv) status = parse_write_andx_request(cifs_parser, &cursor, &info);
-                else status = parse_write_andx_response(cifs_parser, &cursor, &info);
+                if (to_srv) status = parse_write_andx_response(&cursor, &info);
+                else status = parse_write_andx_request(&cursor, &info);
                 break;
             case SMB_COM_CLOSE:
-                if (to_srv) status = parse_close_request(cifs_parser, &cursor, &info);
+                if (!to_srv) status = parse_close_request(&cursor, &info);
                 break;
             case SMB_COM_READ_ANDX:
-                if (to_srv) status = parse_read_andx_request(cifs_parser, &cursor, &info);
-                else status = parse_read_andx_response(cifs_parser, &cursor, &info);
+                if (to_srv) status = parse_read_andx_response(&cursor, &info);
+                else status = parse_read_andx_request(&cursor, &info);
                 break;
             default:
                 break;
