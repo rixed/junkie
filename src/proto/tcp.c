@@ -480,7 +480,12 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
     // FIXME: Here the parser is chosen before we actually parse anything. If later the parser fails we cannot try another one.
     //        Choice of parser should be delayed until we start actual parse.
     bool const do_sync = info.ack && IS_SET_FOR_WAY(!way, tcp_sub->origin);
-    err = pkt_wait_list_add(tcp_sub->wl+way, offset, next_offset, do_sync, sync_offset, true, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, packet_len, now, tot_cap_len, tot_packet);
+    if (tcp_sub->wl_origin[way] > info.seq_num) {
+        SLOG(LOG_DEBUG, "Got a packet starting before wl origin :(");
+        err = proto_parse(tcp_sub->mux_subparser.parser, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, packet_len, now, tot_cap_len, tot_packet);
+    } else {
+        err = pkt_wait_list_add(tcp_sub->wl+way, offset, next_offset, do_sync, sync_offset, true, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, packet_len, now, tot_cap_len, tot_packet);
+    }
     SLOG(LOG_DEBUG, "Waiting list returned %s", proto_parse_status_2_str(err));
 
     if (err == PROTO_OK) {
@@ -567,3 +572,4 @@ void tcp_fini(void)
 
     log_category_proto_tcp_fini();
 }
+

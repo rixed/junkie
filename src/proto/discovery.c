@@ -205,24 +205,45 @@ static enum proto_parse_status discovery_parse(struct parser *parser, struct pro
     struct npc_register rest = { .size = cap_len, .value = (uintptr_t)packet };
     LIST_LOOKUP(sig, &proto_signatures, entry, 0 != sig->filter.match_fun(parent, rest, sig->filter.regfile, sig->filter.regfile));
 
-    if (! sig) return PROTO_PARSE_ERR;
-    SLOG(LOG_DEBUG, "Discovered protocol %s (which actual parser is %s)", sig->protocol.name, sig->actual_proto ? sig->actual_proto->name : "unknown");
+    struct proto *sub_proto = NULL;
+    // Don't handle the gap and don't advertise parent
+    if (!packet) return PROTO_OK;
 
-    if (sig->actual_proto) {
+    if (sig) {
+        SLOG(LOG_DEBUG, "Discovered protocol %s (which actual parser is %s)", sig->protocol.name, sig->actual_proto ? sig->actual_proto->name : "unknown");
+        sub_proto = sig->actual_proto;
+    } else {
+        // Since we keep the PIPI subparser alive to keep the tcp waiting list, we need to check if no cnxtrack has been added
+        ASSIGN_INFO_OPT2(ip, ip6, parent);
+        ASSIGN_INFO_OPT(udp, parent);
+        ASSIGN_INFO_OPT(tcp, parent);
+        struct proto *requestor = NULL;
+        if (! ip) ip = ip6;
+        if (ip && udp) sub_proto = cnxtrack_ip_lookup(IPPROTO_UDP, ip->key.addr+0, udp->key.port[0], ip->key.addr+1, udp->key.port[1], now, &requestor);
+        else if (ip && tcp) sub_proto = cnxtrack_ip_lookup(IPPROTO_TCP, ip->key.addr+0, tcp->key.port[0], ip->key.addr+1, tcp->key.port[1], now, &requestor);
+        if (!sub_proto) {
+            // We want to keep our waiting list alive event if no signature and no conntrack has been found,
+            // just advertise the parent and stop
+            (void)proto_parse(NULL, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
+            return PROTO_OK;
+        }
+    }
+
+    if (sub_proto) {
         struct parser *actual_parser = NULL;
         struct mux_subparser *subparser = NULL;
         switch (parent->parser->proto->code) {
             case PROTO_CODE_TCP:;
                 struct tcp_proto_info *tcp = DOWNCAST(parent, info, tcp_proto_info);
-                subparser = tcp_subparser_and_parser_new(parent->parser, sig->actual_proto, parser->proto, tcp->key.port[0], tcp->key.port[1], way, now);
+                subparser = tcp_subparser_and_parser_new(parent->parser, sub_proto, parser->proto, tcp->key.port[0], tcp->key.port[1], way, now);
                 break;
             case PROTO_CODE_UDP:;
                 struct udp_proto_info *udp = DOWNCAST(parent, info, udp_proto_info);
-                subparser = udp_subparser_and_parser_new(parent->parser, sig->actual_proto, parser->proto, udp->key.port[0], udp->key.port[1], way, now);
+                subparser = udp_subparser_and_parser_new(parent->parser, sub_proto, parser->proto, udp->key.port[0], udp->key.port[1], way, now);
                 break;
 
             default:
-                actual_parser = sig->actual_proto->ops->parser_new(sig->actual_proto);
+                actual_parser = sub_proto->ops->parser_new(sub_proto);
                 break;
         }
         if (subparser) {
