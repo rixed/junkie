@@ -426,6 +426,7 @@ static enum proto_parse_status tns_parse_row_prefix(struct tns_parser *tns_parse
     DROP_FIX(cursor, 1);
     if (PROTO_OK != (status = read_field_count(tns_parser, info, cursor))) return status;
     for (unsigned i = 0; i < 5; i++) {
+        CHECK(1);
         char c = cursor_peek_u8(cursor, 0);
         if (c == TTC_ROW_DATA || c == TTC_END_MESSAGE) return PROTO_OK;
         DROP_VAR(cursor);
@@ -617,7 +618,7 @@ static enum proto_parse_status tns_parse_end(struct sql_proto_info *info, struct
         unsigned error_len;
 
         // Drop an unknown number of bytes here
-        while(cursor->cap_len > 1 && (cursor_peek_u8(cursor, 0) == 0 || !is_print(cursor_peek_u8(cursor, 1)))){
+        while(cursor->cap_len > 2 && (cursor_peek_u8(cursor, 0) == 0 || !is_print(cursor_peek_u8(cursor, 1)))){
             DROP_FIX(cursor, 1);
         }
         SLOG(LOG_DEBUG, "First printable char is %c", cursor_peek_u8(cursor, 1));
@@ -712,6 +713,7 @@ static uint8_t parse_query_header(struct cursor *cursor)
             size_t gap_size = new_head - cursor->head;
             DROP_FIX(cursor, gap_size + sizeof(pattern));
             if (i == 0) {
+                CHECK(1);
                 sql_size = cursor_read_u8(cursor);
                 SLOG(LOG_DEBUG, "Found potential sql size: %d", sql_size);
             }
@@ -800,6 +802,7 @@ static enum proto_parse_status tns_parse_sql_query_jdbc(struct sql_proto_info *i
     if (sql_len > 0) {
         // Some unknown bytes
         while (cursor->cap_len > 1 && PROTO_OK != is_range_print(cursor, MIN(MIN_QUERY_SIZE, sql_len), 1)) {
+            // TODO drop to the first non printable
             cursor_drop(cursor, 1);
         }
         CHECK(1);
@@ -810,9 +813,13 @@ static enum proto_parse_status tns_parse_sql_query_jdbc(struct sql_proto_info *i
             SLOG(LOG_DEBUG, "Looks like prefixed length chunks of size 0x40...");
             status = cursor_read_chunked_string(cursor, &sql, MAX_OCI_CHUNK);
         } else {
-            if (!is_print(cursor_peek_u8(cursor, 0))) cursor_drop(cursor, 1);
+            // We don't care about the first non printable character
+            cursor_drop(cursor, 1);
             CHECK(1);
-            if (cursor_peek_u8(cursor, 0) == sql_len) cursor_drop(cursor, 1);
+            // In rare occurrence where sql_len == first character, we check the byte after the expected query,
+            // if it's printable, the first character is probably the prefixed size.
+            if (cursor_peek_u8(cursor, 0) == sql_len && sql_len < cursor->cap_len && is_print(cursor_peek_u8(cursor, sql_len)))
+                cursor_drop(cursor, 1);
             SLOG(LOG_DEBUG, "Looks like a fixed string of size %zu", sql_len);
             status = cursor_read_fixed_string(cursor, &sql, sql_len);
         }
