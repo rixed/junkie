@@ -1059,15 +1059,28 @@ enum smb_command {
     SMB_COM_NO_ANDX_COMMAND
 };
 
+enum smb_file_info_levels {
+    QUERY_FILE_UNIX_BASIC = 0x0200,
+    QUERY_FILE_UNIX_LINK = 0x0201,
+    QUERY_POSIX_ACL = 0x0204,
+    QUERY_XATTR = 0x0205,
+    QUERY_ATTR_FLAGS = 0x0206,
+    QUERY_POSIX_PERMISSION = 0x0207,
+    QUERY_POSIX_LOCK = 0x0208,
+    SMB_POSIX_PATH_OPEN = 0x0209,
+    SMB_POSIX_PATH_UNLINK = 0x020a,
+    SMB_QUERY_FILE_UNIX_INFO2 = 0x020b,
+};
+
 struct cifs_proto_info {
     struct proto_info info;
     enum smb_command command;
     enum smb_status status;
-#define         SMB_DOMAIN                            0x0001
-#define         SMB_USER                              0x0002
-#define         SMB_PATH                              0x0004
-#define         SMB_TRANS2_SUBCMD                     0x0008
-#define         SMB_FID                               0x0010
+#define         CIFS_DOMAIN                            0x0001
+#define         CIFS_USER                              0x0002
+#define         CIFS_PATH                              0x0004
+#define         CIFS_TRANS2_SUBCMD                     0x0008
+#define         CIFS_FID                               0x0010
     unsigned set_values;
     char domain[50];
     char user[50];
@@ -1081,12 +1094,19 @@ struct cifs_proto_info {
     unsigned meta_read_bytes;
     unsigned meta_write_bytes;
 
-#define         SMB_FILE_CREATE                         0x0001
-#define         SMB_FILE_DIRECTORY                      0x0002
-#define         SMB_FILE_UNLINK                         0x0004
+#define         CIFS_FILE_CREATE                         0x0001
+#define         CIFS_FILE_DIRECTORY                      0x0002
+#define         CIFS_FILE_UNLINK                         0x0004
     unsigned flag_file;
 
+    bool is_query;
 };
+
+char const *cifs_info_2_str(struct proto_info const *info_);
+char const *smb_status_2_str(enum smb_status status);
+char const *smb_trans2_subcmd_2_str(enum smb_trans2_subcommand command);
+char const *smb_command_2_str(enum smb_command command);
+char const *smb_file_info_levels_2_str(enum smb_file_info_levels level);
 
 void cifs_init(void);
 void cifs_fini(void);

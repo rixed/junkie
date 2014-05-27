@@ -31,20 +31,7 @@ LOG_CATEGORY_DEF(proto_cifs);
 
 #define CIFS_HEADER_SIZE sizeof(struct cifs_hdr)
 
-enum smb_file_info_levels {
-    QUERY_FILE_UNIX_BASIC = 0x0200,
-    QUERY_FILE_UNIX_LINK = 0x0201,
-    QUERY_POSIX_ACL = 0x0204,
-    QUERY_XATTR = 0x0205,
-    QUERY_ATTR_FLAGS = 0x0206,
-    QUERY_POSIX_PERMISSION = 0x0207,
-    QUERY_POSIX_LOCK = 0x0208,
-    SMB_POSIX_PATH_OPEN = 0x0209,
-    SMB_POSIX_PATH_UNLINK = 0x020a,
-    SMB_QUERY_FILE_UNIX_INFO2 = 0x020b,
-};
-
-static char const *smb_file_info_levels_2_str(enum smb_file_info_levels level)
+char const *smb_file_info_levels_2_str(enum smb_file_info_levels level)
 {
     switch (level) {
         case QUERY_FILE_UNIX_BASIC     : return "QUERY_FILE_UNIX_BASIC";
@@ -61,7 +48,7 @@ static char const *smb_file_info_levels_2_str(enum smb_file_info_levels level)
     }
 }
 
-static char const *smb_command_2_str(enum smb_command command)
+char const *smb_command_2_str(enum smb_command command)
 {
     switch (command) {
         case SMB_COM_CREATE_DIRECTORY       : return "SMB_COM_CREATE_DIRECTORY";
@@ -143,7 +130,7 @@ static char const *smb_command_2_str(enum smb_command command)
     }
 }
 
-static char const *smb_trans2_subcmd_2_str(enum smb_trans2_subcommand command)
+char const *smb_trans2_subcmd_2_str(enum smb_trans2_subcommand command)
 {
     switch (command) {
         case SMB_TRANS2_OPEN2                    : return "SMB_TRANS2_OPEN2";
@@ -167,8 +154,7 @@ static char const *smb_trans2_subcmd_2_str(enum smb_trans2_subcommand command)
     }
 }
 
-
-static char const *smb_status_2_str(enum smb_status status)
+char const *smb_status_2_str(enum smb_status status)
 {
     switch (status) {
         case SMB_STATUS_OK: return "SMB_STATUS_OK";
@@ -1269,26 +1255,26 @@ static void const *cifs_info_addr(struct proto_info const *info_, size_t *size)
     return info;
 }
 
-static char const *cifs_info_2_str(struct proto_info const *info_)
+char const *cifs_info_2_str(struct proto_info const *info_)
 {
     struct cifs_proto_info const *info = DOWNCAST(info_, info, cifs_proto_info);
     char *str = tempstr_printf("%s, command=%s, status=%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
             proto_info_2_str(info_),
             smb_command_2_str(info->command),
             smb_status_2_str(info->status),
-            info->set_values & SMB_DOMAIN ? ", domain=" : "",
-            info->set_values & SMB_DOMAIN ? info->domain : "",
-            info->set_values & SMB_USER ? ", user=" : "",
-            info->set_values & SMB_USER ? info->user : "",
-            info->set_values & SMB_PATH ? ", path=" : "",
-            info->set_values & SMB_PATH ? info->path : "",
-            info->set_values & SMB_TRANS2_SUBCMD ? ", subcmd=" : "",
-            info->set_values & SMB_TRANS2_SUBCMD ? smb_trans2_subcmd_2_str(info->trans2_subcmd) : "",
-            info->set_values & SMB_FID ? ", fid=" : "",
-            info->set_values & SMB_FID ? tempstr_printf("0x%"PRIx16, info->fid) : "",
-            info->flag_file & SMB_FILE_CREATE ? ", creation" : "",
-            info->flag_file & SMB_FILE_DIRECTORY ? ", directory" : "",
-            info->flag_file & SMB_FILE_UNLINK ? ", unlink" : "");
+            info->set_values & CIFS_DOMAIN ? ", domain=" : "",
+            info->set_values & CIFS_DOMAIN ? info->domain : "",
+            info->set_values & CIFS_USER ? ", user=" : "",
+            info->set_values & CIFS_USER ? info->user : "",
+            info->set_values & CIFS_PATH ? ", path=" : "",
+            info->set_values & CIFS_PATH ? info->path : "",
+            info->set_values & CIFS_TRANS2_SUBCMD ? ", subcmd=" : "",
+            info->set_values & CIFS_TRANS2_SUBCMD ? smb_trans2_subcmd_2_str(info->trans2_subcmd) : "",
+            info->set_values & CIFS_FID ? ", fid=" : "",
+            info->set_values & CIFS_FID ? tempstr_printf("0x%"PRIx16, info->fid) : "",
+            info->flag_file &  CIFS_FILE_CREATE ? ", creation" : "",
+            info->flag_file &  CIFS_FILE_DIRECTORY ? ", directory" : "",
+            info->flag_file &  CIFS_FILE_UNLINK ? ", unlink" : "");
     return str;
 }
 
@@ -1390,7 +1376,7 @@ static void parse_fid(struct cursor *cursor, struct cifs_proto_info *info)
 {
     info->fid = cursor_read_u16le(cursor);
     SLOG(LOG_DEBUG, "Found fid 0x%"PRIx16, info->fid);
-    info->set_values |= SMB_FID;
+    info->set_values |= CIFS_FID;
 }
 
 // Parse functions
@@ -1424,7 +1410,7 @@ static enum proto_parse_status parse_negociate_response(struct cifs_parser *cifs
 
     if (parse_smb_string(cifs_parser, cursor, info->domain, sizeof(info->domain)) < 0)
         return PROTO_PARSE_ERR;
-    info->set_values |= SMB_DOMAIN;
+    info->set_values |= CIFS_DOMAIN;
     SLOG(LOG_DEBUG, "Found domain %s", info->domain);
 
     return PROTO_OK;
@@ -1463,7 +1449,7 @@ static enum proto_parse_status parse_session_setup_query(struct cifs_parser *cif
     cursor_drop(cursor, oem_password_len + unicode_password_len + padding);
     if (parse_smb_string(cifs_parser, cursor, info->user, sizeof(info->user)) < 0)
         return PROTO_PARSE_ERR;
-    info->set_values |= SMB_USER;
+    info->set_values |= CIFS_USER;
     SLOG(LOG_DEBUG, "Found user %s", info->user);
 
     return PROTO_OK;
@@ -1496,7 +1482,7 @@ static enum proto_parse_status parse_session_setup_response(struct cifs_parser *
     DROP_SMB_STRING(); // native lan man
     if (parse_smb_string(cifs_parser, cursor, info->domain, sizeof(info->domain)) < 0)
         return PROTO_PARSE_ERR;
-    info->set_values |= SMB_DOMAIN;
+    info->set_values |= CIFS_DOMAIN;
     SLOG(LOG_DEBUG, "Found domain %s", info->domain);
     return PROTO_OK;
 }
@@ -1526,7 +1512,7 @@ static enum proto_parse_status parse_tree_connect_and_request_query(struct cifs_
     cursor_drop(cursor, password_len + padding);
     if (parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
         return PROTO_PARSE_ERR;
-    info->set_values |= SMB_PATH;
+    info->set_values |= CIFS_PATH;
     return PROTO_OK;
 }
 
@@ -1563,7 +1549,7 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
 
     // TODO handle multiple setup count
     cifs_parser->trans2_subcmd = info->trans2_subcmd = cursor_read_u16le(cursor);
-    info->set_values |= SMB_TRANS2_SUBCMD;
+    info->set_values |= CIFS_TRANS2_SUBCMD;
 
     uint8_t start_parameter = CIFS_HEADER_SIZE + word_count * 2 + 2 + 1;
     if (start_parameter > parameter_offset) {
@@ -1582,7 +1568,7 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
                 cursor_drop(cursor, 2 + 4);
                 if (parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
                     return PROTO_PARSE_ERR;
-                info->set_values |= SMB_PATH;
+                info->set_values |= CIFS_PATH;
             }
             break;
         case SMB_TRANS2_FIND_FIRST2:
@@ -1591,7 +1577,7 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
                 cursor_drop(cursor, 2 + 2 + 2 + 2 + 4);
                 if (parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
                     return PROTO_PARSE_ERR;
-                info->set_values |= SMB_PATH;
+                info->set_values |= CIFS_PATH;
             }
             break;
         case SMB_TRANS2_SET_PATH_INFORMATION:
@@ -1601,7 +1587,7 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
                 cursor_drop(cursor, 4); // Reserved
                 if (parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
                     return PROTO_PARSE_ERR;
-                info->set_values |= SMB_PATH;
+                info->set_values |= CIFS_PATH;
 
                 switch(cifs_parser->level_of_interest) {
                     case SMB_POSIX_PATH_OPEN:
@@ -1611,13 +1597,13 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
                             #define SMB_O_CREAT 0x10
                             #define SMB_O_DIRECTORY 0x200
                             if(SMB_O_CREAT == (posix_flags & SMB_O_CREAT))
-                                info->flag_file |= SMB_FILE_CREATE;
+                                info->flag_file |= CIFS_FILE_CREATE;
                             if(SMB_O_DIRECTORY == (posix_flags & SMB_O_DIRECTORY))
-                                info->flag_file |= SMB_FILE_DIRECTORY;
+                                info->flag_file |= CIFS_FILE_DIRECTORY;
                         }
                         break;
                     case SMB_POSIX_PATH_UNLINK:
-                        info->flag_file |= SMB_FILE_UNLINK;
+                        info->flag_file |= CIFS_FILE_UNLINK;
                         break;
                     default:
                         break;
@@ -1801,7 +1787,7 @@ static enum proto_parse_status parse_delete_directory_request(struct cifs_parser
     }
     if (parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
         return PROTO_PARSE_ERR;
-    info->set_values |= SMB_PATH;
+    info->set_values |= CIFS_PATH;
     return PROTO_OK;
 }
 
