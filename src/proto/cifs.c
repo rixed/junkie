@@ -1258,7 +1258,7 @@ static void const *cifs_info_addr(struct proto_info const *info_, size_t *size)
 char const *cifs_info_2_str(struct proto_info const *info_)
 {
     struct cifs_proto_info const *info = DOWNCAST(info_, info, cifs_proto_info);
-    char *str = tempstr_printf("%s, command=%s, status=%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
+    char *str = tempstr_printf("%s, command=%s, status=%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
             proto_info_2_str(info_),
             smb_command_2_str(info->command),
             smb_status_2_str(info->status),
@@ -1274,7 +1274,9 @@ char const *cifs_info_2_str(struct proto_info const *info_)
             info->set_values & CIFS_FID ? tempstr_printf("0x%"PRIx16, info->fid) : "",
             info->flag_file &  CIFS_FILE_CREATE ? ", creation" : "",
             info->flag_file &  CIFS_FILE_DIRECTORY ? ", directory" : "",
-            info->flag_file &  CIFS_FILE_UNLINK ? ", unlink" : "");
+            info->flag_file &  CIFS_FILE_UNLINK ? ", unlink" : "",
+            info->is_query ? ", query" : ""
+            );
     return str;
 }
 
@@ -1764,7 +1766,7 @@ static enum proto_parse_status parse_close_request(struct cursor *cursor, struct
 }
 
 /*
- * Close request
+ * Delete directory request
  * Word count 0x00
  *
  * No Parameters
@@ -1778,6 +1780,37 @@ static enum proto_parse_status parse_delete_directory_request(struct cifs_parser
 {
     if(parse_and_check_word_count(cursor, 0x00) == -1)
         return PROTO_PARSE_ERR;
+    int byte_count = parse_and_check_byte_count_superior(cursor, 0x01);
+    if (byte_count == -1) return PROTO_PARSE_ERR;
+    uint8_t buffer_format = cursor_read_u8(cursor);
+    if (buffer_format != 0x04) {
+        SLOG(LOG_DEBUG, "Buffer format must have value 0x04, got %"PRIu8, buffer_format);
+        return PROTO_PARSE_ERR;
+    }
+    if (parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
+        return PROTO_PARSE_ERR;
+    info->set_values |= CIFS_PATH;
+    return PROTO_OK;
+}
+
+/*
+ * Delete request
+ * Word count 0x01
+ *
+ * Parameters
+ * | USHORT            |
+ * | Search attributes |
+ *
+ * Data
+ * | UCHAR 0x04   | SMB_STRING |
+ * | BufferFormat | FileName   |
+ */
+static enum proto_parse_status parse_delete_request(struct cifs_parser *cifs_parser,
+        struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(parse_and_check_word_count(cursor, 0x01) == -1)
+        return PROTO_PARSE_ERR;
+    cursor_drop(cursor, 2); // Search attributes
     int byte_count = parse_and_check_byte_count_superior(cursor, 0x01);
     if (byte_count == -1) return PROTO_PARSE_ERR;
     uint8_t buffer_format = cursor_read_u8(cursor);
@@ -1852,9 +1885,9 @@ static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_in
     struct cursor cursor;
     cursor_ctor(&cursor, packet + CIFS_HEADER_SIZE, cap_len - CIFS_HEADER_SIZE);
 
-    bool query = !way;
+    info.is_query = !way;
     ASSIGN_INFO_OPT(tcp, parent);
-    if (tcp) query = tcp->to_srv;
+    if (tcp) info.is_query = tcp->to_srv;
 
     struct cifs_parser *cifs_parser = DOWNCAST(parser, parser, cifs_parser);
 
@@ -1863,31 +1896,34 @@ static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_in
     if (info.status == SMB_STATUS_OK) {
         switch (info.command) {
             case SMB_COM_SESSION_SETUP_ANDX:
-                if (query) status = parse_session_setup_query(cifs_parser, &cursor, &info);
+                if (info.is_query) status = parse_session_setup_query(cifs_parser, &cursor, &info);
                 else status = parse_session_setup_response(cifs_parser, &cursor, &info);
                 break;
             case SMB_COM_TREE_CONNECT_ANDX:
-                if (query) status = parse_tree_connect_and_request_query(cifs_parser, &cursor, &info);
+                if (info.is_query) status = parse_tree_connect_and_request_query(cifs_parser, &cursor, &info);
                 break;
             case SMB_COM_NEGOCIATE:
-                if (!query) status = parse_negociate_response(cifs_parser, &cursor, &info);
+                if (!info.is_query) status = parse_negociate_response(cifs_parser, &cursor, &info);
                 break;
             case SMB_COM_TRANSACTION2:
-                if (query) status = parse_trans2_request(cifs_parser, &cursor, &info);
+                if (info.is_query) status = parse_trans2_request(cifs_parser, &cursor, &info);
                 else status = parse_trans2_response(cifs_parser, &cursor, &info);
                 break;
             case SMB_COM_WRITE_ANDX:
-                if (query) status = parse_write_andx_request(&cursor, &info);
+                if (info.is_query) status = parse_write_andx_request(&cursor, &info);
                 else status = parse_write_andx_response(&cursor, &info);
                 break;
             case SMB_COM_CLOSE:
-                if (query) status = parse_close_request(&cursor, &info);
+                if (info.is_query) status = parse_close_request(&cursor, &info);
+                break;
+            case SMB_COM_DELETE:
+                if (info.is_query) status = parse_delete_request(cifs_parser, &cursor, &info);
                 break;
             case SMB_COM_DELETE_DIRECTORY:
-                if (query) status = parse_delete_directory_request(cifs_parser, &cursor, &info);
+                if (info.is_query) status = parse_delete_directory_request(cifs_parser, &cursor, &info);
                 break;
             case SMB_COM_READ_ANDX:
-                if (query) status = parse_read_andx_request(&cursor, &info);
+                if (info.is_query) status = parse_read_andx_request(&cursor, &info);
                 else status = parse_read_andx_response(&cursor, &info);
                 break;
             default:
