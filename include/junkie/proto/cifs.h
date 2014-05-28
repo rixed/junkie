@@ -1081,11 +1081,13 @@ struct cifs_proto_info {
 #define         CIFS_PATH                              0x0004
 #define         CIFS_TRANS2_SUBCMD                     0x0008
 #define         CIFS_FID                               0x0010
+#define         CIFS_LEVEL_OF_INTEREST                 0x0020
     unsigned set_values;
     char domain[50];
     char user[50];
     char path[50];
     enum smb_trans2_subcommand trans2_subcmd;
+    enum smb_file_info_levels level_of_interest;
     uint16_t fid;
 
     unsigned query_write_bytes;

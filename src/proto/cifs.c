@@ -44,7 +44,7 @@ char const *smb_file_info_levels_2_str(enum smb_file_info_levels level)
         case SMB_POSIX_PATH_OPEN       : return "SMB_POSIX_PATH_OPEN";
         case SMB_POSIX_PATH_UNLINK     : return "SMB_POSIX_PATH_UNLINK";
         case SMB_QUERY_FILE_UNIX_INFO2 : return "SMB_QUERY_FILE_UNIX_INFO2";
-        default                        : return tempstr_printf("Unknown level of interest 0x%"PRIx32, level);
+        default                        : return tempstr_printf("Unknown (0x%"PRIx32")", level);
     }
 }
 
@@ -126,7 +126,7 @@ char const *smb_command_2_str(enum smb_command command)
         case SMB_COM_WRITE_BULK_DATA        : return "SMB_COM_WRITE_BULK_DATA";
         case SMB_COM_INVALID                : return "SMB_COM_INVALID";
         case SMB_COM_NO_ANDX_COMMAND        : return "SMB_COM_NO_ANDX_COMMAND";
-        default                             : return tempstr_printf("Unknown smb command 0x%"PRIx32, command);
+        default                             : return tempstr_printf("Unknown (0x%"PRIx32")", command);
     }
 }
 
@@ -150,7 +150,7 @@ char const *smb_trans2_subcmd_2_str(enum smb_trans2_subcommand command)
         case SMB_TRANS2_SESSION_SETUP            : return "SMB_TRANS2_SESSION_SETUP";
         case SMB_TRANS2_GET_DFS_REFERRAL         : return "SMB_TRANS2_GET_DFS_REFERRAL";
         case SMB_TRANS2_REPORT_DFS_INCONSISTENCY : return "SMB_TRANS2_REPORT_DFS_INCONSISTENCY";
-        default                                  : return tempstr_printf("Unknown smb command 0x%"PRIx32, command);
+        default                                  : return tempstr_printf("Unknown (0x%"PRIx32")", command);
     }
 }
 
@@ -1102,7 +1102,7 @@ char const *smb_status_2_str(enum smb_status status)
         case RPC_NT_PIPE_CLOSED: return "RPC_NT_PIPE_CLOSED";
         case RPC_NT_PIPE_DISCIPLINE_ERROR: return "RPC_NT_PIPE_DISCIPLINE_ERROR";
         case RPC_NT_PIPE_EMPTY: return "RPC_NT_PIPE_EMPTY";
-        default: return tempstr_printf("Unknown smb status 0x%"PRIx32, status);
+        default: return tempstr_printf("Unknown (0x%"PRIx32")", status);
     }
 }
 
@@ -1219,6 +1219,7 @@ static int cifs_parser_ctor(struct cifs_parser *cifs_parser, struct proto *proto
     if (0 != parser_ctor(&cifs_parser->parser, proto)) return -1;
     cifs_parser->unicode = true;
     cifs_parser->level_of_interest = 0;
+    cifs_parser->trans2_subcmd = 0;
     return 0;
 }
 
@@ -1258,7 +1259,7 @@ static void const *cifs_info_addr(struct proto_info const *info_, size_t *size)
 char const *cifs_info_2_str(struct proto_info const *info_)
 {
     struct cifs_proto_info const *info = DOWNCAST(info_, info, cifs_proto_info);
-    char *str = tempstr_printf("%s, command=%s, status=%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
+    char *str = tempstr_printf("%s, command=%s, status=%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
             proto_info_2_str(info_),
             smb_command_2_str(info->command),
             smb_status_2_str(info->status),
@@ -1270,6 +1271,8 @@ char const *cifs_info_2_str(struct proto_info const *info_)
             info->set_values & CIFS_PATH ? info->path : "",
             info->set_values & CIFS_TRANS2_SUBCMD ? ", subcmd=" : "",
             info->set_values & CIFS_TRANS2_SUBCMD ? smb_trans2_subcmd_2_str(info->trans2_subcmd) : "",
+            info->set_values & CIFS_LEVEL_OF_INTEREST ? ", level_of_interest=" : "",
+            info->set_values & CIFS_LEVEL_OF_INTEREST ? smb_file_info_levels_2_str(info->level_of_interest) : "",
             info->set_values & CIFS_FID ? ", fid=" : "",
             info->set_values & CIFS_FID ? tempstr_printf("0x%"PRIx16, info->fid) : "",
             info->flag_file &  CIFS_FILE_CREATE ? ", creation" : "",
@@ -1585,7 +1588,8 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
         case SMB_TRANS2_SET_PATH_INFORMATION:
             {
                 CHECK(8);
-                cifs_parser->level_of_interest = cursor_read_u16le(cursor);
+                info->level_of_interest = cifs_parser->level_of_interest = cursor_read_u16le(cursor);
+                info->set_values |= CIFS_LEVEL_OF_INTEREST;
                 cursor_drop(cursor, 4); // Reserved
                 if (parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
                     return PROTO_PARSE_ERR;
@@ -1642,8 +1646,9 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
 static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_parser,
         struct cursor *cursor, struct cifs_proto_info *info)
 {
-    SLOG(LOG_DEBUG, "Parse trans2 response with previous subcmd %s",
-            smb_trans2_subcmd_2_str(cifs_parser->trans2_subcmd));
+    SLOG(LOG_DEBUG, "Parse trans2 response with previous subcmd %s, level of interest %s",
+            smb_trans2_subcmd_2_str(cifs_parser->trans2_subcmd),
+            smb_file_info_levels_2_str(cifs_parser->level_of_interest));
     int word_count = parse_and_check_word_count_superior(cursor, 0x0a);
     if (word_count == -1) return PROTO_PARSE_ERR;
 
@@ -1662,8 +1667,7 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
 
     enum proto_parse_status status = PROTO_OK;
     uint8_t data_padding = data_offset - parameter_offset;
-    SLOG(LOG_DEBUG, "Parse trans2 specific subcmd with data padding %"PRIu8", level of interest %s",
-            data_padding, smb_file_info_levels_2_str(cifs_parser->level_of_interest));
+    SLOG(LOG_DEBUG, "Parse trans2 specific subcmd with data padding %"PRIu8, data_padding);
     switch (info->trans2_subcmd) {
         /*
          * Level of interest SMB_POSIX_PATH_OPEN
