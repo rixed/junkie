@@ -26,6 +26,7 @@
 #include "junkie/proto/netbios.h"
 #include "junkie/proto/cifs.h"
 #include "junkie/proto/tcp.h"
+#include "junkie/tools/objalloc.h"
 
 #undef LOG_CAT
 #define LOG_CAT proto_netbios_log_category
@@ -34,6 +35,45 @@ LOG_CATEGORY_DEF(proto_netbios);
 
 #define NETBIOS_SESSION_MESSAGE 0x00 /* unused yet */
 #define NETBIOS_HEADER_SIZE 4
+
+struct netbios_parser {
+    struct parser parser;
+    struct parser *msg_parser;
+};
+
+static int netbios_parser_ctor(struct netbios_parser *netbios_parser, struct proto *proto)
+{
+    SLOG(LOG_DEBUG, "Constructing netbios_parser@%p", netbios_parser);
+    assert(proto == proto_netbios);
+    if (0 != parser_ctor(&netbios_parser->parser, proto)) return -1;
+    netbios_parser->msg_parser = NULL;
+    return 0;
+}
+
+static struct parser *netbios_parser_new(struct proto *proto)
+{
+    struct netbios_parser *netbios_parser = objalloc_nice(sizeof(*netbios_parser), "Netbios parsers");
+    if (! netbios_parser) return NULL;
+    if (-1 == netbios_parser_ctor(netbios_parser, proto)) {
+        objfree(netbios_parser);
+        return NULL;
+    }
+    return &netbios_parser->parser;
+}
+
+static void netbios_parser_dtor(struct netbios_parser *netbios_parser)
+{
+    SLOG(LOG_DEBUG, "Destructing netbios_parser@%p", netbios_parser);
+    parser_unref(&netbios_parser->msg_parser);
+    parser_dtor(&netbios_parser->parser);
+}
+
+static void netbios_parser_del(struct parser *parser)
+{
+    struct netbios_parser *netbios_parser = DOWNCAST(parser, parser, netbios_parser);
+    netbios_parser_dtor(netbios_parser);
+    objfree(netbios_parser);
+}
 
 static int packet_is_netbios(uint8_t const *packet, size_t next_len)
 {
@@ -55,6 +95,8 @@ static void netbios_proto_info_ctor(struct netbios_proto_info *info, struct pars
 
 static enum proto_parse_status netbios_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
+    struct netbios_parser *netbios_parser = DOWNCAST(parser, parser, netbios_parser);
+
     /* Sanity checks */
     if (wire_len < NETBIOS_HEADER_SIZE) return PROTO_PARSE_ERR;
     if (cap_len < NETBIOS_HEADER_SIZE) return PROTO_TOO_SHORT;
@@ -66,20 +108,22 @@ static enum proto_parse_status netbios_parse(struct parser *parser, struct proto
     netbios_proto_info_ctor(&info, parser, parent, NETBIOS_HEADER_SIZE, wire_len - NETBIOS_HEADER_SIZE);
 
     uint8_t const *next_packet = packet + NETBIOS_HEADER_SIZE;
-    struct parser *parser_cifs = proto_cifs->ops->parser_new(proto_cifs);
-    if (! parser_cifs) goto fallback;
+    if (!netbios_parser->msg_parser) {
+        netbios_parser->msg_parser = proto_cifs->ops->parser_new(proto_cifs);
+    }
 
-    /* List of protocols above NetBios: CIFS, SMB, ... */
-    enum proto_parse_status status = proto_parse(parser_cifs, &info.info,
-            way, next_packet,
-            cap_len - NETBIOS_HEADER_SIZE, wire_len - NETBIOS_HEADER_SIZE,
-            now, tot_cap_len, tot_packet);
-    parser_unref(&parser_cifs);
-    if (status == PROTO_OK) return PROTO_OK;
+    enum proto_parse_status status = PROTO_OK;
+    if (netbios_parser->msg_parser) {
+        /* List of protocols above NetBios: CIFS, SMB, ... */
+        status = proto_parse(netbios_parser->msg_parser, &info.info,
+                way, next_packet,
+                cap_len - NETBIOS_HEADER_SIZE, wire_len - NETBIOS_HEADER_SIZE,
+                now, tot_cap_len, tot_packet);
+        if (status == PROTO_OK) return PROTO_OK;
+    }
 
-fallback:
     (void)proto_parse(NULL, &info.info, way, next_packet, cap_len - NETBIOS_HEADER_SIZE, wire_len - NETBIOS_HEADER_SIZE, now, tot_cap_len, tot_packet);
-    return PROTO_OK;
+    return status;
 }
 
 
@@ -97,8 +141,8 @@ void netbios_init(void)
 
     static struct proto_ops const ops = {
         .parse      = netbios_parse,
-        .parser_new = uniq_parser_new,
-        .parser_del = uniq_parser_del,
+        .parser_new = netbios_parser_new,
+        .parser_del = netbios_parser_del,
         .info_2_str = proto_info_2_str,
         .info_addr  = netbios_info_addr,
     };

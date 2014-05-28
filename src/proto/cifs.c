@@ -1212,6 +1212,13 @@ struct cifs_parser {
     uint16_t trans2_subcmd;
 };
 
+static const char *cifs_parser_2_str(struct cifs_parser const *cifs_parser)
+{
+    char *str = tempstr_printf("Parser @%p, unicode: %d, level_of_interest: 0x%"PRIx16", trans2_subcmd: 0x%"PRIx16,
+            cifs_parser, cifs_parser->unicode, cifs_parser->level_of_interest, cifs_parser->trans2_subcmd);
+    return str;
+}
+
 static int cifs_parser_ctor(struct cifs_parser *cifs_parser, struct proto *proto)
 {
     SLOG(LOG_DEBUG, "Constructing cifs_parser@%p", cifs_parser);
@@ -1667,8 +1674,8 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
 
     enum proto_parse_status status = PROTO_OK;
     uint8_t data_padding = data_offset - parameter_offset;
-    SLOG(LOG_DEBUG, "Parse trans2 specific subcmd with data padding %"PRIu8, data_padding);
-    switch (info->trans2_subcmd) {
+    SLOG(LOG_DEBUG, "Parse trans2 specific subcmd %s with data padding %"PRIu8, smb_trans2_subcmd_2_str(cifs_parser->trans2_subcmd), data_padding);
+    switch (cifs_parser->trans2_subcmd) {
         /*
          * Level of interest SMB_POSIX_PATH_OPEN
          * | USHORT | USHORD | ULONG        | USHORD                  | USHORT  | Sizeof reply information |
@@ -1895,7 +1902,8 @@ static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_in
 
     struct cifs_parser *cifs_parser = DOWNCAST(parser, parser, cifs_parser);
 
-    SLOG(LOG_DEBUG, "Parse of a cifs command %s (0x%02x)", smb_command_2_str(info.command), info.command);
+    SLOG(LOG_DEBUG, "Parse of a cifs command %s (0x%02x), cifs_parser %s", smb_command_2_str(info.command),
+            info.command, cifs_parser_2_str(cifs_parser));
     enum proto_parse_status status = PROTO_OK;
     if (info.status == SMB_STATUS_OK) {
         switch (info.command) {
