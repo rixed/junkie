@@ -18,6 +18,7 @@ extern struct proto *proto_eth;
 
 /// Values for protocol
 #define ETH_PROTO_IPv4     0x0800
+#define ETH_PROTO_WCCP     0x883e
 #define ETH_PROTO_IPv6     0x86DD
 #define ETH_PROTO_ARP      0x0806
 #define ETH_PROTO_8021MACinMAC 0x88e7

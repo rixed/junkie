@@ -160,7 +160,8 @@ static enum proto_parse_status gre_parse(struct parser *parser, struct proto_inf
         // if either checksum or routing flag are set then both checksum and routing fields are present
         (flags & (GRE_CHECKSUM_MASK|GRE_ROUTING_MASK) ? 4 : 0) +
         (flags & GRE_KEY_MASK ? 4 : 0) +
-        (flags & GRE_SEQNUM_MASK ? 4 : 0);
+        (flags & GRE_SEQNUM_MASK ? 4 : 0) +
+        (h_proto == ETH_PROTO_WCCP ? 4 : 0);
         // TODO: support for older GRE with source routing ?
     SLOG(LOG_DEBUG, "GRE header of length: %zu bytes", h_len);
 
@@ -188,7 +189,7 @@ static enum proto_parse_status gre_parse(struct parser *parser, struct proto_inf
     if (gre_subparser) subparser = parser_ref(gre_subparser->parser);
 
     if (! gre_subparser) {  // Nope, look for the proto
-        struct proto *sub_proto = eth_subproto_lookup(h_proto);
+        struct proto *sub_proto = eth_subproto_lookup(h_proto == ETH_PROTO_WCCP ? ETH_PROTO_IPv4 : h_proto);
         if (! sub_proto) {  // we don't care, skip payload
             goto fallback;
         }
