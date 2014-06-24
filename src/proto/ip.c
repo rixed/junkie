@@ -376,14 +376,6 @@ unsigned ip_key_ctor(struct ip_key *k, unsigned protocol, struct ip_addr const *
     return 1;
 }
 
-struct mux_subparser *ip_subparser_lookup(struct parser *parser, struct proto *proto, struct proto *requestor, unsigned protocol, struct ip_addr const *src, struct ip_addr const *dst, unsigned *way, struct timeval const *now)
-{
-    struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
-    struct ip_key key;
-    *way = ip_key_ctor(&key, protocol, src, dst);
-    return mux_subparser_lookup(mux_parser, proto, requestor, &key, now);
-}
-
 /* The pkt_wait_list is now complete.
  * Construct a single payload from it, then call the subparse once for this payload.
  * But we also want to acknoledge the several IP fragments that were received (but the

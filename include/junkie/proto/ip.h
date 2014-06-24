@@ -29,7 +29,7 @@ struct ip_proto_info {
     struct proto_info info;     ///< Header and payload sizes
     struct ip_key {
         struct ip_addr addr[2]; ///< Source and destination addresses
-        unsigned protocol;      ///< Embodied protocol
+        uint8_t protocol;      ///< Embodied protocol
     } packed_ key;              ///< Note that this struct ip_key is packet so that it can easily serve as a hash key or the like
     unsigned version;           ///< IP version (will be 4 or 6)
     unsigned ttl;               ///< Time To Live
@@ -46,11 +46,6 @@ struct ip_proto_info {
 
 /// IPv6 and IPv4 uses the same proto_info. This define is required for ASSIGN_* MACROS.
 #define ip6_proto_info ip_proto_info
-
-/// Look for the mux_subparser handling connections between IP addresses src and dst for given protocol
-/** if proto is given, then restrict the lookup to this proto, and creates a new one if not found.
- * @return NULL if not found and not asked to create a new one. */
-struct mux_subparser *ip_subparser_lookup(struct parser *parser, struct proto *proto, struct proto *requestor, unsigned protocol, struct ip_addr const *src, struct ip_addr const *dst, unsigned *way, struct timeval const *now);
 
 /// Only usefull for proto/ip6
 void const *ip_info_addr(struct proto_info const *, size_t *);

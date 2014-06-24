@@ -163,12 +163,6 @@ struct proto *eth_subproto_lookup(unsigned protocol)
  * Parse
  */
 
-struct mux_subparser *eth_subparser_and_parser_new(struct parser *parser, struct proto *proto, struct proto *requestor, int vlan_id, struct timeval const *now)
-{
-    struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
-    return mux_subparser_and_parser_new(mux_parser, proto, requestor, collapse_vlans ? &vlan_unset : &vlan_id, now);
-}
-
 static enum proto_parse_status eth_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);

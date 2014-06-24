@@ -75,12 +75,6 @@ static void cap_proto_info_ctor(struct cap_proto_info *info, struct parser *pars
  * Parser
  */
 
-struct mux_subparser *cap_subparser_and_parser_new(struct parser *parser, struct proto *proto, struct proto *requestor, uint8_t dev_id, struct timeval const *now)
-{
-    struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
-    return mux_subparser_and_parser_new(mux_parser, proto, requestor, collapse_ifaces ? &iface_unset : &dev_id, now);
-}
-
 // cap_len is not the length of the actual packet but the size of the data we receive, ie struct frame + what we captured from the wire.
 static enum proto_parse_status cap_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t unused_ cap_len, size_t unused_ wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
