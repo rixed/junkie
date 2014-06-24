@@ -545,6 +545,7 @@ static void pkt_source_del(struct pkt_source *pkt_source)
     bool const have_stats = 0 == pcap_stats(pkt_source->pcap_handle, &stats);
     if (! have_stats) {
         SLOG(pkt_source->is_file ? LOG_DEBUG:LOG_WARNING, "Cannot read stats for packet source %s: %s", pkt_source_name(pkt_source), pcap_geterr(pkt_source->pcap_handle));
+        tot_recved += pkt_source->nb_packets;
     } else if (stats.ps_recv > 0) {
         tot_recved += stats.ps_recv;
         tot_dropped += stats.ps_drop;
@@ -725,6 +726,23 @@ err:
     return ret;
 }
 
+static struct ext_function sg_pkt_src_stats;
+static SCM g_pkt_src_stats(void)
+{
+    uint64_t received_pkts = tot_recved;
+    // We might be quitting when request is comming, check for mutex state
+    if (pkt_sources_lock.name) {
+        WITH_LOCK(&pkt_sources_lock) {
+            struct pkt_source *pkt_source, *tmp;
+            LIST_FOREACH_SAFE(pkt_source, &pkt_sources, entry, tmp) {
+                received_pkts += pkt_source->nb_packets;
+            }
+        }
+    }
+    SCM ret = scm_from_uint(received_pkts);
+    return ret;
+}
+
 /*
  * Init
  */
@@ -819,6 +837,10 @@ void pkt_source_init(void)
         "(iface-stats \"iface-name\"): return detailed statistics about that packet source.\n"
         "Note: all counters are reset after each read.\n"
         "See also (? 'get-ifaces).\n");
+
+    ext_function_ctor(&sg_pkt_src_stats,
+        "pkt-src-stats", 0, 0, 0, g_pkt_src_stats,
+        "(pkt-src-stats): return number of received packets from all sources.\n");
 }
 
 void pkt_source_fini(void)
@@ -842,7 +864,6 @@ void pkt_source_fini(void)
     }
 
     parser_unref(&cap_parser);
-    mutex_dtor(&pkt_sources_lock);
 
 #   ifdef WITH_GIANT_LOCK
     mutex_dtor(&giant_lock);
@@ -865,6 +886,7 @@ void pkt_source_fini(void)
     log_category_pkt_sources_fini();
     ext_param_quit_when_done_fini();
     ext_param_default_bpf_filter_fini();
+    mutex_dtor(&pkt_sources_lock);
 
     bench_fini();
     digest_fini();
@@ -873,3 +895,4 @@ void pkt_source_fini(void)
     ext_fini();
     objalloc_fini();
 }
+

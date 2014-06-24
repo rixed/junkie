@@ -104,7 +104,7 @@ static struct {
     I(skinny),        I(dhcp),        I(fcoe),
     // Note: tds must be inited before tds_msg (since they share the same log facility)
     I(tds),           I(tds_msg),     I(discovery),
-    I(pkt_source),    I(capfile),     I(sock),
+    I(capfile),     I(sock),
 #   undef I
 };
 
@@ -128,6 +128,7 @@ static void all_init(void)
     for (unsigned i = 0; i < NB_ELEMS(initers); i++) {
         initers[i].init();
     }
+    pkt_source_init();
 
     ext_rebind();
 }
@@ -138,7 +139,8 @@ static void all_fini(void)
 
     doomer_stop();  // doomer_thread must not awake while we destroy parsers, plugins, and so on
 
-    plugin_del_all();
+    pkt_source_fini();
+    plugin_del_all(); // Since hook subscribers is not locked, we must kill sources before unregister plugins
 
     for (unsigned i = NB_ELEMS(initers); i > 0; ) {
         initers[--i].fini();
