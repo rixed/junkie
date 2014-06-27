@@ -267,7 +267,10 @@ static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct prot
 #   define SMP_SMID 0x53
     if (cursor_peek_u8(&cursor, 0) == SMP_SMID) {
         CHECK_LEN(&cursor, SMP_PKT_HDR_LEN, 0);
+        SLOG(LOG_DEBUG, "Dropping smp layer");
         cursor_drop(&cursor, SMP_PKT_HDR_LEN);
+        wire_len -= SMP_PKT_HDR_LEN;
+        cap_len -= SMP_PKT_HDR_LEN;
     }
 
     status = tds_parse_header(&cursor, &tds_header, &unknown_token);
