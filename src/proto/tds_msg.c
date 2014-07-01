@@ -1565,7 +1565,7 @@ static enum proto_parse_status tds_msg_sbuf_parse(struct parser *parser, struct 
 
     // Retrieve TDS infos
     ASSIGN_INFO_CHK(tds, parent, PROTO_PARSE_ERR);
-    bool has_gap = (wire_len > cap_len) || (wire_len > tds->length);
+    bool has_gap = (wire_len > cap_len) || tds->has_gap;
 
     // If this is the first time we are called, init c2s_way
     if (tds_msg_parser->c2s_way == UNSET) {
@@ -1578,7 +1578,7 @@ static enum proto_parse_status tds_msg_sbuf_parse(struct parser *parser, struct 
         tds_msg_parser->first_ts = tds->first_ts;
     }
     bool is_eom = (tds->status & TDS_EOM);
-    SLOG(LOG_DEBUG, "Tds msg parse: had gap %d, has_gap %d, is_eom %d", tds_msg_parser->had_gap, has_gap, is_eom);
+    SLOG(LOG_DEBUG, "Tds msg parse: had gap %d, has_gap %d, is_eom %d, tds has gap %d", tds_msg_parser->had_gap, has_gap, is_eom, tds->has_gap);
     // Immediatly parse on first gap, else, bufferize
     if (!tds_msg_parser->had_gap && !has_gap && !is_eom) {
         SLOG(LOG_DEBUG, "Packet is not an EOM, buffering it");
@@ -1642,8 +1642,14 @@ static enum proto_parse_status tds_msg_parse(struct parser *parser, struct proto
 {
     struct tds_msg_parser *tds_msg_parser = DOWNCAST(parser, parser, tds_msg_parser);
 
-    enum proto_parse_status const status = streambuf_add(&tds_msg_parser->sbuf, parser, parent, way,
-            payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
+    enum proto_parse_status status;
+    if (tds_msg_parser->sbuf.dir[way].buffer_size + cap_len > tds_msg_parser->sbuf.max_size) {
+        status = streambuf_add(&tds_msg_parser->sbuf, parser, parent, way,
+                NULL, 0, wire_len, now, tot_cap_len, tot_packet);
+    } else {
+        status = streambuf_add(&tds_msg_parser->sbuf, parser, parent, way,
+                payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
+    }
 
     return status;
 }

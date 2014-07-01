@@ -60,6 +60,33 @@ struct tds_header {
     uint8_t window;
 };
 
+struct smp_header {
+    uint8_t flags;
+    uint16_t sid;
+    uint32_t length;
+    uint32_t seq_num;
+    uint32_t window;
+};
+
+static char const *smp_flags_2_str(uint8_t smp_flags)
+{
+#define SMP_SYN 0x01
+#define SMP_ACK 0x02
+#define SMP_FIN 0x04
+#define SMP_DATA 0x08
+    return tempstr_printf("%s%s%s%s",
+            smp_flags & SMP_SYN ? "SYN, " : "",
+            smp_flags & SMP_ACK ? "ACK, " : "",
+            smp_flags & SMP_FIN ? "FIN, " : "",
+            smp_flags & SMP_DATA ? "DATA, " : "");
+}
+
+static char const *smp_header_2_str(struct smp_header *header)
+{
+    return tempstr_printf("Flags: %s Sid: %"PRIu16", Length: %"PRIu32", Seqnum: %"PRIu32", Window: %"PRIu32,
+        smp_flags_2_str(header->flags), header->sid, header->length, header->seq_num, header->window);
+}
+
 struct tds_parser {
     struct parser parser;
     // each tds parser comes with its tds_msg parser
@@ -190,6 +217,24 @@ void const *tds_info_addr(struct proto_info const *info_, size_t *size)
  * Parse
  */
 
+// | 1 byte      | 1 byte | 2 bytes | 4 bytes | 4 bytes | 4 bytes |
+// | SMID (0x53) | Flag   | SID     | Length  | Seq num | Window  |
+static enum proto_parse_status tds_parse_smp_header(struct cursor *cursor, struct smp_header *out_header)
+{
+#   define SMP_PKT_HDR_LEN 0x10
+#   define SMP_SMID 0x53
+    if (cursor_peek_u8(cursor, 0) == SMP_SMID) {
+        CHECK_LEN(cursor, SMP_PKT_HDR_LEN, 0);
+        cursor_drop(cursor, 1);
+        out_header->flags   = cursor_read_u8(cursor);
+        out_header->sid     = cursor_read_u16le(cursor);
+        out_header->length  = cursor_read_u32le(cursor);
+        out_header->seq_num = cursor_read_u32le(cursor);
+        out_header->window  = cursor_read_u32le(cursor);
+    }
+    return PROTO_OK;
+}
+
 /*
  * Tds header, integers are in big-endians.
  * | 1 byte | 1 byte | 2 bytes | 2 bytes | 1 byte        | 1 byte  |
@@ -262,18 +307,13 @@ static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct prot
     enum proto_parse_status status;
     cursor_ctor(&cursor, payload, cap_len);
 
-// Just drop the smp layer
-// | 1 byte      | 1 byte | 2 bytes | 4 bytes | 4 bytes | 4 bytes |
-// | SMID (0x53) | Flag   | SID     | Length  | Seq num | Window  |
-// TODO handle the multiple session inside the smp connexion
-#   define SMP_PKT_HDR_LEN 0x10
-#   define SMP_SMID 0x53
-    if (cursor_peek_u8(&cursor, 0) == SMP_SMID) {
-        CHECK_LEN(&cursor, SMP_PKT_HDR_LEN, 0);
-        SLOG(LOG_DEBUG, "Dropping smp layer");
-        cursor_drop(&cursor, SMP_PKT_HDR_LEN);
+    struct smp_header smp_header = {.length = 0};
+    if (PROTO_OK != (status = tds_parse_smp_header(&cursor, &smp_header))) return status;
+    if (smp_header.length) {
+        SLOG(LOG_DEBUG, "Smp header: %s", smp_header_2_str(&smp_header));
         wire_len -= SMP_PKT_HDR_LEN;
         cap_len -= SMP_PKT_HDR_LEN;
+        if (smp_header.flags & SMP_ACK) return PROTO_OK;
     }
 
     status = tds_parse_header(&cursor, &tds_header, &unknown_token);
@@ -281,6 +321,7 @@ static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct prot
         // We have an unknown token if the payload is encrypted after a ssl handshake
         // It is valid but we don't know how to parse it yet
         // TODO It would be better if we knew the values of the encryption options exchanged in prelogin messages
+        timeval_reset(&tds_parser->first_ts);
         if (unknown_token) return PROTO_OK;
         return status;
     }
@@ -291,8 +332,8 @@ static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct prot
                 tds_parser->pkt_number + 1, tds_header.pkt_number);
         tds_parser->pkt_number = 1;
         timeval_reset(&tds_parser->first_ts);
-        return PROTO_OK;
-    } else if (tds_header.pkt_number <= 1 || (tds_header.status & TDS_EOM)) {
+        return PROTO_PARSE_ERR;
+    } else if (tds_header.pkt_number <= 1) {
         SLOG(LOG_DEBUG, "Reset pkt number from %"PRIu8"", tds_parser->pkt_number);
         tds_parser->pkt_number = 1;
     }
@@ -302,7 +343,7 @@ static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct prot
         SLOG(LOG_DEBUG, "Expected channel %"PRIu16", got channel %"PRIu16"",
                 tds_parser->channels[way], tds_header.channel);
         timeval_reset(&tds_parser->first_ts);
-        return PROTO_OK;
+        return PROTO_PARSE_ERR;
     }
 
     if (wire_len > tds_header.len) {
@@ -333,6 +374,7 @@ static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct prot
     info.status = tds_header.status;
     info.length = tds_header.len;
     info.first_ts = tds_parser->first_ts;
+    info.has_gap = has_gap;
     if (tds_header.channel > 0) {
         SLOG(LOG_DEBUG, "Saving channel %"PRIu16"", tds_header.channel);
         tds_parser->channels[way] = tds_header.channel;
@@ -344,10 +386,20 @@ static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct prot
     if (! tds_parser->msg_parser) {
         SLOG(LOG_DEBUG, "Building new tds_msg_parser");
         tds_parser->msg_parser = proto_tds_msg->ops->parser_new(proto_tds_msg);
+        if (!tds_parser->msg_parser) {
+            SLOG(LOG_INFO, "Could not build tds msg parser");
+            return PROTO_PARSE_ERR;
+        }
     }
-    if (tds_parser->msg_parser) {
-        proto_parse(tds_parser->msg_parser, &info.info, way,
-                cursor.head, cursor.cap_len, wire_len - TDS_PKT_HDR_LEN, now, tot_cap_len, tot_packet);
+    if (tds_header.status & TDS_EOM) {
+        SLOG(LOG_DEBUG, "Reset pkt number from %"PRIu8" since we parsed an EOM", tds_parser->pkt_number);
+        tds_parser->pkt_number = 1;
+    }
+    status = proto_parse(tds_parser->msg_parser, &info.info, way,
+            cursor.head, cursor.cap_len, wire_len - TDS_PKT_HDR_LEN, now, tot_cap_len, tot_packet);
+    if (status != PROTO_OK) {
+        SLOG(LOG_INFO, "Tds msg parse failed, returning %s", proto_parse_status_2_str(status));
+        return status;
     }
     timeval_reset(&tds_parser->first_ts);
     // Advertise this packet if it was not done already
