@@ -155,6 +155,8 @@ struct pkt_wait_list {
     size_t tot_payload;
     /// The offset we are currently waiting for to resume parsing
     unsigned next_offset;
+    /// A ref to build parser if necessary
+    struct proto *proto;
     /// A ref to the parser this packet is intended to
     struct parser *parser;
     /// Optionally, the other pkt_wait_list we may wait.

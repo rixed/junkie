@@ -107,19 +107,20 @@ void pkt_wait_del(struct pkt_wait *pkt, struct pkt_wait_list *pkt_wl)
     supermutex_unlock(&pkt_wl->list->mutex);
 }
 
-// Same as proto_parse, but unref the parser if it fails
-// TODO: should probably be in proto.c instead
-/* TODO: But wait, if the WL kills its parser when PARSE_ERR is encountered, then we will
- *       never try to parse pending fragments. We should, instead:
- *       1) recreate a parser when we need one (ie. we are not given a parser but a proto)
- *       2) instead when we are finalizing packets from our destructor (because we do not want
- *          to submit proto stack infos from the past when deleted bu doomer thread)
- */
-static enum proto_parse_status proto_parse_or_die(struct parser **parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
+// Same as proto_parse, but unref the parser if it fails and it builds the parser from proto if necessary
+static enum proto_parse_status proto_parse_or_die(struct proto *proto, struct parser **ref_parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
-    enum proto_parse_status status = proto_parse(parser ? *parser:NULL, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
+    if (!ref_parser) {
+        return proto_parse(NULL, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
+    }
+    struct parser *parser = *ref_parser;
+    if (!parser && proto) {
+        SLOG(LOG_DEBUG, "Building parser from proto %s", proto->name);
+        *ref_parser = parser_ref(proto->ops->parser_new(proto));
+    }
+    enum proto_parse_status status = proto_parse(*ref_parser, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
     if (status == PROTO_PARSE_ERR) {
-        parser_unref(parser);
+        parser_unref(ref_parser);
     }
     return status;
 }
@@ -135,7 +136,7 @@ static enum proto_parse_status pkt_wait_finalize(struct pkt_wait *pkt, struct pk
     ) {
         // forget it
         SLOG(LOG_DEBUG, "Advertize a covered packet @(%u:%u)", pkt->offset, pkt->next_offset);
-        status = proto_parse_or_die(NULL, pkt->parent, pkt->way, NULL, 0, 0, &pkt->cap_tv, pkt->tot_cap_len, pkt->packet);
+        status = proto_parse_or_die(NULL, NULL, pkt->parent, pkt->way, NULL, 0, 0, &pkt->cap_tv, pkt->tot_cap_len, pkt->packet);
         pkt_wait_del_nolock(pkt, pkt_wl);
     } else if (
         pkt->offset > pkt_wl->next_offset       // the pkt was supposed to come later,
@@ -147,10 +148,10 @@ static enum proto_parse_status pkt_wait_finalize(struct pkt_wait *pkt, struct pk
             pkt_wl->next_offset = pkt->offset;
             // We can't merely borrow pkt parent since proto_parse is going to flag it when calling subscribers (which would prevent callback of subscribers for actual packet)
             struct proto_info *copy = copy_info_rec(pkt->parent);
-            status = proto_parse_or_die(&pkt_wl->parser, copy, pkt->way, NULL, 0, gap, &pkt->cap_tv, 0, NULL);
+            status = proto_parse_or_die(pkt_wl->proto, &pkt_wl->parser, copy, pkt->way, NULL, 0, gap, &pkt->cap_tv, 0, NULL);
             proto_info_del_rec(copy);
         } else { // count it but do not parse it
-            status = proto_parse_or_die(NULL, pkt->parent, pkt->way, pkt->packet + pkt->start, pkt->cap_len, pkt->wire_len, &pkt->cap_tv, pkt->tot_cap_len, pkt->packet);
+            status = proto_parse_or_die(NULL, NULL, pkt->parent, pkt->way, pkt->packet + pkt->start, pkt->cap_len, pkt->wire_len, &pkt->cap_tv, pkt->tot_cap_len, pkt->packet);
             pkt_wait_del_nolock(pkt, pkt_wl);
         }
     } else {
@@ -160,9 +161,9 @@ static enum proto_parse_status pkt_wait_finalize(struct pkt_wait *pkt, struct pk
         unsigned const trim = pkt_wl->next_offset - pkt->offset;  // This assumes that offsets _are_ bytes. If not, then there is no reason to trim.
         status =
             trim < pkt->cap_len ?
-                proto_parse_or_die(&pkt_wl->parser, pkt->parent, pkt->way, pkt->packet + pkt->start + trim, pkt->cap_len - trim, pkt->wire_len - trim, &pkt->cap_tv, pkt->tot_cap_len, pkt->packet) :
+                proto_parse_or_die(pkt_wl->proto, &pkt_wl->parser, pkt->parent, pkt->way, pkt->packet + pkt->start + trim, pkt->cap_len - trim, pkt->wire_len - trim, &pkt->cap_tv, pkt->tot_cap_len, pkt->packet) :
                 // The parser may be able to parse this (if he just skip, for instance HTTP skipping a body)
-                proto_parse_or_die(&pkt_wl->parser, pkt->parent, pkt->way, NULL, 0, trim < pkt->wire_len ? pkt->wire_len - trim : 0, &pkt->cap_tv, pkt->tot_cap_len, pkt->packet);
+                proto_parse_or_die(pkt_wl->proto, &pkt_wl->parser, pkt->parent, pkt->way, NULL, 0, trim < pkt->wire_len ? pkt->wire_len - trim : 0, &pkt->cap_tv, pkt->tot_cap_len, pkt->packet);
         pkt_wl->next_offset = pkt->next_offset;
         pkt_wait_del_nolock(pkt, pkt_wl);
     }
@@ -287,16 +288,19 @@ static enum proto_parse_status pkt_wait_list_empty(struct pkt_wait_list *pkt_wl)
 
 enum proto_parse_status pkt_wait_list_flush(struct pkt_wait_list *pkt_wl, uint8_t *payload, size_t cap_len, size_t wire_len)
 {
+    SLOG(LOG_DEBUG, "Flushing pkt_wl @%p", pkt_wl);
     enum proto_parse_status last_status = PROTO_OK;
     if (0 != supermutex_lock(&pkt_wl->list->mutex)) return PROTO_PARSE_ERR;
 
     if (! payload) {
         // start by cleaning the parser so that the subparse method won't be called
         parser_unref(&pkt_wl->parser);
+        pkt_wl->proto = NULL;
         last_status = pkt_wait_list_empty(pkt_wl); // may deadlock
     } else { // slightly different version
         struct parser *parser = pkt_wl->parser; // transfert the ref to this local variable
         pkt_wl->parser = NULL;
+        pkt_wl->proto = NULL;
         struct pkt_wait *pkt;
         while (NULL != (pkt = LIST_FIRST(&pkt_wl->pkts))) {
             if (LIST_IS_LAST(pkt, entry)) {
@@ -324,6 +328,7 @@ int pkt_wait_list_ctor(struct pkt_wait_list *pkt_wl, unsigned next_offset, struc
     pkt_wl->tot_payload = 0;
     pkt_wl->next_offset = next_offset;
     pkt_wl->parser = parser_ref(parser);
+    pkt_wl->proto = parser ? parser->proto : NULL;
     pkt_wl->config = config;
     pkt_wl->sync_with = sync_with;
     pkt_wl->list = config->lists + (config->list_seqnum % NB_ELEMS(config->lists));
@@ -341,7 +346,11 @@ void pkt_wait_list_dtor(struct pkt_wait_list *pkt_wl)
 
     // Avoid parsing anything
     parser_unref(&pkt_wl->parser);
-    if (pkt_wl->sync_with) parser_unref(&pkt_wl->sync_with->parser);
+    pkt_wl->proto = NULL;
+    if (pkt_wl->sync_with) {
+        parser_unref(&pkt_wl->sync_with->parser);
+        pkt_wl->sync_with->proto = NULL;
+    }
 
     enum proto_parse_status status;
     (void)pkt_wait_list_try_both(pkt_wl, &status, &timeval_unset, true);  // force parse of everything that can be
@@ -503,7 +512,7 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
          * For instance, when several FTP parsers create simultaneously new TCP parsers because of contracking.
          * Yes, this does happen :-( */
         SLOG(LOG_DEBUG, "Parsing packet at once since we were waiting for it");
-        ret = proto_parse_or_die(&pkt_wl->parser, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
+        ret = proto_parse_or_die(pkt_wl->proto, &pkt_wl->parser, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
 
         // Now parse as much as we can while advancing next_offset, returning the first error we obtain
         pkt_wl->next_offset = next_offset;
@@ -522,14 +531,14 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
     if (
         (pkt_wl->config->acceptable_gap > 0 && (int)(offset - prev_offset) > (int)pkt_wl->config->acceptable_gap)
     ) {
-        ret = proto_parse_or_die(NULL, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
+        ret = proto_parse_or_die(NULL, NULL, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
         goto quit;
     }
 
     // In all other more complex cases, insert the packet
     struct pkt_wait *pkt = pkt_wait_new(offset, next_offset, sync, sync_offset, parent, way, packet, cap_len, wire_len, tot_cap_len, tot_packet, now);
     if (! pkt) {
-        ret = proto_parse_or_die(NULL, parent, way, NULL, 0, 0, now, tot_cap_len, tot_packet); // silently discard
+        ret = proto_parse_or_die(NULL, NULL, parent, way, NULL, 0, 0, now, tot_cap_len, tot_packet); // silently discard
         goto quit;
     }
 
