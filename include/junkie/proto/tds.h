@@ -36,6 +36,8 @@ struct tds_proto_info {
 #   define TDS_RESET_CNX_KEEP_TRX 0x10
     uint8_t status;
     uint16_t length;
+    struct timeval first_ts;             ///< First timestamp of pdu
+    bool has_gap;
 };
 
 char const *tds_info_2_str(struct proto_info const *);

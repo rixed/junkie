@@ -692,6 +692,8 @@ static enum proto_parse_status mysql_sbuf_parse(struct parser *parser, struct pr
     proto_info_ctor(&info.info, parser, parent, wire_len, 0);
     info.is_query = way == mysql_parser->c2s_way;
     info.set_values = 0;
+    // Handle first_ts on streambuf restart
+    info.first_ts = *now;
 
     if (mysql_parser->phase == NONE) {
         // Try to guess from packet number and first byte

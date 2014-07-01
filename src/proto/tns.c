@@ -78,6 +78,7 @@ struct tns_parser {
     struct streambuf sbuf;
     unsigned nb_fields; // Keep number of fields for query response
     enum sql_msg_type msg_type;
+    struct timeval first_ts;
 };
 
 static parse_fun tns_sbuf_parse;
@@ -1038,6 +1039,11 @@ static enum proto_parse_status tns_sbuf_parse(struct parser *parser, struct prot
         SLOG(LOG_DEBUG, "First packet, init c2s_way to %u", tns_parser->c2s_way);
     }
 
+    if (!timeval_is_set(&tns_parser->first_ts)) {
+        SLOG(LOG_DEBUG, "Setting first ts to %s", timeval_2_str(now));
+        tns_parser->first_ts = *now;
+    }
+
     // Now build the proto_info
     struct sql_proto_info info;
     SLOG(LOG_DEBUG, "Constructing with %zu", wire_len);
@@ -1045,6 +1051,7 @@ static enum proto_parse_status tns_sbuf_parse(struct parser *parser, struct prot
     info.is_query = way == tns_parser->c2s_way;
     info.set_values = 0;
     info.msg_type = SQL_UNKNOWN;
+    info.first_ts = tns_parser->first_ts;
 
     // and try to read a TNS PDN
     struct cursor cursor;
@@ -1056,6 +1063,7 @@ static enum proto_parse_status tns_sbuf_parse(struct parser *parser, struct prot
     enum proto_parse_status status = cursor_read_tns_hdr(&cursor, &pdu_len, &pdu_type, wire_len);
     if (status == PROTO_PARSE_ERR) {
         SLOG(LOG_DEBUG, "Error while parsing tns header");
+        timeval_reset(&tns_parser->first_ts);
         return status;
     }
 
@@ -1092,6 +1100,7 @@ static enum proto_parse_status tns_sbuf_parse(struct parser *parser, struct prot
 
     // We advertize the tns pdu even if we don't know how to parse it
     if (status != PROTO_OK) SLOG(LOG_DEBUG, "Error parsing tns packet");
+    timeval_reset(&tns_parser->first_ts);
     return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
 

@@ -690,6 +690,8 @@ static enum proto_parse_status pg_sbuf_parse(struct parser *parser, struct proto
     proto_info_ctor(&info.info, parser, parent, wire_len, 0);
     info.is_query = way == pg_parser->c2s_way;
     info.set_values = 0;
+    // TODO handle first_ts on stream restart
+    info.first_ts = *now;
 
     uint8_t type = payload[0];
     // Try to guess when phase is unknown

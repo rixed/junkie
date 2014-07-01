@@ -73,6 +73,7 @@ struct tds_parser {
     uint16_t channels[2];
     bool had_gap;
     uint8_t pkt_number;
+    struct timeval first_ts;
 };
 
 static char const *tds_header_2_str(struct tds_header *header)
@@ -130,6 +131,7 @@ static int tds_parser_ctor(struct tds_parser *tds_parser, struct proto *proto)
     tds_parser->channels[0] = 0;
     tds_parser->channels[1] = 0;
     tds_parser->pkt_number = 1;
+    timeval_reset(&tds_parser->first_ts);
     if (0 != streambuf_ctor(&tds_parser->sbuf, tds_sbuf_parse, 30000, NULL)) return -1;
 
     return 0;
@@ -249,6 +251,7 @@ static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct prot
     if (tds_parser->had_gap && tds_parser->data_left > 0) {
         tds_parser->data_left = wire_len > tds_parser->data_left ? 0 : tds_parser->data_left - wire_len;
         SLOG(LOG_DEBUG, "Discard tds with gap, data_left %zu...", tds_parser->data_left);
+        timeval_reset(&tds_parser->first_ts);
         return PROTO_OK;
     }
     tds_parser->had_gap = has_gap;
@@ -287,6 +290,7 @@ static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct prot
         SLOG(LOG_DEBUG, "Expected pkt number %"PRIu8", got %"PRIu8"",
                 tds_parser->pkt_number + 1, tds_header.pkt_number);
         tds_parser->pkt_number = 1;
+        timeval_reset(&tds_parser->first_ts);
         return PROTO_OK;
     } else if (tds_header.pkt_number <= 1 || (tds_header.status & TDS_EOM)) {
         SLOG(LOG_DEBUG, "Reset pkt number from %"PRIu8"", tds_parser->pkt_number);
@@ -297,6 +301,7 @@ static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct prot
     if (tds_parser->channels[way] && (tds_parser->channels[way] != tds_header.channel)) {
         SLOG(LOG_DEBUG, "Expected channel %"PRIu16", got channel %"PRIu16"",
                 tds_parser->channels[way], tds_header.channel);
+        timeval_reset(&tds_parser->first_ts);
         return PROTO_OK;
     }
 
@@ -308,8 +313,18 @@ static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct prot
     SLOG(LOG_DEBUG, "Data left after wire %zu", tds_parser->data_left);
     if (tds_parser->data_left > 0 && !has_gap) {
         SLOG(LOG_DEBUG, "Incomplete tds packet, buffering it");
+        if (!timeval_is_set(&tds_parser->first_ts)) {
+            SLOG(LOG_DEBUG, "Setting first ts to %s for way %d", timeval_2_str(now), way);
+            tds_parser->first_ts = *now;
+        }
         streambuf_set_restart(&tds_parser->sbuf, way, payload, true);
         return PROTO_OK;
+    }
+
+    // We have a buffered tds packet at this point
+    if (!timeval_is_set(&tds_parser->first_ts)) {
+        SLOG(LOG_DEBUG, "Setting first ts to %s for way %d since it is not setted", timeval_2_str(now), way);
+        tds_parser->first_ts = *now;
     }
 
     struct tds_proto_info info;
@@ -317,6 +332,7 @@ static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct prot
     info.type = tds_header.type;
     info.status = tds_header.status;
     info.length = tds_header.len;
+    info.first_ts = tds_parser->first_ts;
     if (tds_header.channel > 0) {
         SLOG(LOG_DEBUG, "Saving channel %"PRIu16"", tds_header.channel);
         tds_parser->channels[way] = tds_header.channel;
@@ -333,7 +349,7 @@ static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct prot
         proto_parse(tds_parser->msg_parser, &info.info, way,
                 cursor.head, cursor.cap_len, wire_len - TDS_PKT_HDR_LEN, now, tot_cap_len, tot_packet);
     }
-
+    timeval_reset(&tds_parser->first_ts);
     // Advertise this packet if it was not done already
     return proto_parse(NULL, &info.info, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
 }

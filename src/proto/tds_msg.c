@@ -339,6 +339,7 @@ struct tds_msg_parser {
     unsigned column_count;
     struct type_info type_info[MAX_TYPE_INFO]; // Type info extracted from COLMETADATA
     bool had_gap;
+    struct timeval first_ts;
 };
 
 static parse_fun tds_msg_sbuf_parse;
@@ -355,6 +356,7 @@ static int tds_msg_parser_ctor(struct tds_msg_parser *tds_msg_parser, struct pro
     tds_msg_parser->option_flag_1 = 0;  // ASCII + LittleEndian by default
     tds_msg_parser->pre_7_2 = false;    // assume recent protocol version
     tds_msg_parser->had_gap = false;
+    timeval_reset(&tds_msg_parser->first_ts);
     if (0 != streambuf_ctor(&tds_msg_parser->sbuf, tds_msg_sbuf_parse, MAX_TDS_MSG_BUFFER, &streambuf_locks)) return -1;
 
     return 0;
@@ -1571,6 +1573,10 @@ static enum proto_parse_status tds_msg_sbuf_parse(struct parser *parser, struct 
         SLOG(LOG_DEBUG, "First packet, init c2s_way to %u", tds_msg_parser->c2s_way);
     }
 
+    if (!timeval_is_set(&tds_msg_parser->first_ts)) {
+        SLOG(LOG_DEBUG, "Setting first ts to %s", timeval_2_str(&tds->first_ts));
+        tds_msg_parser->first_ts = tds->first_ts;
+    }
     bool is_eom = (tds->status & TDS_EOM);
     SLOG(LOG_DEBUG, "Tds msg parse: had gap %d, has_gap %d, is_eom %d", tds_msg_parser->had_gap, has_gap, is_eom);
     // Immediatly parse on first gap, else, bufferize
@@ -1589,6 +1595,7 @@ static enum proto_parse_status tds_msg_sbuf_parse(struct parser *parser, struct 
             tds_packet_type_2_str(tds->type), tds_packet_type_2_str(tds_msg_parser->last_pkt_type));
     if (info.is_query) tds_msg_parser->last_pkt_type = tds->type;
     info.set_values = 0;
+    info.first_ts = tds_msg_parser->first_ts;
 
     // Just advertise on previous gap
     if (tds_msg_parser->had_gap) goto quit;
@@ -1625,6 +1632,7 @@ static enum proto_parse_status tds_msg_sbuf_parse(struct parser *parser, struct 
 
 
 quit:
+    timeval_reset(&tds_msg_parser->first_ts);
     tds_msg_parser->had_gap = (tds_msg_parser->had_gap || has_gap) && !is_eom;
     // Advertise the parsed packet even if an error has occured
     return proto_parse(NULL, &info.info, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);

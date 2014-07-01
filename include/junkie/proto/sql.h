@@ -51,7 +51,7 @@ struct sql_proto_info {
 #   define SQL_NB_FIELDS            0x1000
     unsigned set_values;
     unsigned version_maj, version_min;  ///< Version of the protocol
-    // True if this message is the last message of a query / command
+    struct timeval first_ts;
 
     enum sql_request_status {
         SQL_REQUEST_INCOMPLETE,
