@@ -73,7 +73,7 @@ size_t buffer_append_unicode(struct string_buffer *buffer, iconv_t cd, char cons
     if (ret == (size_t) -1) {
         // Can happen if dest buffer is too small or when last multibyte character
         // is truncated
-        SLOG(LOG_INFO, "Iconv error: %s", strerror(errno));
+        SLOG(LOG_DEBUG, "Iconv error: %s", strerror(errno));
         buffer->truncated = true;
     }
     size_t written_bytes = start_size - output_size;
