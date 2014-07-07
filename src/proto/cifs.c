@@ -1214,8 +1214,10 @@ struct cifs_parser {
 
 static const char *cifs_parser_2_str(struct cifs_parser const *cifs_parser)
 {
-    char *str = tempstr_printf("Parser @%p, unicode: %d, level_of_interest: 0x%"PRIx16", trans2_subcmd: 0x%"PRIx16,
-            cifs_parser, cifs_parser->unicode, cifs_parser->level_of_interest, cifs_parser->trans2_subcmd);
+    char *str = tempstr_printf("Parser @%p, unicode: %d, level_of_interest: %s, trans2_subcmd: %s",
+            cifs_parser, cifs_parser->unicode,
+            smb_file_info_levels_2_str(cifs_parser->level_of_interest),
+            smb_trans2_subcmd_2_str(cifs_parser->trans2_subcmd));
     return str;
 }
 
@@ -2000,13 +2002,10 @@ static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_in
                 if (info.is_query) status = parse_read_andx_request(&cursor, &info);
                 else status = parse_read_andx_response(&cursor, &info);
                 break;
-
             case SMB_COM_NT_CREATE_ANDX:
                 if (info.is_query) status = parse_nt_create_andx_request(cifs_parser, &cursor, &info);
                 else status = parse_nt_create_andx_response(&cursor, &info);
                 break;
-
-
             default:
                 break;
         }
@@ -2016,6 +2015,7 @@ static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_in
         return status;
     }
 
+    SLOG(LOG_DEBUG, "Parsed cifs proto %s", cifs_info_2_str(&info.info));
     return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
 
