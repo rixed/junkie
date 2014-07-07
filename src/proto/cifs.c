@@ -1876,6 +1876,68 @@ static enum proto_parse_status parse_read_andx_response(struct cursor *cursor, s
     return PROTO_OK;
 }
 
+/*
+ * NT Create AndX request
+ * Word count 0x18
+ *
+ * Parameters
+ *
+ *
+ * | 4 bytes      | UCHAR     |  USHORT      | ULONG | ULONG            | ULONG
+ * | AndX         | Reserved  |  NameLength  | Flags | RootDirectoryFID | DesiredAccess
+ *
+ * | LARGE_INTEGER    | SMB_EXT_FILE_ATTR | ULONG       | ULONG
+ * | AllocationSize   | ExtFileAttributes | ShareAccess | CreateDisposition
+ *
+ * | ULONG         | ULONG              | UCHAR
+ * | CreateOptions | ImpersonationLevel | SecurityFlags
+ *
+ * Data
+ * | USHORT    | SMB_STRING |
+ * | ByteCount | Filename   |
+ */
+static enum proto_parse_status parse_nt_create_andx_request(struct cifs_parser *cifs_parser, struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(parse_and_check_word_count_superior(cursor, 0x18) == -1) return PROTO_PARSE_ERR;
+    cursor_drop(cursor, 0x18*2);
+    /*cursor_drop(cursor, 4 + 1 + 2 + 4 + 4); // skip AndX, Reserved, NameLength, Flags, RootDirectoryFID*/
+    /*cursor_drop(cursor, 4 + 8 + 4 + 4 + 4); // skip DesiredAccess, AllocationSize, ExtFileAttrs, ShareAccess, CreateDisposition*/
+    /*cursor_drop(cursor, 4 + 4 + 1); // skip CreateOptions, ImpersonationLevel, Security Flags*/
+
+    uint8_t padding = compute_padding(cursor, 2, 2);
+    cursor_drop(cursor, 2 + padding); // skip ByteCount
+
+    if(parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
+        return PROTO_PARSE_ERR;
+    info->set_values |= CIFS_PATH;
+    return PROTO_OK;
+}
+
+/*
+ * NT Create AndX response
+ * Word count 0x22
+ *
+ * Parameters
+ * | 4 bytes | UCHAR       | USHORT | ULONG             | FILETIME   | FILETIME
+ * | AndX    | OpLockLevel | FID    | CreateDisposition | CreateTime | LastAccessTime
+ *
+ * | FILETIME     | FILETIME       | SMB_EXT_FILE_ATTR | LARGE_INTEGER  | LARGE_INTEGER
+ * | LastWriteTime| LastChangeTime | ExtFileAttributes | AllocationSize | EndOfFile
+ *
+ * | USHORT       | SMB_NMPIPE_STATUS | UCHAR
+ * | ResourceType | NMPipeStatus      | ByteCount
+ * No Data
+ */
+static enum proto_parse_status parse_nt_create_andx_response(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(parse_and_check_word_count_superior(cursor, 0x22) == -1) return PROTO_PARSE_ERR;
+    cursor_drop(cursor, 4 + 1); // skip AndX and OpLockLevel
+    parse_fid(cursor, info);
+    info->set_values |= CIFS_FID;
+    return PROTO_OK;
+}
+
+
 
 static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_info *parent,
         unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len,
@@ -1938,6 +2000,13 @@ static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_in
                 if (info.is_query) status = parse_read_andx_request(&cursor, &info);
                 else status = parse_read_andx_response(&cursor, &info);
                 break;
+
+            case SMB_COM_NT_CREATE_ANDX:
+                if (info.is_query) status = parse_nt_create_andx_request(cifs_parser, &cursor, &info);
+                else status = parse_nt_create_andx_response(&cursor, &info);
+                break;
+
+
             default:
                 break;
         }

@@ -1,9 +1,9 @@
 -- pcap/smb/smb.pcap --
 Netbios: head_len=4, payload=70
-CIFS: head_len=32, payload=38, command=0x32, status=0x00000000
+CIFS: head_len=32, payload=38, command=SMB_COM_TRANSACTION2, status=SMB_STATUS_OK, subcmd=SMB_TRANS2_QUERY_FS_INFO, query
 Netbios: head_len=4, payload=35
-CIFS: head_len=32, payload=3, command=0x32, status=0x007c0001
+CIFS: head_len=32, payload=3, command=SMB_COM_TRANSACTION2, status=SMB_STATUS_OS2_INVALID_LEVEL
 Netbios: head_len=4, payload=84
-CIFS: head_len=32, payload=52, command=0x06, status=0x00000000
+CIFS: head_len=32, payload=52, command=SMB_COM_DELETE, status=SMB_STATUS_OK, path=\torture_qfileinfo.txt, query
 Netbios: head_len=4, payload=35
-CIFS: head_len=32, payload=3, command=0x06, status=0xc0000034
+CIFS: head_len=32, payload=3, command=SMB_COM_DELETE, status=SMB_STATUS_OBJECT_NAME_NOT_FOUND

@@ -46,7 +46,7 @@ static struct parse_test {
             .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x61 - CIFS_HEADER_SIZE},
             .command = SMB_COM_NEGOCIATE,
             .domain = "WORKGROUP",
-            .set_values = SMB_DOMAIN,
+            .set_values = CIFS_DOMAIN,
             .status = SMB_STATUS_OK,
         },
     },
@@ -77,7 +77,7 @@ static struct parse_test {
             .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0xe6 - CIFS_HEADER_SIZE},
             .command = SMB_COM_SESSION_SETUP_ANDX,
             .user = "root",
-            .set_values = SMB_USER,
+            .set_values = CIFS_USER,
             .status = SMB_STATUS_OK,
         },
     },
@@ -99,7 +99,7 @@ static struct parse_test {
             .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x60 - CIFS_HEADER_SIZE},
             .command = SMB_COM_SESSION_SETUP_ANDX,
             .domain = "WORKGROUP",
-            .set_values = SMB_DOMAIN,
+            .set_values = CIFS_DOMAIN,
             .status = SMB_STATUS_OK,
         },
     },
@@ -136,7 +136,7 @@ static struct parse_test {
         .expected = {
             .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x44 - CIFS_HEADER_SIZE},
             .command = SMB_COM_TRANSACTION2,
-            .set_values = SMB_TRANS2_SUBCMD,
+            .set_values = CIFS_TRANS2_SUBCMD,
             .trans2_subcmd = SMB_TRANS2_QUERY_FS_INFO,
             .status = SMB_STATUS_OK,
         },
@@ -161,7 +161,7 @@ static struct parse_test {
         .expected = {
             .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x6a - CIFS_HEADER_SIZE},
             .command = SMB_COM_TRANSACTION2,
-            .set_values = SMB_TRANS2_SUBCMD | SMB_PATH,
+            .set_values = CIFS_TRANS2_SUBCMD | CIFS_PATH,
             .trans2_subcmd = SMB_TRANS2_QUERY_PATH_INFORMATION,
             .path = "/libpthread.so.0",
             .status = SMB_STATUS_OK,
@@ -201,7 +201,7 @@ static struct parse_test {
         .expected = {
             .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x54 - CIFS_HEADER_SIZE },
             .command = SMB_COM_TRANSACTION2,
-            .set_values = SMB_TRANS2_SUBCMD | SMB_PATH,
+            .set_values = CIFS_TRANS2_SUBCMD | CIFS_PATH,
             .trans2_subcmd = SMB_TRANS2_FIND_FIRST2,
             .status = SMB_STATUS_OK,
             .path = "/*",
@@ -228,10 +228,10 @@ static struct parse_test {
         .expected = {
             .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x76 - CIFS_HEADER_SIZE },
             .command = SMB_COM_TRANSACTION2,
-            .set_values = SMB_TRANS2_SUBCMD | SMB_PATH,
+            .set_values = CIFS_TRANS2_SUBCMD | CIFS_PATH,
             .trans2_subcmd = SMB_TRANS2_SET_PATH_INFORMATION,
             .status = SMB_STATUS_OK,
-            .flag_file = SMB_FILE_CREATE,
+            .flag_file = CIFS_FILE_CREATE,
             .path = "/tmp/test/ga",
         },
     },
@@ -259,7 +259,7 @@ static struct parse_test {
         .expected = {
             .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0xac - CIFS_HEADER_SIZE },
             .command = SMB_COM_TRANSACTION2,
-            .set_values = SMB_FID,
+            .set_values = CIFS_FID,
             .status = SMB_STATUS_OK,
             .fid = 0x1838,
         },
@@ -281,7 +281,7 @@ static struct parse_test {
         .expected = {
             .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x52 - CIFS_HEADER_SIZE },
             .command = SMB_COM_TRANSACTION2,
-            .set_values = SMB_FID | SMB_TRANS2_SUBCMD,
+            .set_values = CIFS_FID | CIFS_TRANS2_SUBCMD,
             .trans2_subcmd = SMB_TRANS2_SET_FILE_INFORMATION,
             .status = SMB_STATUS_OK,
             .fid = 0x1838,
@@ -309,7 +309,7 @@ static struct parse_test {
         .expected = {
             .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0xae - CIFS_HEADER_SIZE },
             .command = SMB_COM_TRANSACTION2,
-            .set_values = SMB_FID | SMB_TRANS2_SUBCMD,
+            .set_values = CIFS_FID | CIFS_TRANS2_SUBCMD,
             .trans2_subcmd = SMB_TRANS2_SET_FILE_INFORMATION,
             .status = SMB_STATUS_OK,
             .fid = 0x1838,
@@ -331,7 +331,7 @@ static struct parse_test {
         .expected = {
             .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x45 - CIFS_HEADER_SIZE },
             .command = SMB_COM_WRITE_ANDX,
-            .set_values = SMB_FID,
+            .set_values = CIFS_FID,
             .status = SMB_STATUS_OK,
             .fid = 0x1838,
             .query_write_bytes = 0x05,
@@ -369,7 +369,7 @@ static struct parse_test {
         .expected = {
             .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x29 - CIFS_HEADER_SIZE },
             .command = SMB_COM_CLOSE,
-            .set_values = SMB_FID,
+            .set_values = CIFS_FID,
             .status = SMB_STATUS_OK,
             .fid = 0x1838,
         },
@@ -389,7 +389,7 @@ static struct parse_test {
         .expected = {
             .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x3b - CIFS_HEADER_SIZE },
             .command = SMB_COM_READ_ANDX,
-            .set_values = SMB_FID,
+            .set_values = CIFS_FID,
             .status = SMB_STATUS_OK,
             .fid = 0x191a,
         },
@@ -434,8 +434,8 @@ static struct parse_test {
             .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x72 - CIFS_HEADER_SIZE },
             .command = SMB_COM_TRANSACTION2,
             .status = SMB_STATUS_OK,
-            .set_values = SMB_TRANS2_SUBCMD | SMB_PATH,
-            .flag_file = SMB_FILE_CREATE | SMB_FILE_DIRECTORY,
+            .set_values = CIFS_TRANS2_SUBCMD | CIFS_PATH,
+            .flag_file = CIFS_FILE_CREATE | CIFS_FILE_DIRECTORY,
             .path = "/tmp/test2",
             .trans2_subcmd = SMB_TRANS2_SET_PATH_INFORMATION,
         },
@@ -458,8 +458,8 @@ static struct parse_test {
             .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x60 - CIFS_HEADER_SIZE },
             .command = SMB_COM_TRANSACTION2,
             .status = SMB_STATUS_OK,
-            .set_values = SMB_TRANS2_SUBCMD | SMB_PATH,
-            .flag_file = SMB_FILE_UNLINK,
+            .set_values = CIFS_TRANS2_SUBCMD | CIFS_PATH,
+            .flag_file = CIFS_FILE_UNLINK,
             .path = "/tmp/toto",
             .trans2_subcmd = SMB_TRANS2_SET_PATH_INFORMATION,
         },
@@ -480,7 +480,7 @@ static struct parse_test {
             .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x3a - CIFS_HEADER_SIZE },
             .command = SMB_COM_DELETE_DIRECTORY,
             .status = SMB_STATUS_OK,
-            .set_values = SMB_PATH,
+            .set_values = CIFS_PATH,
             .path = "/tmp/test2",
         },
     },
@@ -502,6 +502,60 @@ static struct parse_test {
         },
     },
 
+    {
+        .name = "Create file with path - request",
+        .packet = (uint8_t const []) {
+            0xff, 0x53, 0x4d, 0x42, 0xa2, 0x00, 0x00, 0x00, 0x00, 0x18, 0x07, 0xc8, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0b, 0x88, 0x68, 0x0b, 0x01, 0x38, 0x86, 0x08,
+            0x18, 0xff, 0x00, 0xde, 0xde, 0x00, 0x54, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x80, 0x00, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x07, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
+            0x03, 0x57, 0x00, 0x00, 0x5c, 0x00, 0x54, 0x00, 0x4f, 0x00, 0x54, 0x00, 0x52, 0x00, 0x6f, 0x00,
+            0x6f, 0x00, 0x74, 0x00, 0x52, 0x00, 0x5f, 0x00, 0x53, 0x00, 0x6d, 0x00, 0x55, 0x00, 0x72, 0x00,
+            0x61, 0x00, 0x6e, 0x00, 0x69, 0x00, 0x70, 0x00, 0x5c, 0x00, 0x44, 0x00, 0x4e, 0x00, 0x42, 0x00,
+            0x4f, 0x00, 0x58, 0x00, 0x5c, 0x00, 0x4e, 0x00, 0x5e, 0x00, 0x43, 0x00, 0x5c, 0x00, 0x5f, 0x00,
+            0x52, 0x00, 0x45, 0x00, 0x53, 0x00, 0x55, 0x00, 0x4c, 0x00, 0x54, 0x00, 0x41, 0x00, 0x54, 0x00,
+            0x2e, 0x00, 0x43, 0x00, 0x53, 0x00, 0x56, 0x00, 0x00, 0x00, 0x0a
+        },
+        .size = 0xaa,
+        .ret = PROTO_OK,
+        .way = FROM_CLIENT,
+        .expected = {
+            .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0xaa - CIFS_HEADER_SIZE },
+            .path = "\\TOTRootR_SmUranip\\DNBOX\\N^C\\_RESULTAT.CSV",
+            .set_values = CIFS_PATH,
+            .command = SMB_COM_NT_CREATE_ANDX,
+            .status = SMB_STATUS_OK,
+        },
+    },
+
+    {
+        .name = "Create file with path - response",
+        .packet = (uint8_t const []) {
+            0xff, 0x53, 0x4d, 0x42, 0xa2, 0x00, 0x00, 0x00, 0x00, 0x98, 0x07, 0xc8, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0b, 0x88, 0x68, 0x0b, 0x01, 0x38, 0x86, 0x08,
+            0x2a, 0xff, 0x00, 0x87, 0x00, 0x00, 0x07, 0x80, 0x01, 0x00, 0x00, 0x00, 0x05, 0xa2, 0x9e, 0xbb,
+            0x6a, 0x94, 0xcf, 0x01, 0xbe, 0x12, 0xe7, 0xe1, 0x6b, 0x94, 0xcf, 0x01, 0xc3, 0x39, 0xee, 0xe1,
+            0x6b, 0x94, 0xcf, 0x01, 0xc3, 0x39, 0xee, 0xe1, 0x6b, 0x94, 0xcf, 0x01, 0x20, 0x00, 0x00, 0x00,
+            0xd8, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd5, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x01, 0x1f,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        },
+        .size = 0x87,
+        .ret = PROTO_OK,
+        .way = FROM_SERVER,
+        .expected = {
+            .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x87 - CIFS_HEADER_SIZE },
+            .fid = 0x8007,
+            .set_values = CIFS_FID,
+            .command = SMB_COM_NT_CREATE_ANDX,
+            .status = SMB_STATUS_OK,
+        },
+    },
+
+
+
 };
 
 #define CHECK_SMB_SET(INFO, EXPECTED, MASK) \
@@ -519,31 +573,31 @@ static bool compare_expected_cifs(struct cifs_proto_info const *const info,
     CHECK_INT(info->info.head_len, expected->info.head_len);
     CHECK_INT(info->info.payload, expected->info.payload);
 
-    CHECK_SET_VALUE(info, expected, SMB_DOMAIN);
-    CHECK_SET_VALUE(info, expected, SMB_USER);
-    CHECK_SET_VALUE(info, expected, SMB_PATH);
-    CHECK_SET_VALUE(info, expected, SMB_TRANS2_SUBCMD);
-    CHECK_SET_VALUE(info, expected, SMB_FID);
+    CHECK_SET_VALUE(info, expected, CIFS_DOMAIN);
+    CHECK_SET_VALUE(info, expected, CIFS_USER);
+    CHECK_SET_VALUE(info, expected, CIFS_PATH);
+    CHECK_SET_VALUE(info, expected, CIFS_TRANS2_SUBCMD);
+    CHECK_SET_VALUE(info, expected, CIFS_FID);
 
     CHECK_INT(info->status, expected->status);
     CHECK_INT(info->command, expected->command);
     CHECK_INT(info->query_write_bytes, expected->query_write_bytes);
     CHECK_INT(info->response_read_bytes,  expected->response_read_bytes);
     CHECK_INT(info->response_write_bytes, expected->response_write_bytes);
-    if (VALUES_ARE_SET(info, SMB_DOMAIN))
+    if (VALUES_ARE_SET(info, CIFS_DOMAIN))
         CHECK_STR(info->domain, expected->domain);
-    if (VALUES_ARE_SET(info, SMB_USER))
+    if (VALUES_ARE_SET(info, CIFS_USER))
         CHECK_STR(info->user, expected->user);
-    if (VALUES_ARE_SET(info, SMB_PATH))
+    if (VALUES_ARE_SET(info, CIFS_PATH))
         CHECK_STR(info->path, expected->path);
-    if (VALUES_ARE_SET(info, SMB_TRANS2_SUBCMD))
+    if (VALUES_ARE_SET(info, CIFS_TRANS2_SUBCMD))
         CHECK_INT(info->trans2_subcmd, expected->trans2_subcmd);
-    if (VALUES_ARE_SET(info, SMB_FID))
+    if (VALUES_ARE_SET(info, CIFS_FID))
         CHECK_INT(info->fid, expected->fid);
 
-    CHECK_FLAG_FILE(info, expected, SMB_FILE_CREATE);
-    CHECK_FLAG_FILE(info, expected, SMB_FILE_DIRECTORY);
-    CHECK_FLAG_FILE(info, expected, SMB_FILE_UNLINK);
+    CHECK_FLAG_FILE(info, expected, CIFS_FILE_CREATE);
+    CHECK_FLAG_FILE(info, expected, CIFS_FILE_DIRECTORY);
+    CHECK_FLAG_FILE(info, expected, CIFS_FILE_UNLINK);
 
     return 0;
 }
@@ -572,6 +626,7 @@ static void parse_check(void)
                 test->size, &now, test->size, test->packet);
         assert(ret == test->ret);
     }
+    hook_subscriber_dtor(&pkt_hook, &sub);
 }
 
 static void compute_padding_check()
