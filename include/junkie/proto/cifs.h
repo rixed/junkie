@@ -1060,17 +1060,21 @@ enum smb_command {
 };
 
 enum smb_file_info_levels {
-    QUERY_FILE_UNIX_BASIC = 0x0200,
-    QUERY_FILE_UNIX_LINK = 0x0201,
-    QUERY_POSIX_ACL = 0x0204,
-    QUERY_XATTR = 0x0205,
-    QUERY_ATTR_FLAGS = 0x0206,
-    QUERY_POSIX_PERMISSION = 0x0207,
-    QUERY_POSIX_LOCK = 0x0208,
-    SMB_POSIX_PATH_OPEN = 0x0209,
-    SMB_POSIX_PATH_UNLINK = 0x020a,
+    QUERY_FILE_UNIX_BASIC     = 0x0200,
+    QUERY_FILE_UNIX_LINK      = 0x0201,
+    QUERY_POSIX_ACL           = 0x0204,
+    QUERY_XATTR               = 0x0205,
+    QUERY_ATTR_FLAGS          = 0x0206,
+    QUERY_POSIX_PERMISSION    = 0x0207,
+    QUERY_POSIX_LOCK          = 0x0208,
+    SMB_POSIX_PATH_OPEN       = 0x0209,
+    SMB_POSIX_PATH_UNLINK     = 0x020a,
     SMB_QUERY_FILE_UNIX_INFO2 = 0x020b,
 };
+
+#define CIFS_DOMAIN_SIZE 256
+#define CIFS_USER_SIZE 256
+#define CIFS_PATH_SIZE 512
 
 struct cifs_proto_info {
     struct proto_info info;
@@ -1083,9 +1087,9 @@ struct cifs_proto_info {
 #define         CIFS_FID                               0x0010
 #define         CIFS_LEVEL_OF_INTEREST                 0x0020
     unsigned set_values;
-    char domain[50];
-    char user[50];
-    char path[50];
+    char user[CIFS_USER_SIZE];
+    char domain[CIFS_DOMAIN_SIZE];
+    char path[CIFS_PATH_SIZE];
     enum smb_trans2_subcommand trans2_subcmd;
     enum smb_file_info_levels level_of_interest;
     uint16_t fid;
