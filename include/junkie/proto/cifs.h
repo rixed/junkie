@@ -1060,6 +1060,21 @@ enum smb_command {
 };
 
 enum smb_file_info_levels {
+    // Information levels for Trans2 QUERY_FILE_INFO
+    SMB_INFO_STANDARD               = 0x0001,
+    SMB_INFO_QUERY_EA_SIZE          = 0x0002,
+    SMB_INFO_QUERY_EA_FROM_LIST     = 0x003,
+    SMB_INFO_QUERY_ALL_EAS          = 0x0004,
+    SMB_INFO_NAME_VALID             = 0x0006,
+    SMB_QUERY_FILE_BASIC_INFO       = 0x0101,
+    SMB_QUERY_FILE_STANDARD_INFO    = 0x0102,
+    SMB_QUERY_FILE_EA_INFO          = 0x0103,
+    SMB_QUERY_FILE_NAME_INFO        = 0x0104,
+    SMB_QUERY_FILE_ALL_INFO         = 0x0107,
+    SMB_QUERY_FILE_ALT_NAME_INFO    = 0x0108,
+    SMB_QUERY_FILE_STREAM_INFO      = 0x0109,
+    SMB_QUERY_FILE_COMPRESSION_INFO = 0x010b,
+
     QUERY_FILE_UNIX_BASIC     = 0x0200,
     QUERY_FILE_UNIX_LINK      = 0x0201,
     QUERY_POSIX_ACL           = 0x0204,
@@ -1070,6 +1085,56 @@ enum smb_file_info_levels {
     SMB_POSIX_PATH_OPEN       = 0x0209,
     SMB_POSIX_PATH_UNLINK     = 0x020a,
     SMB_QUERY_FILE_UNIX_INFO2 = 0x020b,
+};
+
+#define PASS_THROUGH_LEVEL_OF_ITEREST 0x03e8
+// classes for passthrough information level
+enum smb_file_information_classes {
+    FILE_DIRECTORY_INFORMATION              = 0x01,
+    FILE_FULL_DIRECTORY_INFORMATION         = 0x02,
+    FILE_BOTH_DIRECTORY_INFORMATION         = 0x03,
+    FILE_BASIC_INFORMATION                  = 0x04,
+    FILE_STANDARD_INFORMATION               = 0x05,
+    FILE_INTERNAL_INFORMATION               = 0x06,
+    FILE_EA_INFORMATION                     = 0x07,
+    FILE_ACCESS_INFORMATION                 = 0x08,
+    FILE_NAME_INFORMATION                   = 0x09,
+    FILE_RENAME_INFORMATION                 = 0x0a,
+    FILE_LINK_INFORMATION                   = 0x0b,
+    FILE_NAMES_INFORMATION                  = 0x0c,
+    FILE_DISPOSITION_INFORMATION            = 0x0d,
+    FILE_POSITION_INFORMATION               = 0x0e,
+    FILE_FULL_EA_INFORMATION                = 0x0f,
+    FILE_MODE_INFORMATION                   = 0x10,
+    FILE_ALIGNMENT_INFORMATION              = 0x11,
+    FILE_ALL_INFORMATION                    = 0x12,
+    FILE_ALLOCATION_INFORMATION             = 0x13,
+    FILE_END_OF_FILE_INFORMATION            = 0x14,
+    FILE_ALTERNATE_NAME_INFORMATION         = 0x15,
+    FILE_STREAM_INFORMATION                 = 0x16,
+    FILE_PIPE_INFORMATION                   = 0x17,
+    FILE_PIPE_LOCAL_INFORMATION             = 0x18,
+    FILE_PIPE_REMOTE_INFORMATION            = 0x19,
+    FILE_MAILSLOT_QUERY_INFORMATION         = 0x1a,
+    FILE_MAILSLOT_SET_INFORMATION           = 0x1b,
+    FILE_COMPRESSION_INFORMATION            = 0x1c,
+    FILE_OBJECT_ID_INFORMATION              = 0x1d,
+    FILE_MOVE_CLUSTER_INFORMATION           = 0x1f,
+    FILE_QUOTA_INFORMATION                  = 0x20,
+    FILE_REPARSE_POINT_INFORMATION          = 0x21,
+    FILE_NETWORK_OPEN_INFORMATION           = 0x22,
+    FILE_ATTRIBUTE_TAG_INFORMATION          = 0x23,
+    FILE_TRACKING_INFORMATION               = 0x24,
+    FILE_ID_BOTH_DIRECTORY_INFORMATION      = 0x25,
+    FILE_ID_FULL_DIRECTORY_INFORMATION      = 0x26,
+    FILE_VALID_DATA_LENGTH_INFORMATION      = 0x27,
+    FILE_SHORT_NAME_INFORMATION             = 0x28,
+    FILE_SFIO_RESERVE_INFORMATION           = 0x2c,
+    FILE_SFIO_VOLUME_INFORMATION            = 0x2d,
+    FILE_HARD_LINK_INFORMATION              = 0x2e,
+    FILE_NORMALIZED_NAME_INFORMATION        = 0x30,
+    FILE_ID_GLOBAL_TX_DIRECTORY_INFORMATION = 0x32,
+    FILE_STANDARD_LINK_INFORMATION          = 0x36,
 };
 
 #define CIFS_DOMAIN_SIZE 256

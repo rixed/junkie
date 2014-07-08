@@ -216,7 +216,7 @@ static struct parse_test {
             0x0f, 0x20, 0x00, 0x12, 0x00, 0x02, 0x00, 0xe8, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 //                                        ParameterO                                                  Byte
             0x00, 0x00, 0x00, 0x20, 0x00, 0x44, 0x00, 0x12, 0x00, 0x64, 0x00, 0x01, 0x00, 0x06, 0x00, 0x35,
-//          Coun  Padding---------
+//          Coun  Padding---------  LevelOfInt
             0x00, 0x00, 0x00, 0x00, 0x09, 0x02, 0x00, 0x00, 0x00, 0x00, 0x2f, 0x00, 0x74, 0x00, 0x6d, 0x00,
             0x70, 0x00, 0x2f, 0x00, 0x74, 0x00, 0x65, 0x00, 0x73, 0x00, 0x74, 0x00, 0x2f, 0x00, 0x67, 0x00,
             0x61, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x52, 0x00, 0x00, 0x00, 0xed, 0x01, 0x00, 0x00,
@@ -228,10 +228,11 @@ static struct parse_test {
         .expected = {
             .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x76 - CIFS_HEADER_SIZE },
             .command = SMB_COM_TRANSACTION2,
-            .set_values = CIFS_TRANS2_SUBCMD | CIFS_PATH,
+            .set_values = CIFS_TRANS2_SUBCMD | CIFS_PATH | CIFS_LEVEL_OF_INTEREST,
             .trans2_subcmd = SMB_TRANS2_SET_PATH_INFORMATION,
             .status = SMB_STATUS_OK,
             .flag_file = CIFS_FILE_CREATE,
+            .level_of_interest = SMB_POSIX_PATH_OPEN,
             .path = "/tmp/test/ga",
         },
     },
@@ -434,8 +435,9 @@ static struct parse_test {
             .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x72 - CIFS_HEADER_SIZE },
             .command = SMB_COM_TRANSACTION2,
             .status = SMB_STATUS_OK,
-            .set_values = CIFS_TRANS2_SUBCMD | CIFS_PATH,
+            .set_values = CIFS_TRANS2_SUBCMD | CIFS_PATH | CIFS_LEVEL_OF_INTEREST,
             .flag_file = CIFS_FILE_CREATE | CIFS_FILE_DIRECTORY,
+            .level_of_interest = SMB_POSIX_PATH_OPEN,
             .path = "/tmp/test2",
             .trans2_subcmd = SMB_TRANS2_SET_PATH_INFORMATION,
         },
@@ -458,8 +460,9 @@ static struct parse_test {
             .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x60 - CIFS_HEADER_SIZE },
             .command = SMB_COM_TRANSACTION2,
             .status = SMB_STATUS_OK,
-            .set_values = CIFS_TRANS2_SUBCMD | CIFS_PATH,
+            .set_values = CIFS_TRANS2_SUBCMD | CIFS_PATH | CIFS_LEVEL_OF_INTEREST,
             .flag_file = CIFS_FILE_UNLINK,
+            .level_of_interest = SMB_POSIX_PATH_UNLINK,
             .path = "/tmp/toto",
             .trans2_subcmd = SMB_TRANS2_SET_PATH_INFORMATION,
         },
@@ -554,7 +557,71 @@ static struct parse_test {
         },
     },
 
+    {
+        .name = "Trans2 Request, Query file info, file internal info",
+        .packet = (uint8_t const []) {
+            0xff, 0x53, 0x4d, 0x42, 0x32, 0x00, 0x00, 0x00, 0x00, 0x18, 0x07, 0xc8, 0x00, 0x00, 0x4a, 0x53,
+            0x91, 0xd1, 0xdd, 0x2e, 0xad, 0xa0, 0x00, 0x00, 0x08, 0x08, 0x74, 0x0e, 0x02, 0xf0, 0x87, 0x0c,
+//          Wc--  Tot param-  Total data  Max param-  max data--  MaxS  Rese
+            0x0f, 0x04, 0x00, 0x00, 0x00, 0x02, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+//                                                                                        SubCommand  Byte
+            0x00, 0x00, 0x00, 0x04, 0x00, 0x44, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x07, 0x00, 0x07,
+//          Count Padding---------  Fid-------  Level of i
+            0x00, 0x00, 0x00, 0x00, 0x12, 0x80, 0xee, 0x03
+        },
+        .size = 0x48,
+        .ret = PROTO_OK,
+        .way = FROM_CLIENT,
+        .expected = {
+            .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x48 - CIFS_HEADER_SIZE },
+            .fid = 0x8012,
+            .set_values = CIFS_FID | CIFS_TRANS2_SUBCMD | CIFS_LEVEL_OF_INTEREST,
+            .command = SMB_COM_TRANSACTION2,
+            .trans2_subcmd = SMB_TRANS2_QUERY_FILE_INFORMATION,
+            .level_of_interest = PASS_THROUGH_LEVEL_OF_ITEREST | FILE_INTERNAL_INFORMATION,
+            .status = SMB_STATUS_OK,
+        },
+    },
 
+    {
+        .name = "Trans2 Response, Query file info, file internal info",
+        .packet = (uint8_t const []) {
+            0xff, 0x53, 0x4d, 0x42, 0x32, 0x00, 0x00, 0x00, 0x00, 0x98, 0x07, 0xc8, 0x00, 0x00, 0x6f, 0xf1,
+            0xe4, 0x63, 0xa3, 0x56, 0x6b, 0xc0, 0x00, 0x00, 0x08, 0x08, 0x74, 0x0e, 0x02, 0xf0, 0x87, 0x0c,
+            0x0a, 0x02, 0x00, 0x08, 0x00, 0x00, 0x00, 0x02, 0x00, 0x38, 0x00, 0x00, 0x00, 0x08, 0x00, 0x3c,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x0d, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2f, 0xcb, 0x17, 0x00,
+            0x00, 0x00, 0x14, 0x00
+        },
+        .size = 0x44,
+        .ret = PROTO_OK,
+        .way = FROM_SERVER,
+        .expected = {
+            .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x44 - CIFS_HEADER_SIZE },
+            .command = SMB_COM_TRANSACTION2,
+            .status = SMB_STATUS_OK,
+        },
+    },
+
+    {
+        .name = "Trans2 Response, Query file info, File standard info",
+        .packet = (uint8_t const []) {
+            0xff, 0x53, 0x4d, 0x42, 0x32, 0x00, 0x00, 0x00, 0x00, 0x98, 0x07, 0xc8, 0x00, 0x00, 0x2c, 0xb0,
+            0xb5, 0x06, 0xb1, 0x57, 0x78, 0xc8, 0x00, 0x00, 0x08, 0x08, 0x74, 0x0e, 0x02, 0xf0, 0xc7, 0x0c,
+            0x0a, 0x02, 0x00, 0x18, 0x00, 0x00, 0x00, 0x02, 0x00, 0x38, 0x00, 0x00, 0x00, 0x18, 0x00, 0x3c,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x1d, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+            0x00, 0x01, 0x00, 0x00
+        },
+        .size = 0x54,
+        .ret = PROTO_OK,
+        .way = FROM_SERVER,
+        .expected = {
+            .info = { .head_len = CIFS_HEADER_SIZE, .payload = 0x54 - CIFS_HEADER_SIZE },
+            .command = SMB_COM_TRANSACTION2,
+            .trans2_subcmd = SMB_TRANS2_QUERY_FILE_INFORMATION,
+            .status = SMB_STATUS_OK,
+        },
+    },
 
 };
 
@@ -577,6 +644,7 @@ static bool compare_expected_cifs(struct cifs_proto_info const *const info,
     CHECK_SET_VALUE(info, expected, CIFS_USER);
     CHECK_SET_VALUE(info, expected, CIFS_PATH);
     CHECK_SET_VALUE(info, expected, CIFS_TRANS2_SUBCMD);
+    CHECK_SET_VALUE(info, expected, CIFS_LEVEL_OF_INTEREST);
     CHECK_SET_VALUE(info, expected, CIFS_FID);
 
     CHECK_INT(info->status, expected->status);
@@ -592,6 +660,8 @@ static bool compare_expected_cifs(struct cifs_proto_info const *const info,
         CHECK_STR(info->path, expected->path);
     if (VALUES_ARE_SET(info, CIFS_TRANS2_SUBCMD))
         CHECK_INT(info->trans2_subcmd, expected->trans2_subcmd);
+    if (VALUES_ARE_SET(info, CIFS_LEVEL_OF_INTEREST))
+        CHECK_INT(info->level_of_interest, expected->level_of_interest);
     if (VALUES_ARE_SET(info, CIFS_FID))
         CHECK_INT(info->fid, expected->fid);
 

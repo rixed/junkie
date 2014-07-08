@@ -33,18 +33,80 @@ LOG_CATEGORY_DEF(proto_cifs);
 
 char const *smb_file_info_levels_2_str(enum smb_file_info_levels level)
 {
+    if ((level & PASS_THROUGH_LEVEL_OF_ITEREST) == PASS_THROUGH_LEVEL_OF_ITEREST) {
+        switch ((level & ~PASS_THROUGH_LEVEL_OF_ITEREST)) {
+            case FILE_DIRECTORY_INFORMATION              : return "FILE_DIRECTORY_INFORMATION";
+            case FILE_FULL_DIRECTORY_INFORMATION         : return "FILE_FULL_DIRECTORY_INFORMATION";
+            case FILE_BOTH_DIRECTORY_INFORMATION         : return "FILE_BOTH_DIRECTORY_INFORMATION";
+            case FILE_BASIC_INFORMATION                  : return "FILE_BASIC_INFORMATION";
+            case FILE_STANDARD_INFORMATION               : return "FILE_STANDARD_INFORMATION";
+            case FILE_INTERNAL_INFORMATION               : return "FILE_INTERNAL_INFORMATION";
+            case FILE_EA_INFORMATION                     : return "FILE_EA_INFORMATION";
+            case FILE_ACCESS_INFORMATION                 : return "FILE_ACCESS_INFORMATION";
+            case FILE_NAME_INFORMATION                   : return "FILE_NAME_INFORMATION";
+            case FILE_RENAME_INFORMATION                 : return "FILE_RENAME_INFORMATION";
+            case FILE_LINK_INFORMATION                   : return "FILE_LINK_INFORMATION";
+            case FILE_NAMES_INFORMATION                  : return "FILE_NAMES_INFORMATION";
+            case FILE_DISPOSITION_INFORMATION            : return "FILE_DISPOSITION_INFORMATION";
+            case FILE_POSITION_INFORMATION               : return "FILE_POSITION_INFORMATION";
+            case FILE_FULL_EA_INFORMATION                : return "FILE_FULL_EA_INFORMATION";
+            case FILE_MODE_INFORMATION                   : return "FILE_MODE_INFORMATION";
+            case FILE_ALIGNMENT_INFORMATION              : return "FILE_ALIGNMENT_INFORMATION";
+            case FILE_ALL_INFORMATION                    : return "FILE_ALL_INFORMATION";
+            case FILE_ALLOCATION_INFORMATION             : return "FILE_ALLOCATION_INFORMATION";
+            case FILE_END_OF_FILE_INFORMATION            : return "FILE_END_OF_FILE_INFORMATION";
+            case FILE_ALTERNATE_NAME_INFORMATION         : return "FILE_ALTERNATE_NAME_INFORMATION";
+            case FILE_STREAM_INFORMATION                 : return "FILE_STREAM_INFORMATION";
+            case FILE_PIPE_INFORMATION                   : return "FILE_PIPE_INFORMATION";
+            case FILE_PIPE_LOCAL_INFORMATION             : return "FILE_PIPE_LOCAL_INFORMATION";
+            case FILE_PIPE_REMOTE_INFORMATION            : return "FILE_PIPE_REMOTE_INFORMATION";
+            case FILE_MAILSLOT_QUERY_INFORMATION         : return "FILE_MAILSLOT_QUERY_INFORMATION";
+            case FILE_MAILSLOT_SET_INFORMATION           : return "FILE_MAILSLOT_SET_INFORMATION";
+            case FILE_COMPRESSION_INFORMATION            : return "FILE_COMPRESSION_INFORMATION";
+            case FILE_OBJECT_ID_INFORMATION              : return "FILE_OBJECT_ID_INFORMATION";
+            case FILE_MOVE_CLUSTER_INFORMATION           : return "FILE_MOVE_CLUSTER_INFORMATION";
+            case FILE_QUOTA_INFORMATION                  : return "FILE_QUOTA_INFORMATION";
+            case FILE_REPARSE_POINT_INFORMATION          : return "FILE_REPARSE_POINT_INFORMATION";
+            case FILE_NETWORK_OPEN_INFORMATION           : return "FILE_NETWORK_OPEN_INFORMATION";
+            case FILE_ATTRIBUTE_TAG_INFORMATION          : return "FILE_ATTRIBUTE_TAG_INFORMATION";
+            case FILE_TRACKING_INFORMATION               : return "FILE_TRACKING_INFORMATION";
+            case FILE_ID_BOTH_DIRECTORY_INFORMATION      : return "FILE_ID_BOTH_DIRECTORY_INFORMATION";
+            case FILE_ID_FULL_DIRECTORY_INFORMATION      : return "FILE_ID_FULL_DIRECTORY_INFORMATION";
+            case FILE_VALID_DATA_LENGTH_INFORMATION      : return "FILE_VALID_DATA_LENGTH_INFORMATION";
+            case FILE_SHORT_NAME_INFORMATION             : return "FILE_SHORT_NAME_INFORMATION";
+            case FILE_SFIO_RESERVE_INFORMATION           : return "FILE_SFIO_RESERVE_INFORMATION";
+            case FILE_SFIO_VOLUME_INFORMATION            : return "FILE_SFIO_VOLUME_INFORMATION";
+            case FILE_HARD_LINK_INFORMATION              : return "FILE_HARD_LINK_INFORMATION";
+            case FILE_NORMALIZED_NAME_INFORMATION        : return "FILE_NORMALIZED_NAME_INFORMATION";
+            case FILE_ID_GLOBAL_TX_DIRECTORY_INFORMATION : return "FILE_ID_GLOBAL_TX_DIRECTORY_INFORMATION";
+            case FILE_STANDARD_LINK_INFORMATION          : return "FILE_STANDARD_LINK_INFORMATION";
+        }
+    }
     switch (level) {
-        case QUERY_FILE_UNIX_BASIC     : return "QUERY_FILE_UNIX_BASIC";
-        case QUERY_FILE_UNIX_LINK      : return "QUERY_FILE_UNIX_LINK";
-        case QUERY_POSIX_ACL           : return "QUERY_POSIX_ACL";
-        case QUERY_XATTR               : return "QUERY_XATTR";
-        case QUERY_ATTR_FLAGS          : return "QUERY_ATTR_FLAGS";
-        case QUERY_POSIX_PERMISSION    : return "QUERY_POSIX_PERMISSION";
-        case QUERY_POSIX_LOCK          : return "QUERY_POSIX_LOCK";
-        case SMB_POSIX_PATH_OPEN       : return "SMB_POSIX_PATH_OPEN";
-        case SMB_POSIX_PATH_UNLINK     : return "SMB_POSIX_PATH_UNLINK";
-        case SMB_QUERY_FILE_UNIX_INFO2 : return "SMB_QUERY_FILE_UNIX_INFO2";
-        default                        : return tempstr_printf("Unknown (0x%"PRIx32")", level);
+        case QUERY_FILE_UNIX_BASIC           : return "QUERY_FILE_UNIX_BASIC";
+        case QUERY_FILE_UNIX_LINK            : return "QUERY_FILE_UNIX_LINK";
+        case QUERY_POSIX_ACL                 : return "QUERY_POSIX_ACL";
+        case QUERY_XATTR                     : return "QUERY_XATTR";
+        case QUERY_ATTR_FLAGS                : return "QUERY_ATTR_FLAGS";
+        case QUERY_POSIX_PERMISSION          : return "QUERY_POSIX_PERMISSION";
+        case QUERY_POSIX_LOCK                : return "QUERY_POSIX_LOCK";
+        case SMB_POSIX_PATH_OPEN             : return "SMB_POSIX_PATH_OPEN";
+        case SMB_POSIX_PATH_UNLINK           : return "SMB_POSIX_PATH_UNLINK";
+        case SMB_QUERY_FILE_UNIX_INFO2       : return "SMB_QUERY_FILE_UNIX_INFO2";
+        case SMB_INFO_STANDARD               : return "SMB_INFO_STANDARD";
+        case SMB_INFO_QUERY_EA_SIZE          : return "SMB_INFO_QUERY_EA_SIZE";
+        case SMB_INFO_QUERY_EA_FROM_LIST     : return "SMB_INFO_QUERY_EA_FROM_LIST";
+        case SMB_INFO_QUERY_ALL_EAS          : return "SMB_INFO_QUERY_ALL_EAS";
+        case SMB_INFO_NAME_VALID             : return "SMB_INFO_NAME_VALID";
+        case SMB_QUERY_FILE_BASIC_INFO       : return "SMB_QUERY_FILE_BASIC_INFO";
+        case SMB_QUERY_FILE_STANDARD_INFO    : return "SMB_QUERY_FILE_STANDARD_INFO";
+        case SMB_QUERY_FILE_EA_INFO          : return "SMB_QUERY_FILE_EA_INFO";
+        case SMB_QUERY_FILE_NAME_INFO        : return "SMB_QUERY_FILE_NAME_INFO";
+        case SMB_QUERY_FILE_ALL_INFO         : return "SMB_QUERY_FILE_ALL_INFO";
+        case SMB_QUERY_FILE_ALT_NAME_INFO    : return "SMB_QUERY_FILE_ALT_NAME_INFO";
+        case SMB_QUERY_FILE_STREAM_INFO      : return "SMB_QUERY_FILE_STREAM_INFO";
+        case SMB_QUERY_FILE_COMPRESSION_INFO : return "SMB_QUERY_FILE_COMPRESSION_INFO";
+        default                              : return tempstr_printf("Unknown (0x%"PRIx32")", level);
     }
 }
 
@@ -1379,7 +1441,7 @@ static int parse_and_check_byte_count_superior(struct cursor *cursor, uint8_t mi
     uint16_t byte_count = cursor_read_u16le(cursor);
     SLOG(LOG_DEBUG, "Byte count is 0x%"PRIx16, byte_count);
     if (byte_count < minimum_byte_count) {
-        SLOG(LOG_DEBUG, "Byte count is too small  (%02"PRIx8" > %02"PRIx16, minimum_byte_count, byte_count);
+        SLOG(LOG_DEBUG, "Byte count is too small  (0x%02"PRIx8" > 0x%02"PRIx16")", minimum_byte_count, byte_count);
         return -1;
     }
     if (cursor->cap_len < byte_count) return -1;
@@ -1554,10 +1616,11 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
     int word_count = parse_and_check_word_count_superior(cursor, 0x0e);
     if (word_count == -1) return PROTO_PARSE_ERR;
 
-    cursor_drop(cursor, 2 + 2 + 2 + 2 + 1); // total counts + max counts
-    cursor_drop(cursor, 1 + 2 + 4 + 2); // Reserved + flags + timeout + reserved
-
-    cursor_drop(cursor, 2); // parameter count
+    cursor_drop(cursor, 2 + 2 // Total counts
+            + 2 + 2 + 1       // Max counts
+            + 1               // Reserved
+            + 2 + 4 + 2       // flags + timeout + reserved
+            + 2);             // Parameter count
     uint16_t parameter_offset = cursor_read_u16le(cursor);
     cursor_drop(cursor, 2 + 2 + 1 + 1); // data count + data offset + setup count + reserved
 
@@ -1571,11 +1634,19 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
         return PROTO_PARSE_ERR;
     }
     uint8_t padding = parameter_offset - start_parameter;
-    SLOG(LOG_DEBUG, "Found start parameter %u, offset %u, padding %u", start_parameter, parameter_offset, padding);
+    SLOG(LOG_DEBUG, "Found start parameter %u, offset %u, padding %u, subcmd %s", start_parameter, parameter_offset, padding, smb_trans2_subcmd_2_str(info->trans2_subcmd));
     if (parse_and_check_byte_count_superior(cursor, padding) == -1) return PROTO_PARSE_ERR;
     cursor_drop(cursor, padding);
 
     switch (info->trans2_subcmd) {
+        case SMB_TRANS2_QUERY_FILE_INFORMATION:
+            {
+                CHECK(4);
+                parse_fid(cursor, info);
+                info->level_of_interest = cifs_parser->level_of_interest = cursor_read_u16le(cursor);
+                info->set_values |= CIFS_LEVEL_OF_INTEREST;
+            }
+            break;
         case SMB_TRANS2_QUERY_PATH_INFORMATION:
             {
                 CHECK(2 + 4);
@@ -1676,6 +1747,7 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
 
     enum proto_parse_status status = PROTO_OK;
     uint8_t data_padding = data_offset - parameter_offset;
+    assert(data_padding > 0);
     SLOG(LOG_DEBUG, "Parse trans2 specific subcmd %s with data padding %"PRIu8, smb_trans2_subcmd_2_str(cifs_parser->trans2_subcmd), data_padding);
     switch (cifs_parser->trans2_subcmd) {
         /*
@@ -1686,7 +1758,7 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
         case SMB_TRANS2_SET_PATH_INFORMATION:
             {
                 // Parameters
-                CHECK(2);
+                CHECK(data_padding);
                 cursor_drop(cursor, 2); // ea error offset
                 cursor_drop(cursor, data_padding - 2);
                 switch (cifs_parser->level_of_interest) {
@@ -1703,10 +1775,13 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
                 }
             }
             break;
-
+        case SMB_TRANS2_QUERY_FILE_INFORMATION:
+            {
+                // TODO update meta read
+            }
         case SMB_TRANS2_SET_FILE_INFORMATION:
             {
-                CHECK(2);
+                CHECK(data_padding);
                 cursor_drop(cursor, 2); // ea error offset
                 cursor_drop(cursor, data_padding - 2);
                 // TODO Check error...
@@ -1938,8 +2013,6 @@ static enum proto_parse_status parse_nt_create_andx_response(struct cursor *curs
     info->set_values |= CIFS_FID;
     return PROTO_OK;
 }
-
-
 
 static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_info *parent,
         unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len,
