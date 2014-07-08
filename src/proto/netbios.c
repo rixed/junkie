@@ -75,12 +75,6 @@ static void netbios_parser_del(struct parser *parser)
     objfree(netbios_parser);
 }
 
-static int packet_is_netbios(uint8_t const *packet, size_t next_len)
-{
-    uint32_t len = READ_U32N((uint32_t*) packet) & 0x00ffffff;
-    return len == (next_len - NETBIOS_HEADER_SIZE);
-}
-
 static void const *netbios_info_addr(struct proto_info const *info_, size_t *size)
 {
     struct netbios_proto_info const *info = DOWNCAST(info_, info, netbios_proto_info);
@@ -101,12 +95,18 @@ static enum proto_parse_status netbios_parse(struct parser *parser, struct proto
     if (wire_len < NETBIOS_HEADER_SIZE) return PROTO_PARSE_ERR;
     if (cap_len < NETBIOS_HEADER_SIZE) return PROTO_TOO_SHORT;
 
-    if (! packet_is_netbios(packet, cap_len)) return PROTO_PARSE_ERR;
+    uint32_t len = READ_U32N((uint32_t*) packet) & 0x00ffffff;
+    if (len != (wire_len - NETBIOS_HEADER_SIZE)) {
+        SLOG(LOG_DEBUG, "Expected netbios length of %"PRIu32" while payload is %zu", len,
+                wire_len - NETBIOS_HEADER_SIZE);
+        return PROTO_PARSE_ERR;
+    }
 
     /* Parse */
     struct netbios_proto_info info;
     netbios_proto_info_ctor(&info, parser, parent, NETBIOS_HEADER_SIZE, wire_len - NETBIOS_HEADER_SIZE);
 
+    SLOG(LOG_DEBUG, "Parsing netbios content");
     uint8_t const *next_packet = packet + NETBIOS_HEADER_SIZE;
     if (!netbios_parser->msg_parser) {
         netbios_parser->msg_parser = proto_cifs->ops->parser_new(proto_cifs);

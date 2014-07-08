@@ -29,12 +29,13 @@
 
 LOG_CATEGORY_DEF(proto_cifs);
 
-#define CIFS_HEADER_SIZE sizeof(struct cifs_hdr)
+#define SMB_HEADER_SIZE sizeof(struct smb_hdr)
+#define SMB2_HEADER_SIZE sizeof(struct smb2_hdr)
 
 char const *smb_file_info_levels_2_str(enum smb_file_info_levels level)
 {
-    if ((level & PASS_THROUGH_LEVEL_OF_ITEREST) == PASS_THROUGH_LEVEL_OF_ITEREST) {
-        switch ((level & ~PASS_THROUGH_LEVEL_OF_ITEREST)) {
+    if ((level & PASS_THROUGH_LEVEL_OF_INTEREST) == PASS_THROUGH_LEVEL_OF_INTEREST) {
+        switch ((level & ~PASS_THROUGH_LEVEL_OF_INTEREST)) {
             case FILE_DIRECTORY_INFORMATION              : return "FILE_DIRECTORY_INFORMATION";
             case FILE_FULL_DIRECTORY_INFORMATION         : return "FILE_FULL_DIRECTORY_INFORMATION";
             case FILE_BOTH_DIRECTORY_INFORMATION         : return "FILE_BOTH_DIRECTORY_INFORMATION";
@@ -189,6 +190,31 @@ char const *smb_command_2_str(enum smb_command command)
         case SMB_COM_INVALID                : return "SMB_COM_INVALID";
         case SMB_COM_NO_ANDX_COMMAND        : return "SMB_COM_NO_ANDX_COMMAND";
         default                             : return tempstr_printf("Unknown (0x%"PRIx32")", command);
+    }
+}
+
+char const *smb2_command_2_str(enum smb2_command command)
+{
+    switch (command) {
+        case SMB2_NEGOTIATE       : return "SMB2_NEGOTIATE";
+        case SMB2_SESSION_SETUP   : return "SMB2_SESSION_SETUP";
+        case SMB2_LOGOFF          : return "SMB2_LOGOFF";
+        case SMB2_TREE_CONNECT    : return "SMB2_TREE_CONNECT";
+        case SMB2_TREE_DISCONNECT : return "SMB2_TREE_DISCONNECT";
+        case SMB2_CREATE          : return "SMB2_CREATE";
+        case SMB2_CLOSE           : return "SMB2_CLOSE";
+        case SMB2_FLUSH           : return "SMB2_FLUSH";
+        case SMB2_READ            : return "SMB2_READ";
+        case SMB2_WRITE           : return "SMB2_WRITE";
+        case SMB2_LOCK            : return "SMB2_LOCK";
+        case SMB2_IOCTL           : return "SMB2_IOCTL";
+        case SMB2_CANCEL          : return "SMB2_CANCEL";
+        case SMB2_ECHO            : return "SMB2_ECHO";
+        case SMB2_QUERY_DIRECTORY : return "SMB2_QUERY_DIRECTORY";
+        case SMB2_CHANGE_NOTIFY   : return "SMB2_CHANGE_NOTIFY";
+        case SMB2_QUERY_INFO      : return "SMB2_QUERY_INFO";
+        case SMB2_SET_INFO        : return "SMB2_SET_INFO";
+        case SMB2_OPLOCK_BREAK    : return "SMB2_OPLOCK_BREAK";
     }
 }
 
@@ -1168,7 +1194,7 @@ char const *smb_status_2_str(enum smb_status status)
     }
 }
 
-struct cifs_hdr {
+struct smb_hdr {
     uint32_t code;      // Must contains 0xff 'SMB'
     uint8_t command;
     uint32_t status;
@@ -1201,6 +1227,27 @@ struct cifs_hdr {
     uint16_t process_id;
     uint16_t user_id;
     uint16_t multiplex_id;
+} packed_;
+
+struct smb2_hdr {
+    uint32_t code;              // Must contains 0xfe 'SMB'
+    uint16_t structure_size;
+    uint16_t credit_charge;
+    union {
+        struct smb_sequence {
+            uint16_t channel_sequence;
+            uint16_t reserved;
+        } seq;
+        uint32_t status;
+    } u;
+    uint16_t command;
+    uint16_t credit;
+    uint32_t flags;
+    uint32_t next_command;
+    uint64_t message_id;
+    uint64_t async_id;
+    uint64_t session_id;
+    uint64_t signatures[2];
 } packed_;
 
 /*
@@ -1332,7 +1379,8 @@ char const *cifs_info_2_str(struct proto_info const *info_)
     struct cifs_proto_info const *info = DOWNCAST(info_, info, cifs_proto_info);
     char *str = tempstr_printf("%s, command=%s, status=%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
             proto_info_2_str(info_),
-            smb_command_2_str(info->command),
+            info->version == 1 ? smb_command_2_str(info->command.smb_command) :
+                smb_command_2_str(info->command.smb_command),
             smb_status_2_str(info->status),
             info->set_values & CIFS_DOMAIN ? ", domain=" : "",
             info->set_values & CIFS_DOMAIN ? info->domain : "",
@@ -1345,7 +1393,7 @@ char const *cifs_info_2_str(struct proto_info const *info_)
             info->set_values & CIFS_LEVEL_OF_INTEREST ? ", level_of_interest=" : "",
             info->set_values & CIFS_LEVEL_OF_INTEREST ? smb_file_info_levels_2_str(info->level_of_interest) : "",
             info->set_values & CIFS_FID ? ", fid=" : "",
-            info->set_values & CIFS_FID ? tempstr_printf("0x%"PRIx16, info->fid) : "",
+            info->set_values & CIFS_FID ? tempstr_printf("0x%"PRIx64, info->fid) : "",
             info->flag_file &  CIFS_FILE_CREATE ? ", creation" : "",
             info->flag_file &  CIFS_FILE_DIRECTORY ? ", directory" : "",
             info->flag_file &  CIFS_FILE_UNLINK ? ", unlink" : "",
@@ -1354,23 +1402,10 @@ char const *cifs_info_2_str(struct proto_info const *info_)
     return str;
 }
 
-static int packet_is_cifs(struct cifs_hdr const *cifshdr)
-{
-    return READ_U32N(&cifshdr->code) == 0xff534d42; // 0xff + SMB
-}
-
-static void cifs_proto_info_ctor(struct cifs_proto_info *info, struct parser *parser, struct proto_info *parent, size_t header, size_t payload, struct cifs_hdr const * cifshdr)
+static void cifs_proto_info_ctor(struct cifs_proto_info *info, struct parser *parser, struct proto_info *parent, size_t header, size_t payload)
 {
     proto_info_ctor(&info->info, parser, parent, header, payload);
-    info->command = READ_U8(&cifshdr->command);
-    info->status = READ_U32(&cifshdr->status);
-    info->set_values = 0;
-    info->query_write_bytes = 0;
-    info->response_read_bytes = 0;
-    info->response_write_bytes = 0;
-    info->meta_read_bytes = 0;
-    info->meta_write_bytes = 0;
-    info->flag_file = 0;
+    memset(info, 0, sizeof(*info));
 }
 
 int drop_smb_string(struct cifs_parser *cifs_parser, struct cursor *cursor)
@@ -1451,7 +1486,7 @@ static int parse_and_check_byte_count_superior(struct cursor *cursor, uint8_t mi
 static void parse_fid(struct cursor *cursor, struct cifs_proto_info *info)
 {
     info->fid = cursor_read_u16le(cursor);
-    SLOG(LOG_DEBUG, "Found fid 0x%"PRIx16, info->fid);
+    SLOG(LOG_DEBUG, "Found fid 0x%"PRIx64, info->fid);
     info->set_values |= CIFS_FID;
 }
 
@@ -1628,7 +1663,7 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
     cifs_parser->trans2_subcmd = info->trans2_subcmd = cursor_read_u16le(cursor);
     info->set_values |= CIFS_TRANS2_SUBCMD;
 
-    uint8_t start_parameter = CIFS_HEADER_SIZE + word_count * 2 + 2 + 1;
+    uint8_t start_parameter = SMB_HEADER_SIZE + word_count * 2 + 2 + 1;
     if (start_parameter > parameter_offset) {
         SLOG(LOG_DEBUG, "Start_parameter is greated than parameter offset (%"PRIu8" > %"PRIu8")", start_parameter, parameter_offset);
         return PROTO_PARSE_ERR;
@@ -1740,7 +1775,7 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
     cursor_drop(cursor, 2 + 1); // data displacement + setup count
     cursor_drop(cursor, 1); // Reserved byte
 
-    uint8_t start_parameter = CIFS_HEADER_SIZE + word_count * 2 + 2 + 1;
+    uint8_t start_parameter = SMB_HEADER_SIZE + word_count * 2 + 2 + 1;
     uint8_t padding = parameter_offset - start_parameter;
     if (parse_and_check_byte_count_superior(cursor, padding) == -1) return PROTO_PARSE_ERR;
     cursor_drop(cursor, padding);
@@ -2014,70 +2049,153 @@ static enum proto_parse_status parse_nt_create_andx_response(struct cursor *curs
     return PROTO_OK;
 }
 
-static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_info *parent,
-        unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len,
-        struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
+// SMB2 parse functions
+
+#define CHECK_STRUCTURE_SIZE(expected_size) \
+    uint16_t structure_size = cursor_read_u16le(cursor); \
+    if (structure_size != expected_size) return PROTO_PARSE_ERR;
+
+/**
+ * Session setup request
+ *
+ * | Structure Size = 25 | Flags | SecurityMode | Capabilities | Channel | SecurityBufferOffset |
+ * | 2 bytes             | 1 byte  |
+ *
+ * | SecurityBufferLength | PreviousSessionId | Buffer |
+ * | 2 bytes | 8 bytes | variable |
+ */
+static enum proto_parse_status parse_session_setup_request(struct cursor *cursor, struct cifs_proto_info *info)
 {
-    /* Sanity checks */
-    if (wire_len < CIFS_HEADER_SIZE) return PROTO_PARSE_ERR;
-    if (cap_len < CIFS_HEADER_SIZE) return PROTO_TOO_SHORT;
+    CHECK(49);
+    CHECK_STRUCTURE_SIZE(49);
+    cursor_drop(cursor, 1 + 1 + 4); // Padding + flags + length
+    cursor_drop(cursor, 8); // offset
+    cifs_set_fid(info, cursor_read_u64le(cursor));
+    return PROTO_OK;
+}
 
-    struct cifs_hdr const *cifshdr = (struct cifs_hdr const *) packet;
-    if (! packet_is_cifs(cifshdr)) {
-        return PROTO_PARSE_ERR;
+
+/**
+ * Request a read operation on a file id
+ *
+ * | Structure Size = 49 | Padding | Flags  | Length  | Offset  | FileId   | MinimumCount |
+ * | 2 bytes             | 1 byte  | 1 byte | 4 bytes | 8 bytes | 16 bytes | 4 bytes      |
+ *
+ * | Channel | RemainingBytes | ReadChannelInfoOffset | ReadChannelInfoLength | Buffer   |
+ * | 4 bytes | 4 bytes        | 2 bytes               | 2 bytes               | Variable |
+ */
+static enum proto_parse_status parse_smb2_read_request(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    CHECK(49);
+    CHECK_STRUCTURE_SIZE(49);
+    cursor_drop(cursor, 1 + 1 + 4); // Padding + flags + length
+    cursor_drop(cursor, 8); // offset
+    cifs_set_fid(info, cursor_read_u64le(cursor));
+    return PROTO_OK;
+}
+
+/**
+ * Response of a read rquest
+ *
+ * | Structure Size = 17 | Data offset | Reserved | Data length | Data remaining | Reserved2 | Buffer   |
+ * | 2 bytes             | 1 byte      | 1 byte   | 4 bytes     | 4 bytes        | 4 bytes   | Variable |
+ */
+static enum proto_parse_status parse_smb2_read_response(struct cursor *cursor, struct cifs_proto_info *info,
+        struct cifs_parser *cifs_parser)
+{
+    CHECK(17);
+    uint16_t structure_size = cursor_read_u16le(cursor);
+    if (structure_size != 17) return PROTO_PARSE_ERR;
+
+    cursor_drop(cursor, 1 + 1); // Data offset + Reserved
+    uint32_t data_length = cursor_read_u32le(cursor);
+    return PROTO_OK;
+}
+
+static enum proto_parse_status smb2_parse(struct cursor *cursor, struct cifs_proto_info *info,
+        struct cifs_parser *cifs_parser, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
+{
+    SLOG(LOG_DEBUG, "Parse of a smb2 message");
+    if (cursor->cap_len < SMB2_HEADER_SIZE) return PROTO_TOO_SHORT;
+    struct smb2_hdr const *smb2_hdr = (struct smb2_hdr const *) cursor->head;
+    info->command.smb2_command = READ_U16(&smb2_hdr->command);
+    if (!info->is_query) {
+        info->status = READ_U32(&smb2_hdr->u.status);
     }
+    cursor_drop(cursor, SMB2_HEADER_SIZE);
 
-    struct cifs_proto_info info;
-    cifs_proto_info_ctor(&info, parser, parent, CIFS_HEADER_SIZE, wire_len - CIFS_HEADER_SIZE, cifshdr);
-
-    struct cursor cursor;
-    cursor_ctor(&cursor, packet + CIFS_HEADER_SIZE, cap_len - CIFS_HEADER_SIZE);
-
-    info.is_query = !way;
-    ASSIGN_INFO_OPT(tcp, parent);
-    if (tcp) info.is_query = tcp->to_srv;
-
-    struct cifs_parser *cifs_parser = DOWNCAST(parser, parser, cifs_parser);
-
-    SLOG(LOG_DEBUG, "Parse of a cifs command %s (0x%02x), cifs_parser %s", smb_command_2_str(info.command),
-            info.command, cifs_parser_2_str(cifs_parser));
     enum proto_parse_status status = PROTO_OK;
-    if (info.status == SMB_STATUS_OK) {
-        switch (info.command) {
+    if (info->status != SMB_STATUS_OK) {
+        // TODO parse error message
+    }
+    switch (info->command.smb2_command) {
+        case SMB2_READ:
+            if (info->is_query) status = parse_smb2_read_request(cursor, info);
+            else status = parse_smb2_read_response(cursor, info, cifs_parser);
+        default:
+            break;
+    }
+    SLOG(LOG_DEBUG, "Parse of a smb2 message");
+    return status;
+}
+
+
+
+static enum proto_parse_status smb_parse(struct cursor *cursor, struct cifs_proto_info *info,
+        struct cifs_parser *cifs_parser, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
+{
+    SLOG(LOG_DEBUG, "Parse of a smb message");
+    if (cursor->cap_len < SMB_HEADER_SIZE) return PROTO_TOO_SHORT;
+
+    struct smb_hdr const *smb_hdr = (struct smb_hdr const *) cursor->head;
+
+    info->command.smb_command = READ_U8(&smb_hdr->command);
+    info->status = READ_U32(&smb_hdr->status);
+
+    cursor_drop(cursor, SMB_HEADER_SIZE);
+
+    SLOG(LOG_DEBUG, "Parse of a cifs command %s (0x%02x), cifs_parser %s",
+            smb_command_2_str(info->command.smb_command),
+            info->command.smb_command, cifs_parser_2_str(cifs_parser));
+    enum proto_parse_status status = PROTO_OK;
+    if (info->status != SMB_STATUS_OK) {
+        // TODO parse error message?
+    } else {
+        switch (info->command.smb_command) {
             case SMB_COM_SESSION_SETUP_ANDX:
-                if (info.is_query) status = parse_session_setup_query(cifs_parser, &cursor, &info);
-                else status = parse_session_setup_response(cifs_parser, &cursor, &info);
+                if (info->is_query) status = parse_session_setup_query(cifs_parser, cursor, info);
+                else status = parse_session_setup_response(cifs_parser, cursor, info);
                 break;
             case SMB_COM_TREE_CONNECT_ANDX:
-                if (info.is_query) status = parse_tree_connect_and_request_query(cifs_parser, &cursor, &info);
+                if (info->is_query) status = parse_tree_connect_and_request_query(cifs_parser, cursor, info);
                 break;
             case SMB_COM_NEGOCIATE:
-                if (!info.is_query) status = parse_negociate_response(cifs_parser, &cursor, &info);
+                if (!info->is_query) status = parse_negociate_response(cifs_parser, cursor, info);
                 break;
             case SMB_COM_TRANSACTION2:
-                if (info.is_query) status = parse_trans2_request(cifs_parser, &cursor, &info);
-                else status = parse_trans2_response(cifs_parser, &cursor, &info);
+                if (info->is_query) status = parse_trans2_request(cifs_parser, cursor, info);
+                else status = parse_trans2_response(cifs_parser, cursor, info);
                 break;
             case SMB_COM_WRITE_ANDX:
-                if (info.is_query) status = parse_write_andx_request(&cursor, &info);
-                else status = parse_write_andx_response(&cursor, &info);
+                if (info->is_query) status = parse_write_andx_request(cursor, info);
+                else status = parse_write_andx_response(cursor, info);
                 break;
             case SMB_COM_CLOSE:
-                if (info.is_query) status = parse_close_request(&cursor, &info);
+                if (info->is_query) status = parse_close_request(cursor, info);
                 break;
             case SMB_COM_DELETE:
-                if (info.is_query) status = parse_delete_request(cifs_parser, &cursor, &info);
+                if (info->is_query) status = parse_delete_request(cifs_parser, cursor, info);
                 break;
             case SMB_COM_DELETE_DIRECTORY:
-                if (info.is_query) status = parse_delete_directory_request(cifs_parser, &cursor, &info);
+                if (info->is_query) status = parse_delete_directory_request(cifs_parser, cursor, info);
                 break;
             case SMB_COM_READ_ANDX:
-                if (info.is_query) status = parse_read_andx_request(&cursor, &info);
-                else status = parse_read_andx_response(&cursor, &info);
+                if (info->is_query) status = parse_read_andx_request(cursor, info);
+                else status = parse_read_andx_response(cursor, info);
                 break;
             case SMB_COM_NT_CREATE_ANDX:
-                if (info.is_query) status = parse_nt_create_andx_request(cifs_parser, &cursor, &info);
-                else status = parse_nt_create_andx_response(&cursor, &info);
+                if (info->is_query) status = parse_nt_create_andx_request(cifs_parser, cursor, info);
+                else status = parse_nt_create_andx_response(cursor, info);
                 break;
             default:
                 break;
@@ -2088,8 +2206,32 @@ static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_in
         return status;
     }
 
-    SLOG(LOG_DEBUG, "Parsed cifs proto %s", cifs_info_2_str(&info.info));
-    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
+    SLOG(LOG_DEBUG, "Parsed cifs proto %s", cifs_info_2_str(&info->info));
+    return proto_parse(NULL, &info->info, !info->is_query, NULL, 0, 0, now, tot_cap_len, tot_packet);
+}
+
+static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_info *parent,
+        unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len,
+        struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
+{
+    if (cap_len < 4) return PROTO_TOO_SHORT;
+    uint32_t smb_version = READ_U32N(packet);
+    struct cifs_parser *cifs_parser = DOWNCAST(parser, parser, cifs_parser);
+
+    struct cifs_proto_info info;
+    cifs_proto_info_ctor(&info, &cifs_parser->parser, parent, SMB_HEADER_SIZE, wire_len - SMB_HEADER_SIZE);
+    info.is_query = !way;
+    ASSIGN_INFO_OPT(tcp, parent);
+    if (tcp) info.is_query = tcp->to_srv;
+
+    struct cursor cursor;
+    cursor_ctor(&cursor, packet, cap_len);
+
+    switch (smb_version) {
+        case 0xff534d42: return smb_parse(&cursor, &info, cifs_parser, now, tot_cap_len, tot_packet);
+        case 0xfe534d42: return smb2_parse(&cursor, &info, cifs_parser, now, tot_cap_len, tot_packet);
+        default: return PROTO_PARSE_ERR;
+    }
 }
 
 static struct uniq_proto uniq_proto_cifs;

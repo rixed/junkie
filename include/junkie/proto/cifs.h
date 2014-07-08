@@ -1059,6 +1059,28 @@ enum smb_command {
     SMB_COM_NO_ANDX_COMMAND
 };
 
+enum smb2_command {
+    SMB2_NEGOTIATE,
+    SMB2_SESSION_SETUP,
+    SMB2_LOGOFF,
+    SMB2_TREE_CONNECT,
+    SMB2_TREE_DISCONNECT,
+    SMB2_CREATE,
+    SMB2_CLOSE,
+    SMB2_FLUSH,
+    SMB2_READ,
+    SMB2_WRITE,
+    SMB2_LOCK,
+    SMB2_IOCTL,
+    SMB2_CANCEL,
+    SMB2_ECHO,
+    SMB2_QUERY_DIRECTORY,
+    SMB2_CHANGE_NOTIFY,
+    SMB2_QUERY_INFO,
+    SMB2_SET_INFO,
+    SMB2_OPLOCK_BREAK,
+};
+
 enum smb_file_info_levels {
     // Information levels for Trans2 QUERY_FILE_INFO
     SMB_INFO_STANDARD               = 0x0001,
@@ -1087,7 +1109,7 @@ enum smb_file_info_levels {
     SMB_QUERY_FILE_UNIX_INFO2 = 0x020b,
 };
 
-#define PASS_THROUGH_LEVEL_OF_ITEREST 0x03e8
+#define PASS_THROUGH_LEVEL_OF_INTEREST 0x03e8
 // classes for passthrough information level
 enum smb_file_information_classes {
     FILE_DIRECTORY_INFORMATION              = 0x01,
@@ -1143,7 +1165,11 @@ enum smb_file_information_classes {
 
 struct cifs_proto_info {
     struct proto_info info;
-    enum smb_command command;
+    uint8_t version;
+    union {
+        enum smb_command smb_command;
+        enum smb2_command smb2_command;
+    } command;
     enum smb_status status;
 #define         CIFS_DOMAIN                            0x0001
 #define         CIFS_USER                              0x0002
@@ -1157,7 +1183,7 @@ struct cifs_proto_info {
     char path[CIFS_PATH_SIZE];
     enum smb_trans2_subcommand trans2_subcmd;
     enum smb_file_info_levels level_of_interest;
-    uint16_t fid;
+    uint64_t fid;
 
     unsigned query_write_bytes;
     unsigned response_read_bytes;
@@ -1181,5 +1207,11 @@ char const *smb_file_info_levels_2_str(enum smb_file_info_levels level);
 
 void cifs_init(void);
 void cifs_fini(void);
+
+static inline void cifs_set_fid(struct cifs_proto_info *info, uint_least16_t fid)
+{
+    info->fid = fid;
+    info->set_values |= CIFS_FID;
+}
 
 #endif
