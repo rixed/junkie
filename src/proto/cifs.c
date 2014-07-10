@@ -1630,6 +1630,18 @@ static enum proto_parse_status parse_tree_connect_and_request_query(struct cifs_
     return PROTO_OK;
 }
 
+static enum proto_parse_status drop_parameter_padding(struct cursor *cursor, uint8_t const *start_cursor, uint8_t parameter_offset)
+{
+    size_t pos = SMB_HEADER_SIZE + cursor->head - start_cursor;
+    if (pos > parameter_offset) {
+        SLOG(LOG_DEBUG, "Position is greater than parameter offset (%"PRIu64" > %"PRIu8")", pos, parameter_offset);
+        return PROTO_PARSE_ERR;
+    }
+    uint8_t padding = parameter_offset - pos;
+    cursor_drop(cursor, padding);
+    return PROTO_OK;
+}
+
 /*
  * Trans2 request
  * Word count > 0x0e
@@ -1651,6 +1663,7 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
     SLOG(LOG_DEBUG, "Parse trans2 request");
     cifs_parser->level_of_interest = 0;
     cifs_parser->trans2_subcmd = 0;
+    uint8_t const *start_cursor = cursor->head;
     int word_count = parse_and_check_word_count_superior(cursor, 0x0e);
     if (word_count == -1) return PROTO_PARSE_ERR;
 
@@ -1666,15 +1679,10 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
     cifs_parser->trans2_subcmd = info->trans2_subcmd = cursor_read_u16le(cursor);
     info->set_values |= CIFS_TRANS2_SUBCMD;
 
-    uint8_t start_parameter = SMB_HEADER_SIZE + word_count * 2 + 2 + 1;
-    if (start_parameter > parameter_offset) {
-        SLOG(LOG_DEBUG, "Start_parameter is greated than parameter offset (%"PRIu8" > %"PRIu8")", start_parameter, parameter_offset);
-        return PROTO_PARSE_ERR;
-    }
-    uint8_t padding = parameter_offset - start_parameter;
-    SLOG(LOG_DEBUG, "Found start parameter %u, offset %u, padding %u, subcmd %s", start_parameter, parameter_offset, padding, smb_trans2_subcmd_2_str(info->trans2_subcmd));
-    if (parse_and_check_byte_count_superior(cursor, padding) == -1) return PROTO_PARSE_ERR;
-    cursor_drop(cursor, padding);
+    if (parse_and_check_byte_count_superior(cursor, 0) == -1) return PROTO_PARSE_ERR;
+    enum proto_parse_status status = PROTO_OK;
+    if (PROTO_OK != (status = drop_parameter_padding(cursor, start_cursor, parameter_offset)))
+        return status;
 
     switch (info->trans2_subcmd) {
         case SMB_TRANS2_QUERY_FILE_INFORMATION:
@@ -1767,6 +1775,7 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
     SLOG(LOG_DEBUG, "Parse trans2 response with previous subcmd %s, level of interest %s",
             smb_trans2_subcmd_2_str(cifs_parser->trans2_subcmd),
             smb_file_info_levels_2_str(cifs_parser->level_of_interest));
+    uint8_t const *start_cursor = cursor->head;
     int word_count = parse_and_check_word_count_superior(cursor, 0x0a);
     if (word_count == -1) return PROTO_PARSE_ERR;
 
@@ -1775,15 +1784,14 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
     uint16_t parameter_offset = cursor_read_u16le(cursor);
     cursor_drop(cursor, 2 + 2); // parameter displacement + data count
     uint16_t data_offset = cursor_read_u16le(cursor);
-    cursor_drop(cursor, 2 + 1); // data displacement + setup count
-    cursor_drop(cursor, 1); // Reserved byte
+    cursor_drop(cursor, 2 + 1 + 1); // data displacement + setup count + Reserved byte
 
-    uint8_t start_parameter = SMB_HEADER_SIZE + word_count * 2 + 2 + 1;
-    uint8_t padding = parameter_offset - start_parameter;
-    if (parse_and_check_byte_count_superior(cursor, padding) == -1) return PROTO_PARSE_ERR;
-    cursor_drop(cursor, padding);
+    if (parse_and_check_byte_count_superior(cursor, 0) == -1) return PROTO_PARSE_ERR;
 
     enum proto_parse_status status = PROTO_OK;
+    if (PROTO_OK != (status = drop_parameter_padding(cursor, start_cursor, parameter_offset)))
+        return status;
+
     uint8_t data_padding = data_offset - parameter_offset;
     SLOG(LOG_DEBUG, "Parse trans2 specific subcmd %s with data padding %"PRIu8, smb_trans2_subcmd_2_str(cifs_parser->trans2_subcmd), data_padding);
     switch (cifs_parser->trans2_subcmd) {
