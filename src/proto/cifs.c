@@ -196,25 +196,26 @@ char const *smb_command_2_str(enum smb_command command)
 char const *smb2_command_2_str(enum smb2_command command)
 {
     switch (command) {
-        case SMB2_NEGOTIATE       : return "SMB2_NEGOTIATE";
-        case SMB2_SESSION_SETUP   : return "SMB2_SESSION_SETUP";
-        case SMB2_LOGOFF          : return "SMB2_LOGOFF";
-        case SMB2_TREE_CONNECT    : return "SMB2_TREE_CONNECT";
-        case SMB2_TREE_DISCONNECT : return "SMB2_TREE_DISCONNECT";
-        case SMB2_CREATE          : return "SMB2_CREATE";
-        case SMB2_CLOSE           : return "SMB2_CLOSE";
-        case SMB2_FLUSH           : return "SMB2_FLUSH";
-        case SMB2_READ            : return "SMB2_READ";
-        case SMB2_WRITE           : return "SMB2_WRITE";
-        case SMB2_LOCK            : return "SMB2_LOCK";
-        case SMB2_IOCTL           : return "SMB2_IOCTL";
-        case SMB2_CANCEL          : return "SMB2_CANCEL";
-        case SMB2_ECHO            : return "SMB2_ECHO";
-        case SMB2_QUERY_DIRECTORY : return "SMB2_QUERY_DIRECTORY";
-        case SMB2_CHANGE_NOTIFY   : return "SMB2_CHANGE_NOTIFY";
-        case SMB2_QUERY_INFO      : return "SMB2_QUERY_INFO";
-        case SMB2_SET_INFO        : return "SMB2_SET_INFO";
-        case SMB2_OPLOCK_BREAK    : return "SMB2_OPLOCK_BREAK";
+        case SMB2_COM_NEGOTIATE       : return "SMB2_COM_NEGOTIATE";
+        case SMB2_COM_SESSION_SETUP   : return "SMB2_COM_SESSION_SETUP";
+        case SMB2_COM_LOGOFF          : return "SMB2_COM_LOGOFF";
+        case SMB2_COM_TREE_CONNECT    : return "SMB2_COM_TREE_CONNECT";
+        case SMB2_COM_TREE_DISCONNECT : return "SMB2_COM_TREE_DISCONNECT";
+        case SMB2_COM_CREATE          : return "SMB2_COM_CREATE";
+        case SMB2_COM_CLOSE           : return "SMB2_COM_CLOSE";
+        case SMB2_COM_FLUSH           : return "SMB2_COM_FLUSH";
+        case SMB2_COM_READ            : return "SMB2_COM_READ";
+        case SMB2_COM_WRITE           : return "SMB2_COM_WRITE";
+        case SMB2_COM_LOCK            : return "SMB2_COM_LOCK";
+        case SMB2_COM_IOCTL           : return "SMB2_COM_IOCTL";
+        case SMB2_COM_CANCEL          : return "SMB2_COM_CANCEL";
+        case SMB2_COM_ECHO            : return "SMB2_COM_ECHO";
+        case SMB2_COM_QUERY_DIRECTORY : return "SMB2_COM_QUERY_DIRECTORY";
+        case SMB2_COM_CHANGE_NOTIFY   : return "SMB2_COM_CHANGE_NOTIFY";
+        case SMB2_COM_QUERY_INFO      : return "SMB2_COM_QUERY_INFO";
+        case SMB2_COM_SET_INFO        : return "SMB2_COM_SET_INFO";
+        case SMB2_COM_OPLOCK_BREAK    : return "SMB2_COM_OPLOCK_BREAK";
+        default                       : return tempstr_printf("Unknown (0x%"PRIx32")", command);
     }
 }
 
@@ -2139,11 +2140,11 @@ static enum proto_parse_status smb2_parse(struct cursor *cursor, struct cifs_pro
     }
     SLOG(LOG_DEBUG, "Got smb2 command %s", smb2_command_2_str(info->command.smb2_command));
     switch (info->command.smb2_command) {
-        case SMB2_READ:
+        case SMB2_COM_READ:
             if (info->is_query) status = parse_smb2_read_request(cursor, info);
             else status = parse_smb2_read_response(cursor, info);
             break;
-        case SMB2_SESSION_SETUP:
+        case SMB2_COM_SESSION_SETUP:
             if (info->is_query) status = parse_smb2_session_setup_request(cursor, info);
             break;
         default:

@@ -641,7 +641,7 @@ static struct parse_test {
         .expected = {
             .info = { .head_len = SMB2_HEADER_SIZE, .payload = 0x71 - SMB2_HEADER_SIZE },
             .set_values = CIFS_FID,
-            .command.smb2_command = SMB2_READ,
+            .command.smb2_command = SMB2_COM_READ,
             .status = SMB_STATUS_OK,
             .fid = 0x677df845177d3ea0,
         },
@@ -662,7 +662,7 @@ static struct parse_test {
         .way = FROM_SERVER,
         .expected = {
             .info = { .head_len = SMB2_HEADER_SIZE, .payload = 0x54 - SMB2_HEADER_SIZE },
-            .command.smb2_command = SMB2_READ,
+            .command.smb2_command = SMB2_COM_READ,
             .status = SMB_STATUS_OK,
             .response_read_bytes = 4,
         },
@@ -690,7 +690,7 @@ static struct parse_test {
         .way = FROM_CLIENT,
         .expected = {
             .info = { .head_len = SMB2_HEADER_SIZE, .payload = 0xab - SMB2_HEADER_SIZE },
-            .command.smb2_command = SMB2_SESSION_SETUP,
+            .command.smb2_command = SMB2_COM_SESSION_SETUP,
             .status = SMB_STATUS_OK,
         },
     },
@@ -728,7 +728,7 @@ static struct parse_test {
         .way = FROM_CLIENT,
         .expected = {
             .info = { .head_len = SMB2_HEADER_SIZE, .payload = 0x17c - SMB2_HEADER_SIZE },
-            .command.smb2_command = SMB2_SESSION_SETUP,
+            .command.smb2_command = SMB2_COM_SESSION_SETUP,
             // TODO Fetch domain and user
             /*.set_values = CIFS_DOMAIN | CIFS_USER,*/
             .user = "toto",
