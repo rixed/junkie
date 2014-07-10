@@ -90,7 +90,10 @@ int cursor_drop_string(struct cursor *cursor, size_t max_len);
 bool cursor_is_empty(struct cursor const *);
 
 #define CHECK_LEN(cursor, x, rollback) do { \
-    if ((cursor)->cap_len  < (x)) { cursor_rollback(cursor, rollback); return PROTO_TOO_SHORT; } \
+    if ((cursor)->cap_len  < (x)) { cursor_rollback(cursor, rollback); { \
+        SLOG(LOG_DEBUG, "Could not drop %zu bytes (%zu bytes left)", (size_t) x, (cursor)->cap_len); \
+        return PROTO_TOO_SHORT; } \
+    } \
 } while(0)
 #define CHECK(n) CHECK_LEN(cursor, n, 0)
 #define CHECK_AND_DROP(n) CHECK(n); cursor_drop(cursor, n);
