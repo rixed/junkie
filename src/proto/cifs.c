@@ -1377,7 +1377,7 @@ static void const *cifs_info_addr(struct proto_info const *info_, size_t *size)
 char const *cifs_info_2_str(struct proto_info const *info_)
 {
     struct cifs_proto_info const *info = DOWNCAST(info_, info, cifs_proto_info);
-    char *str = tempstr_printf("%s, command=%s, status=%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
+    char *str = tempstr_printf("%s, command=%s, status=%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s, query_write_bytes=%"PRIu32", response_read_bytes=%"PRIu32", response_write_bytes=%"PRIu32", meta_read_bytes=%"PRIu32", meta_write_bytes=%"PRIu32,
             proto_info_2_str(info_),
             info->version == 1 ? smb_command_2_str(info->command.smb_command) :
                 smb_command_2_str(info->command.smb_command),
@@ -1397,8 +1397,9 @@ char const *cifs_info_2_str(struct proto_info const *info_)
             info->flag_file &  CIFS_FILE_CREATE ? ", creation" : "",
             info->flag_file &  CIFS_FILE_DIRECTORY ? ", directory" : "",
             info->flag_file &  CIFS_FILE_UNLINK ? ", unlink" : "",
-            info->is_query ? ", query" : ""
-            );
+            info->is_query ? ", query" : "",
+            info->query_write_bytes, info->response_read_bytes,
+            info->response_write_bytes, info->meta_read_bytes, info->meta_write_bytes);
     return str;
 }
 
