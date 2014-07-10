@@ -34,11 +34,19 @@ enum way { FROM_CLIENT, FROM_SERVER };
 
 #define VALUES_ARE_SET(proto, x) ((proto->set_values & (x)) == (x))
 
+#define CHECK_BIG_INT(VAL, EXP) do {                  \
+    uint64_t exp = EXP;                           \
+    uint64_t val = VAL;                           \
+    if (exp != val) {                             \
+        printf("Expected 0x%"PRIx64" got 0x%"PRIx64" from field %s\n", exp, val, #VAL); \
+        return 1;                                 \
+    } } while (0)
+
 #define CHECK_INT(VAL, EXP) do {                  \
     unsigned exp = EXP;                           \
     unsigned val = VAL;                           \
     if (exp != val) {                             \
-        printf("Expected 0x%02x got 0x%02x from field %s\n", exp, val, #VAL); \
+        printf("Expected 0x%"PRIx32" got 0x%"PRIx32" from field %s\n", exp, val, #VAL); \
         return 1;                                 \
     } } while (0)
 
