@@ -1208,7 +1208,7 @@ char const *smb_file_info_levels_2_str(enum smb_file_info_levels level);
 void cifs_init(void);
 void cifs_fini(void);
 
-static inline void cifs_set_fid(struct cifs_proto_info *info, uint_least16_t fid)
+static inline void cifs_set_fid(struct cifs_proto_info *info, uint64_t fid)
 {
     info->fid = fid;
     info->set_values |= CIFS_FID;
