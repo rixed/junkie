@@ -1206,10 +1206,6 @@ struct cifs_proto_info {
 };
 
 char const *cifs_info_2_str(struct proto_info const *info_);
-char const *smb_status_2_str(enum smb_status status);
-char const *smb_trans2_subcmd_2_str(enum smb_trans2_subcommand command);
-char const *smb_command_2_str(enum smb_command command);
-char const *smb_file_info_levels_2_str(enum smb_file_info_levels level);
 
 void cifs_init(void);
 void cifs_fini(void);

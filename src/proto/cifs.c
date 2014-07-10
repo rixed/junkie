@@ -32,7 +32,7 @@ LOG_CATEGORY_DEF(proto_cifs);
 #define SMB_HEADER_SIZE sizeof(struct smb_hdr)
 #define SMB2_HEADER_SIZE sizeof(struct smb2_hdr)
 
-char const *smb_file_info_levels_2_str(enum smb_file_info_levels level)
+static char const *smb_file_info_levels_2_str(enum smb_file_info_levels level)
 {
     if ((level & PASS_THROUGH_LEVEL_OF_INTEREST) == PASS_THROUGH_LEVEL_OF_INTEREST) {
         switch ((level & ~PASS_THROUGH_LEVEL_OF_INTEREST)) {
@@ -111,7 +111,7 @@ char const *smb_file_info_levels_2_str(enum smb_file_info_levels level)
     }
 }
 
-char const *smb_command_2_str(enum smb_command command)
+static char const *smb_command_2_str(enum smb_command command)
 {
     switch (command) {
         case SMB_COM_CREATE_DIRECTORY       : return "SMB_COM_CREATE_DIRECTORY";
@@ -193,7 +193,7 @@ char const *smb_command_2_str(enum smb_command command)
     }
 }
 
-char const *smb2_command_2_str(enum smb2_command command)
+static char const *smb2_command_2_str(enum smb2_command command)
 {
     switch (command) {
         case SMB2_COM_NEGOTIATE       : return "SMB2_COM_NEGOTIATE";
@@ -219,7 +219,7 @@ char const *smb2_command_2_str(enum smb2_command command)
     }
 }
 
-char const *smb_trans2_subcmd_2_str(enum smb_trans2_subcommand command)
+static char const *smb_trans2_subcmd_2_str(enum smb_trans2_subcommand command)
 {
     switch (command) {
         case SMB_TRANS2_OPEN2                    : return "SMB_TRANS2_OPEN2";
@@ -243,7 +243,7 @@ char const *smb_trans2_subcmd_2_str(enum smb_trans2_subcommand command)
     }
 }
 
-char const *smb_status_2_str(enum smb_status status)
+static char const *smb_status_2_str(enum smb_status status)
 {
     switch (status) {
         case SMB_STATUS_OK: return "SMB_STATUS_OK";
@@ -1255,7 +1255,7 @@ struct smb2_hdr {
  * Cursor functions
  */
 
-int cursor_copy_string(struct cursor *cursor, size_t max_src, char *buf, size_t buf_size)
+static int cursor_copy_string(struct cursor *cursor, size_t max_src, char *buf, size_t buf_size)
 {
     assert(buf);
     uint8_t marker[1] = {0x00};
@@ -1269,7 +1269,7 @@ int cursor_copy_string(struct cursor *cursor, size_t max_src, char *buf, size_t 
     return str_len;
 }
 
-int cursor_copy_utf16(struct cursor *cursor, iconv_t cd, size_t max_src, char *buf, size_t buf_size)
+static int cursor_copy_utf16(struct cursor *cursor, iconv_t cd, size_t max_src, char *buf, size_t buf_size)
 {
     assert(buf);
     char marker[2] = {0x00, 0x00};
@@ -1286,7 +1286,7 @@ int cursor_copy_utf16(struct cursor *cursor, iconv_t cd, size_t max_src, char *b
     return to_drop;
 }
 
-int cursor_drop_utf16(struct cursor *cursor, size_t max_len)
+static int cursor_drop_utf16(struct cursor *cursor, size_t max_len)
 {
     SLOG(LOG_DEBUG, "Drop utf16 string");
     uint8_t marker[2] = {0x00, 0x00};
@@ -1411,7 +1411,7 @@ static void cifs_proto_info_ctor(struct cifs_proto_info *info, struct parser *pa
     info->is_query = is_query;
 }
 
-int drop_smb_string(struct cifs_parser *cifs_parser, struct cursor *cursor)
+static int drop_smb_string(struct cifs_parser *cifs_parser, struct cursor *cursor)
 {
     if (cifs_parser->unicode)
         return cursor_drop_utf16(cursor, cursor->cap_len);
@@ -1426,7 +1426,7 @@ int drop_smb_string(struct cifs_parser *cifs_parser, struct cursor *cursor)
  * It must be 16-bit aligned.
  * @return number of read bytes from cursor
  */
-int parse_smb_string(struct cifs_parser *cifs_parser, struct cursor *cursor,
+static int parse_smb_string(struct cifs_parser *cifs_parser, struct cursor *cursor,
         char *buf, int buf_size)
 {
     int ret = 0;
