@@ -1060,25 +1060,25 @@ enum smb_command {
 };
 
 enum smb2_command {
-    SMB2_NEGOTIATE,
-    SMB2_SESSION_SETUP,
-    SMB2_LOGOFF,
-    SMB2_TREE_CONNECT,
-    SMB2_TREE_DISCONNECT,
-    SMB2_CREATE,
-    SMB2_CLOSE,
-    SMB2_FLUSH,
-    SMB2_READ,
-    SMB2_WRITE,
-    SMB2_LOCK,
-    SMB2_IOCTL,
-    SMB2_CANCEL,
-    SMB2_ECHO,
-    SMB2_QUERY_DIRECTORY,
-    SMB2_CHANGE_NOTIFY,
-    SMB2_QUERY_INFO,
-    SMB2_SET_INFO,
-    SMB2_OPLOCK_BREAK,
+    SMB2_COM_NEGOTIATE,
+    SMB2_COM_SESSION_SETUP,
+    SMB2_COM_LOGOFF,
+    SMB2_COM_TREE_CONNECT,
+    SMB2_COM_TREE_DISCONNECT,
+    SMB2_COM_CREATE,
+    SMB2_COM_CLOSE,
+    SMB2_COM_FLUSH,
+    SMB2_COM_READ,
+    SMB2_COM_WRITE,
+    SMB2_COM_LOCK,
+    SMB2_COM_IOCTL,
+    SMB2_COM_CANCEL,
+    SMB2_COM_ECHO,
+    SMB2_COM_QUERY_DIRECTORY,
+    SMB2_COM_CHANGE_NOTIFY,
+    SMB2_COM_QUERY_INFO,
+    SMB2_COM_SET_INFO,
+    SMB2_COM_OPLOCK_BREAK,
 };
 
 enum smb_file_info_levels {
@@ -1159,13 +1159,19 @@ enum smb_file_information_classes {
     FILE_STANDARD_LINK_INFORMATION          = 0x36,
 };
 
+enum smb_version {
+    smb_version_1 = 0x1,
+    smb_version_2 = 0x2,
+    smb_version_3 = 0x3,
+};
+
 #define CIFS_DOMAIN_SIZE 256
 #define CIFS_USER_SIZE 256
 #define CIFS_PATH_SIZE 512
 
 struct cifs_proto_info {
     struct proto_info info;
-    uint8_t version;
+    enum smb_version version;
     union {
         enum smb_command smb_command;
         enum smb2_command smb2_command;
