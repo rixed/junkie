@@ -243,6 +243,38 @@ static char const *smb_trans2_subcmd_2_str(enum smb_trans2_subcommand command)
     }
 }
 
+static char const *smb_transaction_subcmd_2_str(enum smb_transaction_subcommand command)
+{
+    switch (command) {
+        case SMB_TRANS_CALL_NMPIPE               : return "SMB_TRANS_CALL_NMPIPE";
+        case SMB_TRANS_PEEK_NMPIPE               : return "SMB_TRANS_PEEK_NMPIPE";
+        case SMB_TRANS_QUERY_NMPIPE_INFO         : return "SMB_TRANS_QUERY_NMPIPE_INFO";
+        case SMB_TRANS_QUERY_NMPIPE_STATE        : return "SMB_TRANS_QUERY_NMPIPE_STATE";
+        case SMB_TRANS_RAW_READ_NMPIPE           : return "SMB_TRANS_RAW_READ_NMPIPE";
+        case SMB_TRANS_RAW_WRITE_NMPIPE          : return "SMB_TRANS_RAW_WRITE_NMPIPE";
+        case SMB_TRANS_READ_NMPIPE               : return "SMB_TRANS_READ_NMPIPE";
+        case SMB_TRANS_SET_NMPIPE_STATE          : return "SMB_TRANS_SET_NMPIPE_STATE";
+        case SMB_TRANS_TRANSACT_NMPIPE           : return "SMB_TRANS_TRANSACT_NMPIPE";
+        case SMB_TRANS_WAIT_NMPIPE               : return "SMB_TRANS_WAIT_NMPIPE";
+        case SMB_TRANS_WRITE_NMPIPE              : return "SMB_TRANS_WRITE_NMPIPE";
+        default                                  : return tempstr_printf("Unknown (0x%"PRIx32")", command);
+    }
+}
+
+static char const *smb_nt_trans_subcmd_2_str(enum smb_nt_transact_subcommand command)
+{
+    switch (command) {
+        case SMB_NT_TRANSACT_CREATE                  : return "SMB_NT_TRANSACT_CREATE";
+        case SMB_NT_TRANSACT_IOCTL                   : return "SMB_NT_TRANSACT_IOCTL";
+        case SMB_NT_TRANSACT_NOTIFY_CHANGE           : return "SMB_NT_TRANSACT_NOTIFY_CHANGE";
+        case SMB_NT_TRANSACT_SET_SECURITY_DESC       : return "SMB_NT_TRANSACT_SET_SECURITY_DESC";
+        case SMB_NT_TRANSACT_RENAME                  : return "SMB_NT_TRANSACT_RENAME";
+        case SMB_NT_TRANSACT_QUERY_SECURITY_DESC     : return "SMB_NT_TRANSACT_QUERY_SECURITY_DESC";
+        default                                      : return tempstr_printf("Unknown (0x%"PRIx32")", command);
+    }
+}
+
+
 static char const *smb_status_2_str(enum smb_status status)
 {
     switch (status) {
@@ -1198,7 +1230,7 @@ static char const *smb_status_2_str(enum smb_status status)
 static char const *cifs_info_2_str(struct proto_info const *info_)
 {
     struct cifs_proto_info const *info = DOWNCAST(info_, info, cifs_proto_info);
-    char *str = tempstr_printf("%s, command=%s, status=%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s, query_write_bytes=%"PRIu32", response_read_bytes=%"PRIu32", response_write_bytes=%"PRIu32", meta_read_bytes=%"PRIu32", meta_write_bytes=%"PRIu32,
+    char *str = tempstr_printf("%s, command=%s, status=%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s, query_write_bytes=%"PRIu32", response_read_bytes=%"PRIu32", response_write_bytes=%"PRIu32", meta_read_bytes=%"PRIu32", meta_write_bytes=%"PRIu32,
             proto_info_2_str(info_),
             info->version == 1 ? smb_command_2_str(info->command.smb_command) :
                 smb_command_2_str(info->command.smb_command),
@@ -1209,8 +1241,12 @@ static char const *cifs_info_2_str(struct proto_info const *info_)
             info->set_values & CIFS_USER ? info->user : "",
             info->set_values & CIFS_PATH ? ", path=" : "",
             info->set_values & CIFS_PATH ? info->path : "",
-            info->set_values & CIFS_TRANS2_SUBCMD ? ", subcmd=" : "",
-            info->set_values & CIFS_TRANS2_SUBCMD ? smb_trans2_subcmd_2_str(info->trans2_subcmd) : "",
+            info->set_values & CIFS_TRANS2_SUBCMD ? ", trans2_subcmd=" : "",
+            info->set_values & CIFS_TRANS2_SUBCMD ? smb_trans2_subcmd_2_str(info->subcommand.trans2_subcmd) : "",
+            info->set_values & CIFS_TRANSACTION_SUBCMD ? ", transaction_subcmd=" : "",
+            info->set_values & CIFS_TRANSACTION_SUBCMD ? smb_transaction_subcmd_2_str(info->subcommand.transaction_subcmd) : "",
+            info->set_values & CIFS_NT_TRANSACT_SUBCMD ? ", nt_transact_subcommand=" : "",
+            info->set_values & CIFS_NT_TRANSACT_SUBCMD ? smb_nt_trans_subcmd_2_str(info->subcommand.nt_transact_subcmd) : "",
             info->set_values & CIFS_LEVEL_OF_INTEREST ? ", level_of_interest=" : "",
             info->set_values & CIFS_LEVEL_OF_INTEREST ? smb_file_info_levels_2_str(info->level_of_interest) : "",
             info->set_values & CIFS_FID ? ", fid=" : "",
@@ -1301,15 +1337,18 @@ struct cifs_parser {
     struct parser parser;
     bool unicode;
     uint16_t level_of_interest;
-    uint16_t trans2_subcmd;
+    union subcommand {
+        uint16_t trans2_subcmd;
+        uint16_t nt_trans_subcmd;
+        uint16_t transaction_subcmd;
+    } subcommand;
 };
 
 static const char *cifs_parser_2_str(struct cifs_parser const *cifs_parser)
 {
-    char *str = tempstr_printf("Parser @%p, unicode: %d, level_of_interest: %s, trans2_subcmd: %s",
+    char *str = tempstr_printf("Parser @%p, unicode: %d, level_of_interest: %s",
             cifs_parser, cifs_parser->unicode,
-            smb_file_info_levels_2_str(cifs_parser->level_of_interest),
-            smb_trans2_subcmd_2_str(cifs_parser->trans2_subcmd));
+            smb_file_info_levels_2_str(cifs_parser->level_of_interest));
     return str;
 }
 
@@ -1320,7 +1359,7 @@ static int cifs_parser_ctor(struct cifs_parser *cifs_parser, struct proto *proto
     if (0 != parser_ctor(&cifs_parser->parser, proto)) return -1;
     cifs_parser->unicode = true;
     cifs_parser->level_of_interest = 0;
-    cifs_parser->trans2_subcmd = 0;
+    cifs_parser->subcommand.trans2_subcmd = 0;
     return 0;
 }
 
@@ -1557,7 +1596,7 @@ static enum proto_parse_status parse_session_setup_response(struct cifs_parser *
 }
 
 /*
- * Tree connect query
+ * Tree connect andX query
  * Word count: 0x04
  *
  * Parameters
@@ -1615,7 +1654,7 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
 {
     SLOG(LOG_DEBUG, "Parse trans2 request");
     cifs_parser->level_of_interest = 0;
-    cifs_parser->trans2_subcmd = 0;
+    cifs_parser->subcommand.trans2_subcmd = 0;
     uint8_t const *start_cursor = cursor->head;
     int word_count = parse_and_check_word_count_superior(cursor, 0x0e);
     if (word_count == -1) return PROTO_PARSE_ERR;
@@ -1629,7 +1668,7 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
     cursor_drop(cursor, 2 + 2 + 1 + 1); // data count + data offset + setup count + reserved
 
     // TODO handle multiple setup count
-    cifs_parser->trans2_subcmd = info->trans2_subcmd = cursor_read_u16le(cursor);
+    cifs_parser->subcommand.trans2_subcmd = info->subcommand.trans2_subcmd = cursor_read_u16le(cursor);
     info->set_values |= CIFS_TRANS2_SUBCMD;
 
     if (parse_and_check_byte_count_superior(cursor, 0) == -1) return PROTO_PARSE_ERR;
@@ -1637,7 +1676,7 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
     if (PROTO_OK != (status = drop_parameter_padding(cursor, start_cursor, parameter_offset)))
         return status;
 
-    switch (info->trans2_subcmd) {
+    switch (info->subcommand.trans2_subcmd) {
         case SMB_TRANS2_QUERY_FILE_INFORMATION:
             {
                 CHECK(4);
@@ -1695,6 +1734,29 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
                 cifs_set_fid(info, cursor_read_u16le(cursor));
             }
             break;
+        case SMB_TRANS2_GET_DFS_REFERRAL:
+            {
+                CHECK(2);
+                cursor_drop(cursor, 2);
+                if (parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
+                    return PROTO_PARSE_ERR;
+                info->set_values |= CIFS_PATH;
+            }
+            break;
+        case SMB_TRANS2_FIND_NEXT2:
+            {
+                CHECK(2 + 2 + 2 + 2 + 4);
+                cursor_drop(cursor, 2 + 2 + 2 + 2 + 4);
+                if (parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
+                    return PROTO_PARSE_ERR;
+                info->set_values |= CIFS_PATH;
+            }
+            break;
+        case SMB_TRANS2_QUERY_FS_INFO:
+            {
+                /* It only contains an Information level */
+            }
+            break;
         default:
             break;
     }
@@ -1720,7 +1782,7 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
         struct cursor *cursor, struct cifs_proto_info *info)
 {
     SLOG(LOG_DEBUG, "Parse trans2 response with previous subcmd %s, level of interest %s",
-            smb_trans2_subcmd_2_str(cifs_parser->trans2_subcmd),
+            smb_trans2_subcmd_2_str(cifs_parser->subcommand.trans2_subcmd),
             smb_file_info_levels_2_str(cifs_parser->level_of_interest));
     uint8_t const *start_cursor = cursor->head;
     int word_count = parse_and_check_word_count_superior(cursor, 0x0a);
@@ -1740,8 +1802,8 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
         return status;
 
     uint8_t data_padding = data_offset - parameter_offset;
-    SLOG(LOG_DEBUG, "Parse trans2 specific subcmd %s with data padding %"PRIu8, smb_trans2_subcmd_2_str(cifs_parser->trans2_subcmd), data_padding);
-    switch (cifs_parser->trans2_subcmd) {
+    SLOG(LOG_DEBUG, "Parse trans2 specific subcmd %s with data padding %"PRIu8, smb_trans2_subcmd_2_str(cifs_parser->subcommand.trans2_subcmd), data_padding);
+    switch (cifs_parser->subcommand.trans2_subcmd) {
         /*
          * Level of interest SMB_POSIX_PATH_OPEN
          * | USHORT | USHORD | ULONG        | USHORD                  | USHORT  | Sizeof reply information |
@@ -1961,11 +2023,8 @@ static enum proto_parse_status parse_read_andx_response(struct cursor *cursor, s
  */
 static enum proto_parse_status parse_nt_create_andx_request(struct cifs_parser *cifs_parser, struct cursor *cursor, struct cifs_proto_info *info)
 {
-    if(parse_and_check_word_count_superior(cursor, 0x18) == -1) return PROTO_PARSE_ERR;
+    if(parse_and_check_word_count(cursor, 0x18) == -1) return PROTO_PARSE_ERR;
     cursor_drop(cursor, 0x18*2);
-    /*cursor_drop(cursor, 4 + 1 + 2 + 4 + 4); // skip AndX, Reserved, NameLength, Flags, RootDirectoryFID*/
-    /*cursor_drop(cursor, 4 + 8 + 4 + 4 + 4); // skip DesiredAccess, AllocationSize, ExtFileAttrs, ShareAccess, CreateDisposition*/
-    /*cursor_drop(cursor, 4 + 4 + 1); // skip CreateOptions, ImpersonationLevel, Security Flags*/
 
     uint8_t padding = compute_padding(cursor, 2, 2);
     cursor_drop(cursor, 2 + padding); // skip ByteCount
@@ -1985,15 +2044,557 @@ static enum proto_parse_status parse_nt_create_andx_request(struct cifs_parser *
  * | FILETIME     | FILETIME       | SMB_EXT_FILE_ATTR | LARGE_INTEGER  | LARGE_INTEGER
  * | LastWriteTime| LastChangeTime | ExtFileAttributes | AllocationSize | EndOfFile
  *
- * | USHORT       | SMB_NMPIPE_STATUS | UCHAR
- * | ResourceType | NMPipeStatus      | ByteCount
+ * | USHORT       | SMB_NMPIPE_STATUS |
+ * | ResourceType | NMPipeStatus      |
  * No Data
  */
 static enum proto_parse_status parse_nt_create_andx_response(struct cursor *cursor, struct cifs_proto_info *info)
 {
+    // there seems to be a problem with the specs that specify 0x22 when we have 0x2a
     if(parse_and_check_word_count_superior(cursor, 0x22) == -1) return PROTO_PARSE_ERR;
     cursor_drop(cursor, 4 + 1); // skip AndX and OpLockLevel
     cifs_set_fid(info, cursor_read_u16le(cursor));
+    return PROTO_OK;
+}
+
+/*
+ * Flush request
+ * Word count 0x01
+ *
+ * Parameters
+ * | USHORT |
+ * | FID    |
+ *
+ * No Data
+ */
+static enum proto_parse_status parse_flush_request(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(parse_and_check_word_count(cursor, 0x01) == -1) return PROTO_PARSE_ERR;
+    cifs_set_fid(info, cursor_read_u16le(cursor));
+    return PROTO_OK;
+}
+
+/*
+ * Rename request
+ * Word count 0x01
+ *
+ * Parameters
+ * | USHORT           |
+ * | SearchAttributes |
+ *
+ * Data
+ * | USHORT    | UCHAR         | SMB_STRING  | UCHAR         | SMB_STRING  |
+ * | ByteCount | BufferFormat1 | OldFileName | BufferFormat2 | NewFileName |
+ */
+static enum proto_parse_status parse_rename_request(struct cifs_parser *cifs_parser, struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(parse_and_check_word_count(cursor, 0x01) == -1) return PROTO_PARSE_ERR;
+    cursor_drop(cursor, 2); // skip SearchAttributes
+
+    if(parse_and_check_byte_count_superior(cursor, 0x0002) == -1) return PROTO_PARSE_ERR;
+
+    uint8_t padding = compute_padding(cursor, 1, 2);
+    cursor_drop(cursor, 1 + padding); // skip BufferFormat1
+
+    if (parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
+        return PROTO_PARSE_ERR;
+    info->set_values |= CIFS_PATH;
+
+    return PROTO_OK;
+}
+
+/*
+ * Locking AndX request
+ * Word count 0x08
+ *
+ * Parameters
+ * | 4 bytes | USHORT | UCHAR      | UCHAR          | ULONG
+ * | AndX    | FID    | TypeOfLock | NewOpLockLevel | Timeout
+ *
+ * | USHORT                   | USHORT                 |
+ * | NumberOfRequestedUnlocks | NumberOfRequestedLocks |
+ *
+ * Data
+ * | LOCKING_ANDX_RANGE                | LOCKING_ANDX_RANGE            |
+ * | Unlocks[NumberOfRequestedUnlocks] | Locks[NumberOfRequestedLocks] |
+ */
+static enum proto_parse_status parse_locking_andx_request(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(parse_and_check_word_count(cursor, 0x08) == -1) return PROTO_PARSE_ERR;
+    cursor_drop(cursor, 4); // skip AndX
+    cifs_set_fid(info, cursor_read_u16le(cursor));
+    return PROTO_OK;
+}
+
+/*
+ * Open AndX request
+ * Word count 0x0f
+ *
+ * Parameters
+ * | 4 bytes | USHORT | USHORT     | 2 bytes     | 2 bytes   | UTIME (4 bytes)
+ * | AndX    | Flags  | AccessMode | SearchAttrs | FileAttrs | CreationTime
+ *
+ * | USHORT   | ULONG          | ULONG   | USHORT[2]   |
+ * | OpenMode | AllocationSize | Timeout | Reserved[2] |
+ *
+ * Data
+ * | SMB_STRING |
+ * | FileName   |
+ */
+static enum proto_parse_status parse_open_andx_request(struct cifs_parser *cifs_parser, struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(parse_and_check_word_count(cursor, 0x0f) == -1) return PROTO_PARSE_ERR;
+    cursor_drop(cursor, 0x0f*2); // skip parameters
+
+    if(parse_and_check_byte_count_superior(cursor, 0x2) == -1) return PROTO_PARSE_ERR;
+    cursor_drop(cursor, 1);
+    if(parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
+        return PROTO_PARSE_ERR;
+    info->set_values |= CIFS_PATH;
+    return PROTO_OK;
+}
+
+/*
+ * Open AndX response
+ * Word count 0x0f
+ *
+ * Parameters
+ * | 4 bytes | USHORT | SMB_FILE_ATTRIBUTES | UTIME         | ULONG        | USHORT       |
+ * | AndX    | FID    | FileAttrs           | LastWriteTime | FileDataSize | AccessRights |
+ *
+ * | USHORT       | SMB_NMPIPE_STATUS | USHORT      | USHORT[3] |
+ * | ResourceType | NBPipeStatus      | OpenResults | Reserved  |
+ *
+ * No Data
+ */
+static enum proto_parse_status parse_open_andx_response(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(parse_and_check_word_count(cursor, 0x0f) == -1) return PROTO_PARSE_ERR;
+    cursor_drop(cursor, 4); // skip AndX
+    cifs_set_fid(info, cursor_read_u16le(cursor));
+    return PROTO_OK;
+}
+
+static enum proto_parse_status skip_to_nt_parameters(struct cursor* cursor, int word_count, uint16_t parameter_offset)
+{
+    // Compute padding
+    uint8_t start_parameter = SMB_HEADER_SIZE + word_count * 2 + 2 + 1;
+    if(start_parameter > parameter_offset) {
+        SLOG(LOG_DEBUG, "Start_parameter is greated than parameter offset (%"PRIu8" > %"PRIu8")", start_parameter, parameter_offset);
+        return PROTO_PARSE_ERR;
+    }
+    uint8_t padding = parameter_offset - start_parameter;
+    SLOG(LOG_DEBUG, "Found start parameter %u, offset %u, padding %u", start_parameter, parameter_offset, padding);
+    // skip the SMB parameters
+    if (-1 == parse_and_check_byte_count_superior(cursor, padding))
+        return PROTO_PARSE_ERR;
+    cursor_drop(cursor, padding);
+    return PROTO_OK;
+}
+
+/*
+ * NT Transact request
+ * Word count 0x13
+ *
+ * Parameters
+ * | UCHAR         | USHORT    | ULONG               | ULONG          |
+ * | MaxSetupCount | Reserved1 | TotalParameterCount | TotalDataCount |
+ *
+ * | ULONG             | ULONG        | ULONG          | ULONG           |
+ * | MaxParameterCount | MaxDataCount | ParameterCount | ParameterOffset |
+ *
+ * | ULONG     | ULONG      | UCHAR      | USHORT   | USHORT[]          |
+ * | DataCount | DataOffset | SetupCount | Function | Setup[SetupCount] |
+ *
+ * Data
+ * | UCHAR  | UCHAR[]                             | UCHAR  | UCHAR[]                  |
+ * | Pad1[] | NT_Trans_Parameters[ParameterCount] | Pad2[] | NT_Trans_Data[DataCount] |
+ */
+static enum proto_parse_status parse_nt_transact_request(struct cifs_parser *cifs_parser, struct cursor *cursor, struct cifs_proto_info *info)
+{
+    SLOG(LOG_DEBUG, "Parse NT Transact request");
+    cifs_parser->subcommand.nt_trans_subcmd = 0;
+    int word_count = parse_and_check_word_count_superior(cursor, 0x13);
+    if (word_count == -1) return PROTO_PARSE_ERR;
+
+    // skip MaxSetupCount, Reserved1, TotalParamCount, TotalDataCount, MaxParamCount, MaxDataCount, ParamCount
+    cursor_drop(cursor, 1 + 2 + 4 + 4 + 4 + 4 + 4);
+    uint16_t parameter_offset = cursor_read_u32le(cursor);
+    cursor_drop(cursor, 4 + 4 + 1); // skip DataCount, DataOffset, setupcount
+
+    cifs_parser->subcommand.nt_trans_subcmd = info->subcommand.nt_transact_subcmd = cursor_read_u16le(cursor);
+    info->set_values |= CIFS_NT_TRANSACT_SUBCMD;
+
+    switch(info->subcommand.nt_transact_subcmd) {
+        case SMB_NT_TRANSACT_IOCTL:
+            /*
+             * Setup (8 bytes)
+             * | ULONG        | USHORT | BOOLEAN | BOOLEAN |
+             * | FunctionCode | FID    | IsFsctl | IsFlags |
+             */
+        case SMB_NT_TRANSACT_NOTIFY_CHANGE:
+            /*
+             * Setup (8 bytes)
+             * | ULONG            | USHORT | BOOLEAN   | UCHAR    |
+             * | CompletionFilter | FID    | WatchTree | Reserved |
+             */
+            CHECK(4 + 2);
+            cursor_drop(cursor, 4); // skip until the FID
+            cifs_set_fid(info, cursor_read_u16le(cursor));
+            break;
+        case SMB_NT_TRANSACT_CREATE:
+            /*
+             * NT_Trans_Parameters
+             * | ULONG | ULONG            | ULONG         | LARGE_INTEGER (8 bytes) |
+             * | Flags | RootDirectoryFID | DesiredAccess | AllocationSize          |
+             *
+             * | SMB_EXT_FILE_ATTR | ULONG       | ULONG             | ULONG         |
+             * | ExtFileAttributes | ShareAccess | CreateDisposition | CreateOptions |
+             *
+             * | ULONG                    | ULONG    | ULONG      | ULONG              |
+             * | SecurityDescriptorLength | EALength | NameLength | ImpersonationLevel |
+             *
+             * | UCHAR         | UCHAR[]          |
+             * | SecurityFlags | Name[NameLength] |
+             */
+            {
+                // skip to the NT_Trans_Parameters
+                if(PROTO_PARSE_ERR == skip_to_nt_parameters(cursor, word_count, parameter_offset))
+                    return PROTO_PARSE_ERR;
+
+                // skip until the Name
+                cursor_drop(cursor, 4 + 4 + 4 + 8 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 1);
+                cursor_drop(cursor, compute_padding(cursor, 0, 2));
+
+                if(parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
+                    return PROTO_PARSE_ERR;
+                info->set_values |= CIFS_PATH;
+            }
+            break;
+        case SMB_NT_TRANSACT_SET_SECURITY_DESC:
+            /*
+             * NT_Trans_Parameters (8 bytes)
+             * | USHORT | USHORT   | ULONG               |
+             * | FID    | Reserved | SecurityInformation |
+             */
+            {
+                // skip to the NT_Trans_Parameters
+                if(PROTO_PARSE_ERR == skip_to_nt_parameters(cursor, word_count, parameter_offset))
+                    return PROTO_PARSE_ERR;
+
+                cifs_set_fid(info, cursor_read_u16le(cursor));
+            }
+            break;
+        case SMB_NT_TRANSACT_QUERY_SECURITY_DESC:
+            /*
+             * NT_Trans_Parmeters[ParameterCount]
+             * | USHORT | USHORT   | ULONG              |
+             * | FID    | Reserved | SecurityInfoFields |
+             */
+            {
+                // skip to the NT_Trans_Parameters
+                if(PROTO_PARSE_ERR == skip_to_nt_parameters(cursor, word_count, parameter_offset))
+                    return PROTO_PARSE_ERR;
+
+                cifs_set_fid(info, cursor_read_u16le(cursor));
+            }
+            break;
+        case SMB_NT_TRANSACT_RENAME:
+            /* Reserved but not implemented */
+            break;
+        default:
+            break;
+    }
+
+    return PROTO_OK;
+}
+
+/*
+ * NT Transact response
+ * Word count 0x12
+ *
+ * Parameters
+ * | UCHAR[3]  | ULONG               | ULONG          |
+ * | Reserved1 | TotalParameterCount | TotalDataCount |
+ *
+ * | ULONG          | ULONG           |
+ * | ParameterCount | ParameterOffset |
+ *
+ * | ULONG     | ULONG      | UCHAR      | USHORT[]          |
+ * | DataCount | DataOffset | SetupCount | Setup[SetupCount] |
+ *
+ * Data
+ * | UCHAR  | UCHAR[]                             | UCHAR  | UCHAR[]                  |
+ * | Pad1[] | NT_Trans_Parameters[ParameterCount] | Pad2[] | NT_Trans_Data[DataCount] |
+ */
+static enum proto_parse_status parse_nt_transact_response(struct cifs_parser *cifs_parser, struct cursor *cursor, struct cifs_proto_info *info)
+{
+    SLOG(LOG_DEBUG, "Parse NT Transact response with previous subcmd %s, level of interest %s",
+            smb_nt_trans_subcmd_2_str(cifs_parser->subcommand.nt_trans_subcmd),
+            smb_file_info_levels_2_str(cifs_parser->level_of_interest));
+    int word_count = parse_and_check_word_count_superior(cursor, 0x12);
+    if (word_count == -1) return PROTO_PARSE_ERR;
+
+    cursor_drop(cursor, 3 + 4 + 4 + 4); // skip Reserved1, TotalParamCount, TotalDataCount, ParamCount
+    uint16_t parameter_offset = cursor_read_u32le(cursor);
+    cursor_drop(cursor, 4 + 4 + 1); // skip DataCount, DataOffset, setupcount
+
+    // Compute padding
+    uint8_t start_parameter = SMB_HEADER_SIZE + word_count * 2 + 2 + 1;
+    if(start_parameter > parameter_offset) {
+        SLOG(LOG_DEBUG, "Start_parameter is greated than parameter offset (%"PRIu8" > %"PRIu8")", start_parameter, parameter_offset);
+        return PROTO_PARSE_ERR;
+    }
+    uint8_t padding = parameter_offset - start_parameter;
+    SLOG(LOG_DEBUG, "Found start parameter %u, offset %u, padding %u", start_parameter, parameter_offset, padding);
+    // skip the SMB parameters
+    if (-1 == parse_and_check_byte_count_superior(cursor, padding))
+        return PROTO_PARSE_ERR;
+    cursor_drop(cursor, padding);
+
+    SLOG(LOG_DEBUG, "Parse NT Transact specific subcmd %s"PRIu8, smb_nt_trans_subcmd_2_str(cifs_parser->subcommand.nt_trans_subcmd));
+    switch(cifs_parser->subcommand.nt_trans_subcmd) {
+        case SMB_NT_TRANSACT_CREATE:
+            /*
+             * NT_Trans_Parameters
+             * | UCHAR       | UCHAR    | USHORT | ULONG        | ULONG         |
+             * | OpLockLevel | Reserved | FID    | CreateAction | EAErrorOffset |
+             *
+             * | FILETIME     | FILETIME       | FILETIME      | FILETIME       |
+             * | CreationTime | LastAccessTime | LastWriteTime | LastChangeTime |
+             *
+             * | SMB_EXT_FILE_ATTR | LARGE_INTEGER  | LARGE_INTEGER |
+             * | ExtFileAttributes | AllocationSize | EndOfFile     |
+             *
+             * | USHORT       | SMB_NMPIPE_STATUS | UCHAR     |
+             * | ResourceType | NMPipeStatus      | Directory |
+             */
+            cursor_drop(cursor, 1+1); // skip OpLockLevel, Reserved
+            cifs_set_fid(info, cursor_read_u16le(cursor));
+            break;
+        case SMB_NT_TRANSACT_IOCTL:
+            /* nothing to retrieve */
+            break;
+        case SMB_NT_TRANSACT_SET_SECURITY_DESC:
+            /* nothing to retrieve */
+            break;
+        case SMB_NT_TRANSACT_NOTIFY_CHANGE:
+            /* nothing to retrieve */
+            break;
+        case SMB_NT_TRANSACT_RENAME:
+            /* Reserved but not implemented */
+            break;
+        case SMB_NT_TRANSACT_QUERY_SECURITY_DESC:
+            /* nothing to retrieve */
+            break;
+        default:
+            break;
+    }
+    return PROTO_OK;
+}
+
+/*
+ * Transaction request
+ * Word count > 0x0e
+ *
+ * Parameters
+ * | USHORT              | USHORT         | USHORT            | USHORT       |
+ * | TotalParameterCount | TotalDataCount | MaxParameterCount | MaxDataCount |
+ *
+ * | UCHAR         | UCHAR     | USHORT | ULONG   | USHORT    | USHORT         |
+ * | MaxSetupCount | Reserved1 | Flags  | Timeout | Reserved2 | ParameterCount |
+ *
+ * | USHORT          | USHORT    | USHORT     | UCHAR      | UCHAR     | USHORT[]          |
+ * | ParameterOffset | DataCount | DataOffset | SetupCount | Reserved3 | Setup[SetupCount] |
+ *
+ * Data
+ * | SMB_STRING | UCHAR  | UCHAR                             | UCHAR  | UCHAR                  |
+ * | Name       | Pad1[] | Trans_Parameters[ParameterCount] | Pad2[] | Trans_Data[DataCount] |
+ */
+static enum proto_parse_status parse_transaction_request(struct cifs_parser *cifs_parser,
+        struct cursor *cursor, struct cifs_proto_info *info)
+{
+    SLOG(LOG_DEBUG, "Parse transaction request");
+    cifs_parser->level_of_interest = 0;
+    cifs_parser->subcommand.transaction_subcmd = 0;
+    int word_count = parse_and_check_word_count_superior(cursor, 0x0e);
+    if (word_count == -1) return PROTO_PARSE_ERR;
+
+    // skip until the SetupCount
+    cursor_drop(cursor, 2 + 2 + 2 + 2 + 1 + 1 + 2 + 4 + 2 + 2 + 2 + 2 + 2);
+    uint8_t setup_count = cursor_read_u8(cursor);
+    if(setup_count != 0x02)
+        return PROTO_PARSE_ERR;
+    cursor_drop(cursor, 1); // reserved3
+
+    // read subcommand
+    cifs_parser->subcommand.transaction_subcmd = info->subcommand.transaction_subcmd = cursor_read_u16le(cursor);
+    info->set_values |= CIFS_TRANSACTION_SUBCMD;
+
+    switch (info->subcommand.transaction_subcmd) {
+        case SMB_TRANS_SET_NMPIPE_STATE:
+        case SMB_TRANS_RAW_READ_NMPIPE:
+        case SMB_TRANS_QUERY_NMPIPE_STATE:
+        case SMB_TRANS_QUERY_NMPIPE_INFO:
+        case SMB_TRANS_PEEK_NMPIPE:
+        case SMB_TRANS_TRANSACT_NMPIPE:
+        case SMB_TRANS_RAW_WRITE_NMPIPE:
+        case SMB_TRANS_READ_NMPIPE:
+        case SMB_TRANS_WRITE_NMPIPE:
+            /*
+             * Setup
+             * | USHORT     | USHORT |
+             * | Subcommand | FID    |
+             *
+             * Data:
+             * | USHORT    | SMB_STRING |
+             * | ByteCount | Name       |
+             * The Name always contains "/PIPE/" for these commands.
+             **/
+            // retrieve fid
+            cifs_set_fid(info, cursor_read_u16le(cursor));
+            break;
+
+        case SMB_TRANS_WAIT_NMPIPE:
+        case SMB_TRANS_CALL_NMPIPE:
+            /*
+             * Data:
+             * | USHORT    | SMB_STRING |
+             * | ByteCount | Name       |
+             * The name field MUST be set to the name of the pipe, in the format
+             * \PIPE\<pipename>.
+             */
+            {
+                cursor_drop(cursor, 2 + 2 + compute_padding(cursor, 2+2, 2)); // drop the end of the setup, and drop bytecount
+
+                if(parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
+                    return PROTO_PARSE_ERR;
+                info->set_values |= CIFS_PATH;
+            }
+            break;
+        default:
+            break;
+    }
+
+    return PROTO_OK;
+}
+
+/*
+ * Transaction request
+ * Word count > 0x0a
+ *
+ * Parameters
+ * | USHORT              | USHORT         |
+ * | TotalParameterCount | TotalDataCount |
+ *
+ * | USHORT    | USHORT         | USHORT          | USHORT                |
+ * | Reserved1 | ParameterCount | ParameterOffset | ParameterDisplacement |
+ *
+ * | USHORT    | USHORT     | USHORT           | UCHAR      | UCHAR     | USHORT[]          |
+ * | DataCount | DataOffset | DataDisplacement | SetupCount | Reserved2 | Setup[SetupCount] |
+ *
+ * Data
+ * | UCHAR  | UCHAR                             | UCHAR  | UCHAR                  |
+ * | Pad1[] | Trans_Parameters[ParameterCount] | Pad2[] | Trans_Data[DataCount] |
+ */
+static enum proto_parse_status parse_transaction_response(struct cifs_parser *cifs_parser,
+        struct cursor *cursor, struct cifs_proto_info *info)
+{
+    SLOG(LOG_DEBUG, "Parse transaction response with previous subcmd %s, level of interest %s",
+            smb_transaction_subcmd_2_str(cifs_parser->subcommand.transaction_subcmd),
+            smb_file_info_levels_2_str(cifs_parser->level_of_interest));
+    int word_count = parse_and_check_word_count_superior(cursor, 0x0a);
+    if (word_count == -1) return PROTO_PARSE_ERR;
+
+    cursor_drop(cursor, 2 + 2 + 2 + 2); // total count and data counts + Reserved1 + parameter count
+
+    // read parameter offset
+    uint16_t parameter_offset = cursor_read_u16le(cursor);
+    cursor_drop(cursor, 2); // skip param displacement
+    // Read Data Count
+    uint16_t data_count = cursor_read_u16le(cursor);
+
+
+    switch (cifs_parser->subcommand.transaction_subcmd) {
+        case SMB_TRANS_SET_NMPIPE_STATE:
+            /* nothing to retrieve */
+            break;
+        case SMB_TRANS_READ_NMPIPE:
+        case SMB_TRANS_RAW_READ_NMPIPE:
+            info->response_read_bytes = data_count;
+            break;
+        case SMB_TRANS_QUERY_NMPIPE_STATE:
+            /* nothing to retrieve */
+            break;
+        case SMB_TRANS_QUERY_NMPIPE_INFO:
+            /*
+             * Trans_Parameters
+             * | USHORT           | USHORT          | UCHAR            |
+             * | OutputBufferSize | InputBufferSize | MaximumInstances |
+             *
+             * | UCHAR            | UCHAR          | SMB_STRING |
+             * | CurrentInstances | PipeNameLength | PipeName   |
+             */
+            {
+                // skip to the Trans_Parameters
+                if(PROTO_PARSE_ERR == skip_to_nt_parameters(cursor, word_count, parameter_offset))
+                    return PROTO_PARSE_ERR;
+
+                CHECK(2 + 2 + 1 + 1 + 1);
+                // skip to the smb string
+                cursor_drop(cursor, 2 + 2 + 1 + 1 + 1);
+                cursor_drop(cursor, compute_padding(cursor, 0, 2));
+                if(parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
+                    return PROTO_PARSE_ERR;
+                info->set_values |= CIFS_PATH;
+            }
+            break;
+        case SMB_TRANS_PEEK_NMPIPE:
+            info->response_read_bytes = data_count;
+            break;
+        case SMB_TRANS_TRANSACT_NMPIPE:
+            info->response_read_bytes = data_count;
+            break;
+        case SMB_TRANS_WRITE_NMPIPE:
+        case SMB_TRANS_RAW_WRITE_NMPIPE:
+            /*
+             * Trans_Parameters
+             * | USHORT       |
+             * | BytesWritten |
+             */
+            {
+                //compute padding
+                uint8_t start_parameter = SMB_HEADER_SIZE + word_count * 2 + 2 + 1;
+                if(start_parameter > parameter_offset) {
+                    SLOG(LOG_DEBUG, "Start_parameter is greated than parameter offset (%"PRIu8" > %"PRIu8")", start_parameter, parameter_offset);
+                    return PROTO_PARSE_ERR;
+                }
+                uint8_t padding = parameter_offset - start_parameter;
+                SLOG(LOG_DEBUG, "Found start parameter %u, offset %u, padding %u", start_parameter, parameter_offset, padding);
+                // skip to the Trans parameters
+                if (-1 == parse_and_check_byte_count_superior(cursor, padding))
+                    return PROTO_PARSE_ERR;
+                cursor_drop(cursor, padding);
+
+                CHECK(2);
+                info->response_write_bytes = cursor_read_u16le(cursor);
+            }
+            break;
+        case SMB_TRANS_WAIT_NMPIPE:
+            /* nothing to retrieve */
+            break;
+        case SMB_TRANS_CALL_NMPIPE:
+            /*
+             * The TRANS_CALL_NMPIPE subcommand allows a client to open a named pipe,
+             * issue a write to the named pipe, issue a read from the named pipe, and
+             * close the named pipe.
+             */
+            info->response_write_bytes = info->response_read_bytes = data_count;
+            break;
+        default:
+            break;
+    }
+
     return PROTO_OK;
 }
 
@@ -2152,6 +2753,39 @@ static enum proto_parse_status smb_parse(struct cursor *cursor, struct cifs_prot
             case SMB_COM_NT_CREATE_ANDX:
                 if (info->is_query) status = parse_nt_create_andx_request(cifs_parser, cursor, info);
                 else status = parse_nt_create_andx_response(cursor, info);
+                break;
+            case SMB_COM_FLUSH:
+                if (info->is_query) status = parse_flush_request(cursor, info);
+                break;
+            case SMB_COM_RENAME:
+                if (info->is_query) status = parse_rename_request(cifs_parser, cursor, info);
+                break;
+            case SMB_COM_LOCKING_ANDX:
+                if (info->is_query) status = parse_locking_andx_request(cursor, info);
+                break;
+            case SMB_COM_ECHO:
+                /* test the transport layer; nothing to retrieve */
+                break;
+            case SMB_COM_OPEN_ANDX:
+                if (info->is_query) status = parse_open_andx_request(cifs_parser, cursor, info);
+                else status = parse_open_andx_response(cursor, info);
+                break;
+            case SMB_COM_FIND_CLOSE2:
+                /* close a search handle; nothing to retrieve */
+                break;
+            case SMB_COM_LOGOFF_ANDX:
+                /* log off a user and close all files associated to its UID; nothing to retrieve */
+                break;
+            case SMB_COM_NT_TRANSACT:
+                if (info->is_query) status = parse_nt_transact_request(cifs_parser, cursor, info);
+                else status = parse_nt_transact_response(cifs_parser, cursor, info);
+                break;
+            case SMB_COM_NT_CANCEL:
+                /* cancels a currently pending request; nothing to retrieve */
+                break;
+            case SMB_COM_TRANSACTION:
+                if (info->is_query) status = parse_transaction_request(cifs_parser, cursor, info);
+                else status = parse_transaction_response(cifs_parser, cursor, info);
                 break;
             default:
                 break;

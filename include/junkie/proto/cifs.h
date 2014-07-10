@@ -978,6 +978,32 @@ enum smb_trans2_subcommand {
     SMB_TRANS2_REPORT_DFS_INCONSISTENCY = 0x0011,
 };
 
+enum smb_transaction_subcommand {
+    SMB_TRANS_CALL_NMPIPE                   = 0x0054,
+    SMB_TRANS_PEEK_NMPIPE                   = 0x0023,
+    SMB_TRANS_QUERY_NMPIPE_INFO             = 0x0022,
+    SMB_TRANS_QUERY_NMPIPE_STATE            = 0x0021,
+    SMB_TRANS_RAW_READ_NMPIPE               = 0x0011,
+    SMB_TRANS_RAW_WRITE_NMPIPE              = 0x0031,
+    SMB_TRANS_READ_NMPIPE                   = 0x0036,
+    SMB_TRANS_SET_NMPIPE_STATE              = 0x0001,
+    SMB_TRANS_TRANSACT_NMPIPE               = 0x0026,
+    SMB_TRANS_WAIT_NMPIPE                   = 0x0053,
+    SMB_TRANS_WRITE_NMPIPE                  = 0x0037,
+
+    // !!! the following command uses the same code as SMB_TRANS_SET_NMPIPE_STATE
+    // SMB_TRANS_MAILSLOT_WRITE                = 0x0001,
+};
+
+enum smb_nt_transact_subcommand {
+    SMB_NT_TRANSACT_CREATE                  = 0x0001,
+    SMB_NT_TRANSACT_IOCTL                   = 0x0002,
+    SMB_NT_TRANSACT_SET_SECURITY_DESC       = 0x0003,
+    SMB_NT_TRANSACT_NOTIFY_CHANGE           = 0x0004,
+    SMB_NT_TRANSACT_RENAME                  = 0x0005,
+    SMB_NT_TRANSACT_QUERY_SECURITY_DESC     = 0x0006,
+};
+
 enum smb_command {
     SMB_COM_CREATE_DIRECTORY        = 0x00,
     SMB_COM_DELETE_DIRECTORY,
@@ -1183,11 +1209,19 @@ struct cifs_proto_info {
 #define         CIFS_TRANS2_SUBCMD                     0x0008
 #define         CIFS_FID                               0x0010
 #define         CIFS_LEVEL_OF_INTEREST                 0x0020
+#define         CIFS_TRANSACTION_SUBCMD                0x0040
+#define         CIFS_NT_TRANSACT_SUBCMD                0x0080
     unsigned set_values;
     char user[CIFS_USER_SIZE];
     char domain[CIFS_DOMAIN_SIZE];
     char path[CIFS_PATH_SIZE];
-    enum smb_trans2_subcommand trans2_subcmd;
+
+    union smb_subcommand {
+        enum smb_trans2_subcommand trans2_subcmd;
+        enum smb_nt_transact_subcommand nt_transact_subcmd;
+        enum smb_transaction_subcommand transaction_subcmd;
+    } subcommand;
+
     enum smb_file_info_levels level_of_interest;
     uint64_t fid;
 
