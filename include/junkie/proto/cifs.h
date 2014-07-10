@@ -1213,6 +1213,7 @@ void cifs_fini(void);
 static inline void cifs_set_fid(struct cifs_proto_info *info, uint64_t fid)
 {
     info->fid = fid;
+    SLOG(LOG_DEBUG, "Set fid to 0x%"PRIx64, info->fid);
     info->set_values |= CIFS_FID;
 }
 
