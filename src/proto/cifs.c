@@ -1615,7 +1615,7 @@ static enum proto_parse_status parse_tree_connect_and_request_query(struct cifs_
     cursor_drop(cursor, 6);
     uint16_t password_len = cursor_read_u16le(cursor);
 
-    uint8_t padding = compute_padding(cursor, password_len, 2);
+    uint8_t padding = compute_padding(cursor, password_len + 2, 2);
     if (parse_and_check_byte_count_superior(cursor, password_len + padding) == -1) return PROTO_PARSE_ERR;
     cursor_drop(cursor, password_len + padding);
     PARSE_SMB_PATH(info);
