@@ -218,7 +218,7 @@ int cursor_read_utf16(struct cursor *cursor, iconv_t cd, char *out_buf, size_t b
     if (str_len < 0) return -1;
     uint8_t const *src = cursor->head;
     size_t str_size = str_len + sizeof(marker);
-    if (str_size ^ 2) str_size++;
+    if (str_size ^ 2) str_size = MIN(str_size + 1, max_src);
     if (!out_buf) {
         cursor_drop(cursor, str_size);
         return 0;
