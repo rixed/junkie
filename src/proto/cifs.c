@@ -1281,53 +1281,6 @@ struct smb2_hdr {
 } packed_;
 
 /*
- * Cursor functions
- */
-
-static int cursor_copy_string(struct cursor *cursor, size_t max_src, char *buf, size_t buf_size)
-{
-    assert(buf);
-    uint8_t marker[1] = {0x00};
-    int str_len = cursor_lookup_marker(cursor, marker, sizeof marker, max_src);
-    if (str_len < 0) return -1;
-    size_t str_size = str_len + sizeof marker;
-    int copied_bytes = MIN(str_size, buf_size);
-    cursor_copy(buf, cursor, copied_bytes);
-    if (buf_size < str_size)
-        cursor_drop(cursor, str_size - buf_size);
-    return str_len;
-}
-
-static int cursor_copy_utf16(struct cursor *cursor, iconv_t cd, size_t max_src, char *buf, size_t buf_size)
-{
-    assert(buf);
-    char marker[2] = {0x00, 0x00};
-    int str_len = cursor_lookup_marker(cursor, marker, sizeof marker, max_src);
-    if (str_len < 0) return -1;
-    uint8_t const *src = cursor->head;
-    size_t str_size = str_len + sizeof(marker);
-    // we might stop in middle of the last character, fix it here
-    if (str_size % 2) str_size++;
-    size_t to_drop = str_size;
-    SLOG(LOG_DEBUG, "Reading and converting %zu bytes", str_size);
-    iconv(cd, (char **)&src, &str_size, &buf, &buf_size);
-    cursor_drop(cursor, to_drop);
-    return to_drop;
-}
-
-static int cursor_drop_utf16(struct cursor *cursor, size_t max_len)
-{
-    SLOG(LOG_DEBUG, "Drop utf16 string");
-    uint8_t marker[2] = {0x00, 0x00};
-    int dropped_bytes = cursor_lookup_marker(cursor, marker, sizeof(marker), max_len);
-    if (dropped_bytes < 0) return -1;
-    dropped_bytes += sizeof(marker);
-    if (dropped_bytes % 2) dropped_bytes++;
-    cursor_drop(cursor, dropped_bytes);
-    return dropped_bytes;
-}
-
-/*
  * Parser
  */
 
@@ -1431,9 +1384,9 @@ static int parse_smb_string(struct cifs_parser *cifs_parser, struct cursor *curs
 {
     int ret = 0;
     if (!cifs_parser->unicode)
-        ret = cursor_copy_string(cursor, cursor->cap_len, buf, buf_size);
+        ret = cursor_read_string(cursor, buf, buf_size, cursor->cap_len);
     else
-        ret = cursor_copy_utf16(cursor, get_iconv(), cursor->cap_len, buf, buf_size);
+        ret = cursor_read_utf16(cursor, get_iconv(), buf, buf_size, cursor->cap_len);
     SLOG(LOG_DEBUG, "Parse smb string as %sunicode: %s", cifs_parser->unicode ? "" : "non-",
             ret > 0 ? buf : "error");
     return ret;
