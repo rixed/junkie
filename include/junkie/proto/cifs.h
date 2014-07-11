@@ -1205,8 +1205,6 @@ struct cifs_proto_info {
     bool is_query;
 };
 
-char const *cifs_info_2_str(struct proto_info const *info_);
-
 void cifs_init(void);
 void cifs_fini(void);
 

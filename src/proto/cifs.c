@@ -1195,6 +1195,35 @@ static char const *smb_status_2_str(enum smb_status status)
     }
 }
 
+static char const *cifs_info_2_str(struct proto_info const *info_)
+{
+    struct cifs_proto_info const *info = DOWNCAST(info_, info, cifs_proto_info);
+    char *str = tempstr_printf("%s, command=%s, status=%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s, query_write_bytes=%"PRIu32", response_read_bytes=%"PRIu32", response_write_bytes=%"PRIu32", meta_read_bytes=%"PRIu32", meta_write_bytes=%"PRIu32,
+            proto_info_2_str(info_),
+            info->version == 1 ? smb_command_2_str(info->command.smb_command) :
+                smb_command_2_str(info->command.smb_command),
+            smb_status_2_str(info->status),
+            info->set_values & CIFS_DOMAIN ? ", domain=" : "",
+            info->set_values & CIFS_DOMAIN ? info->domain : "",
+            info->set_values & CIFS_USER ? ", user=" : "",
+            info->set_values & CIFS_USER ? info->user : "",
+            info->set_values & CIFS_PATH ? ", path=" : "",
+            info->set_values & CIFS_PATH ? info->path : "",
+            info->set_values & CIFS_TRANS2_SUBCMD ? ", subcmd=" : "",
+            info->set_values & CIFS_TRANS2_SUBCMD ? smb_trans2_subcmd_2_str(info->trans2_subcmd) : "",
+            info->set_values & CIFS_LEVEL_OF_INTEREST ? ", level_of_interest=" : "",
+            info->set_values & CIFS_LEVEL_OF_INTEREST ? smb_file_info_levels_2_str(info->level_of_interest) : "",
+            info->set_values & CIFS_FID ? ", fid=" : "",
+            info->set_values & CIFS_FID ? tempstr_printf("0x%"PRIx64, info->fid) : "",
+            info->flag_file &  CIFS_FILE_CREATE ? ", creation" : "",
+            info->flag_file &  CIFS_FILE_DIRECTORY ? ", directory" : "",
+            info->flag_file &  CIFS_FILE_UNLINK ? ", unlink" : "",
+            info->is_query ? ", query" : "",
+            info->query_write_bytes, info->response_read_bytes,
+            info->response_write_bytes, info->meta_read_bytes, info->meta_write_bytes);
+    return str;
+}
+
 struct smb_hdr {
     uint32_t code;      // Must contains 0xff 'SMB'
     uint8_t command;
@@ -1373,35 +1402,6 @@ static void const *cifs_info_addr(struct proto_info const *info_, size_t *size)
     struct cifs_proto_info const *info = DOWNCAST(info_, info, cifs_proto_info);
     if (size) *size = sizeof(*info);
     return info;
-}
-
-char const *cifs_info_2_str(struct proto_info const *info_)
-{
-    struct cifs_proto_info const *info = DOWNCAST(info_, info, cifs_proto_info);
-    char *str = tempstr_printf("%s, command=%s, status=%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s, query_write_bytes=%"PRIu32", response_read_bytes=%"PRIu32", response_write_bytes=%"PRIu32", meta_read_bytes=%"PRIu32", meta_write_bytes=%"PRIu32,
-            proto_info_2_str(info_),
-            info->version == 1 ? smb_command_2_str(info->command.smb_command) :
-                smb_command_2_str(info->command.smb_command),
-            smb_status_2_str(info->status),
-            info->set_values & CIFS_DOMAIN ? ", domain=" : "",
-            info->set_values & CIFS_DOMAIN ? info->domain : "",
-            info->set_values & CIFS_USER ? ", user=" : "",
-            info->set_values & CIFS_USER ? info->user : "",
-            info->set_values & CIFS_PATH ? ", path=" : "",
-            info->set_values & CIFS_PATH ? info->path : "",
-            info->set_values & CIFS_TRANS2_SUBCMD ? ", subcmd=" : "",
-            info->set_values & CIFS_TRANS2_SUBCMD ? smb_trans2_subcmd_2_str(info->trans2_subcmd) : "",
-            info->set_values & CIFS_LEVEL_OF_INTEREST ? ", level_of_interest=" : "",
-            info->set_values & CIFS_LEVEL_OF_INTEREST ? smb_file_info_levels_2_str(info->level_of_interest) : "",
-            info->set_values & CIFS_FID ? ", fid=" : "",
-            info->set_values & CIFS_FID ? tempstr_printf("0x%"PRIx64, info->fid) : "",
-            info->flag_file &  CIFS_FILE_CREATE ? ", creation" : "",
-            info->flag_file &  CIFS_FILE_DIRECTORY ? ", directory" : "",
-            info->flag_file &  CIFS_FILE_UNLINK ? ", unlink" : "",
-            info->is_query ? ", query" : "",
-            info->query_write_bytes, info->response_read_bytes,
-            info->response_write_bytes, info->meta_read_bytes, info->meta_write_bytes);
-    return str;
 }
 
 static void cifs_proto_info_ctor(struct cifs_proto_info *info, struct parser *parser, struct proto_info *parent, size_t header, size_t payload, bool is_query)
