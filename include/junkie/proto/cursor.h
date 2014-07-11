@@ -5,6 +5,7 @@
 #include <inttypes.h>
 #include <stdbool.h>
 #include <junkie/proto/proto.h>
+#include <iconv.h>
 
 /** @file
  * @brief helper for serialized data streram
@@ -53,13 +54,14 @@ uint_least64_t cursor_peek_u64le(struct cursor *cursor, size_t offset);
 /*
  * Reads a null terminated string if possible
  * @returns a tempstr with the (beginning of the) string.
- * @param max_len the maximum number of bytes to read. If it's reached before the end of string (nul) then
+ * @param max_src the maximum number of bytes to read. If it's reached before the end of string (nul) then
  *                -1 is returned.
  * @param size_buf Available size in out_buf
  * @param out_len Number of bytes written in out_buf
  * @return Number of bytes read from cursor.
  */
-int cursor_read_string(struct cursor *, char *out_buf, size_t size_buf, size_t max_len);
+int cursor_read_string(struct cursor *, char *out_buf, size_t size_buf, size_t max_src);
+int cursor_read_utf16(struct cursor *cursor, iconv_t cd, char *out_buf, size_t buf_size, size_t max_src);
 
 /*
  * Reads a specific length string
@@ -78,16 +80,17 @@ void cursor_copy(void *, struct cursor *, size_t n);
  * Search marker
  * @return -1 if marker has not been found. Otherwise, return the number of bytes until marker.
  */
-int cursor_lookup_marker(struct cursor *cursor, const void *marker, size_t marker_len, size_t max_len);
+int cursor_lookup_marker(struct cursor *cursor, const void *marker, size_t marker_len, size_t max_src);
 
 void cursor_drop(struct cursor *, size_t);
 /*
  * Drop cursor until marker is reached.
- * @param max_len Maximum of bytes read from cursor
+ * @param max_src Maximum of bytes read from cursor
  * @return -1 if marker has not been found. Otherwise, return the number of dropped bytes.
  */
-int cursor_drop_until(struct cursor *cursor, const void *marker, size_t marker_len, size_t max_len);
-int cursor_drop_string(struct cursor *cursor, size_t max_len);
+int cursor_drop_until(struct cursor *cursor, const void *marker, size_t marker_len, size_t max_src);
+int cursor_drop_string(struct cursor *cursor, size_t max_src);
+int cursor_drop_utf16(struct cursor *cursor, size_t max_src);
 
 bool cursor_is_empty(struct cursor const *);
 

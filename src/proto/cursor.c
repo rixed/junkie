@@ -190,7 +190,7 @@ int cursor_read_string(struct cursor *cursor, char *out_buf, size_t size_buf, si
 {
     uint8_t marker[1] = {0x00};
     int str_len = cursor_lookup_marker(cursor, marker, sizeof(marker), max_src);
-    SLOG(LOG_DEBUG, "Marker 0x00 at position %d, searched %zu bytes (cap len %zu)", str_len,
+    SLOG(LOG_DEBUG, "Marker {0x00} found at position %d, searched %zu bytes (cap len %zu)", str_len,
             max_src, cursor->cap_len);
     if (str_len < 0) return -1;
     size_t str_size = str_len + sizeof(marker);
@@ -209,30 +209,51 @@ int cursor_read_string(struct cursor *cursor, char *out_buf, size_t size_buf, si
     return str_size;
 }
 
-int cursor_lookup_marker(struct cursor *cursor, const void *marker, size_t marker_len, size_t max_len)
+int cursor_read_utf16(struct cursor *cursor, iconv_t cd, char *out_buf, size_t buf_size, size_t max_src)
 {
-    uint8_t *new_head = memmem(cursor->head, MIN(cursor->cap_len, max_len), marker, marker_len);
+    char marker[2] = {0x00, 0x00};
+    int str_len = cursor_lookup_marker(cursor, marker, sizeof(marker), max_src);
+    SLOG(LOG_DEBUG, "Marker {0x00, 0x00} found at position %d, searched %zu bytes (cap len %zu)", str_len,
+            max_src, cursor->cap_len);
+    if (str_len < 0) return -1;
+    uint8_t const *src = cursor->head;
+    size_t str_size = str_len + sizeof(marker);
+    if (str_size ^ 2) str_size++;
+    if (!out_buf) {
+        cursor_drop(cursor, str_size);
+        return 0;
+    }
+    size_t to_drop = str_size;
+    SLOG(LOG_DEBUG, "Reading and converting %zu bytes", str_size);
+    iconv(cd, (char **)&src, &str_size, &out_buf, &buf_size);
+    cursor_drop(cursor, to_drop);
+    return to_drop;
+}
+
+int cursor_lookup_marker(struct cursor *cursor, const void *marker, size_t marker_len, size_t max_src)
+{
+    uint8_t *new_head = memmem(cursor->head, MIN(cursor->cap_len, max_src), marker, marker_len);
     if (!new_head) return -1;
     int gap_size = new_head - cursor->head;
     return gap_size;
 }
 
-int cursor_drop_until(struct cursor *cursor, const void *marker, size_t marker_len, size_t max_len)
+int cursor_drop_until(struct cursor *cursor, const void *marker, size_t marker_len, size_t max_src)
 {
-    int dropped_bytes = cursor_lookup_marker(cursor, marker, marker_len, max_len);
+    int dropped_bytes = cursor_lookup_marker(cursor, marker, marker_len, max_src);
     if (dropped_bytes < 0) return -1;
     cursor_drop(cursor, dropped_bytes);
     return dropped_bytes;
 }
 
-int cursor_drop_string(struct cursor *cursor, size_t max_len)
+int cursor_drop_string(struct cursor *cursor, size_t max_src)
 {
-    uint8_t marker[1] = {0x00};
-    int dropped_bytes = cursor_lookup_marker(cursor, marker, sizeof(marker), max_len);
-    if (dropped_bytes < 0) return -1;
-    dropped_bytes += sizeof(marker);
-    cursor_drop(cursor, dropped_bytes);
-    return dropped_bytes;
+    return cursor_read_string(cursor, NULL, 0, max_src);
+}
+
+int cursor_drop_utf16(struct cursor *cursor, size_t max_src)
+{
+    return cursor_read_utf16(cursor, NULL, NULL, 0, max_src);
 }
 
 void cursor_copy(void *dst, struct cursor *cursor, size_t n)
