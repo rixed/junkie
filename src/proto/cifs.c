@@ -1774,8 +1774,6 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
         case SMB_TRANS2_SET_FILE_INFORMATION:
             {
                 CHECK(data_padding);
-                cursor_drop(cursor, 2); // ea error offset
-                cursor_drop(cursor, data_padding - 2);
                 // TODO Check error...
             }
             break;
@@ -2045,8 +2043,7 @@ static enum proto_parse_status parse_smb2_read_request(struct cursor *cursor, st
 {
     CHECK(49);
     READ_AND_CHECK_STRUCTURE_SIZE(49);
-    cursor_drop(cursor, 1 + 1 + 4); // Padding + flags + length
-    cursor_drop(cursor, 8); // offset
+    cursor_drop(cursor, 1 + 1 + 4 + 8); // Padding + flags + length + offset
     cifs_set_fid(info, cursor_read_u64le(cursor));
     // Don't care about the rest
     return PROTO_OK;
