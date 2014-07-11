@@ -2175,23 +2175,6 @@ static enum proto_parse_status parse_open_andx_response(struct cursor *cursor, s
     return PROTO_OK;
 }
 
-static enum proto_parse_status skip_to_nt_parameters(struct cursor* cursor, int word_count, uint16_t parameter_offset)
-{
-    // Compute padding
-    uint8_t start_parameter = SMB_HEADER_SIZE + word_count * 2 + 2 + 1;
-    if(start_parameter > parameter_offset) {
-        SLOG(LOG_DEBUG, "Start_parameter is greated than parameter offset (%"PRIu8" > %"PRIu8")", start_parameter, parameter_offset);
-        return PROTO_PARSE_ERR;
-    }
-    uint8_t padding = parameter_offset - start_parameter;
-    SLOG(LOG_DEBUG, "Found start parameter %u, offset %u, padding %u", start_parameter, parameter_offset, padding);
-    // skip the SMB parameters
-    if (-1 == parse_and_check_byte_count_superior(cursor, padding))
-        return PROTO_PARSE_ERR;
-    cursor_drop(cursor, padding);
-    return PROTO_OK;
-}
-
 /*
  * NT Transact request
  * Word count 0x13
@@ -2214,6 +2197,7 @@ static enum proto_parse_status parse_nt_transact_request(struct cifs_parser *cif
 {
     SLOG(LOG_DEBUG, "Parse NT Transact request");
     cifs_parser->subcommand.nt_trans_subcmd = 0;
+    uint8_t const *start_cursor = cursor->head;
     int word_count = parse_and_check_word_count_superior(cursor, 0x13);
     if (word_count == -1) return PROTO_PARSE_ERR;
 
@@ -2225,6 +2209,7 @@ static enum proto_parse_status parse_nt_transact_request(struct cifs_parser *cif
     cifs_parser->subcommand.nt_trans_subcmd = info->subcommand.nt_transact_subcmd = cursor_read_u16le(cursor);
     info->set_values |= CIFS_NT_TRANSACT_SUBCMD;
 
+    enum proto_parse_status status = PROTO_OK;
     switch(info->subcommand.nt_transact_subcmd) {
         case SMB_NT_TRANSACT_IOCTL:
             /*
@@ -2259,30 +2244,16 @@ static enum proto_parse_status parse_nt_transact_request(struct cifs_parser *cif
              */
             {
                 // skip to the NT_Trans_Parameters
-                if(PROTO_PARSE_ERR == skip_to_nt_parameters(cursor, word_count, parameter_offset))
-                    return PROTO_PARSE_ERR;
+                if (PROTO_OK != (status = drop_parameter_padding(cursor, start_cursor, parameter_offset)))
+                    return status;
 
                 // skip until the Name
-                cursor_drop(cursor, 4 + 4 + 4 + 8 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 1);
-                cursor_drop(cursor, compute_padding(cursor, 0, 2));
+                int skipped = 4 + 4 + 4 + 8 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 1;
+                cursor_drop(cursor, skipped + compute_padding(cursor, skipped, 2));
 
                 if(parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
                     return PROTO_PARSE_ERR;
                 info->set_values |= CIFS_PATH;
-            }
-            break;
-        case SMB_NT_TRANSACT_SET_SECURITY_DESC:
-            /*
-             * NT_Trans_Parameters (8 bytes)
-             * | USHORT | USHORT   | ULONG               |
-             * | FID    | Reserved | SecurityInformation |
-             */
-            {
-                // skip to the NT_Trans_Parameters
-                if(PROTO_PARSE_ERR == skip_to_nt_parameters(cursor, word_count, parameter_offset))
-                    return PROTO_PARSE_ERR;
-
-                cifs_set_fid(info, cursor_read_u16le(cursor));
             }
             break;
         case SMB_NT_TRANSACT_QUERY_SECURITY_DESC:
@@ -2291,11 +2262,16 @@ static enum proto_parse_status parse_nt_transact_request(struct cifs_parser *cif
              * | USHORT | USHORT   | ULONG              |
              * | FID    | Reserved | SecurityInfoFields |
              */
+        case SMB_NT_TRANSACT_SET_SECURITY_DESC:
+            /*
+             * NT_Trans_Parameters (8 bytes)
+             * | USHORT | USHORT   | ULONG               |
+             * | FID    | Reserved | SecurityInformation |
+             */
             {
                 // skip to the NT_Trans_Parameters
-                if(PROTO_PARSE_ERR == skip_to_nt_parameters(cursor, word_count, parameter_offset))
-                    return PROTO_PARSE_ERR;
-
+                if (PROTO_OK != (status = drop_parameter_padding(cursor, start_cursor, parameter_offset)))
+                    return status;
                 cifs_set_fid(info, cursor_read_u16le(cursor));
             }
             break;
@@ -2503,6 +2479,7 @@ static enum proto_parse_status parse_transaction_response(struct cifs_parser *ci
     SLOG(LOG_DEBUG, "Parse transaction response with previous subcmd %s, level of interest %s",
             smb_transaction_subcmd_2_str(cifs_parser->subcommand.transaction_subcmd),
             smb_file_info_levels_2_str(cifs_parser->level_of_interest));
+    uint8_t const *start_cursor = cursor->head;
     int word_count = parse_and_check_word_count_superior(cursor, 0x0a);
     if (word_count == -1) return PROTO_PARSE_ERR;
 
@@ -2514,6 +2491,9 @@ static enum proto_parse_status parse_transaction_response(struct cifs_parser *ci
     // Read Data Count
     uint16_t data_count = cursor_read_u16le(cursor);
 
+    enum proto_parse_status status = PROTO_OK;
+    if (PROTO_OK != (status = drop_parameter_padding(cursor, start_cursor, parameter_offset)))
+        return status;
 
     switch (cifs_parser->subcommand.transaction_subcmd) {
         case SMB_TRANS_SET_NMPIPE_STATE:
@@ -2536,14 +2516,11 @@ static enum proto_parse_status parse_transaction_response(struct cifs_parser *ci
              * | CurrentInstances | PipeNameLength | PipeName   |
              */
             {
-                // skip to the Trans_Parameters
-                if(PROTO_PARSE_ERR == skip_to_nt_parameters(cursor, word_count, parameter_offset))
-                    return PROTO_PARSE_ERR;
-
-                CHECK(2 + 2 + 1 + 1 + 1);
+                size_t skipped = 2 + 2 + 1 + 1 + 1;
+                size_t padding = compute_padding(cursor, skipped, 2);
+                CHECK(skipped + padding);
                 // skip to the smb string
-                cursor_drop(cursor, 2 + 2 + 1 + 1 + 1);
-                cursor_drop(cursor, compute_padding(cursor, 0, 2));
+                cursor_drop(cursor, skipped + padding);
                 if(parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
                     return PROTO_PARSE_ERR;
                 info->set_values |= CIFS_PATH;
@@ -2563,19 +2540,6 @@ static enum proto_parse_status parse_transaction_response(struct cifs_parser *ci
              * | BytesWritten |
              */
             {
-                //compute padding
-                uint8_t start_parameter = SMB_HEADER_SIZE + word_count * 2 + 2 + 1;
-                if(start_parameter > parameter_offset) {
-                    SLOG(LOG_DEBUG, "Start_parameter is greated than parameter offset (%"PRIu8" > %"PRIu8")", start_parameter, parameter_offset);
-                    return PROTO_PARSE_ERR;
-                }
-                uint8_t padding = parameter_offset - start_parameter;
-                SLOG(LOG_DEBUG, "Found start parameter %u, offset %u, padding %u", start_parameter, parameter_offset, padding);
-                // skip to the Trans parameters
-                if (-1 == parse_and_check_byte_count_superior(cursor, padding))
-                    return PROTO_PARSE_ERR;
-                cursor_drop(cursor, padding);
-
                 CHECK(2);
                 info->response_write_bytes = cursor_read_u16le(cursor);
             }
