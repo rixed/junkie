@@ -5,7 +5,7 @@
 #undef NDEBUG
 #include <assert.h>
 #include <time.h>
-#include "lib.h"
+#include "lib_test_junkie.h"
 
 struct dynports *dynports = NULL;
 

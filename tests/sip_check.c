@@ -14,7 +14,7 @@
 #include <junkie/proto/udp.h>
 #include <junkie/proto/tcp.h>
 #include <junkie/proto/cnxtrack.h>
-#include "lib.h"
+#include "lib_test_junkie.h"
 #include "proto/sip.c"
 
 /*

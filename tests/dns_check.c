@@ -14,7 +14,7 @@
 #include <junkie/proto/ip.h>
 #include <junkie/proto/eth.h>
 #include <junkie/proto/cap.h>
-#include "lib.h"
+#include "lib_test_junkie.h"
 #include "proto/dns.c"
 
 /*

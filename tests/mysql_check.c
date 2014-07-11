@@ -12,7 +12,7 @@
 #include <junkie/proto/ip.h>
 #include <junkie/proto/eth.h>
 #include <junkie/proto/pkt_wait_list.h>
-#include "lib.h"
+#include "lib_test_junkie.h"
 #include "proto/mysql.c"
 #include "sql_test.h"
 

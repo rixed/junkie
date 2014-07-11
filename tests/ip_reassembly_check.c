@@ -16,7 +16,7 @@
 #include <junkie/proto/ip.h>
 #include <junkie/proto/udp.h>
 #include <junkie/proto/cnxtrack.h>
-#include "lib.h"
+#include "lib_test_junkie.h"
 
 /*
  * These are 13 eth frames for a single UDP packet, fragmented at IP level

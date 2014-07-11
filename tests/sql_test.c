@@ -2,7 +2,7 @@
 // vim:sw=4 ts=4 sts=4 expandtab
 #include <junkie/proto/sql.h>
 #include "sql_test.h"
-#include "lib.h"
+#include "lib_test_junkie.h"
 
 int compare_expected_sql(struct sql_proto_info const *info, struct sql_proto_info const *expected)
 {

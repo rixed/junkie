@@ -11,7 +11,7 @@
 #include <junkie/proto/cap.h>
 #include <junkie/proto/eth.h>
 #include <junkie/proto/ip.h>
-#include "lib.h"
+#include "lib_test_junkie.h"
 #include "proto/tcp.c"
 #include "proto/mysql.c"
 

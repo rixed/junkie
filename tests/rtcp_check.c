@@ -8,7 +8,7 @@
 #include <junkie/tools/ext.h>
 #include <junkie/tools/objalloc.h>
 #include <junkie/proto/ip.h>
-#include "lib.h"
+#include "lib_test_junkie.h"
 #include "proto/rtcp.c"
 
 /*

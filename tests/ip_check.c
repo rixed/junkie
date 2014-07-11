@@ -9,7 +9,7 @@
 #include <junkie/proto/pkt_wait_list.h>
 #include <junkie/proto/cap.h>
 #include <junkie/proto/eth.h>
-#include "lib.h"
+#include "lib_test_junkie.h"
 #include "proto/ip.c"
 #define Id Idv6
 #include "proto/ip6.c"

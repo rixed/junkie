@@ -15,7 +15,7 @@
 #include <junkie/proto/tcp.h>
 #include <junkie/proto/cnxtrack.h>
 #include "junkie/tools/hash.h"
-#include "lib.h"
+#include "lib_test_junkie.h"
 #include "proto/skinny.c"
 
 /*

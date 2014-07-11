@@ -11,7 +11,7 @@
 #include <junkie/tools/ext.h>
 #include <junkie/tools/objalloc.h>
 #include <junkie/proto/pkt_wait_list.h>
-#include "lib.h"
+#include "lib_test_junkie.h"
 #include "proto/http.c"
 
 /*

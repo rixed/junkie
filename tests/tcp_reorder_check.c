@@ -15,7 +15,7 @@
 #include <junkie/proto/http.h>
 #include <junkie/proto/streambuf.h>
 #include <junkie/proto/cnxtrack.h>
-#include "lib.h"
+#include "lib_test_junkie.h"
 
 /*
  * These are 9 eth frames for a double HTTP get in the same cnx, one for /generate_204 and one for /complete/search/etc...
