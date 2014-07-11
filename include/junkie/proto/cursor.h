@@ -54,10 +54,12 @@ uint_least64_t cursor_peek_u64le(struct cursor *cursor, size_t offset);
  * Reads a null terminated string if possible
  * @returns a tempstr with the (beginning of the) string.
  * @param max_len the maximum number of bytes to read. If it's reached before the end of string (nul) then
- *                PROTO_TOO_SHORT is returned (and the cursor is rollbacked).
- * @param str will be set to the tempstr.
+ *                -1 is returned.
+ * @param size_buf Available size in out_buf
+ * @param out_len Number of bytes written in out_buf
+ * @return Number of bytes read from cursor.
  */
-enum proto_parse_status cursor_read_string(struct cursor *, char **out_str, size_t *out_len, size_t max_len);
+int cursor_read_string(struct cursor *, char *out_buf, size_t size_buf, size_t max_len);
 
 /*
  * Reads a specific length string

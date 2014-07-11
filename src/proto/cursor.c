@@ -186,26 +186,27 @@ enum proto_parse_status cursor_read_fixed_string(struct cursor *cursor, char **o
     return PROTO_OK;
 }
 
-enum proto_parse_status cursor_read_string(struct cursor *cursor, char **out_str, size_t *out_len, size_t max_len)
+int cursor_read_string(struct cursor *cursor, char *out_buf, size_t size_buf, size_t max_src)
 {
-    char *str = tempstr();
-    unsigned len;
-    if (max_len > TEMPSTR_SIZE-1) max_len = TEMPSTR_SIZE-1;
-    for (len = 0; len < max_len; len ++) {
-        CHECK_LEN(cursor, 1, len);
-        uint8_t c = cursor_read_u8(cursor);
-        if (c == '\0') break;
-        str[len] = c;
+    uint8_t marker[1] = {0x00};
+    int str_len = cursor_lookup_marker(cursor, marker, sizeof(marker), max_src);
+    SLOG(LOG_DEBUG, "Marker 0x00 at position %d, searched %zu bytes (cap len %zu)", str_len,
+            max_src, cursor->cap_len);
+    if (str_len < 0) return -1;
+    size_t str_size = str_len + sizeof(marker);
+    if (!out_buf) {
+        cursor_drop(cursor, str_size);
+        return 0;
     }
-    if (len == max_len) {
-        cursor_rollback(cursor, len);
-        return PROTO_TOO_SHORT;
+    assert(size_buf >= 1);
+    int copied_bytes = MIN(str_size, size_buf - 1);
+    cursor_copy(out_buf, cursor, copied_bytes);
+    if (size_buf - 1 < str_size) {
+        cursor_drop(cursor, str_size - size_buf);
+        out_buf[copied_bytes] = '\0';
     }
-    str[len] = '\0';
-    SLOG(LOG_DEBUG, "Reading string '%s' of size %u", str, len);
-    if (out_len) *out_len = len;
-    if (out_str) *out_str = str;
-    return PROTO_OK;
+    SLOG(LOG_DEBUG, "Read a null terminated string %s of size %zu", out_buf, str_size);
+    return str_size;
 }
 
 int cursor_lookup_marker(struct cursor *cursor, const void *marker, size_t marker_len, size_t max_len)

@@ -456,17 +456,17 @@ static enum proto_parse_status mysql_parse_client_login(struct cursor *cursor, s
 
     // jump to interresting bits
     cursor_drop(cursor, 0x17);
-    char *str;
-    status = cursor_read_string(cursor, &str, NULL, msg_end - cursor->head);
-    if (status != PROTO_OK) return status;
+    char *str = tempstr();
+    if (cursor_read_string(cursor, str, TEMPSTR_SIZE, msg_end - cursor->head) < 0 )
+        return PROTO_TOO_SHORT;
     info->set_values |= SQL_USER;
     snprintf(info->u.startup.user, sizeof(info->u.startup.user), "%s", str);
     status = cursor_read_le_string(cursor, &str, msg_end - cursor->head);
     if (status != PROTO_OK) return status;
     info->set_values |= SQL_PASSWD;
     snprintf(info->u.startup.passwd, sizeof(info->u.startup.passwd), "%s", str);
-    status = cursor_read_string(cursor, &str, NULL, msg_end - cursor->head);
-    if (status != PROTO_OK) return status;
+    if (cursor_read_string(cursor, str, TEMPSTR_SIZE, msg_end - cursor->head) < 0)
+        return PROTO_TOO_SHORT;
     info->set_values |= SQL_DBNAME;
     snprintf(info->u.startup.dbname, sizeof(info->u.startup.dbname), "%s", str);
     if (cursor->head < msg_end) cursor_drop(cursor, msg_end - cursor->head);
