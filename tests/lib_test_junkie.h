@@ -39,7 +39,7 @@ enum way { FROM_CLIENT, FROM_SERVER };
     uint64_t val = VAL;                           \
     if (exp != val) {                             \
         printf("Expected 0x%"PRIx64" got 0x%"PRIx64" from field %s\n", exp, val, #VAL); \
-        return 1;                                 \
+        return -1;                                 \
     } } while (0)
 
 #define CHECK_INT(VAL, EXP) do {                  \
@@ -47,7 +47,7 @@ enum way { FROM_CLIENT, FROM_SERVER };
     unsigned val = VAL;                           \
     if (exp != val) {                             \
         printf("Expected 0x%"PRIx32" got 0x%"PRIx32" from field %s\n", exp, val, #VAL); \
-        return 1;                                 \
+        return -1;                                 \
     } } while (0)
 
 #define CHECK_STR(VAL, EXP) do {               \
@@ -61,7 +61,7 @@ enum way { FROM_CLIENT, FROM_SERVER };
                break; \
             } \
         } \
-        return 1;                                 \
+        return -1;                                 \
     } } while (0)
 
 void check_set_values(unsigned value, unsigned expected, unsigned mask, char const *mask_name);

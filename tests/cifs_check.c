@@ -1100,7 +1100,7 @@ static unsigned cur_test;
 #define CHECK_FLAG_FILE(INFO, EXPECTED, MASK) \
     check_set_values(INFO->flag_file, EXPECTED->flag_file, MASK, #MASK);
 
-static bool compare_expected_cifs(struct cifs_proto_info const *const info,
+static int compare_expected_cifs(struct cifs_proto_info const *const info,
         struct cifs_proto_info const *const expected)
 {
     CHECK_INT(info->info.head_len, expected->info.head_len);
@@ -1149,7 +1149,7 @@ static void cifs_info_check(struct proto_subscriber unused_ *s, struct proto_inf
     // Check info against parse_tests[cur_test].expected
     struct cifs_proto_info const *const info = DOWNCAST(info_, info, cifs_proto_info);
     struct cifs_proto_info const *const expected = &parse_tests[cur_test].expected;
-    assert(!compare_expected_cifs(info, expected));
+    assert(0 == compare_expected_cifs(info, expected));
     called++;
 }
 
