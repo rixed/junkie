@@ -38,4 +38,5 @@ thisinclude_HEADERS = \
 	dhcp.h \
 	fcoe.h \
 	rpc.h \
+	der.h \
 	tds.h

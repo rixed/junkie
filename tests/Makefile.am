@@ -13,7 +13,7 @@ check_PROGRAMS = \
 	arp_check pkt_wait_list_check ip_reassembly_check \
 	tcp_reorder_check streambuf_check cli_check \
 	postgres_check endianness_check \
-	cursor_check string_buffer_check mutex_check \
+	der_check cursor_check string_buffer_check mutex_check \
 	mysql_check tns_check tls_check tds_check cifs_check
 
 dist_check_SCRIPTS = \
@@ -125,6 +125,8 @@ tds_check_SOURCES = tds_check.c lib_test_junkie.c lib_test_junkie.h sql_test.c s
 tds_check_LDADD = ../src/tools/libjunkietools.la ../src/proto/libproto.la -lm
 tns_check_SOURCES = tns_check.c lib_test_junkie.c lib_test_junkie.h sql_test.c sql_test.h
 tns_check_LDADD = ../src/tools/libjunkietools.la ../src/proto/libproto.la -lm
+der_check_SOURCES = der_check.c
+der_check_LDADD = ../src/tools/libjunkietools.la ../src/proto/libproto.la -lm
 
 clean-local:
 	rm -f *.log vgcore.* core.* core
