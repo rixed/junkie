@@ -2710,7 +2710,6 @@ static enum proto_parse_status parse_smb2_read_request(struct cursor *cursor, st
 static enum proto_parse_status parse_smb2_read_response(struct cursor *cursor, struct cifs_proto_info *info)
 {
     READ_AND_CHECK_STRUCTURE_SIZE(17);
-
     cursor_drop(cursor, 1 + 1); // Data offset + Reserved
     info->response_read_bytes = cursor_read_u32le(cursor);
     return PROTO_OK;
@@ -2860,6 +2859,39 @@ static enum proto_parse_status parse_smb2_close_request(struct cursor *cursor,
     return PROTO_OK;
 }
 
+/**
+ * Smb2 query info request
+ *
+ * | StructureSize = 41 | InfoType | FileInfoClass | OutputBufferLength | InputBufferOffset |
+ * | 2 bytes            | 1 byte   | 1 byte        | 4 bytes            | 2 bytes           |
+ *
+ * | Reserved | InputBufferLength | AdditionalInformation | Flags   | FileId   | Buffer   |
+ * | 2 bytes  | 4 bytes           | 4 bytes               | 4 bytes | 16 bytes | Variable |
+ */
+static enum proto_parse_status parse_smb2_query_info_request(struct cursor *cursor,
+        struct cifs_proto_info *info)
+{
+    READ_AND_CHECK_STRUCTURE_SIZE(41);
+    cursor_drop(cursor, 1 + 1 + 4 + 2 + 2 + 4 + 4 + 4);
+    PARSE_SMB2_FID(info);
+    return PROTO_OK;
+}
+
+/**
+ * Smb2 query info response
+ *
+ * | StructureSize = 9 | OutputBufferOffset | OutputBufferLength | Buffer   |
+ * | 2 bytes           | 2 bytes            | 4 bytes            | variable |
+ */
+static enum proto_parse_status parse_smb2_query_info_response(struct cursor *cursor,
+        struct cifs_proto_info *info)
+{
+    READ_AND_CHECK_STRUCTURE_SIZE(9);
+    cursor_drop(cursor, 2);
+    info->meta_read_bytes = cursor_read_u32le(cursor);
+    return PROTO_OK;
+}
+
 static enum proto_parse_status smb2_parse(struct cursor *cursor, struct cifs_proto_info *info,
         struct cifs_parser *cifs_parser)
 {
@@ -2901,6 +2933,10 @@ static enum proto_parse_status smb2_parse(struct cursor *cursor, struct cifs_pro
         case SMB2_COM_WRITE:
             if (info->is_query) status = parse_smb2_write_request(cursor, info);
             else status = parse_smb2_write_response(cursor, info);
+            break;
+        case SMB2_COM_QUERY_INFO:
+            if (info->is_query) status = parse_smb2_query_info_request(cursor, info);
+            else status = parse_smb2_query_info_response(cursor, info);
             break;
         default:
             break;
