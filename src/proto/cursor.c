@@ -199,14 +199,35 @@ int cursor_read_string(struct cursor *cursor, char *out_buf, size_t size_buf, si
         return 0;
     }
     assert(size_buf >= 1);
-    int copied_bytes = MIN(str_size, size_buf - 1);
+    size_t buf_wo_null = size_buf - 1;
+    int copied_bytes = MIN(str_size, buf_wo_null);
     cursor_copy(out_buf, cursor, copied_bytes);
-    if (size_buf - 1 < str_size) {
-        cursor_drop(cursor, str_size - size_buf);
+    if (buf_wo_null < str_size) {
+        cursor_drop(cursor, str_size - buf_wo_null);
         out_buf[copied_bytes] = '\0';
     }
     SLOG(LOG_DEBUG, "Read a null terminated string %s of size %zu", out_buf, str_size);
     return str_size;
+}
+
+int cursor_read_fixed_utf16(struct cursor *cursor, iconv_t cd, char *out_buf, size_t buf_size, size_t src_len)
+{
+    if (cursor->cap_len < src_len) return -1;
+    if (!out_buf || buf_size == 0) {
+        cursor_drop(cursor, src_len);
+        return src_len;
+    }
+    assert(buf_size > 1);
+    size_t to_drop = src_len;
+    SLOG(LOG_DEBUG, "Reading and converting %zu bytes", src_len);
+    buf_size -= 1;
+    char **buf = &out_buf;
+    uint8_t const *src = cursor->head;
+    iconv(cd, (char **)&src, &src_len, buf, &buf_size);
+    *buf[0] = '\0';
+    SLOG(LOG_DEBUG, "Converted string %s", out_buf);
+    cursor_drop(cursor, to_drop);
+    return to_drop;
 }
 
 int cursor_read_utf16(struct cursor *cursor, iconv_t cd, char *out_buf, size_t buf_size, size_t max_src)
@@ -216,39 +237,13 @@ int cursor_read_utf16(struct cursor *cursor, iconv_t cd, char *out_buf, size_t b
     SLOG(LOG_DEBUG, "Marker {0x00, 0x00} found at position %d, searched %zu bytes (cap len %zu)", str_len,
             max_src, cursor->cap_len);
     if (str_len < 0) return -1;
-    uint8_t const *src = cursor->head;
-    size_t str_size = str_len + sizeof(marker);
-    if (str_size ^ 2) str_size = MIN(str_size + 1, max_src);
-    if (!out_buf) {
-        cursor_drop(cursor, str_size);
-        return 0;
-    }
-    size_t to_drop = str_size;
-    SLOG(LOG_DEBUG, "Reading and converting %zu bytes", str_size);
-    iconv(cd, (char **)&src, &str_size, &out_buf, &buf_size);
-    cursor_drop(cursor, to_drop);
-    return to_drop;
-}
-
-int cursor_read_fixed_utf16(struct cursor *cursor, iconv_t cd, char *out_buf, size_t buf_size, size_t src_len)
-{
-    assert(buf_size > 2);
-    if (cursor->cap_len < src_len) return -1;
-    uint8_t const *src = cursor->head;
-    if (!out_buf) {
-        cursor_drop(cursor, src_len);
-        return 0;
-    }
-    size_t to_drop = src_len;
-    SLOG(LOG_DEBUG, "Reading and converting %zu bytes", src_len);
-    buf_size -= 2;
-    char **buf = &out_buf;
-    iconv(cd, (char **)&src, &src_len, buf, &buf_size);
-    char marker[2] = {0x00, 0x00};
-    memcpy(*buf, marker, 2);
-
-    cursor_drop(cursor, to_drop);
-    return to_drop;
+    // Don't count NULL marker, it's inserted by read_fixed and we will drop it after
+    size_t str_size = str_len;
+    if (str_size & 1) str_size = MIN(str_size + 1, max_src);
+    int dropped = cursor_read_fixed_utf16(cursor, cd, out_buf, buf_size, str_size);
+    if (dropped == -1) return dropped;
+    cursor_drop(cursor, sizeof(marker));
+    return dropped + sizeof(marker);
 }
 
 int cursor_lookup_marker(struct cursor *cursor, const void *marker, size_t marker_len, size_t max_src)

@@ -6,6 +6,26 @@
 #include <stdio.h>
 #include "proto/cursor.c"
 
+static void cursor_read_string_check(void)
+{
+    iconv_t iconv_cd = iconv_open("UTF8//IGNORE", "UTF16LE");
+    char buf[255];
+
+    struct cursor cursor;
+    static uint8_t const data_utf16[] = { 0x57, 0x00, 0x4f, 0x00, 0x52, 0x00,
+        0x4b, 0x00, 0x47, 0x00, 0x52, 0x00, 0x4f, 0x00, 0x55, 0x00, 0x50, 0x00 };
+    cursor_ctor(&cursor, data_utf16, sizeof(data_utf16));
+    assert(18 == cursor_read_fixed_utf16(&cursor, iconv_cd, buf, sizeof(buf), sizeof(data_utf16)));
+    assert(0 == strcmp("WORKGROUP", buf));
+
+    static uint8_t const data_null_utf16[] = { 0x00, 0x00 };
+    cursor_ctor(&cursor, data_null_utf16, sizeof(data_null_utf16));
+    assert(2 == cursor_read_utf16(&cursor, iconv_cd, buf, sizeof(buf), sizeof(data_null_utf16)));
+    assert(0 == strcmp("", buf));
+
+    iconv_close(iconv_cd);
+}
+
 static void cursor_check(void)
 {
     struct cursor cursor;
@@ -44,14 +64,6 @@ static void cursor_check(void)
     cursor_ctor(&cursor, datan, sizeof(datan));
     assert(cursor_peek_u16n(&cursor, 0) == 0x0102);
     assert(cursor_read_u16n(&cursor) == 0x0102);
-
-    static uint8_t const data_utf16[] = { 0x57, 0x00, 0x4f, 0x00, 0x52, 0x00,
-        0x4b, 0x00, 0x47, 0x00, 0x52, 0x00, 0x4f, 0x00, 0x55, 0x00, 0x50, 0x00 };
-    cursor_ctor(&cursor, data_utf16, sizeof(data_utf16));
-    iconv_t iconv_cd = iconv_open("UTF8//IGNORE", "UTF16LE");
-    char buf[16];
-    assert(18 == cursor_read_fixed_utf16(&cursor, iconv_cd, buf, sizeof(buf), sizeof(data_utf16)));
-    assert(0 == strcmp("WORKGROUP", buf));
 }
 
 int main(void)
@@ -61,7 +73,9 @@ int main(void)
     log_set_file("cursor_check.log");
 
     cursor_check();
+    cursor_read_string_check();
 
     log_fini();
     return EXIT_SUCCESS;
 }
+
