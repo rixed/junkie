@@ -23,6 +23,7 @@
 #include "junkie/tools/objalloc.h"
 #include "junkie/proto/cursor.h"
 #include "junkie/proto/tcp.h"
+#include "junkie/proto/der.h"
 
 #undef LOG_CAT
 #define LOG_CAT proto_cifs_log_category
@@ -2568,6 +2569,74 @@ static enum proto_parse_status parse_transaction_response(struct cifs_parser *ci
     uint16_t structure_size = cursor_read_u16le(cursor); \
     if (structure_size != expected_size) return PROTO_PARSE_ERR;
 
+enum ntlm_message_type {
+    NTLMSSP_NEGOCIATE = 0x1,
+    NTLMSSP_CHALLENGE,
+    NTLMSSP_AUTHENTICATE,
+};
+
+/**
+ * NTLM message
+ *
+ * | Signature | Message type |
+ * | 8 bytes   | 4 bytes      |
+ *
+ * Body payload depends of message type
+ * For NTLMSSP_AUTHENTICATE:
+ *
+ * | LmChallengeResponseFields       | NtChallengeResponseFields | DomainNameFields | UserNameFields | WorkstationFields |
+ * | 8 bytes                         | 8 bytes                   | 8 bytes          | 8 bytes        | 8 bytes           |
+ *
+ * | EncryptedRandomSessionKeyFields | NegotiateFlags            | Version          | MIC            | Payload           |
+ * | 8 bytes                         | 4 bytes                   | 8 bytes          | 16 bytes       | variable          |
+ *
+ */
+static enum proto_parse_status parse_ntlm_message(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    uint8_t const *start = cursor->head;
+    CHECK(8 + 4);
+    char buf[8];
+#define CIFS_NTLMSSP_ID "NTLMSSP"
+    if (-1 == cursor_read_string(cursor, buf, sizeof(buf), sizeof(CIFS_NTLMSSP_ID)))
+        return PROTO_PARSE_ERR;
+    if (0 != strcmp(buf, CIFS_NTLMSSP_ID)) {
+        SLOG(LOG_DEBUG, "Expected %s as ntlm id, got %s", CIFS_NTLMSSP_ID, buf);
+        return PROTO_PARSE_ERR;
+    }
+
+    enum ntlm_message_type message_type = cursor_read_u32le(cursor);
+    SLOG(LOG_DEBUG, "Found an ntlm message of type %"PRIu32, message_type);
+    if (message_type != NTLMSSP_AUTHENTICATE) {
+        // nothing interesting to fetch
+        return PROTO_OK;
+    }
+
+    CHECK(8 * 6 + 4 + 8 + 16);
+    cursor_drop(cursor, 8 + 8);
+
+    uint16_t domain_length = cursor_read_u16le(cursor);
+    cursor_drop(cursor, 2);
+    uint32_t domain_offset = cursor_read_u32le(cursor);
+    uint16_t user_length = cursor_read_u16le(cursor);
+    cursor_drop(cursor, 2);
+    uint32_t user_offset = cursor_read_u32le(cursor);
+    assert(user_offset == (domain_offset + domain_length));
+
+    size_t current_position = cursor->head - start;
+    CHECK(user_offset + user_length - current_position);
+    cursor_drop(cursor, domain_offset - current_position);
+    if (-1 == cursor_read_fixed_utf16(cursor, get_iconv(), info->domain, sizeof(info->domain), domain_length))
+        return PROTO_PARSE_ERR;
+    info->set_values |= CIFS_DOMAIN;
+    SLOG(LOG_DEBUG, "Parsed domain %s", info->domain);
+    if (-1 == cursor_read_fixed_utf16(cursor, get_iconv(), info->user, sizeof(info->user), user_length))
+        return PROTO_PARSE_ERR;
+    info->set_values |= CIFS_USER;
+    SLOG(LOG_DEBUG, "Parsed user %s", info->user);
+
+    return PROTO_OK;
+}
+
 /**
  * Session setup request
  *
@@ -2577,7 +2646,7 @@ static enum proto_parse_status parse_transaction_response(struct cifs_parser *ci
  * | SecurityBufferLength | PreviousSessionId | Buffer   |
  * | 2 bytes              | 8 bytes           | variable |
  */
-static enum proto_parse_status parse_smb2_session_setup_request(struct cursor *cursor, struct cifs_proto_info unused_ *info)
+static enum proto_parse_status parse_smb2_session_setup_request(struct cursor *cursor, struct cifs_proto_info *info)
 {
     CHECK(25);
     READ_AND_CHECK_STRUCTURE_SIZE(25);
@@ -2589,9 +2658,18 @@ static enum proto_parse_status parse_smb2_session_setup_request(struct cursor *c
             security_buffer_offset, security_buffer_length);
     CHECK(security_buffer_length + start_security_buffer);
     cursor_drop(cursor, start_security_buffer);
-    SLOG(LOG_DEBUG, "Value under cursor: %"PRIx8, cursor_read_u8(cursor));
 
-    // TODO Parse and fetch Domain and user
+    enum proto_parse_status status;
+    struct der der;
+    do  {
+        if (PROTO_OK != (status = cursor_read_der(cursor, &der)))
+            return status;
+    } while (der.type == DER_CONSTRUCTED);
+
+    if (der.class_tag == DER_OCTET_STRING) {
+        return parse_ntlm_message(cursor, info);
+    }
+
     return PROTO_OK;
 }
 
