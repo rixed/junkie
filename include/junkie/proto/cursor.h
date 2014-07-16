@@ -62,6 +62,7 @@ uint_least64_t cursor_peek_u64le(struct cursor *cursor, size_t offset);
  */
 int cursor_read_string(struct cursor *, char *out_buf, size_t size_buf, size_t max_src);
 int cursor_read_utf16(struct cursor *cursor, iconv_t cd, char *out_buf, size_t buf_size, size_t max_src);
+int cursor_read_fixed_utf16(struct cursor *cursor, iconv_t cd, char *out_buf, size_t buf_size, size_t src_len);
 
 /*
  * Reads a specific length string

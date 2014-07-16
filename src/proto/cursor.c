@@ -230,6 +230,27 @@ int cursor_read_utf16(struct cursor *cursor, iconv_t cd, char *out_buf, size_t b
     return to_drop;
 }
 
+int cursor_read_fixed_utf16(struct cursor *cursor, iconv_t cd, char *out_buf, size_t buf_size, size_t src_len)
+{
+    assert(buf_size > 2);
+    if (cursor->cap_len < src_len) return -1;
+    uint8_t const *src = cursor->head;
+    if (!out_buf) {
+        cursor_drop(cursor, src_len);
+        return 0;
+    }
+    size_t to_drop = src_len;
+    SLOG(LOG_DEBUG, "Reading and converting %zu bytes", src_len);
+    buf_size -= 2;
+    char **buf = &out_buf;
+    iconv(cd, (char **)&src, &src_len, buf, &buf_size);
+    char marker[2] = {0x00, 0x00};
+    memcpy(*buf, marker, 2);
+
+    cursor_drop(cursor, to_drop);
+    return to_drop;
+}
+
 int cursor_lookup_marker(struct cursor *cursor, const void *marker, size_t marker_len, size_t max_src)
 {
     uint8_t *new_head = memmem(cursor->head, MIN(cursor->cap_len, max_src), marker, marker_len);

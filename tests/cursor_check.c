@@ -44,6 +44,14 @@ static void cursor_check(void)
     cursor_ctor(&cursor, datan, sizeof(datan));
     assert(cursor_peek_u16n(&cursor, 0) == 0x0102);
     assert(cursor_read_u16n(&cursor) == 0x0102);
+
+    static uint8_t const data_utf16[] = { 0x57, 0x00, 0x4f, 0x00, 0x52, 0x00,
+        0x4b, 0x00, 0x47, 0x00, 0x52, 0x00, 0x4f, 0x00, 0x55, 0x00, 0x50, 0x00 };
+    cursor_ctor(&cursor, data_utf16, sizeof(data_utf16));
+    iconv_t iconv_cd = iconv_open("UTF8//IGNORE", "UTF16LE");
+    char buf[16];
+    assert(18 == cursor_read_fixed_utf16(&cursor, iconv_cd, buf, sizeof(buf), sizeof(data_utf16)));
+    assert(0 == strcmp("WORKGROUP", buf));
 }
 
 int main(void)
