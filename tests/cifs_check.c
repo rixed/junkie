@@ -43,11 +43,12 @@ static struct parse_test {
         .ret = PROTO_OK,
         .way = FROM_SERVER,
         .expected = {
-            .info = { .head_len = SMB_HEADER_SIZE, .payload = 0x61 - SMB_HEADER_SIZE},
+            .info = { .head_len = SMB_HEADER_SIZE, .payload = 0x61 - SMB_HEADER_SIZE },
             .command.smb_command = SMB_COM_NEGOCIATE ,
             .domain = "WORKGROUP",
             .set_values = CIFS_DOMAIN,
             .status = SMB_STATUS_OK,
+            .version = smb_version_1,
         },
     },
 
@@ -79,6 +80,7 @@ static struct parse_test {
             .user = "root",
             .set_values = CIFS_USER,
             .status = SMB_STATUS_OK,
+            .version = smb_version_1,
         },
     },
 
@@ -101,6 +103,7 @@ static struct parse_test {
             .domain = "WORKGROUP",
             .set_values = CIFS_DOMAIN,
             .status = SMB_STATUS_OK,
+            .version = smb_version_1,
         },
     },
 
@@ -118,6 +121,7 @@ static struct parse_test {
             .info = { .head_len = SMB_HEADER_SIZE, .payload = 0x23 - SMB_HEADER_SIZE},
             .command.smb_command = SMB_COM_SESSION_SETUP_ANDX,
             .status = SMB_STATUS_LOGON_FAILURE,
+            .version = smb_version_1,
         },
     },
 
@@ -141,6 +145,7 @@ static struct parse_test {
                 .trans2_subcmd = SMB_TRANS2_QUERY_FS_INFO,
             },
             .status = SMB_STATUS_OK,
+            .version = smb_version_1,
         },
     },
 
@@ -169,6 +174,7 @@ static struct parse_test {
             },
             .path = "/libpthread.so.0",
             .status = SMB_STATUS_OK,
+            .version = smb_version_1,
         },
     },
 
@@ -186,6 +192,7 @@ static struct parse_test {
             .info = { .head_len = SMB_HEADER_SIZE, .payload = 0x23 - SMB_HEADER_SIZE },
             .command.smb_command = SMB_COM_TRANSACTION2,
             .status = SMB_STATUS_OBJECT_NAME_NOT_FOUND,
+            .version = smb_version_1,
         },
     },
 
@@ -211,6 +218,7 @@ static struct parse_test {
             },
             .status = SMB_STATUS_OK,
             .path = "/*",
+            .version = smb_version_1,
         },
     },
 
@@ -242,6 +250,7 @@ static struct parse_test {
             .flag_file = CIFS_FILE_CREATE,
             .level_of_interest = SMB_POSIX_PATH_OPEN,
             .path = "/tmp/test/ga",
+            .version = smb_version_1,
         },
     },
 
@@ -271,6 +280,7 @@ static struct parse_test {
             .set_values = CIFS_FID,
             .status = SMB_STATUS_OK,
             .fid = 0x1838,
+            .version = smb_version_1,
         },
     },
 
@@ -296,6 +306,7 @@ static struct parse_test {
             },
             .status = SMB_STATUS_OK,
             .fid = 0x1838,
+            .version = smb_version_1,
         },
     },
 
@@ -326,6 +337,7 @@ static struct parse_test {
             },
             .status = SMB_STATUS_OK,
             .fid = 0x1838,
+            .version = smb_version_1,
         },
     },
 
@@ -348,6 +360,7 @@ static struct parse_test {
             .status = SMB_STATUS_OK,
             .fid = 0x1838,
             .query_write_bytes = 0x05,
+            .version = smb_version_1,
         },
     },
 
@@ -366,6 +379,7 @@ static struct parse_test {
             .command.smb_command = SMB_COM_WRITE_ANDX,
             .status = SMB_STATUS_OK,
             .response_write_bytes = 0x05,
+            .version = smb_version_1,
         },
     },
 
@@ -385,6 +399,7 @@ static struct parse_test {
             .set_values = CIFS_FID,
             .status = SMB_STATUS_OK,
             .fid = 0x1838,
+            .version = smb_version_1,
         },
     },
 
@@ -405,6 +420,7 @@ static struct parse_test {
             .set_values = CIFS_FID,
             .status = SMB_STATUS_OK,
             .fid = 0x191a,
+            .version = smb_version_1,
         },
     },
 
@@ -425,6 +441,7 @@ static struct parse_test {
             .command.smb_command = SMB_COM_READ_ANDX,
             .status = SMB_STATUS_OK,
             .response_read_bytes = 8,
+            .version = smb_version_1,
         },
     },
 
@@ -446,6 +463,7 @@ static struct parse_test {
             .command.smb_command = SMB_COM_TREE_CONNECT_ANDX,
             .status = SMB_STATUS_OK,
             .path = "\\\\TEST\\toto",
+            .version = smb_version_1,
         },
     },
 
@@ -475,6 +493,7 @@ static struct parse_test {
             .subcommand = {
                 .trans2_subcmd = SMB_TRANS2_SET_PATH_INFORMATION,
             },
+            .version = smb_version_1,
         },
     },
 
@@ -502,6 +521,7 @@ static struct parse_test {
             .subcommand = {
                 .trans2_subcmd = SMB_TRANS2_SET_PATH_INFORMATION,
             },
+            .version = smb_version_1,
         },
     },
 
@@ -522,6 +542,7 @@ static struct parse_test {
             .status = SMB_STATUS_OK,
             .set_values = CIFS_PATH,
             .path = "/tmp/test2",
+            .version = smb_version_1,
         },
     },
 
@@ -539,6 +560,7 @@ static struct parse_test {
             .info = { .head_len = SMB_HEADER_SIZE, .payload = 0x23 - SMB_HEADER_SIZE },
             .command.smb_command = SMB_COM_TRANSACTION2,
             .status = SMB_STATUS_OBJECT_NAME_NOT_FOUND,
+            .version = smb_version_1,
         },
     },
 
@@ -566,6 +588,7 @@ static struct parse_test {
             .set_values = CIFS_PATH,
             .command.smb_command = SMB_COM_NT_CREATE_ANDX,
             .status = SMB_STATUS_OK,
+            .version = smb_version_1,
         },
     },
 
@@ -591,6 +614,7 @@ static struct parse_test {
             .set_values = CIFS_FID,
             .command.smb_command = SMB_COM_NT_CREATE_ANDX,
             .status = SMB_STATUS_OK,
+            .version = smb_version_1,
         },
     },
 
@@ -617,6 +641,7 @@ static struct parse_test {
             .subcommand.trans2_subcmd = SMB_TRANS2_QUERY_FILE_INFORMATION,
             .level_of_interest = PASS_THROUGH_LEVEL_OF_INTEREST | FILE_INTERNAL_INFORMATION,
             .status = SMB_STATUS_OK,
+            .version = smb_version_1,
         },
     },
 
@@ -636,6 +661,7 @@ static struct parse_test {
             .info = { .head_len = SMB_HEADER_SIZE, .payload = 0x44 - SMB_HEADER_SIZE },
             .command.smb_command = SMB_COM_TRANSACTION2,
             .status = SMB_STATUS_OK,
+            .version = smb_version_1,
         },
     },
 
@@ -657,6 +683,7 @@ static struct parse_test {
             .command.smb_command = SMB_COM_TRANSACTION2,
             .subcommand.trans2_subcmd = SMB_TRANS2_QUERY_FILE_INFORMATION,
             .status = SMB_STATUS_OK,
+            .version = smb_version_1,
         },
     },
 
@@ -680,6 +707,7 @@ static struct parse_test {
             .set_values = CIFS_FID,
             .command.smb2_command = SMB2_COM_READ,
             .status = SMB_STATUS_OK,
+            .version = smb_version_2,
             .fid = 0x677df845177d3ea0,
         },
     },
@@ -701,6 +729,7 @@ static struct parse_test {
             .info = { .head_len = SMB2_HEADER_SIZE, .payload = 0x54 - SMB2_HEADER_SIZE },
             .command.smb2_command = SMB2_COM_READ,
             .status = SMB_STATUS_OK,
+            .version = smb_version_2,
             .response_read_bytes = 4,
         }
     },
@@ -725,6 +754,7 @@ static struct parse_test {
             .set_values = CIFS_TRANS2_SUBCMD | CIFS_PATH,
             .command.smb_command = SMB_COM_TRANSACTION2,
             .status = SMB_STATUS_OK,
+            .version = smb_version_1,
             .subcommand = {
                 .trans2_subcmd = SMB_TRANS2_GET_DFS_REFERRAL,
             },
@@ -753,6 +783,7 @@ static struct parse_test {
             .set_values = CIFS_TRANS2_SUBCMD | CIFS_PATH,
             .command.smb_command = SMB_COM_TRANSACTION2,
             .status = SMB_STATUS_OK,
+            .version = smb_version_1,
             .subcommand = {
                 .trans2_subcmd = SMB_TRANS2_FIND_NEXT2,
             },
@@ -782,6 +813,7 @@ static struct parse_test {
         .expected = {
             .info = { .head_len = SMB2_HEADER_SIZE, .payload = 0xab - SMB2_HEADER_SIZE },
             .command.smb2_command = SMB2_COM_SESSION_SETUP,
+            .version = smb_version_2,
         }
     },
 
@@ -801,6 +833,7 @@ static struct parse_test {
             .set_values = CIFS_FID,
             .command.smb_command = SMB_COM_FLUSH,
             .status = SMB_STATUS_OK,
+            .version = smb_version_1,
         },
     },
 
@@ -841,6 +874,7 @@ static struct parse_test {
             .set_values = CIFS_DOMAIN | CIFS_USER,
             .user = "toto",
             .domain = "WORKGROUP",
+            .version = smb_version_2,
         }
     },
 
@@ -874,6 +908,7 @@ static struct parse_test {
             .set_values = CIFS_PATH,
             .command.smb_command = SMB_COM_RENAME,
             .status = SMB_STATUS_OK,
+            .version = smb_version_1,
         },
     },
 
@@ -895,6 +930,7 @@ static struct parse_test {
             .set_values = CIFS_FID,
             .command.smb_command = SMB_COM_LOCKING_ANDX,
             .status = SMB_STATUS_OK,
+            .version = smb_version_1,
         },
     },
 
@@ -920,6 +956,7 @@ static struct parse_test {
                 .nt_transact_subcmd = SMB_NT_TRANSACT_NOTIFY_CHANGE,
             },
             .status = SMB_STATUS_OK,
+            .version = smb_version_1,
         },
     },
 
@@ -945,6 +982,7 @@ static struct parse_test {
                 .nt_transact_subcmd = SMB_NT_TRANSACT_IOCTL,
             },
             .status = SMB_STATUS_OK,
+            .version = smb_version_1,
         },
     },
 
@@ -970,6 +1008,7 @@ static struct parse_test {
                 .nt_transact_subcmd = SMB_NT_TRANSACT_QUERY_SECURITY_DESC,
             },
             .status = SMB_STATUS_OK,
+            .version = smb_version_1,
         },
     },
 
@@ -1001,6 +1040,7 @@ static struct parse_test {
                 .nt_transact_subcmd = SMB_NT_TRANSACT_CREATE,
             },
             .status = SMB_STATUS_OK,
+            .version = smb_version_1,
         },
     },
 
@@ -1028,6 +1068,7 @@ static struct parse_test {
                 .transaction_subcmd = SMB_TRANS_WAIT_NMPIPE,
             },
             .status = SMB_STATUS_OK,
+            .version = smb_version_1,
         },
     },
 
@@ -1059,6 +1100,7 @@ static struct parse_test {
                 .transaction_subcmd = SMB_TRANS_TRANSACT_NMPIPE,
             },
             .status = SMB_STATUS_OK,
+            .version = smb_version_1,
         },
     },
 
@@ -1080,7 +1122,58 @@ static struct parse_test {
             .set_values = CIFS_DOMAIN,
             .command.smb_command = SMB_COM_SESSION_SETUP_ANDX,
             .status = SMB_STATUS_OK,
+            .version = smb_version_1,
             .domain = "WORKGROUP",
+        },
+    },
+
+    {
+        .name = "Smb2 tree connect request",
+        .packet = (uint8_t const []) {
+            0xfe, 0x53, 0x4d, 0x42, 0x40, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0xe0, 0x1f,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x72, 0x4f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x09, 0x00, 0x00, 0x00, 0x48, 0x00, 0x2a, 0x00, 0x5c, 0x00, 0x5c, 0x00, 0x31, 0x00, 0x39, 0x00,
+            0x32, 0x00, 0x2e, 0x00, 0x31, 0x00, 0x36, 0x00, 0x38, 0x00, 0x2e, 0x00, 0x38, 0x00, 0x30, 0x00,
+            0x2e, 0x00, 0x32, 0x00, 0x32, 0x00, 0x35, 0x00, 0x5c, 0x00, 0x49, 0x00, 0x50, 0x00, 0x43, 0x00,
+            0x24, 0x00
+        },
+        .size = 0x72,
+        .ret = PROTO_OK,
+        .way = FROM_CLIENT,
+        .expected = {
+            .info = { .head_len = SMB2_HEADER_SIZE, .payload = 0x72 - SMB2_HEADER_SIZE },
+            .set_values = CIFS_PATH,
+            .command.smb2_command = SMB2_COM_TREE_CONNECT,
+            .status = SMB_STATUS_OK,
+            .version = smb_version_2,
+            .path = "\\\\192.168.80.225\\IPC$",
+        },
+    },
+
+    {
+        .name = "Smb2 query directory request",
+        .packet = (uint8_t const []) {
+              0xfe, 0x53, 0x4d, 0x42, 0x40, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0e, 0x00, 0x40, 0x1f,
+              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+              0x00, 0x00, 0x00, 0x00, 0x09, 0x85, 0x00, 0x00, 0x72, 0x4f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+              0x21, 0x00, 0x25, 0x00, 0x00, 0x00, 0x00, 0x00, 0x76, 0x33, 0x01, 0xf3, 0x47, 0xcf, 0x0d, 0x5b,
+              0x76, 0x33, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0x00, 0x0a, 0x00, 0xff, 0xff, 0x00, 0x00,
+              0x73, 0x00, 0x70, 0x00, 0x65, 0x00, 0x63, 0x00, 0x73, 0x00
+        },
+        .size = 0x6a,
+        .ret = PROTO_OK,
+        .way = FROM_CLIENT,
+        .expected = {
+            .info = { .head_len = SMB2_HEADER_SIZE, .payload = 0x6a - SMB2_HEADER_SIZE },
+            .set_values = CIFS_PATH | CIFS_FID,
+            .command.smb2_command = SMB2_COM_QUERY_DIRECTORY,
+            .status = SMB_STATUS_OK,
+            .version = smb_version_2,
+            .fid = 0x5b0dcf47f3013376,
+            .path = "specs",
         },
     },
 
@@ -1108,6 +1201,7 @@ static int compare_expected_cifs(struct cifs_proto_info const *const info,
     CHECK_SET_VALUE(info, expected, CIFS_LEVEL_OF_INTEREST);
     CHECK_SET_VALUE(info, expected, CIFS_FID);
 
+    CHECK_INT(info->version, expected->version);
     CHECK_INT(info->status, expected->status);
     CHECK_INT(info->command.smb_command, expected->command.smb_command);
     CHECK_INT(info->query_write_bytes, expected->query_write_bytes);
