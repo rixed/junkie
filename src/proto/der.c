@@ -82,7 +82,7 @@ static char *der_class_tag_2_str(enum der_class_tag der_class_tag)
 
 char *der_2_str(struct der *der)
 {
-    char *str = tempstr_printf("Der class %s, type: %s, class tag: %s, size %"PRIu8,
+    char *str = tempstr_printf("Der class %s, type: %s, class tag: %s, size %"PRIu64,
             der_class_identifier_2_str(der->class_identifier),
             der_type_2_str(der->type),
             der_class_tag_2_str(der->class_tag),
@@ -90,20 +90,79 @@ char *der_2_str(struct der *der)
     return str;
 }
 
-#define DER_CLASS_IDENTIFIER 0xc0
-#define DER_TYPE 0x40
-#define DER_CLASS_TAG 0x1f
+#define DER_CLASS_IDENTIFIER 0b11000000
+#define DER_TYPE 0b00100000
+#define DER_CLASS_TAG 0b00011111
+
+#define DER_LEFT_BIT_MASK 0x80
+
+/**
+ * Short form. One octet. Bit 8 has value "0" and bits 7-1 give the length.
+ *
+ * Long form. Two to 127 octets. Bit 8 of first octet has value "1" and bits 7-1 give the number of additional length octets. Second and following octets give the length, base 256, most significant digit first.
+ */
+static enum proto_parse_status cursor_read_der_length(struct cursor *cursor, uint_least64_t *out_res)
+{
+    uint8_t current = cursor_read_u8(cursor);
+    if (current & DER_LEFT_BIT_MASK) {
+        uint16_t num_bytes = current & ~DER_LEFT_BIT_MASK;
+        if (num_bytes > cursor->cap_len) return 0;
+        return cursor_read_fixed_int_n(cursor, out_res, num_bytes);
+    } else {
+        *out_res = current;
+        return PROTO_OK;
+    }
+}
 
 enum proto_parse_status cursor_read_der(struct cursor *cursor, struct der *der)
 {
+    enum proto_parse_status status = PROTO_OK;
     uint8_t der_header = cursor_read_u8(cursor);
-    der->class_identifier = der_header & DER_CLASS_IDENTIFIER;
-    der->type = der_header & DER_TYPE;
+    der->class_identifier = (der_header & DER_CLASS_IDENTIFIER) >> 6;
+    der->type = (der_header & DER_TYPE) >> 5;
     der->class_tag = der_header & DER_CLASS_TAG;
-    der->length = cursor_read_u8(cursor);
+    if (PROTO_OK != (status = cursor_read_der_length(cursor, &der->length))) return status;
     SLOG(LOG_DEBUG, "Parsed der %s, %"PRIx16, der_2_str(der), der_header);
     if (der->length > cursor->cap_len) return PROTO_TOO_SHORT;
     der->value = cursor->head;
+    return PROTO_OK;
+}
+
+/**
+ * Node values less than or equal to 127 are encoded on one byte.
+ * Node values greater than or equal to 128 are encoded on multiple bytes. Bit 7 of the leftmost byte is set to one. Bits 0 through 6 of each byte contains the encoded value.
+ */
+static uint16_t cursor_read_oid_node(struct cursor *cursor)
+{
+    uint8_t current = cursor_read_u8(cursor);
+    if (current & DER_LEFT_BIT_MASK) {
+        uint16_t left = (current & ~DER_LEFT_BIT_MASK) << 7;
+        uint8_t right = cursor_read_u8(cursor) & ~DER_LEFT_BIT_MASK;
+        SLOG(LOG_DEBUG, "Got a multibyte length, left part %"PRIu16", right part %"PRIu8, left, right);
+        return left + right;
+    } else {
+        return current;
+    }
+}
+
+enum proto_parse_status cursor_read_oid(struct cursor *cursor, size_t size, uint16_t *oid, size_t *oid_length)
+{
+    assert(oid);
+    if (cursor->cap_len < size) return PROTO_TOO_SHORT;
+
+    // The first two nodes are encoded on a single byte.
+    // The first node is multiplied by the decimal 40 and the result is added to the value of the second node.
+    int oid_indice = 0;
+    uint8_t first_byte = cursor_read_u8(cursor);
+    oid[oid_indice++] = first_byte / 40;
+    oid[oid_indice++] = first_byte - oid[0] * 40;
+
+    for (unsigned i = 1; i < size; i++) {
+         uint16_t node = cursor_read_oid_node(cursor);
+         if (node > 127) i++;
+         oid[oid_indice++] = node;
+    }
+    if (oid_length) *oid_length = oid_indice;
     return PROTO_OK;
 }
 

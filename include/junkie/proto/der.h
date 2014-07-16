@@ -56,11 +56,12 @@ struct der {
     enum der_class_identifier class_identifier:2;
     enum der_type type:1;
     enum der_class_tag class_tag:5;
-    uint8_t length;
+    uint_least64_t length;
     uint8_t const *value;
 };
 
 enum proto_parse_status cursor_read_der(struct cursor *cursor, struct der *der);
+enum proto_parse_status cursor_read_oid(struct cursor *cursor, size_t size, uint16_t *oid, size_t *oid_length);
 
 char *der_2_str(struct der *der);
 
