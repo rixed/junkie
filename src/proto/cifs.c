@@ -1502,6 +1502,9 @@ static int parse_and_check_byte_count_superior(struct cursor *cursor, uint8_t mi
         return PROTO_PARSE_ERR; \
     info->set_values |= CIFS_PATH;
 
+#define PARSE_SMB2_FID(info) \
+    cifs_set_fid(info, cursor_read_u64le(cursor)); \
+    cursor_drop(cursor, 8); // Rest of file id
 
 /*
  * Negociate response:
@@ -2693,7 +2696,7 @@ static enum proto_parse_status parse_smb2_read_request(struct cursor *cursor, st
 {
     READ_AND_CHECK_STRUCTURE_SIZE(49);
     cursor_drop(cursor, 1 + 1 + 4 + 8); // Padding + flags + length + offset
-    cifs_set_fid(info, cursor_read_u64le(cursor));
+    PARSE_SMB2_FID(info);
     // Don't care about the rest
     return PROTO_OK;
 }
@@ -2744,11 +2747,63 @@ static enum proto_parse_status parse_smb2_query_directory_request(struct cursor 
 {
     READ_AND_CHECK_STRUCTURE_SIZE(33);
     cursor_drop(cursor, 1 + 1 + 4); // File information + flags + file index
-    cifs_set_fid(info, cursor_read_u64le(cursor));
-    cursor_drop(cursor, 8 + 2); // Rest of file id + offset
+    PARSE_SMB2_FID(info);
+    cursor_drop(cursor, 2); // offset
     uint16_t name_length = cursor_read_u16le(cursor);
     cursor_drop(cursor, 4); // Output buffer length
     PARSE_SMB2_PATH(info, name_length);
+    return PROTO_OK;
+}
+
+/**
+ * Smb2 create request
+ *
+ * | Structure Size = 57 | SecurityFlags | RequestedOplockLevel | ImpersonationLevel |
+ * | 2 bytes             | 1 byte        | 1 byte               | 4 bytes            |
+ *
+ * | SmbCreateFlags | Reserved | DesiredAccess | FileAttributes | ShareAccess | CreateDisposition |
+ * | 8 bytes        | 8 bytes  | 4 bytes       | 4 bytes        | 4 bytes     | 4 bytes           |
+ *
+ * | CreateOptions | NameOffset | NameLength | CreateContextsOffset | CreateContextsLength | Buffer   |
+ * | 4 bytes       | 2 bytes    | 2 bytes    | 4 bytes              | 4 bytes              | Variable |
+ *
+ */
+static enum proto_parse_status parse_smb2_create_request(struct cursor *cursor,
+        struct cifs_proto_info *info)
+{
+    READ_AND_CHECK_STRUCTURE_SIZE(57);
+    cursor_drop(cursor, 1 + 1 + 4 // SecurityFlags + requestedOpLockLevel + impersonationLevel
+            + 8 + 8 + 4 * 4  // + smbCreateFlags + Reserved + DesiredAccess + FileAttributes + ShareAccess + CreateDisposition
+            + 4 + 2 // CreateOptions + NameOffset
+            );
+    uint16_t name_length = cursor_read_u16le(cursor);
+    cursor_drop(cursor, 4 + 4); // CreateContextOffset + CreateContextsLength
+    PARSE_SMB2_PATH(info, name_length);
+    return PROTO_OK;
+}
+
+/**
+ * Smb2 create response
+ *
+ * | StructureSize = 89 | OplockLevel | Flags  | CreateAction | CreationTime | LastAccessTime |
+ * | 2 bytes            | 1 byte      | 1 byte | 4 bytes      | 8 bytes      | 8 bytes        |
+ *
+ * | LastWriteTime | ChangeTime | AllocationSize | EndOfFile | FileAttributes |
+ * | 8 bytes       | 8 bytes    | 8 bytes        | 8 bytes   | 4 bytes        |
+ *
+ * | Reserved2 | FileId   | CreateContextsOffset | CreateContextsLength | Buffer   |
+ * | 4 bytes   | 16 bytes | 4 bytes              | 4 bytes              | Variable |
+ *
+ */
+static enum proto_parse_status parse_smb2_create_response(struct cursor *cursor,
+        struct cifs_proto_info *info)
+{
+    READ_AND_CHECK_STRUCTURE_SIZE(89);
+    cursor_drop(cursor, 1 + 1 + 4 + 8 // OpLockLevel + Flags + CreateAction + CreationTime
+            + 8 + 8 + 8 + 8 // LastAccessTime + LastWriteTime + ChangeTime + AllocationSize
+            + 8 + 4 + 4 // EndOfFile + FileAttributes + Reserved2
+            );
+    PARSE_SMB2_FID(info);
     return PROTO_OK;
 }
 
@@ -2782,6 +2837,10 @@ static enum proto_parse_status smb2_parse(struct cursor *cursor, struct cifs_pro
             break;
         case SMB2_COM_QUERY_DIRECTORY:
             if (info->is_query) status = parse_smb2_query_directory_request(cursor, info);
+            break;
+        case SMB2_COM_CREATE:
+            if (info->is_query) status = parse_smb2_create_request(cursor, info);
+            else parse_smb2_create_response(cursor, info);
             break;
         default:
             break;
