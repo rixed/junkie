@@ -2807,6 +2807,59 @@ static enum proto_parse_status parse_smb2_create_response(struct cursor *cursor,
     return PROTO_OK;
 }
 
+/**
+ * Smb2 write request
+ *
+ * | StructureSize = 49 | DataOffset | Length  | Offset  | FileId   |
+ * | 2 bytes            | 2 bytes    | 4 bytes | 8 bytes | 16 bytes |
+ *
+ * | Channel | RemainingBytes | WriteChannelInfoOffset | Flags   | Buffer   |
+ * | 4 bytes | 4 bytes        | 2 bytes                | 4 bytes | Variable |
+ */
+static enum proto_parse_status parse_smb2_write_request(struct cursor *cursor,
+        struct cifs_proto_info *info)
+{
+    READ_AND_CHECK_STRUCTURE_SIZE(49);
+    cursor_drop(cursor, 2); // Dataoffset
+    info->query_write_bytes = cursor_read_u32le(cursor);
+    cursor_drop(cursor, 8); // offset
+    PARSE_SMB2_FID(info);
+    return PROTO_OK;
+}
+
+/**
+ * Smb2 write response
+ *
+ * | StructureSize = 17 | Reserved | Count   | Remaining | WriteChannelInfoOffset |
+ * | 2 bytes            | 2 bytes  | 4 bytes | 4 bytes   | 2 bytes                |
+ *
+ * | WriteChannelInfoLength |
+ * | 2 bytes                |
+ */
+static enum proto_parse_status parse_smb2_write_response(struct cursor *cursor,
+        struct cifs_proto_info *info)
+{
+    READ_AND_CHECK_STRUCTURE_SIZE(17);
+    cursor_drop(cursor, 2); // Reserved
+    info->response_write_bytes = cursor_read_u32le(cursor);
+    return PROTO_OK;
+}
+
+/**
+ * Smb2 close request
+ *
+ * | StructureSize = 24 | Flags   | Reserved | FileId   |
+ * | 2 bytes            | 2 bytes | 4 bytes  | 16 bytes |
+ */
+static enum proto_parse_status parse_smb2_close_request(struct cursor *cursor,
+        struct cifs_proto_info *info)
+{
+    READ_AND_CHECK_STRUCTURE_SIZE(24);
+    cursor_drop(cursor, 2 + 4); // Flags
+    PARSE_SMB2_FID(info);
+    return PROTO_OK;
+}
+
 static enum proto_parse_status smb2_parse(struct cursor *cursor, struct cifs_proto_info *info,
         struct cifs_parser *cifs_parser)
 {
@@ -2840,7 +2893,14 @@ static enum proto_parse_status smb2_parse(struct cursor *cursor, struct cifs_pro
             break;
         case SMB2_COM_CREATE:
             if (info->is_query) status = parse_smb2_create_request(cursor, info);
-            else parse_smb2_create_response(cursor, info);
+            else status = parse_smb2_create_response(cursor, info);
+            break;
+        case SMB2_COM_CLOSE:
+            if (info->is_query) status = parse_smb2_close_request(cursor, info);
+            break;
+        case SMB2_COM_WRITE:
+            if (info->is_query) status = parse_smb2_write_request(cursor, info);
+            else status = parse_smb2_write_response(cursor, info);
             break;
         default:
             break;
