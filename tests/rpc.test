@@ -1,0 +1,10 @@
+#!/bin/sh
+
+NAME="RPC"
+PCAPS="pcap/nfs/nfs.pcap"
+filter() {
+	grep '^RPC'
+}
+OUTPUT="rpc.out"
+
+. "$srcdir/dump_test"

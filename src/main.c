@@ -73,6 +73,7 @@
 #include "junkie/proto/discovery.h"
 #include "junkie/proto/cifs.h"
 #include "junkie/proto/tds.h"
+#include "junkie/proto/rpc.h"
 #include "proto/fuzzing.h"
 #include "pkt_source.h"
 #include "plugins.h"
@@ -94,7 +95,7 @@ static struct {
     I(cap),           I(eth),         I(arp),
     I(ip),            I(ip6),         I(gre),
     I(udp),           I(icmpv6),      I(tcp),
-    I(icmp),          I(sip),
+    I(icmp),          I(sip),         I(rpc),
     I(http),          I(rtp),         I(netbios),
     I(dns),           I(rtcp),        I(cifs),
     I(dns_tcp),       I(ftp),         I(mgcp),

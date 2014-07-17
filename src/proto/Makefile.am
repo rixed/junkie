@@ -32,6 +32,7 @@ libproto_la_SOURCES = \
 	skinny.c \
 	dhcp.c \
 	fcoe.c \
+	rpc.c \
 	tds.c tds_msg.c
 
 libproto_la_LIBADD = ../tools/libjunkietools.la

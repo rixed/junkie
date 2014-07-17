@@ -1,0 +1,5 @@
+-- pcap/nfs/nfs.pcap --
+RPC: type: CALL, rpc version: 2, program: 100003, program version: 3, procedure: 0
+RPC: type: REPLY, reply status : MSG_ACCEPTED
+RPC: type: CALL, rpc version: 2, program: 100003, program version: 3, procedure: 1
+RPC: type: REPLY, reply status : MSG_ACCEPTED

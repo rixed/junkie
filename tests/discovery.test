@@ -14,11 +14,13 @@ PCAPS="$PCAPS pcap/http/not-http.pcap"
 PCAPS="$PCAPS pcap/email/smtp.pcap"
 # Check sql
 PCAPS="$PCAPS pcap/oracle/one_row_response.pcap pcap/postgres/connect.pcap pcap/postgres/long_select.pcap"
+# Check nfs
+PCAPS="$PCAPS pcap/nfs/nfs.pcap"
 
 filter() {
-	grep -wE '^(PIPI|TLS|RTP|HTTP|FTP|SIP|CIFS|DNS|Netbios|TNS|PostgreSQL)'
+	grep -wE '^(PIPI|TLS|RTP|HTTP|FTP|SIP|CIFS|DNS|Netbios|TNS|PostgreSQL|RPC)'
 }
-CMDLINE='(use-modules (junkie signatures))(tcp-del-port "tns" 1521)(tcp-del-port "PostgreSQL" 5432)(tcp-del-port "tls" 443)(tcp-del-port "Netbios" 445)(udp-del-port "DNS" 53)'
+CMDLINE='(use-modules (junkie signatures))(tcp-del-port "tns" 1521)(tcp-del-port "PostgreSQL" 5432)(tcp-del-port "tls" 443)(tcp-del-port "Netbios" 445)(udp-del-port "DNS" 53)(udp-del-port "RPC" 2049)(tcp-del-port "RPC" 2049)'
 OUTPUT="discovery.out"
 
 . "$srcdir/dump_test"

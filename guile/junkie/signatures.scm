@@ -304,3 +304,20 @@
                                            ((rest @16n 4) < 100) ; Channel number should not be too high...
                                            ((rest @ 6) < 10)))) ; Packet number should not be too high
 
+
+(add-proto-signature "RPC" 28 'medium
+                     (nm:compile
+                       type:bool '(udp) '(and ((nb-bytes rest) >= 24)
+                                              (or
+                                                ((rest @32n 4) == 1)  ; Message type reply
+                                                ((rest @32n 4) == 0)) ; Message type call
+                                              ((rest @32n 8) == 2)))) ; RPC version 2
+
+(add-proto-signature "RPC" 29 'medium
+                     (nm:compile
+                       type:bool '(tcp) '(and ((nb-bytes rest) >= 24)
+                                              (or
+                                                ((rest @32n 4) == 1)  ; Message type reply
+                                                ((rest @32n 4) == 0)) ; Message type call
+                                              ((rest @32n 8) == 2))))
+
