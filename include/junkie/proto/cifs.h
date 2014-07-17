@@ -1194,6 +1194,7 @@ enum smb_version {
 #define CIFS_DOMAIN_SIZE 256
 #define CIFS_USER_SIZE 256
 #define CIFS_PATH_SIZE 512
+#define CIFS_TREE_SIZE 256
 
 struct cifs_proto_info {
     struct proto_info info;
@@ -1211,10 +1212,12 @@ struct cifs_proto_info {
 #define         CIFS_LEVEL_OF_INTEREST                 0x0020
 #define         CIFS_TRANSACTION_SUBCMD                0x0040
 #define         CIFS_NT_TRANSACT_SUBCMD                0x0080
+#define         CIFS_TREE                              0x0100
     unsigned set_values;
     char user[CIFS_USER_SIZE];
     char domain[CIFS_DOMAIN_SIZE];
     char path[CIFS_PATH_SIZE];
+    char tree[CIFS_PATH_SIZE];
 
     union smb_subcommand {
         enum smb_trans2_subcommand trans2_subcmd;
@@ -1224,6 +1227,7 @@ struct cifs_proto_info {
 
     enum smb_file_info_levels level_of_interest;
     uint64_t fid;
+    uint32_t tree_id;
 
     unsigned query_write_bytes;
     unsigned response_read_bytes;

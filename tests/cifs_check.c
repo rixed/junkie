@@ -1097,11 +1097,11 @@ static struct parse_test {
         .way = FROM_CLIENT,
         .expected = {
             .info = { .head_len = SMB2_HEADER_SIZE, .payload = 0x72 - SMB2_HEADER_SIZE },
-            .set_values = CIFS_PATH,
+            .set_values = CIFS_TREE,
             .command.smb2_command = SMB2_COM_TREE_CONNECT,
             .status = SMB_STATUS_OK,
             .version = smb_version_2,
-            .path = "\\\\192.168.80.225\\IPC$",
+            .tree = "\\\\192.168.80.225\\IPC$",
         },
     },
 
@@ -1127,6 +1127,7 @@ static struct parse_test {
             .version = smb_version_2,
             .fid = 0x5b0dcf47f3013376,
             .path = "specs",
+            .tree_id = 0x8509,
         },
     },
 
@@ -1152,6 +1153,7 @@ static struct parse_test {
             .status = SMB_STATUS_OK,
             .version = smb_version_2,
             .path = "",
+            .tree_id = 0x8509,
         },
     },
 
@@ -1178,6 +1180,7 @@ static struct parse_test {
             .status = SMB_STATUS_OK,
             .version = smb_version_2,
             .path = "specs\\test",
+            .tree_id = 0x839c,
         },
     },
 
@@ -1205,6 +1208,7 @@ static struct parse_test {
             .status = SMB_STATUS_OK,
             .version = smb_version_2,
             .fid = 0x5b0dcf47f3013376,
+            .tree_id = 0x8509,
         },
     },
 
@@ -1228,6 +1232,7 @@ static struct parse_test {
             .status = SMB_STATUS_OK,
             .version = smb_version_2,
             .fid = 0xff5f3778d7ef2dd8,
+            .tree_id = 0x839c,
         },
     },
 
@@ -1254,6 +1259,7 @@ static struct parse_test {
             .version = smb_version_2,
             .fid = 0x13f5db77e14f3cc9,
             .query_write_bytes = 8,
+            .tree_id = 0xbd5e,
         },
     },
 
@@ -1275,6 +1281,7 @@ static struct parse_test {
             .status = SMB_STATUS_OK,
             .version = smb_version_2,
             .response_write_bytes = 8,
+            .tree_id = 0xbd5e,
         },
     },
 
@@ -1300,6 +1307,7 @@ static struct parse_test {
             .status = SMB_STATUS_OK,
             .version = smb_version_2,
             .fid = 0x677df845177d3ea0,
+            .tree_id = 0xec05,
         },
     },
 
@@ -1322,6 +1330,7 @@ static struct parse_test {
             .status = SMB_STATUS_OK,
             .version = smb_version_2,
             .response_read_bytes = 4,
+            .tree_id = 0xec05,
         }
     },
 
@@ -1346,6 +1355,7 @@ static struct parse_test {
             .status = SMB_STATUS_OK,
             .version = smb_version_2,
             .fid = 0x54490784ade21c8d,
+            .tree_id = 0x1654,
         }
     },
 
@@ -1374,6 +1384,7 @@ static struct parse_test {
             .command.smb2_command = SMB2_COM_QUERY_INFO,
             .status = SMB_STATUS_OK,
             .version = smb_version_2,
+            .tree_id = 0x1654,
         }
     },
 
@@ -1401,6 +1412,7 @@ static int compare_expected_cifs(struct cifs_proto_info const *const info,
     CHECK_SET_VALUE(info, expected, CIFS_LEVEL_OF_INTEREST);
     CHECK_SET_VALUE(info, expected, CIFS_FID);
 
+    CHECK_INT(info->tree_id, expected->tree_id);
     CHECK_INT(info->version, expected->version);
     CHECK_INT(info->status, expected->status);
     CHECK_INT(info->command.smb_command, expected->command.smb_command);

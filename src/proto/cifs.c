@@ -1296,6 +1296,13 @@ struct smb_hdr {
     uint16_t multiplex_id;
 } packed_;
 
+#define   SMB2_FLAGS_SERVER_TO_REDIR      0x00000001
+#define   SMB2_FLAGS_ASYNC_COMMAND        0x00000002
+#define   SMB2_FLAGS_RELATED_OPERATIONS   0x00000004
+#define   SMB2_FLAGS_SIGNED               0x00000008
+#define   SMB2_FLAGS_DFS_OPERATIONS       0x10000000
+#define   SMB2_FLAGS_REPLAY_OPERATION     0x20000000
+
 struct smb2_hdr {
     uint32_t code;              // Must contains 0xfe 'SMB'
     uint16_t structure_size;
@@ -1306,13 +1313,21 @@ struct smb2_hdr {
             uint16_t reserved;
         } seq;
         uint32_t status;
-    } u;
+    } u1;
     uint16_t command;
     uint16_t credit;
     uint32_t flags;
     uint32_t next_command;
     uint64_t message_id;
-    uint64_t async_id;
+    union {
+        struct async {
+            uint64_t async_id;
+        } async;
+        struct sync {
+            uint32_t reserved;
+            uint32_t tree_id;
+        } sync;
+    } u2;
     uint64_t session_id;
     uint64_t signatures[2];
 } packed_;
@@ -1501,6 +1516,11 @@ static int parse_and_check_byte_count_superior(struct cursor *cursor, uint8_t mi
     if (cursor_read_fixed_utf16(cursor, get_iconv(), info->path, sizeof(info->path), length) < 0) \
         return PROTO_PARSE_ERR; \
     info->set_values |= CIFS_PATH;
+
+#define PARSE_SMB2_TREE(info, length) \
+    if (cursor_read_fixed_utf16(cursor, get_iconv(), info->tree, sizeof(info->tree), length) < 0) \
+        return PROTO_PARSE_ERR; \
+    info->set_values |= CIFS_TREE;
 
 #define PARSE_SMB2_FID(info) \
     cifs_set_fid(info, cursor_read_u64le(cursor)); \
@@ -2716,7 +2736,7 @@ static enum proto_parse_status parse_smb2_read_response(struct cursor *cursor, s
 }
 
 /**
- * Tree conect request
+ * Tree connect request
  *
  * | Structure Size = 9 | Reserved | Path offset | Path length | Buffer   |
  * | 2 bytes            | 2 bytes  | 2 bytes     | 2 bytes     | Variable |
@@ -2728,7 +2748,7 @@ static enum proto_parse_status parse_smb2_tree_connect_request(struct cursor *cu
     cursor_drop(cursor, 2 + 2);
     uint16_t length = cursor_read_u16le(cursor);
     CHECK(length);
-    PARSE_SMB2_PATH(info, length);
+    PARSE_SMB2_TREE(info, length);
     return PROTO_OK;
 }
 
@@ -2900,8 +2920,11 @@ static enum proto_parse_status smb2_parse(struct cursor *cursor, struct cifs_pro
     if (cursor->cap_len < SMB2_HEADER_SIZE) return PROTO_TOO_SHORT;
     struct smb2_hdr const *smb2_hdr = (struct smb2_hdr const *) cursor->head;
     info->command.smb2_command = READ_U16(&smb2_hdr->command);
+    if (!(smb2_hdr->flags & SMB2_FLAGS_ASYNC_COMMAND)) {
+        info->tree_id = READ_U32(&smb2_hdr->u2.sync.tree_id);
+    }
     if (!info->is_query) {
-        info->status = READ_U32(&smb2_hdr->u.status);
+        info->status = READ_U32(&smb2_hdr->u1.status);
     }
     cursor_drop(cursor, SMB2_HEADER_SIZE);
     enum proto_parse_status status = PROTO_OK;
