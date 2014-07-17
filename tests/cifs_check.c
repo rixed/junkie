@@ -146,6 +146,7 @@ static struct parse_test {
             },
             .status = SMB_STATUS_OK,
             .version = smb_version_1,
+            .tree_id = 0x01,
         },
     },
 
@@ -175,6 +176,7 @@ static struct parse_test {
             .path = "/libpthread.so.0",
             .status = SMB_STATUS_OK,
             .version = smb_version_1,
+            .tree_id = 0x01,
         },
     },
 
@@ -193,6 +195,7 @@ static struct parse_test {
             .command.smb_command = SMB_COM_TRANSACTION2,
             .status = SMB_STATUS_OBJECT_NAME_NOT_FOUND,
             .version = smb_version_1,
+            .tree_id = 0x01,
         },
     },
 
@@ -219,6 +222,7 @@ static struct parse_test {
             .status = SMB_STATUS_OK,
             .path = "/*",
             .version = smb_version_1,
+            .tree_id = 0x01,
         },
     },
 
@@ -251,6 +255,7 @@ static struct parse_test {
             .level_of_interest = SMB_POSIX_PATH_OPEN,
             .path = "/tmp/test/ga",
             .version = smb_version_1,
+            .tree_id = 0x01,
         },
     },
 
@@ -281,6 +286,7 @@ static struct parse_test {
             .status = SMB_STATUS_OK,
             .fid = 0x1838,
             .version = smb_version_1,
+            .tree_id = 0x01,
         },
     },
 
@@ -307,6 +313,7 @@ static struct parse_test {
             .status = SMB_STATUS_OK,
             .fid = 0x1838,
             .version = smb_version_1,
+            .tree_id = 0x01,
         },
     },
 
@@ -338,6 +345,7 @@ static struct parse_test {
             .status = SMB_STATUS_OK,
             .fid = 0x1838,
             .version = smb_version_1,
+            .tree_id = 0x01,
         },
     },
 
@@ -361,6 +369,7 @@ static struct parse_test {
             .fid = 0x1838,
             .query_write_bytes = 0x05,
             .version = smb_version_1,
+            .tree_id = 0x01,
         },
     },
 
@@ -380,6 +389,7 @@ static struct parse_test {
             .status = SMB_STATUS_OK,
             .response_write_bytes = 0x05,
             .version = smb_version_1,
+            .tree_id = 0x01,
         },
     },
 
@@ -400,6 +410,7 @@ static struct parse_test {
             .status = SMB_STATUS_OK,
             .fid = 0x1838,
             .version = smb_version_1,
+            .tree_id = 0x01,
         },
     },
 
@@ -421,6 +432,7 @@ static struct parse_test {
             .status = SMB_STATUS_OK,
             .fid = 0x191a,
             .version = smb_version_1,
+            .tree_id = 0x01,
         },
     },
 
@@ -442,6 +454,7 @@ static struct parse_test {
             .status = SMB_STATUS_OK,
             .response_read_bytes = 8,
             .version = smb_version_1,
+            .tree_id = 0x01,
         },
     },
 
@@ -494,6 +507,7 @@ static struct parse_test {
                 .trans2_subcmd = SMB_TRANS2_SET_PATH_INFORMATION,
             },
             .version = smb_version_1,
+            .tree_id = 0x01,
         },
     },
 
@@ -522,6 +536,7 @@ static struct parse_test {
                 .trans2_subcmd = SMB_TRANS2_SET_PATH_INFORMATION,
             },
             .version = smb_version_1,
+            .tree_id = 0x01,
         },
     },
 
@@ -543,6 +558,7 @@ static struct parse_test {
             .set_values = CIFS_PATH,
             .path = "/tmp/test2",
             .version = smb_version_1,
+            .tree_id = 0x01,
         },
     },
 
@@ -561,6 +577,7 @@ static struct parse_test {
             .command.smb_command = SMB_COM_TRANSACTION2,
             .status = SMB_STATUS_OBJECT_NAME_NOT_FOUND,
             .version = smb_version_1,
+            .tree_id = 0x01,
         },
     },
 
@@ -589,6 +606,7 @@ static struct parse_test {
             .command.smb_command = SMB_COM_NT_CREATE_ANDX,
             .status = SMB_STATUS_OK,
             .version = smb_version_1,
+            .tree_id = 0x880b,
         },
     },
 
@@ -615,6 +633,7 @@ static struct parse_test {
             .command.smb_command = SMB_COM_NT_CREATE_ANDX,
             .status = SMB_STATUS_OK,
             .version = smb_version_1,
+            .tree_id = 0x880b,
         },
     },
 
@@ -642,6 +661,7 @@ static struct parse_test {
             .level_of_interest = PASS_THROUGH_LEVEL_OF_INTEREST | FILE_INTERNAL_INFORMATION,
             .status = SMB_STATUS_OK,
             .version = smb_version_1,
+            .tree_id = 0x0808,
         },
     },
 
@@ -662,6 +682,7 @@ static struct parse_test {
             .command.smb_command = SMB_COM_TRANSACTION2,
             .status = SMB_STATUS_OK,
             .version = smb_version_1,
+            .tree_id = 0x0808,
         },
     },
 
@@ -684,6 +705,7 @@ static struct parse_test {
             .subcommand.trans2_subcmd = SMB_TRANS2_QUERY_FILE_INFORMATION,
             .status = SMB_STATUS_OK,
             .version = smb_version_1,
+            .tree_id = 0x0808,
         },
     },
 
@@ -708,6 +730,7 @@ static struct parse_test {
             .command.smb_command = SMB_COM_TRANSACTION2,
             .status = SMB_STATUS_OK,
             .version = smb_version_1,
+            .tree_id = 0x1006,
             .subcommand = {
                 .trans2_subcmd = SMB_TRANS2_GET_DFS_REFERRAL,
             },
@@ -737,6 +760,7 @@ static struct parse_test {
             .command.smb_command = SMB_COM_TRANSACTION2,
             .status = SMB_STATUS_OK,
             .version = smb_version_1,
+            .tree_id = 0x7,
             .subcommand = {
                 .trans2_subcmd = SMB_TRANS2_FIND_NEXT2,
             },
@@ -787,6 +811,7 @@ static struct parse_test {
             .command.smb_command = SMB_COM_FLUSH,
             .status = SMB_STATUS_OK,
             .version = smb_version_1,
+            .tree_id = 0x2007,
         },
     },
 
@@ -862,6 +887,7 @@ static struct parse_test {
             .command.smb_command = SMB_COM_RENAME,
             .status = SMB_STATUS_OK,
             .version = smb_version_1,
+            .tree_id = 0xd004,
         },
     },
 
@@ -884,6 +910,7 @@ static struct parse_test {
             .command.smb_command = SMB_COM_LOCKING_ANDX,
             .status = SMB_STATUS_OK,
             .version = smb_version_1,
+            .tree_id = 0x7800,
         },
     },
 
@@ -910,6 +937,7 @@ static struct parse_test {
             },
             .status = SMB_STATUS_OK,
             .version = smb_version_1,
+            .tree_id = 0x7800,
         },
     },
 
@@ -936,6 +964,7 @@ static struct parse_test {
             },
             .status = SMB_STATUS_OK,
             .version = smb_version_1,
+            .tree_id = 0x2007,
         },
     },
 
@@ -962,6 +991,7 @@ static struct parse_test {
             },
             .status = SMB_STATUS_OK,
             .version = smb_version_1,
+            .tree_id = 0x2007,
         },
     },
 
@@ -994,6 +1024,7 @@ static struct parse_test {
             },
             .status = SMB_STATUS_OK,
             .version = smb_version_1,
+            .tree_id = 0x0800,
         },
     },
 
@@ -1022,6 +1053,7 @@ static struct parse_test {
             },
             .status = SMB_STATUS_OK,
             .version = smb_version_1,
+            .tree_id = 0x9008,
         },
     },
 
@@ -1054,6 +1086,7 @@ static struct parse_test {
             },
             .status = SMB_STATUS_OK,
             .version = smb_version_1,
+            .tree_id = 0x0800,
         },
     },
 

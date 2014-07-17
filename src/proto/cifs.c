@@ -2919,12 +2919,12 @@ static enum proto_parse_status smb2_parse(struct cursor *cursor, struct cifs_pro
     SLOG(LOG_DEBUG, "Parse of a smb2 message");
     if (cursor->cap_len < SMB2_HEADER_SIZE) return PROTO_TOO_SHORT;
     struct smb2_hdr const *smb2_hdr = (struct smb2_hdr const *) cursor->head;
-    info->command.smb2_command = READ_U16(&smb2_hdr->command);
+    info->command.smb2_command = READ_U16LE(&smb2_hdr->command);
     if (!(smb2_hdr->flags & SMB2_FLAGS_ASYNC_COMMAND)) {
-        info->tree_id = READ_U32(&smb2_hdr->u2.sync.tree_id);
+        info->tree_id = READ_U32LE(&smb2_hdr->u2.sync.tree_id);
     }
     if (!info->is_query) {
-        info->status = READ_U32(&smb2_hdr->u1.status);
+        info->status = READ_U32LE(&smb2_hdr->u1.status);
     }
     cursor_drop(cursor, SMB2_HEADER_SIZE);
     enum proto_parse_status status = PROTO_OK;
@@ -2975,7 +2975,8 @@ static enum proto_parse_status smb_parse(struct cursor *cursor, struct cifs_prot
     struct smb_hdr const *smb_hdr = (struct smb_hdr const *) cursor->head;
 
     info->command.smb_command = READ_U8(&smb_hdr->command);
-    info->status = READ_U32(&smb_hdr->status);
+    info->status = READ_U32LE(&smb_hdr->status);
+    info->tree_id = READ_U16LE(&smb_hdr->tree_id);
 
     cursor_drop(cursor, SMB_HEADER_SIZE);
 
