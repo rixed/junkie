@@ -2178,7 +2178,7 @@ static enum proto_parse_status parse_open_andx_request(struct cifs_parser *cifs_
     cursor_drop(cursor, 0x0f*2); // skip parameters
 
     if(parse_and_check_byte_count_superior(cursor, 0x2) == -1) return PROTO_PARSE_ERR;
-    cursor_drop(cursor, 1);
+    cursor_drop(cursor, compute_padding(cursor, 0, 2));
     if(parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
         return PROTO_PARSE_ERR;
     info->set_values |= CIFS_PATH;
