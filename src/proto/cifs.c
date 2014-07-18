@@ -3015,6 +3015,22 @@ static enum proto_parse_status parse_smb2_query_info_response(struct cursor *cur
     return PROTO_OK;
 }
 
+
+/**
+ * Smb2 query info request
+ *
+ * | StructureSize = 24 | Reserved1 | Reserved2 | FileID   |
+ * | 2 bytes            | 2 bytes   | 2 bytes   | 16 bytes |
+ */
+static enum proto_parse_status parse_smb2_flush_request(struct cursor *cursor,
+        struct cifs_proto_info *info)
+{
+    READ_AND_CHECK_STRUCTURE_SIZE(24);
+    cursor_drop(cursor, 2 + 2);
+    PARSE_SMB2_FID(info);
+    return PROTO_OK;
+}
+
 static enum proto_parse_status smb2_parse(struct cursor *cursor, struct cifs_proto_info *info,
         struct cifs_parser *cifs_parser)
 {
@@ -3063,6 +3079,9 @@ static enum proto_parse_status smb2_parse(struct cursor *cursor, struct cifs_pro
         case SMB2_COM_QUERY_INFO:
             if (info->is_query) status = parse_smb2_query_info_request(cursor, info);
             else status = parse_smb2_query_info_response(cursor, info);
+            break;
+        case SMB2_COM_FLUSH:
+            if (info->is_query) status = parse_smb2_flush_request(cursor, info);
             break;
         default:
             break;
