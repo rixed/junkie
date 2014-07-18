@@ -1827,7 +1827,8 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
     cursor_drop(cursor, 2 + 2 + 2 + 2); // total counts + Reserved bytes + parameter count
 
     uint16_t parameter_offset = cursor_read_u16le(cursor);
-    cursor_drop(cursor, 2 + 2); // parameter displacement + data count
+    cursor_drop(cursor, 2); // parameter displacement
+    uint16_t data_count = cursor_read_u16le(cursor);
     uint16_t data_offset = cursor_read_u16le(cursor);
     cursor_drop(cursor, 2 + 1 + 1); // data displacement + setup count + Reserved byte
 
@@ -1865,14 +1866,24 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
                 }
             }
             break;
+        case SMB_TRANS2_QUERY_PATH_INFORMATION:
         case SMB_TRANS2_QUERY_FILE_INFORMATION:
             {
-                // TODO update meta read
+                // ea error offset
+                CHECK(2);
+                uint16_t ea_err_offset = cursor_read_u16le(cursor);
+                if(0x00 == ea_err_offset)
+                    info->meta_read_bytes = data_count;
             }
         case SMB_TRANS2_SET_FILE_INFORMATION:
             {
                 CHECK(data_padding);
                 // TODO Check error...
+            }
+            break;
+        case SMB_TRANS2_QUERY_FS_INFO:
+            {
+                info->meta_read_bytes = data_count;
             }
             break;
         default:
