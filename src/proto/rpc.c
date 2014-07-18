@@ -119,9 +119,12 @@ static enum proto_parse_status rpc_parse(struct parser *parser, struct proto_inf
         if (wire_len < 12) return PROTO_PARSE_ERR;
         if (cap_len < 12) return PROTO_TOO_SHORT;
 
+    ASSIGN_INFO_OPT(tcp, parent);
+
     struct rpc_proto_info info;
     proto_info_ctor(&info.info, parser, parent, wire_len, 0);
 
+    if (tcp) cursor_drop(&cursor, 4); // Drop fragment header
     cursor_drop(&cursor, 4);
     info.msg_type = cursor_read_u32n(&cursor);
     enum proto_parse_status status = PROTO_OK;
@@ -134,6 +137,8 @@ static enum proto_parse_status rpc_parse(struct parser *parser, struct proto_inf
         case RPC_REPLY:
             status = parse_rpc_reply(&cursor, &info);
             break;
+        default:
+            return PROTO_PARSE_ERR;
     }
     SLOG(LOG_DEBUG, "Parsed rpc status %s, %s", proto_parse_status_2_str(status), rpc_info_2_str(&info.info));
     if (status == PROTO_OK) {
@@ -145,8 +150,10 @@ static enum proto_parse_status rpc_parse(struct parser *parser, struct proto_inf
 
 static struct uniq_proto uniq_proto_rpc;
 struct proto *proto_rpc = &uniq_proto_rpc.proto;
-static struct port_muxer tcp_port_muxer;
-static struct port_muxer udp_port_muxer;
+static struct port_muxer nfs_tcp_port_muxer;
+static struct port_muxer nfs_udp_port_muxer;
+static struct port_muxer sun_rpc_tcp_port_muxer;
+static struct port_muxer sun_rpc_udp_port_muxer;
 
 void rpc_init(void)
 {
@@ -159,8 +166,10 @@ void rpc_init(void)
         .info_addr  = proto_info_addr,
     };
     uniq_proto_ctor(&uniq_proto_rpc, &ops, "RPC", PROTO_CODE_RPC);
-    port_muxer_ctor(&tcp_port_muxer, &tcp_port_muxers, 2049, 2049, proto_rpc);
-    port_muxer_ctor(&udp_port_muxer, &udp_port_muxers, 2049, 2049, proto_rpc);
+    port_muxer_ctor(&nfs_tcp_port_muxer, &tcp_port_muxers, 2049, 2049, proto_rpc);
+    port_muxer_ctor(&nfs_udp_port_muxer, &udp_port_muxers, 2049, 2049, proto_rpc);
+    port_muxer_ctor(&sun_rpc_tcp_port_muxer, &tcp_port_muxers, 111, 111, proto_rpc);
+    port_muxer_ctor(&sun_rpc_udp_port_muxer, &udp_port_muxers, 111, 111, proto_rpc);
 }
 
 void rpc_fini(void)
