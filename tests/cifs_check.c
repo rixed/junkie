@@ -1087,6 +1087,7 @@ static struct parse_test {
             .status = SMB_STATUS_OK,
             .version = smb_version_1,
             .tree_id = 0x0800,
+            .query_write_bytes = 0x60,
         },
     },
 

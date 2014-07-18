@@ -2488,8 +2488,14 @@ static enum proto_parse_status parse_transaction_request(struct cifs_parser *cif
     int word_count = parse_and_check_word_count_superior(cursor, 0x0e);
     if (word_count == -1) return PROTO_PARSE_ERR;
 
-    // skip until the SetupCount
-    cursor_drop(cursor, 2 + 2 + 2 + 2 + 1 + 1 + 2 + 4 + 2 + 2 + 2 + 2 + 2);
+    // skip until the ParameterCount
+    cursor_drop(cursor, 2 + 2 + 2 + 2 + 1 + 1 + 2 + 4 + 2);
+    uint16_t parameter_count = cursor_read_u16le(cursor);
+    // drop the ParameterOffset
+    cursor_drop(cursor, 2);
+    uint16_t data_count = cursor_read_u16le(cursor);
+    // drop the DataOffset
+    cursor_drop(cursor, 2);
     uint8_t setup_count = cursor_read_u8(cursor);
     if(setup_count != 0x02)
         return PROTO_PARSE_ERR;
@@ -2501,13 +2507,46 @@ static enum proto_parse_status parse_transaction_request(struct cifs_parser *cif
 
     switch (info->subcommand.transaction_subcmd) {
         case SMB_TRANS_SET_NMPIPE_STATE:
+            /*
+             * Setup
+             * | USHORT     | USHORT |
+             * | Subcommand | FID    |
+             *
+             * Data:
+             * | USHORT    | SMB_STRING | ...
+             * | ByteCount | Name       | ...
+             * The Name always contains "/PIPE/" for these commands.
+             *
+             * Trans_Parameters
+             * | USHORT    |
+             * | PipeState |
+             **/
+            // retrieve fid
+            cifs_set_fid(info, cursor_read_u16le(cursor));
+            info->meta_write_bytes = parameter_count;
+            break;
+
         case SMB_TRANS_RAW_READ_NMPIPE:
         case SMB_TRANS_QUERY_NMPIPE_STATE:
         case SMB_TRANS_QUERY_NMPIPE_INFO:
         case SMB_TRANS_PEEK_NMPIPE:
+        case SMB_TRANS_READ_NMPIPE:
+            /*
+             * Setup
+             * | USHORT     | USHORT | ...
+             * | Subcommand | FID    | ...
+             *
+             * Data:
+             * | USHORT    | SMB_STRING |
+             * | ByteCount | Name       |
+             * The Name always contains "/PIPE/" for these commands.
+             **/
+            // retrieve fid
+            cifs_set_fid(info, cursor_read_u16le(cursor));
+            break;
+
         case SMB_TRANS_TRANSACT_NMPIPE:
         case SMB_TRANS_RAW_WRITE_NMPIPE:
-        case SMB_TRANS_READ_NMPIPE:
         case SMB_TRANS_WRITE_NMPIPE:
             /*
              * Setup
@@ -2518,9 +2557,14 @@ static enum proto_parse_status parse_transaction_request(struct cifs_parser *cif
              * | USHORT    | SMB_STRING |
              * | ByteCount | Name       |
              * The Name always contains "/PIPE/" for these commands.
+             *
+             * Trans_Data
+             * | UCHAR (variable |
+             * | WriteData[]     |
              **/
             // retrieve fid
             cifs_set_fid(info, cursor_read_u16le(cursor));
+            info->query_write_bytes = data_count;
             break;
 
         case SMB_TRANS_WAIT_NMPIPE:
@@ -2535,9 +2579,7 @@ static enum proto_parse_status parse_transaction_request(struct cifs_parser *cif
             {
                 cursor_drop(cursor, 2 + 2 + compute_padding(cursor, 2+2, 2)); // drop the end of the setup, and drop bytecount
 
-                if(parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
-                    return PROTO_PARSE_ERR;
-                info->set_values |= CIFS_PATH;
+                PARSE_SMB_PATH(info);
             }
             break;
         default:
