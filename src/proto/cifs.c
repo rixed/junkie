@@ -1766,6 +1766,8 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
             {
                 CHECK(14);
                 cifs_set_fid(info, cursor_read_u16le(cursor));
+
+                info->meta_write_bytes = data_count;
             }
             break;
         case SMB_TRANS2_GET_DFS_REFERRAL:
