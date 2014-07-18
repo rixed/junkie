@@ -1696,7 +1696,8 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
             + 2 + 4 + 2       // flags + timeout + reserved
             + 2);             // Parameter count
     uint16_t parameter_offset = cursor_read_u16le(cursor);
-    cursor_drop(cursor, 2 + 2 + 1 + 1); // data count + data offset + setup count + reserved
+    uint16_t data_count = cursor_read_u16le(cursor);
+    cursor_drop(cursor, 2 + 1 + 1); // data offset + setup count + reserved
 
     // TODO handle multiple setup count
     cifs_parser->subcommand.trans2_subcmd = info->subcommand.trans2_subcmd = cursor_read_u16le(cursor);
@@ -1725,7 +1726,7 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
             break;
         case SMB_TRANS2_FIND_FIRST2:
             {
-                CHECK(2 + 2 + 2 + 2 + 4 + 2);
+                CHECK(2 + 2 + 2 + 2 + 4);
                 cursor_drop(cursor, 2 + 2 + 2 + 2 + 4);
                 PARSE_SMB_PATH(info);
             }
@@ -1757,6 +1758,8 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
                     default:
                         break;
                 }
+
+                info->meta_write_bytes = data_count;
             }
             break;
         case SMB_TRANS2_SET_FILE_INFORMATION:
