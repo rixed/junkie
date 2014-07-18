@@ -2251,7 +2251,8 @@ static enum proto_parse_status parse_nt_transact_request(struct cifs_parser *cif
     // skip MaxSetupCount, Reserved1, TotalParamCount, TotalDataCount, MaxParamCount, MaxDataCount, ParamCount
     cursor_drop(cursor, 1 + 2 + 4 + 4 + 4 + 4 + 4);
     uint16_t parameter_offset = cursor_read_u32le(cursor);
-    cursor_drop(cursor, 4 + 4 + 1); // skip DataCount, DataOffset, setupcount
+    uint16_t data_count = cursor_read_u32le(cursor);
+    cursor_drop(cursor, 4 + 1); // skip DataOffset, setupcount
 
     cifs_parser->subcommand.nt_trans_subcmd = info->subcommand.nt_transact_subcmd = cursor_read_u16le(cursor);
     info->set_values |= CIFS_NT_TRANSACT_SUBCMD;
@@ -2288,19 +2289,26 @@ static enum proto_parse_status parse_nt_transact_request(struct cifs_parser *cif
              *
              * | UCHAR         | UCHAR[]          |
              * | SecurityFlags | Name[NameLength] |
+             *
+             * NT_Trans_Data
+             * | SECURITY_DESCRIPTOR (variable) | FILE_FULL_EA_INFORMATION (variable) |
+             * | SecurityDescriptor             | ExtendedAttributes[]                |
              */
             {
                 // skip to the NT_Trans_Parameters
                 if (PROTO_OK != (status = drop_parameter_padding(cursor, start_cursor, parameter_offset)))
                     return status;
 
+                // skip until the SecurityDescriptorLength
+                cursor_drop(cursor, 4 + 4 + 4 + 8 + 4 + 4 + 4 + 4);
+                uint32_t security_desc_length = cursor_read_u32le(cursor);
+                uint32_t ea_info_length = cursor_read_u32le(cursor);
+                info->meta_write_bytes = security_desc_length + ea_info_length;
                 // skip until the Name
-                int skipped = 4 + 4 + 4 + 8 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 1;
+                int skipped = 4 + 4 + 1;
                 cursor_drop(cursor, skipped + compute_padding(cursor, skipped, 2));
 
-                if(parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
-                    return PROTO_PARSE_ERR;
-                info->set_values |= CIFS_PATH;
+                PARSE_SMB_PATH(info);
             }
             break;
         case SMB_NT_TRANSACT_QUERY_SECURITY_DESC:
@@ -2309,17 +2317,31 @@ static enum proto_parse_status parse_nt_transact_request(struct cifs_parser *cif
              * | USHORT | USHORT   | ULONG              |
              * | FID    | Reserved | SecurityInfoFields |
              */
+            {
+                // skip to the NT_Trans_Parameters
+                if (PROTO_OK != (status = drop_parameter_padding(cursor, start_cursor, parameter_offset)))
+                    return status;
+                CHECK(2);
+                cifs_set_fid(info, cursor_read_u16le(cursor));
+            }
+            break;
         case SMB_NT_TRANSACT_SET_SECURITY_DESC:
             /*
              * NT_Trans_Parameters (8 bytes)
              * | USHORT | USHORT   | ULONG               |
              * | FID    | Reserved | SecurityInformation |
+             *
+             * NT_Trans_Data (variable)
+             * | SECURITY_DESCRIPTOR (variable) |
+             * | SecurityDescriptor             |
              */
             {
                 // skip to the NT_Trans_Parameters
                 if (PROTO_OK != (status = drop_parameter_padding(cursor, start_cursor, parameter_offset)))
                     return status;
+                CHECK(2);
                 cifs_set_fid(info, cursor_read_u16le(cursor));
+                info->meta_write_bytes = data_count;
             }
             break;
         case SMB_NT_TRANSACT_RENAME:
@@ -2358,9 +2380,11 @@ static enum proto_parse_status parse_nt_transact_response(struct cifs_parser *ci
     int word_count = parse_and_check_word_count_superior(cursor, 0x12);
     if (word_count == -1) return PROTO_PARSE_ERR;
 
-    cursor_drop(cursor, 3 + 4 + 4 + 4); // skip Reserved1, TotalParamCount, TotalDataCount, ParamCount
+    cursor_drop(cursor, 3 + 4 + 4); // skip Reserved1, TotalParamCount, TotalDataCount
+    uint16_t parameter_count = cursor_read_u32le(cursor);
     uint16_t parameter_offset = cursor_read_u32le(cursor);
-    cursor_drop(cursor, 4 + 4 + 1); // skip DataCount, DataOffset, setupcount
+    uint16_t data_count = cursor_read_u32le(cursor);
+    cursor_drop(cursor, 4 + 1); // skip DataOffset, setupcount
 
     // Compute padding
     uint8_t start_parameter = SMB_HEADER_SIZE + word_count * 2 + 2 + 1;
@@ -2396,19 +2420,40 @@ static enum proto_parse_status parse_nt_transact_response(struct cifs_parser *ci
             cifs_set_fid(info, cursor_read_u16le(cursor));
             break;
         case SMB_NT_TRANSACT_IOCTL:
-            /* nothing to retrieve */
+            /*
+             * NT_Trans_Data
+             * | UCHAR (variable)     |
+             * | Data[DataCount] |
+             */
+            info->meta_read_bytes = data_count;
             break;
         case SMB_NT_TRANSACT_SET_SECURITY_DESC:
             /* nothing to retrieve */
             break;
         case SMB_NT_TRANSACT_NOTIFY_CHANGE:
             /* nothing to retrieve */
+            /*
+             * NT_Trans_Parameters
+             * | FILE_NOTIFY_INFORMATION |
+             * | FileNotifyInformation[] |
+             */
+            info->meta_read_bytes = parameter_count;
             break;
         case SMB_NT_TRANSACT_RENAME:
             /* Reserved but not implemented */
             break;
         case SMB_NT_TRANSACT_QUERY_SECURITY_DESC:
-            /* nothing to retrieve */
+            /*
+             * NT_Trans_Parameters
+             * | ULONG        |
+             * | LengthNeeded |
+             *
+             * NT_Trans_Data
+             * | SECURITY_DESCRIPTOR  |
+             * | SecurityDescriptor[] |
+             */
+            CHECK(4);
+            info->meta_read_bytes = cursor_read_u32le(cursor);
             break;
         default:
             break;
