@@ -3201,6 +3201,44 @@ static enum proto_parse_status parse_smb2_lock_request(struct cursor *cursor,
     return PROTO_OK;
 }
 
+/**
+ * Smb2 change notify request
+ *
+ * | StructureSize = 32 | Flags   | OutputBufferLength | FileID   |
+ * | 2 bytes            | 2 bytes | 4 bytes            | 16 bytes |
+ *
+ * | CompletionFilter | Reserved |
+ * | 4 bytes          | 4 bytes  |
+ */
+static enum proto_parse_status parse_smb2_change_notify_request(struct cursor *cursor,
+        struct cifs_proto_info *info)
+{
+    READ_AND_CHECK_STRUCTURE_SIZE(32);
+    cursor_drop(cursor, 2 + 4); // skip Flags, OutputBufferLength
+    PARSE_SMB2_FID(info);
+    return PROTO_OK;
+}
+
+/**
+ * Smb2 change notify response
+ *
+ * | StructureSize = 9 | OutputBufferOffset | OutputBufferLength |
+ * | 2 bytes           | 2 bytes            | 4 bytes            |
+ *
+ * | Buffer   |
+ * | variable |
+ */
+static enum proto_parse_status parse_smb2_change_notify_response(struct cursor *cursor,
+        struct cifs_proto_info *info)
+{
+    READ_AND_CHECK_STRUCTURE_SIZE(9);
+    cursor_drop(cursor, 2); // skip OutputBufferOffset
+    info->meta_read_bytes = cursor_read_u32le(cursor);
+    return PROTO_OK;
+}
+
+
+
 
 
 static enum proto_parse_status smb2_parse(struct cursor *cursor, struct cifs_proto_info *info,
@@ -3270,6 +3308,13 @@ static enum proto_parse_status smb2_parse(struct cursor *cursor, struct cifs_pro
             break;
         case SMB2_COM_LOCK:
             if (info->is_query) status = parse_smb2_lock_request(cursor, info);
+            break;
+        case SMB2_COM_CANCEL:
+            /* cancel a previously sent message on the same SMB2 transport connection */
+            break;
+        case SMB2_COM_CHANGE_NOTIFY:
+            if (info->is_query) status = parse_smb2_change_notify_request(cursor, info);
+            else status = parse_smb2_change_notify_response(cursor, info);
             break;
         default:
             break;
