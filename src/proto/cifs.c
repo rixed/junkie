@@ -1665,6 +1665,19 @@ static enum proto_parse_status drop_parameter_padding(struct cursor *cursor, uin
     return PROTO_OK;
 }
 
+static enum proto_parse_status smb2_drop_input_padding(struct cursor *cursor, uint8_t const *start_cursor, uint8_t input_offset)
+{
+    size_t pos = SMB2_HEADER_SIZE + cursor->head - start_cursor;
+    if (pos > input_offset) {
+        SLOG(LOG_DEBUG, "Position is greater than parameter offset (%"PRIu64" > %"PRIu8")", pos, input_offset);
+        return PROTO_PARSE_ERR;
+    }
+    uint8_t padding = input_offset - pos;
+    cursor_drop(cursor, padding);
+    return PROTO_OK;
+}
+
+
 /*
  * Trans2 request
  * Word count > 0x0e
@@ -3017,7 +3030,7 @@ static enum proto_parse_status parse_smb2_query_info_response(struct cursor *cur
 
 
 /**
- * Smb2 query info request
+ * Smb2 flush request
  *
  * | StructureSize = 24 | Reserved1 | Reserved2 | FileID   |
  * | 2 bytes            | 2 bytes   | 2 bytes   | 16 bytes |
@@ -3026,10 +3039,150 @@ static enum proto_parse_status parse_smb2_flush_request(struct cursor *cursor,
         struct cifs_proto_info *info)
 {
     READ_AND_CHECK_STRUCTURE_SIZE(24);
-    cursor_drop(cursor, 2 + 2);
+    cursor_drop(cursor, 2 + 2); // skip Reserved1 and Reserved2
     PARSE_SMB2_FID(info);
     return PROTO_OK;
 }
+
+/**
+ * Smb2 ioctl request
+ *
+ * | StructureSize = 57 | Reserved | CtlCode | FileID   |
+ * | 2 bytes            | 2 bytes  | 4 bytes | 16 bytes |
+ *
+ * | InputOffset | InputCount | MaxInputResponse | OutputOffset | OutputCount |
+ * | 4 bytes     | 4 bytes    | 4 bytes          | 4 bytes      | 4 bytes     |
+ *
+ * | MaxOutputResponse | Flags   | Reserved2 | Buffer   |
+ * | 4 bytes           | 4 bytes | 4 bytes   | variable |
+ */
+static enum proto_parse_status parse_smb2_ioctl_request(struct cifs_parser *cifs_parser, struct cursor *cursor,
+        struct cifs_proto_info *info)
+{
+    uint8_t const *start_cursor = cursor->head;
+    READ_AND_CHECK_STRUCTURE_SIZE(57);
+    cursor_drop(cursor, 2); // skip Reserved
+    enum ctl_code ctl_code = cursor_read_u32le(cursor);
+    PARSE_SMB2_FID(info);
+    uint32_t input_offset = cursor_read_u32le(cursor);
+    uint32_t input_count = cursor_read_u32le(cursor);
+    cursor_drop(cursor, 4 + 4 + 4 // skip MaxInputResponse, OutputOffset, OutputCount
+                        + 4 + 4 + 4); // MaxOutputResponse, Flags, Reserved2
+
+    switch(ctl_code) {
+        case FSCTL_GET_REPARSE_POINT:
+            /* This message does not contain any additional data elements. */
+            break;
+        case FSCTL_PIPE_TRANSCEIVE:
+            /* send and receive data from an open pipe */
+            info->query_write_bytes = input_count;
+            break;
+        case FSCTL_DFS_GET_REFERRALS:
+            /*
+             * DFS referral data (InputData):
+             * | MaxReferralLevel | RequestFileName |
+             * | 2 bytes          | variable        |
+             *
+             * Note: A null-terminated Unicode string specifying the path to be
+             * resolved.
+             */
+            {
+                // skip to the input buffer
+                enum proto_parse_status status = PROTO_OK;
+                if (PROTO_OK != (status = smb2_drop_input_padding(cursor, start_cursor, input_offset)))
+                    return status;
+                // skip MaxReferralLevel
+                CHECK(2);
+                cursor_drop(cursor, 2);
+                PARSE_SMB_PATH(info);
+                // unset fid as it contains 0xffffffffffffffff
+                info->set_values &= ~CIFS_FID;
+            }
+            break;
+        case FSCTL_VALIDATE_NEGOTIATE_INFO:
+            /* request validation of a previous SMB2_COM_NEGOTIATE */
+        case FSCTL_PIPE_WAIT:
+            /* The following FSCTL requests do not provide an input buffer:
+             *  - FSCTL_PIPE_PEEK
+             *  - FSCTL_PIPE_WAIT
+             *  - FSCTL_PIPE_TRANSCEIVE
+             *  - FSCTL_SRV_ENUMERATE_SNAPSHOTS
+             *  - FSCTL_SRV_REQUEST_RESUME_KEY
+             *  - FSCTL_QUERY_NETWORK_INTERFACE_INFO
+             */
+            /*
+             * InputData:
+             * | Timeout | NameLength | TimeoutSpecified | Padding | Name     |
+             * | 8 bytes | 4 bytes    | 1 byte           | 1 byte  | variable |
+             */
+            {
+                // skip to the input buffer
+                enum proto_parse_status status = PROTO_OK;
+                if (PROTO_OK != (status = smb2_drop_input_padding(cursor, start_cursor, input_offset)))
+                    return status;
+
+                CHECK(8 + 4 + 1 + 1);
+                // drop Timeout
+                cursor_drop(cursor, 8);
+                uint32_t name_length = cursor_read_u32le(cursor);
+                // drop TimeoutSpecified, Padding
+                cursor_drop(cursor, 2 + compute_padding(cursor, 2, 2));
+                PARSE_SMB2_PATH(info, name_length);
+            }
+            // unset fid as it contains 0xffffffffffffffff
+            info->set_values &= ~CIFS_FID;
+            break;
+        default:
+            break;
+    }
+
+    return PROTO_OK;
+}
+
+
+/**
+ * Smb2 ioctl response
+ *
+ * | StructureSize = 49 | Reserved | CtlCode | FileID   |
+ * | 2 bytes            | 2 bytes  | 4 bytes | 16 bytes |
+ *
+ * | InputOffset | InputCount | OutputOffset | OutputCount |
+ * | 4 bytes     | 4 bytes    | 4 bytes      | 4 bytes     |
+ *
+ * | Flags   | Reserved2 | Buffer   |
+ * | 4 bytes | 4 bytes   | variable |
+ */
+static enum proto_parse_status parse_smb2_ioctl_response(struct cursor *cursor,
+        struct cifs_proto_info *info)
+{
+    READ_AND_CHECK_STRUCTURE_SIZE(49);
+    cursor_drop(cursor, 2); // skip Reserved
+    enum ctl_code ctl_code = cursor_read_u32le(cursor);
+    PARSE_SMB2_FID(info);
+    cursor_drop(cursor, 4 + 4 + 4); // skip InputOffset, InputCount, OutputOffset
+    uint32_t output_count = cursor_read_u32le(cursor);
+    cursor_drop(cursor, 4 + 4); // Flags, Reserved2
+
+    switch(ctl_code) {
+        case FSCTL_DFS_GET_REFERRALS:
+            /* nothing to retrieve */
+            break;
+        case FSCTL_PIPE_TRANSCEIVE:
+            info->response_read_bytes = output_count;
+            break;
+        case FSCTL_PIPE_WAIT:
+            /* The following FSCTL responses do not provide an output buffer:
+             *  - FSCTL_PIPE_WAIT
+             *  - FSCTL_LMR_REQUEST_RESILIENCY
+             */
+            break;
+        default:
+            break;
+    }
+
+    return PROTO_OK;
+}
+
 
 static enum proto_parse_status smb2_parse(struct cursor *cursor, struct cifs_proto_info *info,
         struct cifs_parser *cifs_parser)
@@ -3082,6 +3235,10 @@ static enum proto_parse_status smb2_parse(struct cursor *cursor, struct cifs_pro
             break;
         case SMB2_COM_FLUSH:
             if (info->is_query) status = parse_smb2_flush_request(cursor, info);
+            break;
+        case SMB2_COM_IOCTL:
+            if (info->is_query) status = parse_smb2_ioctl_request(cifs_parser, cursor, info);
+            else status = parse_smb2_ioctl_response(cursor, info);
             break;
         default:
             break;
