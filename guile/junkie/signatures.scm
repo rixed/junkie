@@ -311,13 +311,20 @@
                                               (or
                                                 ((rest @32n 4) == 1)  ; Message type reply
                                                 ((rest @32n 4) == 0)) ; Message type call
-                                              ((rest @32n 8) == 2)))) ; RPC version 2
+                                              ((rest @32n 8) == 2) ; RPC version 2
+                                              (and
+                                                ((rest @32n 12) >= 100000) ; Restrict to assigned program name
+                                                ((rest @32n 12) <  400122)))))
 
+; RPC on tcp starts with a 4 bytes fragment header
 (add-proto-signature "RPC" 29 'medium
                      (nm:compile
-                       type:bool '(tcp) '(and ((nb-bytes rest) >= 24)
+                       type:bool '(tcp) '(and ((nb-bytes rest) >= 28)
                                               (or
-                                                ((rest @32n 4) == 1)  ; Message type reply
-                                                ((rest @32n 4) == 0)) ; Message type call
-                                              ((rest @32n 8) == 2))))
+                                                ((rest @32n 8) == 1)  ; Message type reply
+                                                ((rest @32n 8) == 0)) ; Message type call
+                                              ((rest @32n 12) == 2)
+                                              (and
+                                                ((rest @32n 16) >= 100000) ; Restrict to assigned program name
+                                                ((rest @32n 16) <  400122)))))
 
