@@ -3183,6 +3183,25 @@ static enum proto_parse_status parse_smb2_ioctl_response(struct cursor *cursor,
     return PROTO_OK;
 }
 
+/**
+ * Smb2 lock request
+ *
+ * | StructureSize = 48 | LockCount | LockSequence | FileID   |
+ * | 2 bytes            | 2 bytes   | 4 bytes      | 16 bytes |
+ *
+ * | Locks    |
+ * | variable |
+ */
+static enum proto_parse_status parse_smb2_lock_request(struct cursor *cursor,
+        struct cifs_proto_info *info)
+{
+    READ_AND_CHECK_STRUCTURE_SIZE(48);
+    cursor_drop(cursor, 2 + 4); // skip LockCount, LockSequence
+    PARSE_SMB2_FID(info);
+    return PROTO_OK;
+}
+
+
 
 static enum proto_parse_status smb2_parse(struct cursor *cursor, struct cifs_proto_info *info,
         struct cifs_parser *cifs_parser)
@@ -3239,6 +3258,18 @@ static enum proto_parse_status smb2_parse(struct cursor *cursor, struct cifs_pro
         case SMB2_COM_IOCTL:
             if (info->is_query) status = parse_smb2_ioctl_request(cifs_parser, cursor, info);
             else status = parse_smb2_ioctl_response(cursor, info);
+            break;
+        case SMB2_COM_NEGOTIATE:
+            /* notify the server what dialects of the SMB 2 Protocol the client understands */
+            break;
+        case SMB2_COM_LOGOFF:
+            /* request termination of a particular session */
+            break;
+        case SMB2_COM_TREE_DISCONNECT:
+            /* request that the given tree connect be disconnected */
+            break;
+        case SMB2_COM_LOCK:
+            if (info->is_query) status = parse_smb2_lock_request(cursor, info);
             break;
         default:
             break;
