@@ -14,11 +14,11 @@ PIPI: head_len=0, payload=12, protocol=17(Telnet), trust=low
 PIPI: head_len=0, payload=45, protocol=17(Telnet), trust=low
 -- pcap/misc/samba.pcap --
 Netbios: head_len=4, payload=74
-CIFS: head_len=32, payload=42, command=SMB_COM_TRANSACTION2, status=SMB_STATUS_OK, path=, trans2_subcmd=SMB_TRANS2_QUERY_PATH_INFORMATION, query, query_write_bytes=0, response_read_bytes=0, response_write_bytes=0, meta_read_bytes=0, meta_write_bytes=0
+CIFS: head_len=32, payload=42, version=SMB1, command=SMB_COM_TRANSACTION2, status=SMB_STATUS_OK, path=, trans2_subcmd=SMB_TRANS2_QUERY_PATH_INFORMATION, query, query_write_bytes=0, response_read_bytes=0, response_write_bytes=0, meta_read_bytes=0, meta_write_bytes=0
 Netbios: head_len=4, payload=160
-CIFS: head_len=32, payload=128, command=SMB_COM_TRANSACTION2, status=SMB_STATUS_OK, query_write_bytes=0, response_read_bytes=0, response_write_bytes=0, meta_read_bytes=0, meta_write_bytes=0
+CIFS: head_len=32, payload=128, version=SMB1, command=SMB_COM_TRANSACTION2, status=SMB_STATUS_OK, query_write_bytes=0, response_read_bytes=0, response_write_bytes=0, meta_read_bytes=0, meta_write_bytes=0
 Netbios: head_len=4, payload=84
-CIFS: head_len=32, payload=52, command=SMB_COM_TRANSACTION2, status=SMB_STATUS_OK, path=/*, trans2_subcmd=SMB_TRANS2_FIND_FIRST2, query, query_write_bytes=0, response_read_bytes=0, response_write_bytes=0, meta_read_bytes=0, meta_write_bytes=0
+CIFS: head_len=32, payload=52, version=SMB1, command=SMB_COM_TRANSACTION2, status=SMB_STATUS_OK, path=/*, trans2_subcmd=SMB_TRANS2_FIND_FIRST2, query, query_write_bytes=0, response_read_bytes=0, response_write_bytes=0, meta_read_bytes=0, meta_write_bytes=0
 -- pcap/misc/irc.pcap --
 PIPI: head_len=0, payload=12, protocol=11(IRC), trust=low
 -- pcap/misc/rdp.pcap --
