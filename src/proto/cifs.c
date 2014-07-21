@@ -3237,6 +3237,27 @@ static enum proto_parse_status parse_smb2_change_notify_response(struct cursor *
     return PROTO_OK;
 }
 
+/**
+ * Smb2 set info request
+ *
+ * | StructureSize = 33 | InfoType | FileInfoClass | BufferLength |
+ * | 2 bytes            | 1 byte   | 1 byte        | 4 bytes      |
+ *
+ * | BufferOffset | Reserved | AdditionalInformation | FileId   | Buffer   |
+ * | 2 bytes      | 2 bytes  | 4 bytes               | 16 bytes | variable |
+ */
+static enum proto_parse_status parse_smb2_set_info_request(struct cursor *cursor,
+        struct cifs_proto_info *info)
+{
+    READ_AND_CHECK_STRUCTURE_SIZE(33);
+    cursor_drop(cursor, 1 + 1); // skip InfoType, FileInfoClass
+    info->meta_write_bytes = cursor_read_u32le(cursor);
+    cursor_drop(cursor, 2 + 2 + 4); // skip BufferOffset, Reserved, AdditionalInformation
+    PARSE_SMB2_FID(info);
+    return PROTO_OK;
+}
+
+
 
 
 
@@ -3315,6 +3336,9 @@ static enum proto_parse_status smb2_parse(struct cursor *cursor, struct cifs_pro
         case SMB2_COM_CHANGE_NOTIFY:
             if (info->is_query) status = parse_smb2_change_notify_request(cursor, info);
             else status = parse_smb2_change_notify_response(cursor, info);
+            break;
+        case SMB2_COM_SET_INFO:
+            if (info->is_query) status = parse_smb2_set_info_request(cursor, info);
             break;
         default:
             break;

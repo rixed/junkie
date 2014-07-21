@@ -256,6 +256,7 @@ static struct parse_test {
             .path = "/tmp/test/ga",
             .version = smb_version_1,
             .tree_id = 0x01,
+            .meta_write_bytes = 0x12,
         },
     },
 
@@ -314,6 +315,7 @@ static struct parse_test {
             .fid = 0x1838,
             .version = smb_version_1,
             .tree_id = 0x01,
+            .meta_write_bytes = 0x8,
         },
     },
 
@@ -346,6 +348,7 @@ static struct parse_test {
             .fid = 0x1838,
             .version = smb_version_1,
             .tree_id = 0x01,
+            .meta_write_bytes = 0x64,
         },
     },
 
@@ -508,6 +511,7 @@ static struct parse_test {
             },
             .version = smb_version_1,
             .tree_id = 0x01,
+            .meta_write_bytes = 0x12,
         },
     },
 
@@ -537,6 +541,7 @@ static struct parse_test {
             },
             .version = smb_version_1,
             .tree_id = 0x01,
+            .meta_write_bytes = 0x2,
         },
     },
 
@@ -683,6 +688,7 @@ static struct parse_test {
             .status = SMB_STATUS_OK,
             .version = smb_version_1,
             .tree_id = 0x0808,
+            .meta_read_bytes = 0x8,
         },
     },
 
@@ -706,6 +712,7 @@ static struct parse_test {
             .status = SMB_STATUS_OK,
             .version = smb_version_1,
             .tree_id = 0x0808,
+            .meta_read_bytes = 0x18,
         },
     },
 
@@ -1419,6 +1426,7 @@ static struct parse_test {
             .status = SMB_STATUS_OK,
             .version = smb_version_2,
             .tree_id = 0x1654,
+            .meta_read_bytes = 0x7a,
         }
     },
 
@@ -1708,6 +1716,33 @@ static struct parse_test {
         },
     },
 
+    {
+        .name = "SMB2_COM_SET_INFO - request",
+        .packet = (uint8_t const []) {
+            0xfe, 0x53, 0x4d, 0x42, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11, 0x00, 0x01, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xac, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0xff, 0xfe, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x6d, 0x00, 0x00, 0xc0, 0x0b, 0x04, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x21, 0x00, 0x01, 0x13, 0x08, 0x00, 0x00, 0x00, 0x60, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x0d, 0xb2, 0x02, 0x00, 0xc0, 0x00, 0x00, 0x00, 0x11, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff,
+            0x00, 0x7e, 0x0d, 0x00, 0x00, 0x00, 0x00, 0x00
+        },
+        .size = 0x68,
+        .ret = PROTO_OK,
+        .way = FROM_CLIENT,
+        .expected = {
+            .info = { .head_len = SMB2_HEADER_SIZE, .payload = 0x68 - SMB2_HEADER_SIZE },
+            .command.smb2_command = SMB2_COM_SET_INFO,
+            .set_values = CIFS_FID,
+            .status = SMB_STATUS_OK,
+            .version = smb_version_2,
+            .meta_write_bytes = 0x8,
+            .fid = 0xc00002b20d,
+            .tree_id = 0x5,
+        },
+    },
+
+
 
 
 
@@ -1742,6 +1777,8 @@ static int compare_expected_cifs(struct cifs_proto_info const *const info,
     CHECK_INT(info->query_write_bytes, expected->query_write_bytes);
     CHECK_INT(info->response_read_bytes,  expected->response_read_bytes);
     CHECK_INT(info->response_write_bytes, expected->response_write_bytes);
+    CHECK_INT(info->meta_read_bytes,  expected->meta_read_bytes);
+    CHECK_INT(info->meta_write_bytes,  expected->meta_write_bytes);
     if (VALUES_ARE_SET(info, CIFS_DOMAIN))
         CHECK_STR(info->domain, expected->domain);
     if (VALUES_ARE_SET(info, CIFS_USER))
