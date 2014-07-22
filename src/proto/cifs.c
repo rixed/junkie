@@ -2948,6 +2948,50 @@ static enum proto_parse_status parse_check_directory_request(struct cifs_parser*
     return PROTO_OK;
 }
 
+/*
+ * Open request
+ * Word count 0x02
+ *
+ * Parameters
+ * | USHORT     | SMB_FILE_ATTRIBUTES (2 bytes) |
+ * | AccessMode | SearchAttributes              |
+ *
+ * Data
+ * | UCHAR        | SMB_STRING |
+ * | BufferFormat | FileName   |
+ */
+static enum proto_parse_status parse_open_request(struct cifs_parser *cifs_parser, struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x02)) return PROTO_PARSE_ERR;
+    cursor_drop(cursor, 0x02*2); // skip parameters
+
+    if(-1 == parse_and_check_byte_count_superior(cursor, 0x2)) return PROTO_PARSE_ERR;
+
+    // skip to smb string
+    cursor_drop(cursor, 1 + compute_padding(cursor, 1, 2));
+    PARSE_SMB_PATH(info);
+    return PROTO_OK;
+}
+
+/*
+ * Open response
+ * Word count 0x07
+ *
+ * Parameters
+ * | USHORT | SMB_FILE_ATTRIBUTES (2 bytes) | UTIME        | ULONG    | USHORT     |
+ * | FID    | FileAttrs                     | LastModified | FileSize | AccessMode |
+ *
+ * No Data
+ */
+static enum proto_parse_status parse_open_response(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    int word_count = parse_and_check_word_count(cursor, 0x07);
+    if(-1 == word_count) return PROTO_PARSE_ERR;
+    info->meta_read_bytes = word_count * 2;
+    cifs_set_fid(info, cursor_read_u16le(cursor));
+    return PROTO_OK;
+}
+
 
 // SMB2 parse functions
 
@@ -3721,6 +3765,10 @@ static enum proto_parse_status smb_parse(struct cursor *cursor, struct cifs_prot
                 break;
             case SMB_COM_CHECK_DIRECTORY:
                 if (info->is_query) status = parse_check_directory_request(cifs_parser, cursor, info);
+                break;
+            case SMB_COM_OPEN:
+                if (info->is_query) status = parse_open_request(cifs_parser, cursor, info);
+                else status = parse_open_response(cursor, info);
                 break;
             default:
                 break;
