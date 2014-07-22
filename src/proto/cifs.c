@@ -1706,8 +1706,8 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
     cursor_drop(cursor, 2 + 2 // Total counts
             + 2 + 2 + 1       // Max counts
             + 1               // Reserved
-            + 2 + 4 + 2       // flags + timeout + reserved
-            + 2);             // Parameter count
+            + 2 + 4 + 2);     // flags + timeout + reserved
+    uint16_t parameter_count = cursor_read_u16le(cursor);
     uint16_t parameter_offset = cursor_read_u16le(cursor);
     uint16_t data_count = cursor_read_u16le(cursor);
     cursor_drop(cursor, 2 + 1 + 1); // data offset + setup count + reserved
@@ -1722,6 +1722,30 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
         return status;
 
     switch (info->subcommand.trans2_subcmd) {
+        /*
+         * Trans2_Parameters
+         * | USHORT | USHORT     | USHORT    | SMB_FILE_ATTRIBUTES (2 bytes) |
+         * | Flags  | AccessMode | Reserved1 | FileAttributes                |
+         *
+         * | UTIME (4 bytes) | USHORT   | ULONG          | USHORT      | SMB_STRING |
+         * | CreationTime    | OpenMode | AllocationSize | Reserved[5] | FileName   |
+         *
+         * Trans2_Data
+         * | SMB_FEA_LIST          |
+         * | ExtendedAttributeList |
+         */
+        case SMB_TRANS2_OPEN2:
+            {
+                CHECK(2 + 2 + 2 + 2 + 4 + 2 + 4 + 10);
+                // skip Flags, AccessMode, Reserved1, FileAttributes, CreationTime
+                //      OpenMode, AllocationSize, Reserved[5], FileName
+                cursor_drop(cursor, 2 + 2 + 2 + 2 + 4 + 2 + 4 + 10);
+                cursor_drop(cursor, compute_padding(cursor, 0, 2));
+
+                PARSE_SMB_PATH(info);
+                info->meta_write_bytes = parameter_count + data_count;
+            }
+            break;
         case SMB_TRANS2_QUERY_FILE_INFORMATION:
             {
                 CHECK(4);
@@ -1833,8 +1857,9 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
     int word_count = parse_and_check_word_count_superior(cursor, 0x0a);
     if (word_count == -1) return PROTO_PARSE_ERR;
 
-    cursor_drop(cursor, 2 + 2 + 2 + 2); // total counts + Reserved bytes + parameter count
+    cursor_drop(cursor, 2 + 2 + 2); // total counts + Reserved bytes
 
+    uint16_t parameter_count = cursor_read_u16le(cursor);
     uint16_t parameter_offset = cursor_read_u16le(cursor);
     cursor_drop(cursor, 2); // parameter displacement
     uint16_t data_count = cursor_read_u16le(cursor);
@@ -1850,6 +1875,26 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
     uint8_t data_padding = data_offset - parameter_offset;
     SLOG(LOG_DEBUG, "Parse trans2 specific subcmd %s with data padding %"PRIu8, smb_trans2_subcmd_2_str(cifs_parser->subcommand.trans2_subcmd), data_padding);
     switch (cifs_parser->subcommand.trans2_subcmd) {
+        /*
+         * Trans2_Parameters
+         * | USHORT | SMB_FILE_ATTRIBUTES (2 bytes) | UTIME        | ULONG        |
+         * | FID    | FileAttributes                | CreationTime | FileDataSize |
+         *
+         * | USHORT     | USHORT       | SMB_NMPIPE_STATUS (2 bytes) | USHORT      |
+         * | AccessMode | ResourceType | NMPipeStatus                | ActionTaken |
+         *
+         * | ULONG    | USHORT                       | ULONG                   |
+         * | Reserved | ExtendedAttributeErrorOffset | ExtendedAttributeLength |
+         *
+         * No Trans2_Data
+         */
+        case SMB_TRANS2_OPEN2:
+            {
+                CHECK(2);
+                cifs_set_fid(info, cursor_read_u16le(cursor));
+                info->meta_read_bytes = parameter_count;
+            }
+            break;
         /*
          * Level of interest SMB_POSIX_PATH_OPEN
          * | USHORT | USHORD | ULONG        | USHORD                  | USHORT  | Sizeof reply information |
