@@ -125,8 +125,8 @@ static char const *smb_command_2_str(enum smb_command command)
         case SMB_COM_RENAME                 : return "SMB_COM_RENAME";
         case SMB_COM_QUERY_INFORMATION      : return "SMB_COM_QUERY_INFORMATION";
         case SMB_COM_SET_INFORMATION        : return "SMB_COM_SET_INFORMATION";
-        case SMB_COM_READ_INFORMATION       : return "SMB_COM_READ_INFORMATION";
-        case SMB_COM_WRITE_INFORMATION      : return "SMB_COM_WRITE_INFORMATION";
+        case SMB_COM_READ                   : return "SMB_COM_READ";
+        case SMB_COM_WRITE                  : return "SMB_COM_WRITE";
         case SMB_COM_LOCK_BYTE_RANGE        : return "SMB_COM_LOCK_BYTE_RANGE";
         case SMB_COM_UNLOCK_BYTE_RANGE      : return "SMB_COM_UNLOCK_BYTE_RANGE";
         case SMB_COM_CREATE_TEMPORARY       : return "SMB_COM_CREATE_TEMPORARY";
@@ -2713,6 +2713,98 @@ static enum proto_parse_status parse_transaction_response(struct cifs_parser *ci
     return PROTO_OK;
 }
 
+/*
+ * Write request
+ * Word count 0x05
+ *
+ * Note: This is an original Core Protocol command. This command is deprecated.
+ * Clients SHOULD use the SMB_COM_WRITE_ANDX command.
+ *
+ * Parameters
+ * | USHORT | USHORT              | ULONG              |
+ * | FID    | CountOfBytesToWrite | WriteOffsetInBytes |
+ *
+ * | USHORT                              |
+ * | EstimateOfRemainingBytesToBeWritten |
+ *
+ * Data
+ * | UCHAR        | UCHAR      | UCHAR[]                     |
+ * | BufferFormat | DataLength | Data[ CountOfBytesToWrite ] |
+ */
+static enum proto_parse_status parse_write_request(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x05)) return PROTO_PARSE_ERR;
+    cifs_set_fid(info, cursor_read_u16le(cursor));
+    info->query_write_bytes = cursor_read_u16le(cursor);
+    return PROTO_OK;
+}
+
+/*
+ * Write response
+ * Word count 0x01
+ *
+ * Note: This is an original Core Protocol command. This command is deprecated.
+ * Clients SHOULD use the SMB_COM_WRITE_ANDX command.
+ *
+ * Parameters
+ * | CountOfBytesWritten |
+ * | USHORT              |
+ *
+ * No Data
+ */
+static enum proto_parse_status parse_write_response(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x01)) return PROTO_PARSE_ERR;
+    info->response_write_bytes = cursor_read_u16le(cursor);
+    return PROTO_OK;
+}
+
+/*
+ * Read request
+ * Word count 0x05
+ *
+ * Note: This is an original Core Protocol command. This command is deprecated.
+ * Clients SHOULD use the SMB_COM_READ_ANDX command.
+ *
+ * Parameters
+ * | USHORT | USHORT             | ULONG             |
+ * | FID    | CountOfBytesToRead | ReadOffsetInBytes |
+ *
+ * | USHORT                           |
+ * | EstimateOfRemainingBytesToBeRead |
+ *
+ * No Data
+ */
+static enum proto_parse_status parse_read_request(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x05)) return PROTO_PARSE_ERR;
+    cifs_set_fid(info, cursor_read_u16le(cursor));
+    return PROTO_OK;
+}
+
+/*
+ * Read response
+ * Word count 0x05
+ *
+ * Note: This is an original Core Protocol command. This command is deprecated.
+ * Clients SHOULD use the SMB_COM_WRITE_ANDX command.
+ *
+ * Parameters
+ * | CountOfBytesReturned | Reserved[4] |
+ * | USHORT               | USHORT      |
+ *
+ * Data
+ * | BufferFormat | CountOfBytesRead | Bytes[ CountOfBytesRead ] |
+ * | UCHAR        | USHORT           | UCHAR                     |
+ */
+static enum proto_parse_status parse_read_response(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x05)) return PROTO_PARSE_ERR;
+    info->response_read_bytes = cursor_read_u16le(cursor);
+    return PROTO_OK;
+}
+
+
 // SMB2 parse functions
 
 #define READ_AND_CHECK_STRUCTURE_SIZE(expected_size) \
@@ -3458,6 +3550,14 @@ static enum proto_parse_status smb_parse(struct cursor *cursor, struct cifs_prot
             case SMB_COM_TRANSACTION:
                 if (info->is_query) status = parse_transaction_request(cifs_parser, cursor, info);
                 else status = parse_transaction_response(cifs_parser, cursor, info);
+                break;
+            case SMB_COM_WRITE:
+                if (info->is_query) status = parse_write_request(cursor, info);
+                else status = parse_write_response(cursor, info);
+                break;
+            case SMB_COM_READ:
+                if (info->is_query) status = parse_read_request(cursor, info);
+                else status = parse_read_response(cursor, info);
                 break;
             default:
                 break;
