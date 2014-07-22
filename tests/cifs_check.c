@@ -612,6 +612,7 @@ static struct parse_test {
             .status = SMB_STATUS_OK,
             .version = smb_version_1,
             .tree_id = 0x880b,
+            .meta_write_bytes = 0x87,
         },
     },
 
@@ -639,6 +640,7 @@ static struct parse_test {
             .status = SMB_STATUS_OK,
             .version = smb_version_1,
             .tree_id = 0x880b,
+            .meta_read_bytes = 0x54,
         },
     },
 
@@ -1195,6 +1197,7 @@ static struct parse_test {
             .version = smb_version_2,
             .path = "",
             .tree_id = 0x8509,
+            .meta_write_bytes = 0x39,
         },
     },
 
@@ -1222,6 +1225,7 @@ static struct parse_test {
             .version = smb_version_2,
             .path = "specs\\test",
             .tree_id = 0x839c,
+            .meta_write_bytes = 0x4d,
         },
     },
 
@@ -1250,6 +1254,7 @@ static struct parse_test {
             .version = smb_version_2,
             .fid = 0x5b0dcf47f3013376,
             .tree_id = 0x8509,
+            .meta_read_bytes = 0x59,
         },
     },
 
@@ -1451,6 +1456,7 @@ static struct parse_test {
             .set_values = CIFS_PATH,
             .path = "\\testsearch\\t000-0.txt",
             .tree_id = 0x800,
+            .meta_write_bytes = 0x5f,
         }
     },
 
@@ -1473,6 +1479,7 @@ static struct parse_test {
             .set_values = CIFS_FID,
             .fid = 0x4001,
             .tree_id = 0x800,
+            .meta_read_bytes = 0x1e,
         }
     },
 

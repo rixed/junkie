@@ -2086,9 +2086,9 @@ static enum proto_parse_status parse_nt_create_andx_request(struct cifs_parser *
     if(parse_and_check_word_count(cursor, 0x18) == -1) return PROTO_PARSE_ERR;
     cursor_drop(cursor, 0x18*2);
 
-    uint8_t padding = compute_padding(cursor, 2, 2);
-    cursor_drop(cursor, 2 + padding); // skip ByteCount
+    info->meta_write_bytes = 0x18*2 + cursor_read_u16le(cursor);
 
+    cursor_drop(cursor, compute_padding(cursor, 0, 2)); // skip padding
     PARSE_SMB_PATH(info);
     return PROTO_OK;
 }
@@ -2110,10 +2110,12 @@ static enum proto_parse_status parse_nt_create_andx_request(struct cifs_parser *
  */
 static enum proto_parse_status parse_nt_create_andx_response(struct cursor *cursor, struct cifs_proto_info *info)
 {
-    // there seems to be a problem with the specs that specify 0x22 when we have 0x2a
-    if(parse_and_check_word_count_superior(cursor, 0x22) == -1) return PROTO_PARSE_ERR;
+    // there seems to be a problem with the specs that specify 0x22 when we may have 0x2a
+    int word_count = parse_and_check_word_count_superior(cursor, 0x22);
+    if(-1 == word_count) return PROTO_PARSE_ERR;
     cursor_drop(cursor, 4 + 1); // skip AndX and OpLockLevel
     cifs_set_fid(info, cursor_read_u16le(cursor));
+    info->meta_read_bytes = word_count * 2;
     return PROTO_OK;
 }
 
@@ -2203,10 +2205,14 @@ static enum proto_parse_status parse_locking_andx_request(struct cursor *cursor,
  */
 static enum proto_parse_status parse_open_andx_request(struct cifs_parser *cifs_parser, struct cursor *cursor, struct cifs_proto_info *info)
 {
-    if(parse_and_check_word_count(cursor, 0x0f) == -1) return PROTO_PARSE_ERR;
+    int word_count = parse_and_check_word_count(cursor, 0x0f);
+    if(-1 == word_count) return PROTO_PARSE_ERR;
     cursor_drop(cursor, 0x0f*2); // skip parameters
 
-    if(parse_and_check_byte_count_superior(cursor, 0x2) == -1) return PROTO_PARSE_ERR;
+    int byte_count = parse_and_check_byte_count_superior(cursor, 0x2);
+    if(-1 == byte_count) return PROTO_PARSE_ERR;
+    info->meta_write_bytes = 0x18*2 + byte_count;
+
     cursor_drop(cursor, compute_padding(cursor, 0, 2));
     if(parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
         return PROTO_PARSE_ERR;
@@ -2229,7 +2235,9 @@ static enum proto_parse_status parse_open_andx_request(struct cifs_parser *cifs_
  */
 static enum proto_parse_status parse_open_andx_response(struct cursor *cursor, struct cifs_proto_info *info)
 {
-    if(parse_and_check_word_count(cursor, 0x0f) == -1) return PROTO_PARSE_ERR;
+    int word_count = parse_and_check_word_count(cursor, 0x0f);
+    if(-1 == word_count) return PROTO_PARSE_ERR;
+    info->meta_read_bytes = word_count * 2;
     cursor_drop(cursor, 4); // skip AndX
     cifs_set_fid(info, cursor_read_u16le(cursor));
     return PROTO_OK;
@@ -2431,6 +2439,10 @@ static enum proto_parse_status parse_nt_transact_response(struct cifs_parser *ci
              */
             cursor_drop(cursor, 1+1); // skip OpLockLevel, Reserved
             cifs_set_fid(info, cursor_read_u16le(cursor));
+            cursor_drop(cursor, 8); // skip CreateAction
+            uint32_t ea_err_offset = cursor_read_u32le(cursor);
+            if(0x00 == ea_err_offset)
+                info->meta_read_bytes = parameter_count;
             break;
         case SMB_NT_TRANSACT_IOCTL:
             /*
@@ -2438,7 +2450,7 @@ static enum proto_parse_status parse_nt_transact_response(struct cifs_parser *ci
              * | UCHAR (variable)     |
              * | Data[DataCount] |
              */
-            info->meta_read_bytes = data_count;
+            info->response_read_bytes = data_count;
             break;
         case SMB_NT_TRANSACT_SET_SECURITY_DESC:
             /* nothing to retrieve */
@@ -2630,9 +2642,10 @@ static enum proto_parse_status parse_transaction_response(struct cifs_parser *ci
     int word_count = parse_and_check_word_count_superior(cursor, 0x0a);
     if (word_count == -1) return PROTO_PARSE_ERR;
 
-    cursor_drop(cursor, 2 + 2 + 2 + 2); // total count and data counts + Reserved1 + parameter count
+    cursor_drop(cursor, 2 + 2 + 2); // total count and data counts + Reserved1
 
-    // read parameter offset
+    // read parameter count and offset
+    uint16_t parameter_count = cursor_read_u16le(cursor);
     uint16_t parameter_offset = cursor_read_u16le(cursor);
     cursor_drop(cursor, 2); // skip param displacement
     // Read Data Count
@@ -2651,7 +2664,7 @@ static enum proto_parse_status parse_transaction_response(struct cifs_parser *ci
             info->response_read_bytes = data_count;
             break;
         case SMB_TRANS_QUERY_NMPIPE_STATE:
-            /* nothing to retrieve */
+            info->meta_read_bytes = parameter_count;
             break;
         case SMB_TRANS_QUERY_NMPIPE_INFO:
             /*
@@ -2671,6 +2684,7 @@ static enum proto_parse_status parse_transaction_response(struct cifs_parser *ci
                 if(parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
                     return PROTO_PARSE_ERR;
                 info->set_values |= CIFS_PATH;
+                info->meta_read_bytes = data_count;
             }
             break;
         case SMB_TRANS_PEEK_NMPIPE:
@@ -2914,6 +2928,7 @@ static enum proto_parse_status parse_smb2_create_request(struct cursor *cursor,
     uint16_t name_length = cursor_read_u16le(cursor);
     cursor_drop(cursor, 4 + 4); // CreateContextOffset + CreateContextsLength
     PARSE_SMB2_PATH(info, name_length);
+    info->meta_write_bytes = 57 + name_length;
     return PROTO_OK;
 }
 
@@ -2939,6 +2954,8 @@ static enum proto_parse_status parse_smb2_create_response(struct cursor *cursor,
             + 8 + 4 + 4 // EndOfFile + FileAttributes + Reserved2
             );
     PARSE_SMB2_FID(info);
+    cursor_drop(cursor, 4); // skip CreateContextOffset
+    info->meta_read_bytes = 89 + cursor_read_u32le(cursor);
     return PROTO_OK;
 }
 
