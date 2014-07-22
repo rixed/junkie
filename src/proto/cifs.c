@@ -3315,14 +3315,6 @@ static enum proto_parse_status parse_smb2_ioctl_request(struct cifs_parser *cifs
         case FSCTL_VALIDATE_NEGOTIATE_INFO:
             /* request validation of a previous SMB2_COM_NEGOTIATE */
         case FSCTL_PIPE_WAIT:
-            /* The following FSCTL requests do not provide an input buffer:
-             *  - FSCTL_PIPE_PEEK
-             *  - FSCTL_PIPE_WAIT
-             *  - FSCTL_PIPE_TRANSCEIVE
-             *  - FSCTL_SRV_ENUMERATE_SNAPSHOTS
-             *  - FSCTL_SRV_REQUEST_RESUME_KEY
-             *  - FSCTL_QUERY_NETWORK_INTERFACE_INFO
-             */
             /*
              * InputData:
              * | Timeout | NameLength | TimeoutSpecified | Padding | Name     |
@@ -3344,6 +3336,12 @@ static enum proto_parse_status parse_smb2_ioctl_request(struct cifs_parser *cifs
             }
             // unset fid as it contains 0xffffffffffffffff
             info->set_values &= ~CIFS_FID;
+            break;
+        case FSCTL_QUERY_NETWORK_INTERFACE_INFO:
+            /* nothing to retrieve */
+            break;
+        case FSCTL_CREATE_OR_GET_OBJECT_ID:
+            /* nothing to retrieve */
             break;
         default:
             break;
@@ -3388,6 +3386,12 @@ static enum proto_parse_status parse_smb2_ioctl_response(struct cursor *cursor,
              *  - FSCTL_PIPE_WAIT
              *  - FSCTL_LMR_REQUEST_RESILIENCY
              */
+            break;
+        case FSCTL_QUERY_NETWORK_INTERFACE_INFO:
+            info->meta_read_bytes = output_count;
+            break;
+        case FSCTL_CREATE_OR_GET_OBJECT_ID:
+            info->meta_read_bytes = output_count;
             break;
         default:
             break;

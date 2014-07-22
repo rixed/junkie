@@ -1188,6 +1188,7 @@ enum smb_file_information_classes {
 enum ctl_code {
     // IOCTL/FSCTL Codes
     FSCTL_GET_REPARSE_POINT            = 0x000900a8,
+    FSCTL_CREATE_OR_GET_OBJECT_ID      = 0x000900c0,
 
     // SMB2 specific IOCTL/FSCTL Codes
     FSCTL_DFS_GET_REFERRALS            = 0x00060194,
