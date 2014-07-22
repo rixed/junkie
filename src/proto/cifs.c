@@ -2851,7 +2851,27 @@ static enum proto_parse_status parse_query_info_disk_response(struct cursor *cur
     return PROTO_OK;
 }
 
+/*
+ * Create directory request
+ * Word count 0x00
+ *
+ * No Parameters
+ *
+ * Data
+ * | UCHAR        | SMB_STRING    |
+ * | BufferFormat | DirectoryName |
+ */
+static enum proto_parse_status parse_check_directory_request(struct cifs_parser* cifs_parser, struct cursor *cursor, struct cifs_proto_info *info)
+{
+    // check word count and byte count
+    if(-1 == parse_and_check_word_count(cursor, 0x00)) return PROTO_PARSE_ERR;
+    if (-1 == parse_and_check_byte_count_superior(cursor, 0x02))
+        return PROTO_PARSE_ERR;
 
+    cursor_drop(cursor, 1 + compute_padding(cursor, 1, 2));
+    PARSE_SMB_PATH(info);
+    return PROTO_OK;
+}
 
 
 // SMB2 parse functions
@@ -3616,6 +3636,9 @@ static enum proto_parse_status smb_parse(struct cursor *cursor, struct cifs_prot
                 break;
             case SMB_COM_QUERY_INFORMATION_DISK:
                 if (! info->is_query) status = parse_query_info_disk_response(cursor, info);
+                break;
+            case SMB_COM_CHECK_DIRECTORY:
+                if (info->is_query) status = parse_check_directory_request(cifs_parser, cursor, info);
                 break;
             default:
                 break;
