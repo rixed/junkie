@@ -2813,7 +2813,7 @@ static enum proto_parse_status parse_read_response(struct cursor *cursor, struct
  *
  * No Parameters
  *
- * No Data
+ * Data
  * | UCHAR        | SMB_STRING    |
  * | BufferFormat | DirectoryName |
  */
@@ -2828,6 +2828,29 @@ static enum proto_parse_status parse_create_directory_request(struct cifs_parser
     PARSE_SMB_PATH(info);
     return PROTO_OK;
 }
+
+/*
+ * Query information disk response
+ * Word count 0x05
+ *
+ * Note: This is an original Core Protocol command. This command is deprecated.
+ * New client implementations SHOULD use the SMB_COM_TRANSACTION2 command along
+ * with a subcommand of TRANS2_QUERY_FS_INFORMATION.
+ *
+ * Parameters
+ * | USHORT     | USHORT        | USHORT    | USHORT    | USHORT   |
+ * | TotalUnits | BlocksPerUnit | BlockSize | FreeUnits | Reversed |
+ *
+ * No Data
+ */
+static enum proto_parse_status parse_query_info_disk_response(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    // check word count and byte count
+    if(-1 == parse_and_check_word_count(cursor, 0x05)) return PROTO_PARSE_ERR;
+    info->meta_read_bytes = 0x05 * 2;
+    return PROTO_OK;
+}
+
 
 
 
@@ -3590,6 +3613,9 @@ static enum proto_parse_status smb_parse(struct cursor *cursor, struct cifs_prot
                 break;
             case SMB_COM_CREATE_DIRECTORY:
                 if (info->is_query) status = parse_create_directory_request(cifs_parser, cursor, info);
+                break;
+            case SMB_COM_QUERY_INFORMATION_DISK:
+                if (! info->is_query) status = parse_query_info_disk_response(cursor, info);
                 break;
             default:
                 break;
