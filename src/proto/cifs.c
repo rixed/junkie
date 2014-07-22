@@ -1787,18 +1787,14 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
             {
                 CHECK(2);
                 cursor_drop(cursor, 2);
-                if (parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
-                    return PROTO_PARSE_ERR;
-                info->set_values |= CIFS_PATH;
+                PARSE_SMB_PATH(info);
             }
             break;
         case SMB_TRANS2_FIND_NEXT2:
             {
                 CHECK(2 + 2 + 2 + 2 + 4);
                 cursor_drop(cursor, 2 + 2 + 2 + 2 + 4);
-                if (parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
-                    return PROTO_PARSE_ERR;
-                info->set_values |= CIFS_PATH;
+                PARSE_SMB_PATH(info);
             }
             break;
         case SMB_TRANS2_QUERY_FS_INFO:
@@ -2158,9 +2154,7 @@ static enum proto_parse_status parse_rename_request(struct cifs_parser *cifs_par
     uint8_t padding = compute_padding(cursor, 1, 2);
     cursor_drop(cursor, 1 + padding); // skip BufferFormat1
 
-    if (parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
-        return PROTO_PARSE_ERR;
-    info->set_values |= CIFS_PATH;
+    PARSE_SMB_PATH(info);
 
     return PROTO_OK;
 }
@@ -2214,9 +2208,7 @@ static enum proto_parse_status parse_open_andx_request(struct cifs_parser *cifs_
     info->meta_write_bytes = 0x18*2 + byte_count;
 
     cursor_drop(cursor, compute_padding(cursor, 0, 2));
-    if(parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
-        return PROTO_PARSE_ERR;
-    info->set_values |= CIFS_PATH;
+    PARSE_SMB_PATH(info);
     return PROTO_OK;
 }
 
@@ -2681,9 +2673,7 @@ static enum proto_parse_status parse_transaction_response(struct cifs_parser *ci
                 CHECK(skipped + padding);
                 // skip to the smb string
                 cursor_drop(cursor, skipped + padding);
-                if(parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0)
-                    return PROTO_PARSE_ERR;
-                info->set_values |= CIFS_PATH;
+                PARSE_SMB_PATH(info);
                 info->meta_read_bytes = data_count;
             }
             break;
