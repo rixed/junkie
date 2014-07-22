@@ -2804,6 +2804,32 @@ static enum proto_parse_status parse_read_response(struct cursor *cursor, struct
     return PROTO_OK;
 }
 
+/*
+ * Create directory request
+ * Word count 0x00
+ *
+ * Note: This is an original Core Protocol command. This command is deprecated.
+ * Clients SHOULD use the TRANS2_CREATE_DIRECTORY subcommand.
+ *
+ * No Parameters
+ *
+ * No Data
+ * | UCHAR        | SMB_STRING    |
+ * | BufferFormat | DirectoryName |
+ */
+static enum proto_parse_status parse_create_directory_request(struct cifs_parser* cifs_parser, struct cursor *cursor, struct cifs_proto_info *info)
+{
+    // check word count and byte count
+    if(-1 == parse_and_check_word_count(cursor, 0x00)) return PROTO_PARSE_ERR;
+    if (-1 == parse_and_check_byte_count_superior(cursor, 0x02))
+        return PROTO_PARSE_ERR;
+
+    cursor_drop(cursor, 1 + compute_padding(cursor, 1, 2));
+    PARSE_SMB_PATH(info);
+    return PROTO_OK;
+}
+
+
 
 // SMB2 parse functions
 
@@ -3558,6 +3584,12 @@ static enum proto_parse_status smb_parse(struct cursor *cursor, struct cifs_prot
             case SMB_COM_READ:
                 if (info->is_query) status = parse_read_request(cursor, info);
                 else status = parse_read_response(cursor, info);
+                break;
+            case SMB_COM_TREE_DISCONNECT:
+                /* disconnect client access to a server resource (empty smb_parameters and smb_data) */
+                break;
+            case SMB_COM_CREATE_DIRECTORY:
+                if (info->is_query) status = parse_create_directory_request(cifs_parser, cursor, info);
                 break;
             default:
                 break;
