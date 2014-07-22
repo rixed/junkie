@@ -1940,6 +1940,12 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
                 info->meta_read_bytes = data_count;
             }
             break;
+        case SMB_TRANS2_FIND_NEXT2:
+            info->meta_read_bytes = data_count;
+            break;
+        case SMB_TRANS2_FIND_FIRST2:
+            info->meta_read_bytes = data_count;
+            break;
         default:
             break;
     }
