@@ -1746,6 +1746,23 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
                 info->meta_write_bytes = parameter_count + data_count;
             }
             break;
+        case SMB_TRANS2_CREATE_DIRECTORY:
+            /*
+             * Trans2_Parameters
+             * | ULONG    | SMB_STRING   |
+             * | Reserved | DirectoryName|
+             *
+             * Trans2_Data
+             * | SMB_FEA_LIST          |
+             * | ExtendedAttributeList |
+             */
+            {
+                CHECK(4);
+                cursor_drop(cursor, 4 + compute_padding(cursor, 4, 2));
+                PARSE_SMB_PATH(info);
+                info->meta_write_bytes = data_count;
+            }
+            break;
         case SMB_TRANS2_QUERY_FILE_INFORMATION:
             {
                 CHECK(4);
@@ -1895,6 +1912,10 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
                 info->meta_read_bytes = parameter_count;
             }
             break;
+        case SMB_TRANS2_CREATE_DIRECTORY:
+            /* nothing to retrieve */
+            break;
+
         /*
          * Level of interest SMB_POSIX_PATH_OPEN
          * | USHORT | USHORD | ULONG        | USHORD                  | USHORT  | Sizeof reply information |
@@ -1945,6 +1966,9 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
             break;
         case SMB_TRANS2_FIND_FIRST2:
             info->meta_read_bytes = data_count;
+            break;
+        case SMB_TRANS2_GET_DFS_REFERRAL:
+            /* nothing to retrieve */
             break;
         default:
             break;
@@ -3398,6 +3422,9 @@ static enum proto_parse_status parse_smb2_ioctl_response(struct cursor *cursor,
             break;
         case FSCTL_CREATE_OR_GET_OBJECT_ID:
             info->meta_read_bytes = output_count;
+            break;
+        case FSCTL_VALIDATE_NEGOTIATE_INFO:
+            /* nothing to retrieve */
             break;
         default:
             break;
