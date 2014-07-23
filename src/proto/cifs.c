@@ -3074,6 +3074,56 @@ static enum proto_parse_status parse_set_info_request(struct cifs_parser *cifs_p
     return PROTO_OK;
 }
 
+/*
+ * Create request
+ * Word count 0x03
+ *
+ * Note: This is an original Core Protocol command. This command is deprecated.
+ * Implementations SHOULD use SMB_COM_NT_CREATE_ANDX.
+ *
+ * Parameters
+ * | SMB_FILE_ATTRIBUTES (2 bytes) | UTIME (4 bytes) |
+ * | FileAttributes                | CreationTime    |
+ *
+ * Data
+ * | UCHAR        | SMB_STRING |
+ * | BufferFormat | FileName   |
+ */
+static enum proto_parse_status parse_create_request(struct cifs_parser *cifs_parser, struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x03)) return PROTO_PARSE_ERR;
+    info->meta_write_bytes = 0x03 * 2;
+    // skip parmeters
+    cursor_drop(cursor, 0x03 * 2);
+
+    if(-1 == parse_and_check_byte_count_superior(cursor, 0x2)) return PROTO_PARSE_ERR;
+
+    // skip to smb string
+    cursor_drop(cursor, 1 + compute_padding(cursor, 1, 2));
+    PARSE_SMB_PATH(info);
+    return PROTO_OK;
+}
+
+/*
+ * Create response
+ * Word count 0x01
+ *
+ * Note: This is an original Core Protocol command. This command is deprecated.
+ * Implementations SHOULD use SMB_COM_NT_CREATE_ANDX.
+ *
+ * Parameters
+ * | USHORT |
+ * | FID    |
+ *
+ * No Data
+ */
+static enum proto_parse_status parse_create_response(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x01)) return PROTO_PARSE_ERR;
+    cifs_set_fid(info, cursor_read_u16le(cursor));
+    return PROTO_OK;
+}
+
 
 // SMB2 parse functions
 
@@ -3858,6 +3908,10 @@ static enum proto_parse_status smb_parse(struct cursor *cursor, struct cifs_prot
                 break;
             case SMB_COM_SET_INFORMATION:
                 if (info->is_query) status = parse_set_info_request(cifs_parser, cursor, info);
+                break;
+            case SMB_COM_CREATE:
+                if (info->is_query) status = parse_create_request(cifs_parser, cursor, info);
+                else status = parse_create_response(cursor, info);
                 break;
             default:
                 break;
