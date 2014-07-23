@@ -3273,6 +3273,138 @@ static enum proto_parse_status parse_create_new_response(struct cursor *cursor, 
     return PROTO_OK;
 }
 
+/*
+ * Seek request
+ * Word count 0x04
+ *
+ * Parameters
+ * | USHORT | USHORT | LONG   |
+ * | FID    | Mode   | Offset |
+ *
+ * No Data
+ */
+static enum proto_parse_status parse_seek_request(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x04)) return PROTO_PARSE_ERR;
+    cifs_set_fid(info, cursor_read_u16le(cursor));
+    return PROTO_OK;
+}
+
+/*
+ * Seek response
+ * Word count 0x02
+ *
+ * Parameters
+ * | ULONG  |
+ * | Offset |
+ *
+ * No Data
+ */
+static enum proto_parse_status parse_seek_response(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x02)) return PROTO_PARSE_ERR;
+    info->meta_read_bytes = 0x02 * 2;
+    return PROTO_OK;
+}
+
+/*
+ * Lock and read request
+ * Word count 0x05
+ *
+ * Note: This command is deprecated.
+ * Clients SHOULD use the SMB_COM_LOCKING_ANDX command.
+ *
+ * Parameters
+ * | USHORT | USHORT              | ULONG             |
+ * | FID    | CountsOfBytesToRead | ReadOffsetInBytes |
+ *
+ * | USHORT                           |
+ * | EstimateOfRemainingBytesToBeRead |
+ *
+ * No Data
+ */
+static enum proto_parse_status parse_lock_and_read_request(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x05)) return PROTO_PARSE_ERR;
+    cifs_set_fid(info, cursor_read_u16le(cursor));
+    return PROTO_OK;
+}
+
+/*
+ * Lock and read response
+ * Word count 0x05
+ *
+ * Note: This command is deprecated.
+ * Clients SHOULD use the SMB_COM_LOCKING_ANDX command.
+ *
+ * Parameters
+ * | USHORT               | USHORT[4] |
+ * | CountOfBytesReturned | Reserved  |
+ *
+ * Data
+ * | UCHAR      | USHORT           | UCHAR[ CountOfBytesRead ] |
+ * | BufferType | CountOfBytesRead | Bytes                     |
+ */
+static enum proto_parse_status parse_lock_and_read_response(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x05)) return PROTO_PARSE_ERR;
+    // skip parameters
+    cursor_drop(cursor, 0x05 * 2);
+
+    if(-1 == parse_and_check_byte_count_superior(cursor, 0x3)) return PROTO_PARSE_ERR;
+
+    // skip to CountOfBytesRead
+    cursor_drop(cursor, 1);
+    info->response_read_bytes = cursor_read_u16le(cursor);
+    return PROTO_OK;
+}
+
+/*
+ * Write and unlock request
+ * Word count 0x05
+ *
+ * Note: This command is deprecated.
+ * Clients SHOULD use the SMB_COM_LOCKING_ANDX command.
+ *
+ * Parameters
+ * | USHORT | USHORT               | ULONG              |
+ * | FID    | CountsOfBytesToWrite | WriteOffsetInBytes |
+ *
+ * | USHORT                              |
+ * | EstimateOfRemainingBytesToBeWritten |
+ *
+ * Data
+ * | UCHAR        | USHORT     | UCHAR[ DataLength ] |
+ * | BufferFormat | DataLength | Data                |
+ */
+static enum proto_parse_status parse_write_and_unlock_request(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x05)) return PROTO_PARSE_ERR;
+    cifs_set_fid(info, cursor_read_u16le(cursor));
+    info->query_write_bytes = cursor_read_u16le(cursor);
+    return PROTO_OK;
+}
+
+/*
+ * Write and unlock response
+ * Word count 0x01
+ *
+ * Note: This command is deprecated.
+ * Clients SHOULD use the SMB_COM_LOCKING_ANDX command.
+ *
+ * Parameters
+ * | USHORT              |
+ * | CountOfBytesWritten |
+ *
+ * No Data
+ */
+static enum proto_parse_status parse_write_and_unlock_response(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x01)) return PROTO_PARSE_ERR;
+    info->response_write_bytes = cursor_read_u16le(cursor);
+    return PROTO_OK;
+}
+
 
 // SMB2 parse functions
 
@@ -4075,6 +4207,21 @@ static enum proto_parse_status smb_parse(struct cursor *cursor, struct cifs_prot
             case SMB_COM_CREATE_NEW:
                 if (info->is_query) status = parse_create_new_request(cifs_parser, cursor, info);
                 else status = parse_create_new_response(cursor, info);
+                break;
+            case SMB_COM_PROCESS_EXIT:
+                /* nothing to retrieve */
+                break;
+            case SMB_COM_SEEK:
+                if (info->is_query) status = parse_seek_request(cursor, info);
+                else status = parse_seek_response(cursor, info);
+                break;
+            case SMB_COM_LOCK_AND_READ:
+                if (info->is_query) status = parse_lock_and_read_request(cursor, info);
+                else status = parse_lock_and_read_response(cursor, info);
+                break;
+            case SMB_COM_WRITE_AND_UNLOCK:
+                if (info->is_query) status = parse_write_and_unlock_request(cursor, info);
+                else status = parse_write_and_unlock_response(cursor, info);
                 break;
             default:
                 break;
