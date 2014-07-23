@@ -3798,6 +3798,55 @@ static enum proto_parse_status parse_nt_rename_request(struct cifs_parser *cifs_
     return PROTO_OK;
 }
 
+/*
+ * Close print file request
+ * Word count 0x01
+ *
+ * Parameters
+ * | USHORT |
+ * | FID    |
+ *
+ * No Data
+ */
+static enum proto_parse_status parse_close_print_file_request(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x01)) return PROTO_PARSE_ERR;
+    cifs_set_fid(info, cursor_read_u16le(cursor));
+    return PROTO_OK;
+}
+
+/*
+ * Ioctl request
+ * Word count 0x0e
+ *
+ * Parameters
+ * | USHORT | USHORT   | USHORT   | USHORT              | USHORT         |
+ * | FID    | Category | Function | TotalParameterCount | TotalDataCount |
+ *
+ * | USHORT            | USHORT       | ULONG   | USHORT   | USHORT         |
+ * | MaxParameterCount | MaxDataCount | Timeout | Reserved | ParameterCount |
+ *
+ * | USHORT          | USHORT    | USHORT     |
+ * | ParameterOffset | DataCount | DataOffset |
+ *
+ * Data
+ * | UCHAR[] | UCHAR[ ParameterCount ] | UCHAR[] | UCHAR[ DataCount ] |
+ * | Pad1    | Parameters              | Pad2    | Data               |
+ *
+ * Note: The request defines a function that is specific to a particular device type
+ * on a particular server type. Therefore, the functions supported are not defined by
+ * the protocol, but by the systems on which the CIFS implementations execute.
+ * The protocol simply provides a means of delivering the requests and accepting the responses.
+ */
+static enum proto_parse_status parse_ioctl_request(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x0e)) return PROTO_PARSE_ERR;
+    cifs_set_fid(info, cursor_read_u16le(cursor));
+    return PROTO_OK;
+}
+
+
+
 
 
 // SMB2 parse functions
@@ -4648,6 +4697,12 @@ static enum proto_parse_status smb_parse(struct cursor *cursor, struct cifs_prot
                 break;
             case SMB_COM_NT_RENAME:
                 if (info->is_query) status = parse_nt_rename_request(cifs_parser, cursor, info);
+                break;
+            case SMB_COM_CLOSE_PRINT_FILE:
+                if (info->is_query) status = parse_close_print_file_request(cursor, info);
+                break;
+            case SMB_COM_IOCTL:
+                if (info->is_query) status = parse_ioctl_request(cursor, info);
                 break;
             default:
                 break;
