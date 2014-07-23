@@ -3548,6 +3548,230 @@ static enum proto_parse_status parse_write_and_close_response(struct cursor *cur
     return PROTO_OK;
 }
 
+/*
+ * Search request
+ * Word count 0x02
+ *
+ * Note: This command is deprecated.
+ * New client implementations SHOULD use the TRANS2_FIND_FIRST2 subcommand instead.
+ *
+ * Parameters
+ * | USHORT   | SMB_FILE_ATTRIBUTES (2 bytes) |
+ * | MaxCount | SearchAttributes              |
+ *
+ * Data
+ * | UCHAR         | SMB_STRING | UCHAR         | USHORT          |
+ * | BufferFormat1 | FileName   | BufferFormat2 | ResumeKeyLength |
+ *
+ * | SMB_Resume_Key[ ResumeKeyLength ] |
+ * | ResumeKey                         |
+ */
+static enum proto_parse_status parse_search_request(struct cifs_parser *cifs_parser, struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x02)) return PROTO_PARSE_ERR;
+    // skip parameters
+    cursor_drop(cursor, 0x02 * 2);
+
+    if(-1 == parse_and_check_byte_count_superior(cursor, 0x5)) return PROTO_PARSE_ERR;
+
+    // skip to FileName
+    cursor_drop(cursor, 1);
+    // the filename immediately follows the bufferformat
+    PARSE_SMB_PATH(info);
+    return PROTO_OK;
+}
+
+/*
+ * Search response
+ * Word count 0x01
+ *
+ * Note: This command is deprecated.
+ * New client implementations SHOULD use the TRANS2_FIND_FIRST2 subcommand instead.
+ *
+ * Parameters
+ * | USHORT |
+ * | Count  |
+ *
+ * Data
+ * | UCHAR        | USHORT     | SMB_Directory_Information[ DataLength ] |
+ * | BufferFormat | DataLength | DirectoryInformationData                |
+ */
+static enum proto_parse_status parse_search_response(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x01)) return PROTO_PARSE_ERR;
+    // skip parameters
+    cursor_drop(cursor, 0x01 * 2);
+
+    if(-1 == parse_and_check_byte_count_superior(cursor, 0x3)) return PROTO_PARSE_ERR;
+    // drop BufferFormat
+    cursor_drop(cursor, 1);
+
+    info->meta_read_bytes = cursor_read_u16le(cursor);
+    return PROTO_OK;
+}
+
+/*
+ * Find request
+ * Word count 0x02
+ *
+ * Note: This command is deprecated.
+ * New client implementations SHOULD use the SMB_COM_TRANSACTION2 subcommand
+ * TRANS2_FIND_FIRST2 instead.
+ *
+ * Parameters
+ * | USHORT   | SMB_FILE_ATTRIBUTES (2 bytes) |
+ * | MaxCount | SearchAttributes              |
+ *
+ * Data
+ * | UCHAR         | SMB_STRING | UCHAR         | USHORT          |
+ * | BufferFormat1 | FileName   | BufferFormat2 | ResumeKeyLength |
+ *
+ * | SMB_Resume_Key[ ResumeKeyLength ] |
+ * | ResumeKey                         |
+ */
+static enum proto_parse_status parse_find_request(struct cifs_parser *cifs_parser, struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x02)) return PROTO_PARSE_ERR;
+    // skip parameters
+    cursor_drop(cursor, 0x02 * 2);
+
+    if(-1 == parse_and_check_byte_count_superior(cursor, 0x5)) return PROTO_PARSE_ERR;
+
+    // skip to FileName
+    cursor_drop(cursor, 1);
+    // the filename immediately follows the bufferformat
+    PARSE_SMB_PATH(info);
+    return PROTO_OK;
+}
+
+/*
+ * Find response
+ * Word count 0x01
+ *
+ * Note: This command is deprecated.
+ * New client implementations SHOULD use the SMB_COM_TRANSACTION2 subcommand
+ * TRANS2_FIND_FIRST2 instead.
+ *
+ * Parameters
+ * | USHORT |
+ * | Count  |
+ *
+ * Data
+ * | UCHAR        | USHORT     | SMB_Directory_Information[ DataLength ] |
+ * | BufferFormat | DataLength | DirectoryInformationData                |
+ */
+static enum proto_parse_status parse_find_response(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x01)) return PROTO_PARSE_ERR;
+    // skip parameters
+    cursor_drop(cursor, 0x01 * 2);
+
+    if(-1 == parse_and_check_byte_count_superior(cursor, 0x3)) return PROTO_PARSE_ERR;
+    // drop BufferFormat
+    cursor_drop(cursor, 1);
+
+    info->meta_read_bytes = cursor_read_u16le(cursor);
+    return PROTO_OK;
+}
+
+/*
+ * Find unique request
+ * Word count 0x02
+ *
+ * Note: This command is deprecated.
+ * New client implementations SHOULD use the SMB_COM_TRANSACTION2 subcommand
+ * TRANS2_FIND_FIRST2 instead.
+ *
+ * Parameters
+ * | USHORT   | SMB_FILE_ATTRIBUTES (2 bytes) |
+ * | MaxCount | SearchAttributes              |
+ *
+ * Data
+ * | UCHAR         | SMB_STRING | UCHAR         | USHORT          |
+ * | BufferFormat1 | FileName   | BufferFormat2 | ResumeKeyLength |
+ *
+ * | SMB_Resume_Key[ ResumeKeyLength ] |
+ * | ResumeKey                         |
+ */
+static enum proto_parse_status parse_find_unique_request(struct cifs_parser *cifs_parser, struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x02)) return PROTO_PARSE_ERR;
+    // skip parameters
+    cursor_drop(cursor, 0x02 * 2);
+
+    if(-1 == parse_and_check_byte_count_superior(cursor, 0x5)) return PROTO_PARSE_ERR;
+
+    // skip to FileName
+    cursor_drop(cursor, 1);
+    // the filename immediately follows the bufferformat
+    PARSE_SMB_PATH(info);
+    return PROTO_OK;
+}
+
+/*
+ * Find unique response
+ * Word count 0x01
+ *
+ * Note: This command is deprecated.
+ * New client implementations SHOULD use the SMB_COM_TRANSACTION2 subcommand
+ * TRANS2_FIND_FIRST2 instead.
+ *
+ * Parameters
+ * | USHORT |
+ * | Count  |
+ *
+ * Data
+ * | UCHAR        | USHORT     | SMB_Directory_Information[ DataLength ] |
+ * | BufferFormat | DataLength | DirectoryInformationData                |
+ */
+static enum proto_parse_status parse_find_unique_response(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x01)) return PROTO_PARSE_ERR;
+    // skip parameters
+    cursor_drop(cursor, 0x01 * 2);
+
+    if(-1 == parse_and_check_byte_count_superior(cursor, 0x3)) return PROTO_PARSE_ERR;
+    // drop BufferFormat
+    cursor_drop(cursor, 1);
+
+    info->meta_read_bytes = cursor_read_u16le(cursor);
+    return PROTO_OK;
+}
+
+/*
+ * Find close request
+ * Word count 0x02
+ *
+ * Note: This command is deprecated.
+ * New client implementations SHOULD use the SMB_COM_TRANSACTION2 subcommand
+ * TRANS2_FIND_FIRST2 instead.
+ *
+ * Parameters
+ * | USHORT   | SMB_FILE_ATTRIBUTES (2 bytes) |
+ * | MaxCount | SearchAttributes              |
+ *
+ * Data
+ * | UCHAR         | SMB_STRING | UCHAR         | USHORT          |
+ * | BufferFormat1 | FileName   | BufferFormat2 | ResumeKeyLength |
+ *
+ * | SMB_Resume_Key[ ResumeKeyLength ] |
+ * | ResumeKey                         |
+ */
+static enum proto_parse_status parse_find_close_request(struct cifs_parser *cifs_parser, struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x02)) return PROTO_PARSE_ERR;
+    // skip parameters
+    cursor_drop(cursor, 0x02 * 2);
+
+    if(-1 == parse_and_check_byte_count_superior(cursor, 0x1a)) return PROTO_PARSE_ERR;
+
+    // skip to FileName
+    cursor_drop(cursor, 1);
+    // the filename immediately follows the bufferformat
+    PARSE_SMB_PATH(info);
+    return PROTO_OK;
+}
+
 
 // SMB2 parse functions
 
@@ -4379,6 +4603,21 @@ static enum proto_parse_status smb_parse(struct cursor *cursor, struct cifs_prot
             case SMB_COM_WRITE_AND_CLOSE:
                 if (info->is_query) status = parse_write_and_close_request(cursor, info);
                 else status = parse_write_and_close_response(cursor, info);
+                break;
+            case SMB_COM_SEARCH:
+                if (info->is_query) status = parse_search_request(cifs_parser, cursor, info);
+                else status = parse_search_response(cursor, info);
+                break;
+            case SMB_COM_FIND:
+                if (info->is_query) status = parse_find_request(cifs_parser, cursor, info);
+                else status = parse_find_response(cursor, info);
+                break;
+            case SMB_COM_FIND_UNIQUE:
+                if (info->is_query) status = parse_find_unique_request(cifs_parser, cursor, info);
+                else status = parse_find_unique_response(cursor, info);
+                break;
+            case SMB_COM_FIND_CLOSE:
+                if (info->is_query) status = parse_find_close_request(cifs_parser, cursor, info);
                 break;
             default:
                 break;
