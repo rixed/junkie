@@ -3042,6 +3042,38 @@ static enum proto_parse_status parse_query_info_response(struct cursor *cursor, 
     return PROTO_OK;
 }
 
+/*
+ * Set information request
+ * Word count 0x08
+ *
+ * Note: This is an original Core Protocol command. This command is deprecated.
+ * Clients SHOULD use the SMB_COM_WRITE_ANDX command.
+ * New client implementations SHOULD use the SMB_COM_TRANSACTION2
+ * subcommand TRANS2_SET_PATH_INFORMATION instead.
+ *
+ * Parameters
+ * | SMB_FILE_ATTRIBUTES (2 bytes) | UTIME         | USHORT[5] |
+ * | FileAttributes                | LastWriteTime | Reserved  |
+ *
+ * Data
+ * | UCHAR        | SMB_STRING |
+ * | BufferFormat | FileName   |
+ */
+static enum proto_parse_status parse_set_info_request(struct cifs_parser *cifs_parser, struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x08)) return PROTO_PARSE_ERR;
+    info->meta_write_bytes = 0x08 * 2;
+    // skip parmeters
+    cursor_drop(cursor, 0x08 * 2);
+
+    if(-1 == parse_and_check_byte_count_superior(cursor, 0x2)) return PROTO_PARSE_ERR;
+
+    // skip to smb string
+    cursor_drop(cursor, 1 + compute_padding(cursor, 1, 2));
+    PARSE_SMB_PATH(info);
+    return PROTO_OK;
+}
+
 
 // SMB2 parse functions
 
@@ -3823,6 +3855,9 @@ static enum proto_parse_status smb_parse(struct cursor *cursor, struct cifs_prot
             case SMB_COM_QUERY_INFORMATION:
                 if (info->is_query) status = parse_query_info_request(cifs_parser, cursor, info);
                 else status = parse_query_info_response(cursor, info);
+                break;
+            case SMB_COM_SET_INFORMATION:
+                if (info->is_query) status = parse_set_info_request(cifs_parser, cursor, info);
                 break;
             default:
                 break;
