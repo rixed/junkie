@@ -2992,6 +2992,56 @@ static enum proto_parse_status parse_open_response(struct cursor *cursor, struct
     return PROTO_OK;
 }
 
+/*
+ * Query information request
+ * Word count 0x00
+ *
+ * Note: This is an original Core Protocol command. This command is deprecated.
+ * Clients SHOULD use the SMB_COM_WRITE_ANDX command.
+ * New client implementations SHOULD use the SMB_COM_TRANSACTION2
+ * subcommand TRANS2_QUERY_PATH_INFORMATION instead.
+ *
+ * No Parameters
+ *
+ * Data
+ * | UCHAR        | SMB_STRING |
+ * | BufferFormat | FileName   |
+ */
+static enum proto_parse_status parse_query_info_request(struct cifs_parser *cifs_parser, struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x00)) return PROTO_PARSE_ERR;
+
+    if(-1 == parse_and_check_byte_count_superior(cursor, 0x2)) return PROTO_PARSE_ERR;
+
+    // skip to smb string
+    cursor_drop(cursor, 1 + compute_padding(cursor, 1, 2));
+    PARSE_SMB_PATH(info);
+    return PROTO_OK;
+}
+
+/*
+ * Query information response
+ * Word count 0x0a
+ *
+ * Note: This is an original Core Protocol command. This command is deprecated.
+ * Clients SHOULD use the SMB_COM_WRITE_ANDX command.
+ * New client implementations SHOULD use the SMB_COM_TRANSACTION2
+ * subcommand TRANS2_QUERY_PATH_INFORMATION instead.
+ *
+ * Parameters
+ * | SMB_FILE_ATTRIBUTES (2 bytes) | UTIME         | ULONG    | USHORT[5]   |
+ * | FileAttributes                | LastWriteTime | FileSize | Reserved    |
+ *
+ * No Data
+ */
+static enum proto_parse_status parse_query_info_response(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    int word_count = parse_and_check_word_count(cursor, 0x0a);
+    if(-1 == word_count) return PROTO_PARSE_ERR;
+    info->meta_read_bytes = word_count * 2;
+    return PROTO_OK;
+}
+
 
 // SMB2 parse functions
 
@@ -3769,6 +3819,10 @@ static enum proto_parse_status smb_parse(struct cursor *cursor, struct cifs_prot
             case SMB_COM_OPEN:
                 if (info->is_query) status = parse_open_request(cifs_parser, cursor, info);
                 else status = parse_open_response(cursor, info);
+                break;
+            case SMB_COM_QUERY_INFORMATION:
+                if (info->is_query) status = parse_query_info_request(cifs_parser, cursor, info);
+                else status = parse_query_info_response(cursor, info);
                 break;
             default:
                 break;
