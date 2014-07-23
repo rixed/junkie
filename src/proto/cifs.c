@@ -3772,6 +3772,33 @@ static enum proto_parse_status parse_find_close_request(struct cifs_parser *cifs
     return PROTO_OK;
 }
 
+/*
+ * Nt rename request
+ * Word count 0x04
+ *
+ * Parameters
+ * | SMB_FILE_ATTRIBUTES (2 bytes) | USHORT           | ULONG    |
+ * | SearchAttributes              | InformationLevel | Reserved |
+ *
+ * Data
+ * | UCHAR         | SMB_STRING  | UCHAR         | SMB_STRING  |
+ * | BufferFormat1 | OldFileName | BufferFormat2 | NewFileName |
+ */
+static enum proto_parse_status parse_nt_rename_request(struct cifs_parser *cifs_parser, struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x04)) return PROTO_PARSE_ERR;
+    // skip parameters
+    cursor_drop(cursor, 0x04 * 2);
+
+    if(-1 == parse_and_check_byte_count_superior(cursor, 0x04)) return PROTO_PARSE_ERR;
+
+    // skip to OldFileName
+    cursor_drop(cursor, 1 + compute_padding(cursor, 1, 2));
+    PARSE_SMB_PATH(info);
+    return PROTO_OK;
+}
+
+
 
 // SMB2 parse functions
 
@@ -4618,6 +4645,9 @@ static enum proto_parse_status smb_parse(struct cursor *cursor, struct cifs_prot
                 break;
             case SMB_COM_FIND_CLOSE:
                 if (info->is_query) status = parse_find_close_request(cifs_parser, cursor, info);
+                break;
+            case SMB_COM_NT_RENAME:
+                if (info->is_query) status = parse_nt_rename_request(cifs_parser, cursor, info);
                 break;
             default:
                 break;
