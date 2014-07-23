@@ -4206,7 +4206,11 @@ static enum proto_parse_status parse_smb2_ioctl_request(struct cifs_parser *cifs
     READ_AND_CHECK_STRUCTURE_SIZE(57);
     cursor_drop(cursor, 2); // skip Reserved
     enum ctl_code ctl_code = cursor_read_u32le(cursor);
-    PARSE_SMB2_FID(info);
+    // read_fid
+    uint64_t fid = cursor_read_u64le(cursor);
+
+    cursor_drop(cursor, 8); // Rest of file id
+
     uint32_t input_offset = cursor_read_u32le(cursor);
     uint32_t input_count = cursor_read_u32le(cursor);
     cursor_drop(cursor, 4 + 4 + 4 // skip MaxInputResponse, OutputOffset, OutputCount
@@ -4215,10 +4219,12 @@ static enum proto_parse_status parse_smb2_ioctl_request(struct cifs_parser *cifs
     switch(ctl_code) {
         case FSCTL_GET_REPARSE_POINT:
             /* This message does not contain any additional data elements. */
+            cifs_set_fid(info, fid);
             break;
         case FSCTL_PIPE_TRANSCEIVE:
             /* send and receive data from an open pipe */
             info->query_write_bytes = input_count;
+            cifs_set_fid(info, fid);
             break;
         case FSCTL_DFS_GET_REFERRALS:
             /*
@@ -4238,12 +4244,11 @@ static enum proto_parse_status parse_smb2_ioctl_request(struct cifs_parser *cifs
                 CHECK(2);
                 cursor_drop(cursor, 2);
                 PARSE_SMB_PATH(info);
-                // unset fid as it contains 0xffffffffffffffff
-                info->set_values &= ~CIFS_FID;
             }
             break;
         case FSCTL_VALIDATE_NEGOTIATE_INFO:
             /* request validation of a previous SMB2_COM_NEGOTIATE */
+            break;
         case FSCTL_PIPE_WAIT:
             /*
              * InputData:
@@ -4264,8 +4269,6 @@ static enum proto_parse_status parse_smb2_ioctl_request(struct cifs_parser *cifs
                 cursor_drop(cursor, 2 + compute_padding(cursor, 2, 2));
                 PARSE_SMB2_PATH(info, name_length);
             }
-            // unset fid as it contains 0xffffffffffffffff
-            info->set_values &= ~CIFS_FID;
             break;
         case FSCTL_QUERY_NETWORK_INTERFACE_INFO:
             /* nothing to retrieve */
