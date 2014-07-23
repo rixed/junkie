@@ -3405,6 +3405,149 @@ static enum proto_parse_status parse_write_and_unlock_response(struct cursor *cu
     return PROTO_OK;
 }
 
+/*
+ * Read raw request
+ * Word count 0x08 or 0x0A
+ *
+ * Note: This command is deprecated.
+ * Clients SHOULD use the SMB_COM_READ_ANDX command.
+ *
+ * Parameters
+ * | USHORT | ULONG  | USHORT                  | USHORT                  |
+ * | FID    | Offset | MaxCountOfBytesToReturn | MinCountOfBytesToReturn |
+ *
+ * | ULONG   | USHORT   | ULONG                 |
+ * | Timeout | Reserved | OffsetHigh (optional) |
+ *
+ * No Data
+ */
+static enum proto_parse_status parse_read_raw_request(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count_superior(cursor, 0x08)) return PROTO_PARSE_ERR;
+    cifs_set_fid(info, cursor_read_u16le(cursor));
+    return PROTO_OK;
+}
+
+/*
+ * Set information2 request
+ * Word count 0x07
+ *
+ * Note: This command is deprecated.
+ * New client implementations SHOULD use the SMB_COM_TRANSACTION2 subcommand
+ * TRANS2_SET_FILE_INFORMATION.
+ *
+ * Parameters
+ * | USHORT | SMB_DATE   | SMB_TIME     | SMB_DATE       | SMB_TIME       |
+ * | FID    | CreateDate | CreationTime | LastAccessDate | LastAccessTime |
+ *
+ * | SMB_DATE      | SMB_TIME      |
+ * | LastWriteDate | LastWriteTime |
+ *
+ * No Data
+ */
+static enum proto_parse_status parse_set_info2_request(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x07)) return PROTO_PARSE_ERR;
+    info->meta_write_bytes = 0x07 * 2;
+    cifs_set_fid(info, cursor_read_u16le(cursor));
+    return PROTO_OK;
+}
+
+/*
+ * Query information2 request
+ * Word count 0x01
+ *
+ * Note: This command is deprecated.
+ * New client implementations SHOULD use the SMB_COM_TRANSACTION2 subcommand
+ * TRANS2_QUERY_FILE_INFORMATION.
+ *
+ * Parameters
+ * | USHORT |
+ * | FID    |
+ *
+ * No Data
+ */
+static enum proto_parse_status parse_query_info2_request(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x01)) return PROTO_PARSE_ERR;
+    cifs_set_fid(info, cursor_read_u16le(cursor));
+    return PROTO_OK;
+}
+
+/*
+ * Query information response
+ * Word count 0x0b
+ *
+ * Note: This command is deprecated.
+ * New client implementations SHOULD use the SMB_COM_TRANSACTION2 subcommand
+ * TRANS2_QUERY_FILE_INFORMATION.
+ *
+ * Parameters
+ * | SMB_DATE   | SMB_TIME     | SMB_DATE       | SMB_TIME       |
+ * | CreateDate | CreationTime | LastAccessDate | LastAccessTime |
+ *
+ * | SMB_DATE      | SMB_TIME      | ULONG        | ULONG              |
+ * | LastWriteDate | LastWriteTime | FileDataSize | FileAllocationSize |
+ *
+ * | SMB_FILE_ATTRIBUTES (2 bytes) |
+ * | FileAttributes                |
+ *
+ * No Data
+ */
+static enum proto_parse_status parse_query_info2_response(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    int word_count = parse_and_check_word_count(cursor, 0x0b);
+    if(-1 == word_count) return PROTO_PARSE_ERR;
+    info->meta_read_bytes = word_count * 2;
+    return PROTO_OK;
+}
+
+/*
+ * Write and close request
+ * Word count 0x06 or 0x0c
+ *
+ * Note: This command is deprecated.
+ * Clients SHOULD use the SMB_COM_WRITE_ANDX command.
+ *
+ * Parameters
+ * | USHORT | USHORT               | ULONG              | UTIME         |
+ * | FID    | CountsOfBytesToWrite | WriteOffsetInBytes | LastWriteTime |
+ *
+ * | USHORT                 |
+ * | Reserved[3] (optional) |
+ *
+ * Data
+ * | UCHAR | UCHAR[ CountOfBytesToWrte ] |
+ * | Pad   | Data                        |
+ */
+static enum proto_parse_status parse_write_and_close_request(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count_superior(cursor, 0x06)) return PROTO_PARSE_ERR;
+    cifs_set_fid(info, cursor_read_u16le(cursor));
+    info->query_write_bytes = cursor_read_u16le(cursor);
+    return PROTO_OK;
+}
+
+/*
+ * Write and close response
+ * Word count 0x01
+ *
+ * Note: This command is deprecated.
+ * Clients SHOULD use the SMB_COM_WRITE_ANDX command.
+ *
+ * Parameters
+ * | USHORT              |
+ * | CountOfBytesWritten |
+ *
+ * No Data
+ */
+static enum proto_parse_status parse_write_and_close_response(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if(-1 == parse_and_check_word_count(cursor, 0x01)) return PROTO_PARSE_ERR;
+    info->response_write_bytes = cursor_read_u16le(cursor);
+    return PROTO_OK;
+}
+
 
 // SMB2 parse functions
 
@@ -4222,6 +4365,20 @@ static enum proto_parse_status smb_parse(struct cursor *cursor, struct cifs_prot
             case SMB_COM_WRITE_AND_UNLOCK:
                 if (info->is_query) status = parse_write_and_unlock_request(cursor, info);
                 else status = parse_write_and_unlock_response(cursor, info);
+                break;
+            case SMB_COM_READ_RAW:
+                if (info->is_query) status = parse_read_raw_request(cursor, info);
+                break;
+            case SMB_COM_SET_INFORMATION2:
+                if (info->is_query) status = parse_set_info2_request(cursor, info);
+                break;
+            case SMB_COM_QUERY_INFORMATION2:
+                if (info->is_query) status = parse_query_info2_request(cursor, info);
+                else status = parse_query_info2_response(cursor, info);
+                break;
+            case SMB_COM_WRITE_AND_CLOSE:
+                if (info->is_query) status = parse_write_and_close_request(cursor, info);
+                else status = parse_write_and_close_response(cursor, info);
                 break;
             default:
                 break;
