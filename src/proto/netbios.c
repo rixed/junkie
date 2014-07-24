@@ -27,6 +27,7 @@
 #include "junkie/proto/cifs.h"
 #include "junkie/proto/tcp.h"
 #include "junkie/tools/objalloc.h"
+#include "junkie/proto/streambuf.h"
 
 #undef LOG_CAT
 #define LOG_CAT proto_netbios_log_category
@@ -39,7 +40,10 @@ LOG_CATEGORY_DEF(proto_netbios);
 struct netbios_parser {
     struct parser parser;
     struct parser *msg_parser;
+    struct streambuf sbuf;
 };
+
+static parse_fun netbios_sbuf_parse;
 
 static int netbios_parser_ctor(struct netbios_parser *netbios_parser, struct proto *proto)
 {
@@ -47,6 +51,10 @@ static int netbios_parser_ctor(struct netbios_parser *netbios_parser, struct pro
     assert(proto == proto_netbios);
     if (0 != parser_ctor(&netbios_parser->parser, proto)) return -1;
     netbios_parser->msg_parser = NULL;
+    if (0 != streambuf_ctor(&netbios_parser->sbuf, netbios_sbuf_parse, 30000, NULL)) {
+        parser_dtor(&netbios_parser->parser);
+        return -1;
+    }
     return 0;
 }
 
@@ -66,6 +74,7 @@ static void netbios_parser_dtor(struct netbios_parser *netbios_parser)
     SLOG(LOG_DEBUG, "Destructing netbios_parser@%p", netbios_parser);
     parser_unref(&netbios_parser->msg_parser);
     parser_dtor(&netbios_parser->parser);
+    streambuf_dtor(&netbios_parser->sbuf);
 }
 
 static void netbios_parser_del(struct parser *parser)
@@ -87,7 +96,7 @@ static void netbios_proto_info_ctor(struct netbios_proto_info *info, struct pars
     proto_info_ctor(&info->info, parser, parent, header, payload);
 }
 
-static enum proto_parse_status netbios_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status netbios_sbuf_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct netbios_parser *netbios_parser = DOWNCAST(parser, parser, netbios_parser);
 
@@ -96,10 +105,9 @@ static enum proto_parse_status netbios_parse(struct parser *parser, struct proto
     if (cap_len < NETBIOS_HEADER_SIZE) return PROTO_TOO_SHORT;
 
     uint32_t len = READ_U32N((uint32_t*) packet) & 0x00ffffff;
-    if (len != (wire_len - NETBIOS_HEADER_SIZE)) {
-        SLOG(LOG_DEBUG, "Expected netbios length of %"PRIu32" while payload is %zu", len,
-                wire_len - NETBIOS_HEADER_SIZE);
-        return PROTO_PARSE_ERR;
+    if (len > (wire_len - NETBIOS_HEADER_SIZE)) {
+        streambuf_set_restart(&netbios_parser->sbuf, way, packet, true);
+        return PROTO_OK;
     }
 
     /* Parse */
@@ -123,6 +131,16 @@ static enum proto_parse_status netbios_parse(struct parser *parser, struct proto
     }
 
     (void)proto_parse(NULL, &info.info, way, next_packet, cap_len - NETBIOS_HEADER_SIZE, wire_len - NETBIOS_HEADER_SIZE, now, tot_cap_len, tot_packet);
+    return status;
+}
+
+static enum proto_parse_status netbios_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
+{
+    struct netbios_parser *netbios_parser = DOWNCAST(parser, parser, netbios_parser);
+
+    enum proto_parse_status const status = streambuf_add(&netbios_parser->sbuf, parser, parent,
+            way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
+
     return status;
 }
 

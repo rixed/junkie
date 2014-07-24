@@ -159,7 +159,10 @@ static int tds_parser_ctor(struct tds_parser *tds_parser, struct proto *proto)
     tds_parser->channels[1] = 0;
     tds_parser->pkt_number = 1;
     timeval_reset(&tds_parser->first_ts);
-    if (0 != streambuf_ctor(&tds_parser->sbuf, tds_sbuf_parse, 30000, NULL)) return -1;
+    if (0 != streambuf_ctor(&tds_parser->sbuf, tds_sbuf_parse, 30000, NULL)) {
+        parser_dtor(&tds_parser->parser);
+        return -1;
+    }
 
     return 0;
 }
