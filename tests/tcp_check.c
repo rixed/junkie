@@ -103,6 +103,66 @@ static void parse_check(void)
     parser_unref(&tcp_parser);
 }
 
+static struct packet {
+    unsigned way;
+    uint8_t const packet[32];
+} previous_ack_packets [] = {
+    {
+        .way = FROM_SERVER,
+        .packet = {
+//                                  SEQ                     ACK
+            0x01, 0xbd, 0xf6, 0xaa, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x80, 0x18, 0x2e, 0x96,
+            0xf0, 0x7c, 0x00, 0x00, 0x01, 0x01, 0x08, 0x0a, 0x61, 0xdc, 0x20, 0x48, 0x00, 0x2c, 0x59, 0x8e
+        },
+    }, {
+        .way = FROM_CLIENT,
+        .packet = {
+//                                  SEQ                     ACK
+            0xf6, 0xaa, 0x01, 0xbd, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x80, 0x18, 0x2e, 0x96,
+            0xf0, 0x7c, 0x00, 0x00, 0x01, 0x01, 0x08, 0x0a, 0x61, 0xdc, 0x20, 0x48, 0x00, 0x2c, 0x59, 0x8e
+        },
+    }, {
+        .way = FROM_CLIENT,
+        .packet = {
+//                                  SEQ                     ACK
+            0xf6, 0xaa, 0x01, 0xbd, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0x20, 0x80, 0x18, 0x2e, 0x96,
+            0xf0, 0x7c, 0x00, 0x00, 0x01, 0x01, 0x08, 0x0a, 0x61, 0xdc, 0x20, 0x48, 0x00, 0x2c, 0x59, 0x8e
+        },
+    }
+};
+
+unsigned previous_ack_called = 0;
+uint32_t previous_ack_expected_seqs[3] = {0x20, 0x10, 0x30};
+static void previous_ack_check(struct proto_subscriber unused_ *s, struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet, struct timeval const unused_ *now)
+{
+    struct tcp_proto_info const *const info = DOWNCAST(info_, info, tcp_proto_info);
+    previous_ack_called++;
+    assert(info->seq_num == previous_ack_expected_seqs[current_test]);
+    return;
+}
+
+static void parse_with_previous_ack(void)
+{
+    struct timeval now;
+    timeval_set_now(&now);
+    struct parser *tcp_parser = proto_tcp->ops->parser_new(proto_tcp);
+    assert(tcp_parser);
+    struct proto_subscriber sub;
+    hook_subscriber_ctor(&pkt_hook, &sub, previous_ack_check);
+
+    for (current_test = 0; current_test < NB_ELEMS(previous_ack_packets); current_test++) {
+        size_t const len = 32;
+        int ret = tcp_parse(tcp_parser, NULL, previous_ack_packets[current_test].way,
+                previous_ack_packets[current_test].packet,
+                len, 64, &now, len, previous_ack_packets[current_test].packet);
+        assert(0 == ret);
+        assert(previous_ack_called == current_test + 1);
+    }
+
+    hook_subscriber_dtor(&pkt_hook, &sub);
+    parser_unref(&tcp_parser);
+}
+
 int main(void)
 {
     log_init();
@@ -121,10 +181,12 @@ int main(void)
     tcp_init();
     mysql_init();
     log_set_level(LOG_DEBUG, NULL);
+    log_set_level(LOG_WARNING, "mutex");
     log_set_file("tcp_check.log");
 
     seqnum_test();
     parse_check();
+    parse_with_previous_ack();
     stress_check(proto_tcp);
 
     doomer_stop();

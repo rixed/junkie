@@ -476,10 +476,15 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
     assert(IS_SET_FOR_WAY(way, tcp_sub->origin));
     unsigned const offset = info.seq_num - tcp_sub->wl_origin[way];
     unsigned const next_offset = offset + packet_len + info.syn + info.fin;
-    unsigned const sync_offset = info.ack_num - tcp_sub->wl_origin[!way];  // we must not parse this one before we parsed (or timeouted) this one from wl[!way]
     // FIXME: Here the parser is chosen before we actually parse anything. If later the parser fails we cannot try another one.
     //        Choice of parser should be delayed until we start actual parse.
+    unsigned sync_offset = info.ack_num - tcp_sub->wl_origin[!way];  // we must not parse this one before we parsed (or timeouted) this one from wl[!way]
     bool const do_sync = info.ack && IS_SET_FOR_WAY(!way, tcp_sub->origin);
+    if (do_sync && info.ack_num < tcp_sub->wl_origin[!way]) {
+        SLOG(LOG_DEBUG, "Packet ack (%"PRIu32") before the wl started (origin %"PRIu32")",
+                info.ack_num, tcp_sub->wl_origin[!way]);
+        sync_offset = 0;
+    }
     if (tcp_sub->wl_origin[way] > info.seq_num) {
         SLOG(LOG_DEBUG, "Got a packet starting before wl origin :(");
         err = proto_parse(tcp_sub->mux_subparser.parser, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, packet_len, now, tot_cap_len, tot_packet);
