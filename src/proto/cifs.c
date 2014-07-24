@@ -4416,9 +4416,8 @@ static enum proto_parse_status parse_smb2_set_info_request(struct cursor *cursor
 
 
 static enum proto_parse_status smb2_parse(struct cursor *cursor, struct cifs_proto_info *info,
-        struct cifs_parser *cifs_parser, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
+        struct cifs_parser *cifs_parser)
 {
-    struct cursor start = *cursor;
     (void) cifs_parser;
     SLOG(LOG_DEBUG, "Parse of a smb2 message");
     if (cursor->cap_len < SMB2_HEADER_SIZE) return PROTO_TOO_SHORT;
@@ -4502,21 +4501,13 @@ static enum proto_parse_status smb2_parse(struct cursor *cursor, struct cifs_pro
             break;
     }
 
-    if (status != PROTO_OK) {
+    if (status != PROTO_OK)
         SLOG(LOG_DEBUG, "Problem when parsing cifs: %s", proto_parse_status_2_str(status));
-        return status;
-    }
 
-    status = proto_parse(NULL, &info->info, !info->is_query, NULL, 0, 0, now, tot_cap_len, tot_packet);
-    // recursive call in case of chained commands
-    if(smb2_hdr->next_command) {
-        if (PROTO_OK != (status = smb2_drop_input_padding(cursor, start.head, smb2_hdr->next_command)))
-            return status;
-    }
     return status;
 }
 
-static enum proto_parse_status smb_parse(struct cursor *cursor, struct cifs_proto_info *info, struct cifs_parser *cifs_parser, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status smb_parse(struct cursor *cursor, struct cifs_proto_info *info, struct cifs_parser *cifs_parser)
 {
     SLOG(LOG_DEBUG, "Parse of a smb message");
     if (cursor->cap_len < SMB_HEADER_SIZE) return PROTO_TOO_SHORT;
@@ -4711,12 +4702,11 @@ static enum proto_parse_status smb_parse(struct cursor *cursor, struct cifs_prot
                 break;
         }
     }
-    if (status != PROTO_OK) {
-        SLOG(LOG_DEBUG, "Problem when parsing cifs: %s", proto_parse_status_2_str(status));
-        return status;
-    }
 
-    return proto_parse(NULL, &info->info, !info->is_query, NULL, 0, 0, now, tot_cap_len, tot_packet);;
+    if (status != PROTO_OK)
+        SLOG(LOG_DEBUG, "Problem when parsing cifs: %s", proto_parse_status_2_str(status));
+
+    return status;
 }
 
 static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_info *parent,
@@ -4739,11 +4729,11 @@ static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_in
     switch (smb_version) {
         case 0xff534d42:
             cifs_proto_info_ctor(&info, &cifs_parser->parser, parent, SMB_HEADER_SIZE, wire_len - SMB_HEADER_SIZE, is_query, smb_version_1);
-            status = smb_parse(&cursor, &info, cifs_parser, now, tot_cap_len, tot_packet);
+            status = smb_parse(&cursor, &info, cifs_parser);
             break;
         case 0xfe534d42:
             cifs_proto_info_ctor(&info, &cifs_parser->parser, parent, SMB2_HEADER_SIZE, wire_len - SMB2_HEADER_SIZE, is_query, smb_version_2);
-            status = smb2_parse(&cursor, &info, cifs_parser, now, tot_cap_len, tot_packet);
+            status = smb2_parse(&cursor, &info, cifs_parser);
             break;
         default:
             return PROTO_PARSE_ERR;
@@ -4751,6 +4741,8 @@ static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_in
 
     SLOG(LOG_DEBUG, "Parsed result: %s, cifs proto %s", proto_parse_status_2_str(status)
             , cifs_info_2_str(&info.info));
+    if(status == PROTO_OK)
+        status = proto_parse(NULL, &info.info, !info.is_query, NULL, 0, 0, now, tot_cap_len, tot_packet);
     return status;
 }
 
