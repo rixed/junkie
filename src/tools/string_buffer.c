@@ -62,6 +62,16 @@ void string_buffer_ctor(struct string_buffer *buffer, char *head, size_t size)
     buffer->head[0] = '\0';
 }
 
+static void buffer_correct_null_position(struct string_buffer *buffer)
+{
+    buffer->head[buffer->pos] = '\0';
+    char *first_null = rawmemchr(buffer->head, '\0');
+    if (first_null != buffer->head + buffer->pos) {
+        buffer->pos = first_null - buffer->head;
+        SLOG(LOG_DEBUG, "Appended bytes contained a null, set buffer position to %zu", buffer->pos);
+    }
+}
+
 size_t buffer_append_unicode(struct string_buffer *buffer, iconv_t cd, char const *src, size_t src_len)
 {
     if (!buffer) return 0;
@@ -79,6 +89,7 @@ size_t buffer_append_unicode(struct string_buffer *buffer, iconv_t cd, char cons
     }
     size_t written_bytes = start_size - output_size;
     buffer->pos += written_bytes;
+    buffer_correct_null_position(buffer);
     SLOG(LOG_DEBUG, "Converted %zu bytes", written_bytes);
     return written_bytes;
 }

@@ -164,6 +164,23 @@ static void string_buffer_append_string_check(void)
     check_string_buffer(&buffer, "firstseco", true);
 }
 
+static void string_buffer_append_stringn_with_null_check(void)
+{
+    struct string_buffer buffer;
+    char buf[10];
+    memset(buf, 'x', sizeof(buf));
+    string_buffer_ctor(&buffer, buf, sizeof(buf));
+    size_t written = buffer_append_stringn(&buffer, "fir\0st", 6);
+    assert(written == 3);
+    check_string_buffer(&buffer, "fir", false);
+    written = buffer_append_stringn(&buffer, "sec", 3);
+    assert(written == 3);
+    check_string_buffer(&buffer, "firsec", false);
+    written = buffer_append_stringn(&buffer, "ove\0rflow", 9);
+    assert(written == 3);
+    check_string_buffer(&buffer, "firsecove", false);
+}
+
 static void string_buffer_append_stringn_check(void)
 {
     struct string_buffer buffer;
@@ -290,6 +307,7 @@ int main(void)
     string_buffer_rollback_incomplete_utf8_check();
     string_buffer_escape_quotes_check();
     string_buffer_printf_check();
+    string_buffer_append_stringn_with_null_check();
 
     log_fini();
     return EXIT_SUCCESS;
