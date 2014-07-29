@@ -39,6 +39,7 @@ char *buffer_get_string(struct string_buffer const *buffer)
 {
     assert(buffer->pos <= buffer->size);
     buffer->head[buffer->pos] = '\0';
+    assert(rawmemchr(buffer->head, '\0') == (buffer->head + buffer->pos));
     return buffer->head;
 }
 
