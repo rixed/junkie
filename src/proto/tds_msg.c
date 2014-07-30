@@ -1220,6 +1220,7 @@ static enum proto_parse_status tds_parse_env_change(struct cursor *cursor, struc
 {
     CHECK(4);
     size_t length = cursor_read_u16le(cursor);
+    if (length == 0) return PROTO_PARSE_ERR;
     SLOG(LOG_DEBUG, "Parsing Env change of length %zu", length);
     CHECK(length);
     enum env_change_token env_token = cursor_read_u8(cursor);
@@ -1328,6 +1329,7 @@ static enum proto_parse_status tds_result_token(struct tds_msg_parser *tds_msg_p
                     // Only take first error code / error msg
                     break;
                 }
+                CHECK(4 + 2);
                 uint_least32_t const error_code = cursor_read_u32le(&value);
                 sql_set_request_status(info, SQL_REQUEST_ERROR);
                 info->set_values |= SQL_ERROR_CODE;
