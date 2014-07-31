@@ -2259,11 +2259,11 @@ static enum proto_parse_status parse_open_andx_request(struct cifs_parser *cifs_
 {
     int word_count = parse_and_check_word_count(cursor, 0x0f);
     if(-1 == word_count) return PROTO_PARSE_ERR;
-    cursor_drop(cursor, 0x0f*2); // skip parameters
+    cursor_drop(cursor, word_count*2); // skip parameters
 
     int byte_count = parse_and_check_byte_count_superior(cursor, 0x2);
     if(-1 == byte_count) return PROTO_PARSE_ERR;
-    info->meta_write_bytes = 0x18*2 + byte_count;
+    info->meta_write_bytes = word_count*2 + byte_count;
 
     cursor_drop(cursor, compute_padding(cursor, 0, 2));
     PARSE_SMB_PATH(info);
@@ -4030,9 +4030,10 @@ static enum proto_parse_status parse_smb2_create_request(struct cursor *cursor,
             + 4 + 2 // CreateOptions + NameOffset
             );
     uint16_t name_length = cursor_read_u16le(cursor);
-    cursor_drop(cursor, 4 + 4); // CreateContextOffset + CreateContextsLength
+    cursor_drop(cursor, 4); // CreateContextOffset
+    uint32_t contexts_length = cursor_read_u32le(cursor);
     PARSE_SMB2_PATH(info, name_length);
-    info->meta_write_bytes = 57 + name_length;
+    info->meta_write_bytes = 57 + name_length + contexts_length;
     return PROTO_OK;
 }
 

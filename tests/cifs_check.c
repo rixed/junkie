@@ -1733,7 +1733,7 @@ static struct parse_test {
             .set_values = CIFS_PATH,
             .path = "\\testsearch\\t000-0.txt",
             .tree_id = 0x800,
-            .meta_write_bytes = 0x5f,
+            .meta_write_bytes = 0x4d,
         }
     },
 
