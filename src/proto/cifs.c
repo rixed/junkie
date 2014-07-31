@@ -1654,9 +1654,9 @@ static enum proto_parse_status parse_tree_connect_and_request_query(struct cifs_
     return PROTO_OK;
 }
 
-static enum proto_parse_status drop_parameter_padding(struct cursor *cursor, uint8_t const *start_cursor, uint8_t parameter_offset)
+static enum proto_parse_status drop_parameter_padding(struct cursor *cursor, size_t header_size, uint8_t const *start_cursor, uint8_t parameter_offset)
 {
-    size_t pos = SMB_HEADER_SIZE + cursor->head - start_cursor;
+    size_t pos = header_size + cursor->head - start_cursor;
     if (pos > parameter_offset) {
         SLOG(LOG_DEBUG, "Position is greater than parameter offset (%"PRIu64" > %"PRIu8")", pos, parameter_offset);
         return PROTO_PARSE_ERR;
@@ -1665,19 +1665,6 @@ static enum proto_parse_status drop_parameter_padding(struct cursor *cursor, uin
     cursor_drop(cursor, padding);
     return PROTO_OK;
 }
-
-static enum proto_parse_status smb2_drop_input_padding(struct cursor *cursor, uint8_t const *start_cursor, uint8_t input_offset)
-{
-    size_t pos = SMB2_HEADER_SIZE + cursor->head - start_cursor;
-    if (pos > input_offset) {
-        SLOG(LOG_DEBUG, "Position is greater than parameter offset (%"PRIu64" > %"PRIu8")", pos, input_offset);
-        return PROTO_PARSE_ERR;
-    }
-    uint8_t padding = input_offset - pos;
-    cursor_drop(cursor, padding);
-    return PROTO_OK;
-}
-
 
 /*
  * Trans2 request
@@ -1719,7 +1706,7 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
 
     if (parse_and_check_byte_count_superior(cursor, 0) == -1) return PROTO_PARSE_ERR;
     enum proto_parse_status status = PROTO_OK;
-    if (PROTO_OK != (status = drop_parameter_padding(cursor, start_cursor, parameter_offset)))
+    if (PROTO_OK != (status = drop_parameter_padding(cursor, SMB_HEADER_SIZE, start_cursor, parameter_offset)))
         return status;
 
     switch (info->subcommand.trans2_subcmd) {
@@ -1737,7 +1724,6 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
          */
         case SMB_TRANS2_OPEN2:
             {
-                CHECK(2 + 2 + 2 + 2 + 4 + 2 + 4 + 10);
                 // skip Flags, AccessMode, Reserved1, FileAttributes, CreationTime
                 //      OpenMode, AllocationSize, Reserved[5], FileName
                 cursor_drop(cursor, 2 + 2 + 2 + 2 + 4 + 2 + 4 + 10);
@@ -1887,7 +1873,7 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
     if (parse_and_check_byte_count_superior(cursor, 0) == -1) return PROTO_PARSE_ERR;
 
     enum proto_parse_status status = PROTO_OK;
-    if (PROTO_OK != (status = drop_parameter_padding(cursor, start_cursor, parameter_offset)))
+    if (PROTO_OK != (status = drop_parameter_padding(cursor, SMB_HEADER_SIZE, start_cursor, parameter_offset)))
         return status;
 
     uint8_t data_padding = data_offset - parameter_offset;
@@ -2385,7 +2371,7 @@ static enum proto_parse_status parse_nt_transact_request(struct cifs_parser *cif
              */
             {
                 // skip to the NT_Trans_Parameters
-                if (PROTO_OK != (status = drop_parameter_padding(cursor, start_cursor, parameter_offset)))
+                if (PROTO_OK != (status = drop_parameter_padding(cursor, SMB_HEADER_SIZE, start_cursor, parameter_offset)))
                     return status;
 
                 // skip until the SecurityDescriptorLength
@@ -2408,7 +2394,7 @@ static enum proto_parse_status parse_nt_transact_request(struct cifs_parser *cif
              */
             {
                 // skip to the NT_Trans_Parameters
-                if (PROTO_OK != (status = drop_parameter_padding(cursor, start_cursor, parameter_offset)))
+                if (PROTO_OK != (status = drop_parameter_padding(cursor, SMB_HEADER_SIZE, start_cursor, parameter_offset)))
                     return status;
                 CHECK(2);
                 cifs_set_fid(info, cursor_read_u16le(cursor));
@@ -2426,7 +2412,7 @@ static enum proto_parse_status parse_nt_transact_request(struct cifs_parser *cif
              */
             {
                 // skip to the NT_Trans_Parameters
-                if (PROTO_OK != (status = drop_parameter_padding(cursor, start_cursor, parameter_offset)))
+                if (PROTO_OK != (status = drop_parameter_padding(cursor, SMB_HEADER_SIZE, start_cursor, parameter_offset)))
                     return status;
                 CHECK(2);
                 cifs_set_fid(info, cursor_read_u16le(cursor));
@@ -2720,7 +2706,7 @@ static enum proto_parse_status parse_transaction_response(struct cifs_parser *ci
     uint16_t data_count = cursor_read_u16le(cursor);
 
     enum proto_parse_status status = PROTO_OK;
-    if (PROTO_OK != (status = drop_parameter_padding(cursor, start_cursor, parameter_offset)))
+    if (PROTO_OK != (status = drop_parameter_padding(cursor, SMB_HEADER_SIZE, start_cursor, parameter_offset)))
         return status;
 
     switch (cifs_parser->subcommand.transaction_subcmd) {
@@ -4239,7 +4225,7 @@ static enum proto_parse_status parse_smb2_ioctl_request(struct cifs_parser *cifs
             {
                 // skip to the input buffer
                 enum proto_parse_status status = PROTO_OK;
-                if (PROTO_OK != (status = smb2_drop_input_padding(cursor, start_cursor, input_offset)))
+                if (PROTO_OK != (status = drop_parameter_padding(cursor, SMB2_HEADER_SIZE, start_cursor, input_offset)))
                     return status;
                 // skip MaxReferralLevel
                 CHECK(2);
@@ -4259,7 +4245,7 @@ static enum proto_parse_status parse_smb2_ioctl_request(struct cifs_parser *cifs
             {
                 // skip to the input buffer
                 enum proto_parse_status status = PROTO_OK;
-                if (PROTO_OK != (status = smb2_drop_input_padding(cursor, start_cursor, input_offset)))
+                if (PROTO_OK != (status = drop_parameter_padding(cursor, SMB2_HEADER_SIZE, start_cursor, input_offset)))
                     return status;
 
                 CHECK(8 + 4 + 1 + 1);
