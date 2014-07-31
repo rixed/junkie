@@ -1527,6 +1527,10 @@ static int parse_and_check_byte_count_superior(struct cursor *cursor, uint8_t mi
     cifs_set_fid(info, cursor_read_u64le(cursor)); \
     cursor_drop(cursor, 8); // Rest of file id
 
+#define CHECK_AND_DROP_WITH_PADDING(NUM_BYTES) \
+        CHECK_AND_DROP(NUM_BYTES + compute_padding(cursor, NUM_BYTES, 2));
+
+
 /*
  * Negociate response:
  * Word count: 0x11
@@ -1560,7 +1564,7 @@ static enum proto_parse_status parse_negociate_response(struct cifs_parser *cifs
     return PROTO_OK;
 }
 
-static uint8_t compute_padding(struct cursor *cursor, uint8_t offset, size_t alignment)
+static size_t compute_padding(struct cursor *cursor, uint8_t offset, size_t alignment)
 {
     return (cursor->cap_len - offset) % alignment;
 }
@@ -1726,9 +1730,7 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
             {
                 // skip Flags, AccessMode, Reserved1, FileAttributes, CreationTime
                 //      OpenMode, AllocationSize, Reserved[5], FileName
-                cursor_drop(cursor, 2 + 2 + 2 + 2 + 4 + 2 + 4 + 10);
-                cursor_drop(cursor, compute_padding(cursor, 0, 2));
-
+                CHECK_AND_DROP_WITH_PADDING(2 + 2 + 2 + 2 + 4 + 2 + 4 + 10);
                 PARSE_SMB_PATH(info);
                 info->meta_write_bytes = parameter_count + data_count;
             }
@@ -1744,8 +1746,7 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
              * | ExtendedAttributeList |
              */
             {
-                CHECK(4);
-                cursor_drop(cursor, 4 + compute_padding(cursor, 4, 2));
+                CHECK_AND_DROP_WITH_PADDING(4);
                 PARSE_SMB_PATH(info);
                 info->meta_write_bytes = data_count;
             }
@@ -1760,15 +1761,13 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
             break;
         case SMB_TRANS2_QUERY_PATH_INFORMATION:
             {
-                CHECK(2 + 4);
-                cursor_drop(cursor, 2 + 4);
+                CHECK_AND_DROP_WITH_PADDING(2 + 4);
                 PARSE_SMB_PATH(info);
             }
             break;
         case SMB_TRANS2_FIND_FIRST2:
             {
-                CHECK(2 + 2 + 2 + 2 + 4);
-                cursor_drop(cursor, 2 + 2 + 2 + 2 + 4);
+                CHECK_AND_DROP_WITH_PADDING(2 + 2 + 2 + 2 + 4);
                 PARSE_SMB_PATH(info);
             }
             break;
@@ -1813,15 +1812,13 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
             break;
         case SMB_TRANS2_GET_DFS_REFERRAL:
             {
-                CHECK(2);
-                cursor_drop(cursor, 2);
+                CHECK_AND_DROP_WITH_PADDING(2);
                 PARSE_SMB_PATH(info);
             }
             break;
         case SMB_TRANS2_FIND_NEXT2:
             {
-                CHECK(2 + 2 + 2 + 2 + 4);
-                cursor_drop(cursor, 2 + 2 + 2 + 2 + 4);
+                CHECK_AND_DROP_WITH_PADDING(2 + 2 + 2 + 2 + 4);
                 PARSE_SMB_PATH(info);
             }
             break;
@@ -1912,8 +1909,7 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
             {
                 // Parameters
                 CHECK(data_padding);
-                cursor_drop(cursor, 2); // ea error offset
-                cursor_drop(cursor, data_padding - 2);
+                cursor_drop(cursor, data_padding);
                 switch (cifs_parser->level_of_interest) {
                     case SMB_POSIX_PATH_OPEN:
                         {
@@ -2375,13 +2371,12 @@ static enum proto_parse_status parse_nt_transact_request(struct cifs_parser *cif
                     return status;
 
                 // skip until the SecurityDescriptorLength
-                cursor_drop(cursor, 4 + 4 + 4 + 8 + 4 + 4 + 4 + 4);
+                CHECK_AND_DROP(4 + 4 + 4 + 8 + 4 + 4 + 4 + 4);
                 uint32_t security_desc_length = cursor_read_u32le(cursor);
                 uint32_t ea_info_length = cursor_read_u32le(cursor);
                 info->meta_write_bytes = security_desc_length + ea_info_length;
                 // skip until the Name
-                int skipped = 4 + 4 + 1;
-                cursor_drop(cursor, skipped + compute_padding(cursor, skipped, 2));
+                CHECK_AND_DROP_WITH_PADDING(4 + 4 + 1);
 
                 PARSE_SMB_PATH(info);
             }
@@ -2656,8 +2651,7 @@ static enum proto_parse_status parse_transaction_request(struct cifs_parser *cif
              * \PIPE\<pipename>.
              */
             {
-                cursor_drop(cursor, 2 + 2 + compute_padding(cursor, 2+2, 2)); // drop the end of the setup, and drop bytecount
-
+                CHECK_AND_DROP_WITH_PADDING(2 + 2); // drop the end of the setup, and drop bytecount
                 PARSE_SMB_PATH(info);
             }
             break;
@@ -2730,11 +2724,8 @@ static enum proto_parse_status parse_transaction_response(struct cifs_parser *ci
              * | CurrentInstances | PipeNameLength | PipeName   |
              */
             {
-                size_t skipped = 2 + 2 + 1 + 1 + 1;
-                size_t padding = compute_padding(cursor, skipped, 2);
-                CHECK(skipped + padding);
                 // skip to the smb string
-                cursor_drop(cursor, skipped + padding);
+                CHECK_AND_DROP_WITH_PADDING(2 + 2 + 1 + 1 + 1);
                 PARSE_SMB_PATH(info);
                 info->meta_read_bytes = data_count;
             }
