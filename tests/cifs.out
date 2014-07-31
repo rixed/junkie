@@ -9,4 +9,4 @@ Netbios: head_len=4, payload=35
 CIFS: head_len=32, payload=3, version=SMB1, command=SMB_COM_DELETE, status=SMB_STATUS_OBJECT_NAME_NOT_FOUND, query_write_bytes=0, response_read_bytes=0, response_write_bytes=0, meta_read_bytes=0, meta_write_bytes=0
 -- pcap/smb/splitted_smb.pcap --
 Netbios: head_len=4, payload=4416
-CIFS: head_len=32, payload=4384, version=SMB1, command=SMB_COM_TRANSACTION2, status=SMB_STATUS_OK, query_write_bytes=0, response_read_bytes=0, response_write_bytes=0, meta_read_bytes=0, meta_write_bytes=0
+CIFS: head_len=32, payload=4384, version=SMB1, command=SMB_COM_TRANSACTION2, status=SMB_STATUS_OK, fid=0xecb9, query_write_bytes=0, response_read_bytes=0, response_write_bytes=0, meta_read_bytes=0, meta_write_bytes=0
