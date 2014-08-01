@@ -1232,7 +1232,7 @@ static char const *smb_status_2_str(enum smb_status status)
 static char const *cifs_info_2_str(struct proto_info const *info_)
 {
     struct cifs_proto_info const *info = DOWNCAST(info_, info, cifs_proto_info);
-    char *str = tempstr_printf("%s, version=%s, command=%s, status=%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s, query_write_bytes=%"PRIu32", response_read_bytes=%"PRIu32", response_write_bytes=%"PRIu32", meta_read_bytes=%"PRIu32", meta_write_bytes=%"PRIu32,
+    char *str = tempstr_printf("%s, version=%s, command=%s, status=%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s, tree_id=%"PRIu32", query_write_bytes=%"PRIu32", response_read_bytes=%"PRIu32", response_write_bytes=%"PRIu32", meta_read_bytes=%"PRIu32", meta_write_bytes=%"PRIu32,
             proto_info_2_str(info_),
             info->version == 1 ? "SMB1" : "SMB2",
             info->version == 1 ? smb_command_2_str(info->command.smb_command) :
@@ -1242,6 +1242,8 @@ static char const *cifs_info_2_str(struct proto_info const *info_)
             info->set_values & CIFS_DOMAIN ? info->domain : "",
             info->set_values & CIFS_USER ? ", user=" : "",
             info->set_values & CIFS_USER ? info->user : "",
+            info->set_values & CIFS_TREE ? ", tree=" : "",
+            info->set_values & CIFS_TREE ? info->tree : "",
             info->set_values & CIFS_PATH ? ", path=" : "",
             info->set_values & CIFS_PATH ? info->path : "",
             info->set_values & CIFS_TRANS2_SUBCMD ? ", trans2_subcmd=" : "",
@@ -1258,6 +1260,7 @@ static char const *cifs_info_2_str(struct proto_info const *info_)
             info->flag_file &  CIFS_FILE_DIRECTORY ? ", directory" : "",
             info->flag_file &  CIFS_FILE_UNLINK ? ", unlink" : "",
             info->is_query ? ", query" : "",
+            info->tree_id,
             info->query_write_bytes, info->response_read_bytes,
             info->response_write_bytes, info->meta_read_bytes, info->meta_write_bytes);
     return str;
@@ -4076,6 +4079,7 @@ static enum proto_parse_status parse_smb2_tree_connect_request(struct cifs_parse
     uint16_t length = cursor_read_u16le(cursor);
     CHECK(length);
     PARSE_SMB2_TREE(info, length);
+    SLOG(LOG_DEBUG, "Found tree path %s", info->tree);
     return PROTO_OK;
 }
 

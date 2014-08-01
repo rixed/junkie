@@ -2819,7 +2819,7 @@ static struct parse_test {
     },
 
     {
-        .name = "SMB2_NEGOCIATE - response",
+        .name = "SMB2_COM_NEGOCIATE - response",
         .packet = (uint8_t const []) {
             0xfe, 0x53, 0x4d, 0x42, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00,
             0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -2903,8 +2903,10 @@ static int compare_expected_cifs(struct cifs_proto_info const *const info,
         CHECK_STR(info->driver, expected->driver);
     if (VALUES_ARE_SET(info, CIFS_OS))
         CHECK_STR(info->os, expected->os);
-    if (VALUES_ARE_SET(info, CIFS_PATH))
 
+    if (VALUES_ARE_SET(info, CIFS_TREE))
+        CHECK_STR(info->tree, expected->tree);
+    if (VALUES_ARE_SET(info, CIFS_PATH))
         CHECK_STR(info->path, expected->path);
     if (VALUES_ARE_SET(info, CIFS_TRANS2_SUBCMD))
         CHECK_INT(info->subcommand.trans2_subcmd, expected->subcommand.trans2_subcmd);
