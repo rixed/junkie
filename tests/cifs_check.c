@@ -1135,9 +1135,10 @@ static struct parse_test {
         .expected = {
             .info = { .head_len = SMB2_HEADER_SIZE, .payload = 0x17c - SMB2_HEADER_SIZE },
             .command.smb2_command = SMB2_COM_SESSION_SETUP,
-            .set_values = CIFS_DOMAIN | CIFS_USER,
+            .set_values = CIFS_DOMAIN | CIFS_USER | CIFS_HOSTNAME,
             .user = "toto",
             .domain = "WORKGROUP",
+            .hostname = "CCELLIER",
             .version = smb_version_2,
         }
     },
@@ -2840,6 +2841,7 @@ static int compare_expected_cifs(struct cifs_proto_info const *const info,
     CHECK_SET_VALUE(info, expected, CIFS_TRANS2_SUBCMD);
     CHECK_SET_VALUE(info, expected, CIFS_LEVEL_OF_INTEREST);
     CHECK_SET_VALUE(info, expected, CIFS_FID);
+    CHECK_SET_VALUE(info, expected, CIFS_HOSTNAME);
 
     CHECK_INT(info->tree_id, expected->tree_id);
     CHECK_INT(info->version, expected->version);
@@ -2854,6 +2856,8 @@ static int compare_expected_cifs(struct cifs_proto_info const *const info,
         CHECK_STR(info->domain, expected->domain);
     if (VALUES_ARE_SET(info, CIFS_USER))
         CHECK_STR(info->user, expected->user);
+    if (VALUES_ARE_SET(info, CIFS_HOSTNAME))
+        CHECK_STR(info->hostname, expected->hostname);
     if (VALUES_ARE_SET(info, CIFS_PATH))
         CHECK_STR(info->path, expected->path);
     if (VALUES_ARE_SET(info, CIFS_TRANS2_SUBCMD))

@@ -1215,9 +1215,12 @@ enum smb_version {
 };
 
 #define CIFS_DOMAIN_SIZE 256
+#define CIFS_OS_SIZE 128
 #define CIFS_USER_SIZE 256
 #define CIFS_PATH_SIZE 512
 #define CIFS_TREE_SIZE 256
+#define CIFS_HOSTNAME_SIZE 128
+#define CIFS_DRIVER_SIZE 128
 
 struct cifs_proto_info {
     struct proto_info info;
@@ -1236,11 +1239,17 @@ struct cifs_proto_info {
 #define         CIFS_TRANSACTION_SUBCMD                0x0040
 #define         CIFS_NT_TRANSACT_SUBCMD                0x0080
 #define         CIFS_TREE                              0x0100
+#define         CIFS_OS                                0x0200
+#define         CIFS_HOSTNAME                          0x0400
+#define         CIFS_DRIVER                            0x0800
     unsigned set_values;
     char user[CIFS_USER_SIZE];
     char domain[CIFS_DOMAIN_SIZE];
     char path[CIFS_PATH_SIZE];
     char tree[CIFS_PATH_SIZE];
+    char os[CIFS_OS_SIZE];
+    char hostname[CIFS_HOSTNAME_SIZE];
+    char driver[CIFS_DRIVER_SIZE];
 
     union smb_subcommand {
         enum smb_trans2_subcommand trans2_subcmd;

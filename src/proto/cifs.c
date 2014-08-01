@@ -3921,10 +3921,14 @@ static enum proto_parse_status parse_ntlm_message(struct cursor *cursor, struct 
     uint16_t user_length = cursor_read_u16le(cursor);
     cursor_drop(cursor, 2);
     uint32_t user_offset = cursor_read_u32le(cursor);
-    assert(user_offset == (domain_offset + domain_length));
+    uint16_t workstation_length = cursor_read_u16le(cursor);
+    cursor_drop(cursor, 2);
+    uint32_t workstation_offset = cursor_read_u32le(cursor);
+
+    assert(workstation_offset == (user_offset + user_length));
 
     size_t current_position = cursor->head - start;
-    CHECK(user_offset + user_length - current_position);
+    CHECK(workstation_offset + workstation_length - current_position);
     cursor_drop(cursor, domain_offset - current_position);
     if (-1 == cursor_read_fixed_utf16(cursor, get_iconv(), info->domain, sizeof(info->domain), domain_length))
         return PROTO_PARSE_ERR;
@@ -3934,6 +3938,10 @@ static enum proto_parse_status parse_ntlm_message(struct cursor *cursor, struct 
         return PROTO_PARSE_ERR;
     info->set_values |= CIFS_USER;
     SLOG(LOG_DEBUG, "Parsed user %s", info->user);
+    if (-1 == cursor_read_fixed_utf16(cursor, get_iconv(), info->hostname, sizeof(info->hostname), workstation_length))
+        return PROTO_PARSE_ERR;
+    info->set_values |= CIFS_HOSTNAME;
+    SLOG(LOG_DEBUG, "Parsed hostname %s", info->hostname);
 
     return PROTO_OK;
 }
