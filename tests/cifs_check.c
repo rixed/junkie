@@ -78,10 +78,9 @@ static struct parse_test {
             .info = { .head_len = SMB_HEADER_SIZE, .payload = 0xe6 - SMB_HEADER_SIZE},
             .command.smb_command = SMB_COM_SESSION_SETUP_ANDX,
             .user = "root",
-            .domain = "",
             .driver = "CIFS VFS Client for Linux",
             .os = "Linux version 3.2.0-4-amd64",
-            .set_values = CIFS_USER | CIFS_DOMAIN | CIFS_DRIVER | CIFS_OS,
+            .set_values = CIFS_USER | CIFS_DRIVER | CIFS_OS,
             .status = SMB_STATUS_OK,
             .version = smb_version_1,
         },
@@ -104,7 +103,8 @@ static struct parse_test {
             .info = { .head_len = SMB_HEADER_SIZE, .payload = 0x60 - SMB_HEADER_SIZE},
             .command.smb_command = SMB_COM_SESSION_SETUP_ANDX,
             .domain = "WORKGROUP",
-            .set_values = CIFS_DOMAIN,
+            .os = "Unix",
+            .set_values = CIFS_DOMAIN | CIFS_SERVER_OS,
             .status = SMB_STATUS_OK,
             .version = smb_version_1,
         },
@@ -1396,8 +1396,9 @@ static struct parse_test {
         .way = FROM_SERVER,
         .expected = {
             .info = { .head_len = SMB_HEADER_SIZE, .payload = 0x60 - SMB_HEADER_SIZE },
-            .set_values = CIFS_DOMAIN,
+            .set_values = CIFS_DOMAIN | CIFS_SERVER_OS,
             .command.smb_command = SMB_COM_SESSION_SETUP_ANDX,
+            .os = "Unix",
             .status = SMB_STATUS_OK,
             .version = smb_version_1,
             .domain = "WORKGROUP",
@@ -2817,9 +2818,33 @@ static struct parse_test {
         },
     },
 
-
-
-
+    {
+        .name = "SMB2_NEGOCIATE - response",
+        .packet = (uint8_t const []) {
+            0xfe, 0x53, 0x4d, 0x42, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00,
+            0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x41, 0x00, 0x01, 0x00, 0x10, 0x02, 0x00, 0x00, 0x72, 0x61, 0x63, 0x6b, 0x73, 0x74, 0x61, 0x74,
+            0x69, 0x6f, 0x6e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00,
+            0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x2a, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x60, 0x28, 0x06, 0x06, 0x2b, 0x06, 0x01, 0x05, 0x05, 0x02, 0xa0, 0x1e, 0x30, 0x1c, 0xa0, 0x0e,
+            0x30, 0x0c, 0x06, 0x0a, 0x2b, 0x06, 0x01, 0x04, 0x01, 0x82, 0x37, 0x02, 0x02, 0x0a, 0xa3, 0x0a,
+            0x30, 0x08, 0xa0, 0x06, 0x1b, 0x04, 0x4e, 0x4f, 0x4e, 0x45
+        },
+        .size = 0xaa,
+        .ret = PROTO_OK,
+        .way = FROM_SERVER,
+        .expected = {
+            .info = { .head_len = SMB2_HEADER_SIZE, .payload = 0xaa - SMB2_HEADER_SIZE },
+            .command.smb2_command = SMB2_COM_NEGOTIATE,
+            .set_values = CIFS_SERVER_HOSTNAME,
+            .status = SMB_STATUS_OK,
+            .version = smb_version_2,
+            .hostname = "rackstation",
+        },
+    },
 
 };
 
@@ -2847,6 +2872,9 @@ static int compare_expected_cifs(struct cifs_proto_info const *const info,
     CHECK_SET_VALUE(info, expected, CIFS_HOSTNAME);
     CHECK_SET_VALUE(info, expected, CIFS_DRIVER);
     CHECK_SET_VALUE(info, expected, CIFS_OS);
+    CHECK_SET_VALUE(info, expected, CIFS_SERVER_HOSTNAME);
+    CHECK_SET_VALUE(info, expected, CIFS_SERVER_DRIVER);
+    CHECK_SET_VALUE(info, expected, CIFS_SERVER_OS);
 
     CHECK_INT(info->tree_id, expected->tree_id);
     CHECK_INT(info->version, expected->version);
@@ -2861,6 +2889,14 @@ static int compare_expected_cifs(struct cifs_proto_info const *const info,
         CHECK_STR(info->domain, expected->domain);
     if (VALUES_ARE_SET(info, CIFS_USER))
         CHECK_STR(info->user, expected->user);
+
+    if (VALUES_ARE_SET(info, CIFS_SERVER_HOSTNAME))
+        CHECK_STR(info->hostname, expected->hostname);
+    if (VALUES_ARE_SET(info, CIFS_SERVER_DRIVER))
+        CHECK_STR(info->driver, expected->driver);
+    if (VALUES_ARE_SET(info, CIFS_SERVER_OS))
+        CHECK_STR(info->os, expected->os);
+
     if (VALUES_ARE_SET(info, CIFS_HOSTNAME))
         CHECK_STR(info->hostname, expected->hostname);
     if (VALUES_ARE_SET(info, CIFS_DRIVER))
@@ -2868,6 +2904,7 @@ static int compare_expected_cifs(struct cifs_proto_info const *const info,
     if (VALUES_ARE_SET(info, CIFS_OS))
         CHECK_STR(info->os, expected->os);
     if (VALUES_ARE_SET(info, CIFS_PATH))
+
         CHECK_STR(info->path, expected->path);
     if (VALUES_ARE_SET(info, CIFS_TRANS2_SUBCMD))
         CHECK_INT(info->subcommand.trans2_subcmd, expected->subcommand.trans2_subcmd);

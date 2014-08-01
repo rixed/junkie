@@ -1215,12 +1215,12 @@ enum smb_version {
 };
 
 #define CIFS_DOMAIN_SIZE 256
-#define CIFS_OS_SIZE 128
 #define CIFS_USER_SIZE 256
 #define CIFS_PATH_SIZE 512
 #define CIFS_TREE_SIZE 256
 #define CIFS_HOSTNAME_SIZE 128
 #define CIFS_DRIVER_SIZE 128
+#define CIFS_OS_SIZE 128
 
 struct cifs_proto_info {
     struct proto_info info;
@@ -1242,6 +1242,9 @@ struct cifs_proto_info {
 #define         CIFS_OS                                0x0200
 #define         CIFS_HOSTNAME                          0x0400
 #define         CIFS_DRIVER                            0x0800
+#define         CIFS_SERVER_OS                         0x1000
+#define         CIFS_SERVER_HOSTNAME                   0x2000
+#define         CIFS_SERVER_DRIVER                     0x4000
     unsigned set_values;
     char user[CIFS_USER_SIZE];
     char domain[CIFS_DOMAIN_SIZE];

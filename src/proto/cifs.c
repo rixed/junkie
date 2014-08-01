@@ -1499,17 +1499,32 @@ static int parse_and_check_byte_count_superior(struct cursor *cursor, uint8_t mi
 
 // Parse functions
 
+#define PARSE_SMB_OS(info, way) \
+    CHECK(2);\
+    if (parse_smb_string(cifs_parser, cursor, info->os, sizeof(info->os)) < 0) \
+        return PROTO_PARSE_ERR; \
+    info->set_values |= way == FROM_CLIENT ? CIFS_OS : CIFS_SERVER_OS;
+
+#define PARSE_SMB_DRIVER(info, way) \
+    CHECK(2);\
+    if (parse_smb_string(cifs_parser, cursor, info->driver, sizeof(info->driver)) < 0) \
+        return PROTO_PARSE_ERR; \
+    info->set_values |= way == FROM_CLIENT ? CIFS_DRIVER : CIFS_SERVER_OS;
+
 #define PARSE_SMB_DOMAIN(info) \
+    CHECK(2);\
     if (parse_smb_string(cifs_parser, cursor, info->domain, sizeof(info->domain)) < 0) \
         return PROTO_PARSE_ERR; \
     info->set_values |= CIFS_DOMAIN;
 
 #define PARSE_SMB_USER(info) \
+    CHECK(2);\
     if (parse_smb_string(cifs_parser, cursor, info->user, sizeof(info->user)) < 0) \
         return PROTO_PARSE_ERR; \
     info->set_values |= CIFS_USER;
 
 #define PARSE_SMB_PATH(info) \
+    CHECK(2);\
     if (parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0) \
         return PROTO_PARSE_ERR; \
     info->set_values |= CIFS_PATH;
@@ -1597,16 +1612,12 @@ static enum proto_parse_status parse_session_setup_andx_query(struct cifs_parser
     uint8_t padding = compute_padding(cursor, oem_password_len + unicode_password_len, 2);
     if (parse_and_check_byte_count_superior(cursor, oem_password_len + unicode_password_len + padding) == -1) return PROTO_PARSE_ERR;
     cursor_drop(cursor, oem_password_len + unicode_password_len + padding);
-    CHECK(2);
     PARSE_SMB_USER(info);
     SLOG(LOG_DEBUG, "Found user %s", info->user);
-    CHECK(2);
     DROP_SMB_STRING(); // We don't care of domain request
-    CHECK(2);
-    PARSE_SMB_OS(info);
+    PARSE_SMB_OS(info, FROM_CLIENT);
     SLOG(LOG_DEBUG, "Found os %s", info->os);
-    CHECK(2);
-    PARSE_SMB_DRIVER(info);
+    PARSE_SMB_DRIVER(info, FROM_CLIENT);
     SLOG(LOG_DEBUG, "Found driver %s", info->driver);
     return PROTO_OK;
 }
@@ -1634,8 +1645,10 @@ static enum proto_parse_status parse_session_setup_andx_response(struct cifs_par
     if (parse_and_check_byte_count_superior(cursor, 0) == -1) return PROTO_PARSE_ERR;
     uint8_t padding = compute_padding(cursor, 0, 2);
     CHECK_AND_DROP(padding);
-    DROP_SMB_STRING(); // native os
-    DROP_SMB_STRING(); // native lan man
+    PARSE_SMB_OS(info, FROM_SERVER);
+    SLOG(LOG_DEBUG, "Found os %s", info->os);
+    PARSE_SMB_DRIVER(info, FROM_SERVER);
+    SLOG(LOG_DEBUG, "Found driver %s", info->driver);
     PARSE_SMB_DOMAIN(info);
     SLOG(LOG_DEBUG, "Found domain %s", info->domain);
     return PROTO_OK;
@@ -3959,6 +3972,28 @@ static enum proto_parse_status parse_ntlm_message(struct cursor *cursor, struct 
 /**
  * Session setup request
  *
+ * | Structure Size = 65 | SecurityMode | DialectRevision | Reserved | ServerGuid | Capabilities |
+ * | 2 bytes             | 2 bytes      | 2 byte2         | 2 bytes  | 16 bytes   | 4 bytes      |
+ *
+ * | MaxTransactSize | MaxReadSize | MaxWriteSize | SystemTime | ServerStartTime | SecurityBufferOffset |
+ * | 4 bytes         | 4 bytes     | 4 bytes      | 8 bytes    | 8 bytes         | 2 bytes              |
+ *
+ * | SecurityBufferLength | Reserved2 | Buffer   |
+ * | 2 bytes              | 4 bytes   | variable |
+ */
+static enum proto_parse_status parse_smb2_negociate_response(struct cifs_parser unused_ *cifs_parser,
+        struct cursor *cursor, struct cifs_proto_info *info)
+{
+    READ_AND_CHECK_STRUCTURE_SIZE(65);
+    cursor_drop(cursor, 2 + 2 + 2); // SecurityMode + DialectRevision + Reserved
+    memcpy(info->hostname, cursor->head, sizeof(info->hostname));
+    info->set_values |= CIFS_SERVER_HOSTNAME;
+    return PROTO_OK;
+}
+
+/**
+ * Session setup request
+ *
  * | Structure Size = 25 | Flags  | SecurityMode | Capabilities | Channel | SecurityBufferOffset |
  * | 2 bytes             | 1 byte | 1 byte       | 4 bytes      | 4 bytes | 2 bytes              |
  *
@@ -4468,7 +4503,7 @@ struct smb_command_parser smb_command_parsers[255] = { };
 
 struct smb_command_parser smb2_command_parsers[19] = {
 //    SMB2_COM_NEGOTIATE,
-    { NULL, NULL },
+    { NULL, parse_smb2_negociate_response },
 //    SMB2_COM_SESSION_SETUP,
     { parse_smb2_session_setup_request, NULL },
 //    SMB2_COM_LOGOFF,
