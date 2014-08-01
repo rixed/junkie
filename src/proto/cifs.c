@@ -1596,9 +1596,17 @@ static enum proto_parse_status parse_session_setup_andx_query(struct cifs_parser
     uint8_t padding = compute_padding(cursor, oem_password_len + unicode_password_len, 2);
     if (parse_and_check_byte_count_superior(cursor, oem_password_len + unicode_password_len + padding) == -1) return PROTO_PARSE_ERR;
     cursor_drop(cursor, oem_password_len + unicode_password_len + padding);
+    CHECK(2);
     PARSE_SMB_USER(info);
     SLOG(LOG_DEBUG, "Found user %s", info->user);
-
+    CHECK(2);
+    DROP_SMB_STRING(); // We don't care of domain request
+    CHECK(2);
+    PARSE_SMB_OS(info);
+    SLOG(LOG_DEBUG, "Found os %s", info->os);
+    CHECK(2);
+    PARSE_SMB_DRIVER(info);
+    SLOG(LOG_DEBUG, "Found driver %s", info->driver);
     return PROTO_OK;
 }
 

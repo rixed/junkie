@@ -78,7 +78,10 @@ static struct parse_test {
             .info = { .head_len = SMB_HEADER_SIZE, .payload = 0xe6 - SMB_HEADER_SIZE},
             .command.smb_command = SMB_COM_SESSION_SETUP_ANDX,
             .user = "root",
-            .set_values = CIFS_USER,
+            .domain = "",
+            .driver = "CIFS VFS Client for Linux",
+            .os = "Linux version 3.2.0-4-amd64",
+            .set_values = CIFS_USER | CIFS_DOMAIN | CIFS_DRIVER | CIFS_OS,
             .status = SMB_STATUS_OK,
             .version = smb_version_1,
         },
@@ -2842,6 +2845,8 @@ static int compare_expected_cifs(struct cifs_proto_info const *const info,
     CHECK_SET_VALUE(info, expected, CIFS_LEVEL_OF_INTEREST);
     CHECK_SET_VALUE(info, expected, CIFS_FID);
     CHECK_SET_VALUE(info, expected, CIFS_HOSTNAME);
+    CHECK_SET_VALUE(info, expected, CIFS_DRIVER);
+    CHECK_SET_VALUE(info, expected, CIFS_OS);
 
     CHECK_INT(info->tree_id, expected->tree_id);
     CHECK_INT(info->version, expected->version);
@@ -2858,6 +2863,10 @@ static int compare_expected_cifs(struct cifs_proto_info const *const info,
         CHECK_STR(info->user, expected->user);
     if (VALUES_ARE_SET(info, CIFS_HOSTNAME))
         CHECK_STR(info->hostname, expected->hostname);
+    if (VALUES_ARE_SET(info, CIFS_DRIVER))
+        CHECK_STR(info->driver, expected->driver);
+    if (VALUES_ARE_SET(info, CIFS_OS))
+        CHECK_STR(info->os, expected->os);
     if (VALUES_ARE_SET(info, CIFS_PATH))
         CHECK_STR(info->path, expected->path);
     if (VALUES_ARE_SET(info, CIFS_TRANS2_SUBCMD))
