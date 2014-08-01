@@ -3915,7 +3915,7 @@ enum ntlm_message_type {
  * | 8 bytes                         | 4 bytes                   | 8 bytes          | 16 bytes       | variable          |
  *
  */
-static enum proto_parse_status parse_ntlm_message(struct cursor *cursor, struct cifs_proto_info *info)
+static enum proto_parse_status parse_ntlm_request_message(struct cursor *cursor, struct cifs_proto_info *info)
 {
     uint8_t const *start = cursor->head;
     CHECK(8 + 4);
@@ -4021,7 +4021,7 @@ static enum proto_parse_status parse_smb2_session_setup_request(struct cifs_pars
     } while (der.type == DER_CONSTRUCTED);
 
     if (der.class_tag == DER_OCTET_STRING) {
-        return parse_ntlm_message(cursor, info);
+        return parse_ntlm_request_message(cursor, info);
     }
 
     return PROTO_OK;
