@@ -1524,8 +1524,9 @@ static int parse_and_check_byte_count_superior(struct cursor *cursor, uint8_t mi
     info->set_values |= CIFS_TREE;
 
 #define PARSE_SMB2_FID(info) \
-    cifs_set_fid(info, cursor_read_u64le(cursor)); \
-    cursor_drop(cursor, 8); // Rest of file id
+    uint64_t fid = cursor_read_u64le(cursor);\
+    cursor_drop(cursor, 8); \
+    if (fid != 0xffffffffffffffff) cifs_set_fid(info, fid);
 
 #define CHECK_AND_DROP_WITH_PADDING(NUM_BYTES) \
         CHECK_AND_DROP(NUM_BYTES + compute_padding(cursor, NUM_BYTES, 2));
@@ -4242,10 +4243,7 @@ static enum proto_parse_status parse_smb2_ioctl_request(struct cifs_parser *cifs
     READ_AND_CHECK_STRUCTURE_SIZE(57);
     cursor_drop(cursor, 2); // skip Reserved
     enum ctl_code ctl_code = cursor_read_u32le(cursor);
-    // read_fid
-    uint64_t fid = cursor_read_u64le(cursor);
-
-    cursor_drop(cursor, 8); // Rest of file id
+    PARSE_SMB2_FID(info);
 
     uint32_t input_offset = cursor_read_u32le(cursor);
     uint32_t input_count = cursor_read_u32le(cursor);
@@ -4255,12 +4253,10 @@ static enum proto_parse_status parse_smb2_ioctl_request(struct cifs_parser *cifs
     switch(ctl_code) {
         case FSCTL_GET_REPARSE_POINT:
             /* This message does not contain any additional data elements. */
-            cifs_set_fid(info, fid);
             break;
         case FSCTL_PIPE_TRANSCEIVE:
             /* send and receive data from an open pipe */
             info->query_write_bytes = input_count;
-            cifs_set_fid(info, fid);
             break;
         case FSCTL_DFS_GET_REFERRALS:
             /*
