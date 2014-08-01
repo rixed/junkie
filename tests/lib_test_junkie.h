@@ -30,8 +30,6 @@ void tcp_stream_dtor(struct tcp_stream *stream);
 // Returns the size of the generated packet, or 0 if finished, -1 on errors
 ssize_t tcp_stream_next(struct tcp_stream *stream, unsigned *way);
 
-enum way { FROM_CLIENT, FROM_SERVER };
-
 #define VALUES_ARE_SET(proto, x) ((proto->set_values & (x)) == (x))
 
 #define CHECK_BIG_INT(VAL, EXP) do {                  \

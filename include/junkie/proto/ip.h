@@ -18,6 +18,8 @@ LOG_CATEGORY_DEC(proto_ip);
 extern struct proto *proto_ip;
 extern struct proto *proto_ip6;
 
+enum way { FROM_CLIENT, FROM_SERVER };
+
 /*
  * Proto Info
  */

@@ -23,6 +23,7 @@
 #include "junkie/tools/objalloc.h"
 #include "junkie/proto/cursor.h"
 #include "junkie/proto/tcp.h"
+#include "junkie/proto/ip.h"
 #include "junkie/proto/der.h"
 
 #undef LOG_CAT
