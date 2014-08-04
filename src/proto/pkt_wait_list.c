@@ -135,7 +135,7 @@ static enum proto_parse_status pkt_wait_finalize(struct pkt_wait *pkt, struct pk
         pkt_wl->next_offset >= pkt->next_offset // the pkt content was completely covered
     ) {
         // forget it
-        SLOG(LOG_DEBUG, "Advertize a covered packet @(%u:%u)", pkt->offset, pkt->next_offset);
+        SLOG(LOG_DEBUG, "Advertize a covered packet @(%u:%u) for waiting list @%p", pkt->offset, pkt->next_offset, pkt_wl);
         status = proto_parse_or_die(NULL, NULL, pkt->parent, pkt->way, NULL, 0, 0, &pkt->cap_tv, pkt->tot_cap_len, pkt->packet);
         pkt_wait_del_nolock(pkt, pkt_wl);
     } else if (
@@ -144,7 +144,7 @@ static enum proto_parse_status pkt_wait_finalize(struct pkt_wait *pkt, struct pk
         // advertise the gap instead of the packet (if the gap is credible)
         size_t const gap = pkt->offset - pkt_wl->next_offset;
         if (pkt_wl->config->acceptable_gap == 0 || gap <= pkt_wl->config->acceptable_gap) {
-            SLOG(LOG_DEBUG, "Advertise a gap of %zu bytes", gap);
+            SLOG(LOG_DEBUG, "Advertise a gap of %zu bytes for waiting list @%p", gap, pkt_wl);
             pkt_wl->next_offset = pkt->offset;
             // We can't merely borrow pkt parent since proto_parse is going to flag it when calling subscribers (which would prevent callback of subscribers for actual packet)
             struct proto_info *copy = copy_info_rec(pkt->parent);
@@ -155,7 +155,7 @@ static enum proto_parse_status pkt_wait_finalize(struct pkt_wait *pkt, struct pk
             pkt_wait_del_nolock(pkt, pkt_wl);
         }
     } else {
-        SLOG(LOG_DEBUG, "Finalizing parse of next packet @(%u:%u)", pkt->offset, pkt->next_offset);
+        SLOG(LOG_DEBUG, "Finalizing parse of next packet @(%u:%u) for waiting list @%p", pkt->offset, pkt->next_offset, pkt_wl);
         // So we must parse from pkt_wl->next_offset to pkt->next_offset
         assert(pkt->offset <= pkt_wl->next_offset);
         unsigned const trim = pkt_wl->next_offset - pkt->offset;  // This assumes that offsets _are_ bytes. If not, then there is no reason to trim.
@@ -321,7 +321,7 @@ enum proto_parse_status pkt_wait_list_flush(struct pkt_wait_list *pkt_wl, uint8_
 
 int pkt_wait_list_ctor(struct pkt_wait_list *pkt_wl, unsigned next_offset, struct pkt_wl_config *config, struct parser *parser, struct pkt_wait_list *restrict sync_with)
 {
-    SLOG(LOG_DEBUG, "Construct pkt_wait_list @%p", pkt_wl);
+    SLOG(LOG_DEBUG, "Construct pkt_wait_list @%p, origin %d", pkt_wl, next_offset);
 
     LIST_INIT(&pkt_wl->pkts);
     pkt_wl->nb_pkts = 0;
@@ -440,7 +440,7 @@ static bool pkt_wait_list_try_locked(struct pkt_wait_list *pkt_wl, enum proto_pa
 
     struct pkt_wait *pkt;
     while (NULL != (pkt = LIST_FIRST(&pkt_wl->pkts))) {
-        SLOG(LOG_DEBUG, "pkt_wait_list_try_locked pkt=%p, force_timeout=%s", pkt, force_timeout?"yes":"no");
+        SLOG(LOG_DEBUG, "pkt_wait_list_try_locked pkt_wl=@%p, pkt=%p, force_timeout=%s", pkt_wl, pkt, force_timeout?"yes":"no");
 
         bool const wait_same_dir = !pkt_wl->config->allow_partial || pkt->offset > pkt_wl->next_offset;
         bool const wait_other_dir = pkt_wl->sync_with && pkt->sync && pkt_wl->sync_with->next_offset < pkt->sync_offset;
@@ -458,6 +458,7 @@ static bool pkt_wait_list_try_locked(struct pkt_wait_list *pkt_wl, enum proto_pa
         ) break;
 
         force_timeout = false;  // this works only once (so that caller has a chance to advance the reciprocal waiting_list)
+        SLOG(LOG_DEBUG, "Finalizing list @%p, wait_same_dir %d, wait_other_dir %d", pkt_wl, wait_same_dir, wait_other_dir);
         // Advance this direction (gaps will be signaled)
         *status = pkt_wait_finalize(pkt, pkt_wl);
         ret = true;
@@ -484,7 +485,10 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
         SLOG(LOG_DEBUG, "Waiting list too big (%u pkts, %zu bytes), force timeout", pkt_wl->nb_pkts, pkt_wl->tot_payload);
         enum proto_parse_status status = PROTO_OK;
         pkt_wait_list_try_locked(pkt_wl, &status, now, true);
-        if (status == PROTO_OK && pkt_wl->sync_with) pkt_wait_list_try(pkt_wl->sync_with, &status, now, false); // TODO: see above about mutex
+        if (status == PROTO_OK && pkt_wl->sync_with) {
+            SLOG(LOG_DEBUG, "Waiting List @%p has advanced, trying to advance sync list @%p", pkt_wl, pkt_wl->sync_with);
+            pkt_wait_list_try(pkt_wl->sync_with, &status, now, false); // TODO: see above about mutex
+        }
     }
 
     SLOG(LOG_DEBUG, "Add a packet of %zu bytes at offset %u to waiting list @%p (currently at %u)", wire_len, offset, pkt_wl, pkt_wl->next_offset);
@@ -531,6 +535,7 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
     if (
         (pkt_wl->config->acceptable_gap > 0 && (int)(offset - prev_offset) > (int)pkt_wl->config->acceptable_gap)
     ) {
+        SLOG(LOG_DEBUG, "Gap too large (%d), parsing packet", offset - prev_offset);
         ret = proto_parse_or_die(NULL, NULL, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
         goto quit;
     }
@@ -549,6 +554,7 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
     }
     pkt_wl->nb_pkts ++;
     pkt_wl->tot_payload += pkt->cap_len;
+    SLOG(LOG_DEBUG, "Inserting packet in wait list @%p (now at %d pkts and %zu payload)", pkt_wl, pkt_wl->nb_pkts, pkt_wl->tot_payload);
 
     // Maybe this packet content is enough to allow parsing (we end here in case its content overlap what's already there)
     if (can_parse && pkt->offset <= pkt_wl->next_offset && (! pkt_wl->sync_with || !sync || pkt_wl->sync_with->next_offset >= pkt->sync_offset)) {
