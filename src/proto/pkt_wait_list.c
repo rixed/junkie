@@ -121,6 +121,8 @@ static enum proto_parse_status proto_parse_or_die(struct proto *proto, struct pa
     enum proto_parse_status status = proto_parse(*ref_parser, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
     if (status == PROTO_PARSE_ERR) {
         parser_unref(ref_parser);
+        SLOG(LOG_DEBUG, "Error on parsing, unref parser for proto %s and advertising current stack if not already done", proto->name);
+        proto_parse(NULL, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
     }
     return status;
 }
