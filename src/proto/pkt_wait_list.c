@@ -559,6 +559,8 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
     // Maybe this packet content is enough to allow parsing (we end here in case its content overlap what's already there)
     if (can_parse && pkt->offset <= pkt_wl->next_offset && (! pkt_wl->sync_with || !sync || pkt_wl->sync_with->next_offset >= pkt->sync_offset)) {
         ret = pkt_wait_finalize(pkt, pkt_wl);  // may deadlock
+        // On finalize, proto_parse is already called on the parent copy of pkt_wait, so mark the original as called to avoid duplicate callback call
+        parent->pkt_sbc_called = true;
     }   // else just wait
 
 quit:
