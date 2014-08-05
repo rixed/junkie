@@ -7,15 +7,14 @@
 #include <junkie/cpp.h>
 #include <junkie/tools/ext.h>
 #include <junkie/tools/objalloc.h>
-#include <junkie/proto/pkt_wait_list.h>
 #include <junkie/proto/cap.h>
 #include <junkie/proto/eth.h>
+#include <junkie/proto/proto.h>
 #include <junkie/proto/ip.h>
 #include "lib_test_junkie.h"
+#include "proto/pkt_wait_list.c"
 #include "proto/tcp.c"
-#include "proto/mysql.c"
 
-static unsigned current_test;
 static unsigned cb_called;
 
 /*
@@ -43,11 +42,11 @@ static void seqnum_test(void)
  * Parse check
  */
 
-static struct parse_test {
+static struct parse_test_pkt {
     size_t size;
     uint8_t const packet[100];
     struct tcp_proto_info expected;
-} parse_tests [] = {
+} parse_test_pkts [] = {
     {
         .size = 16*2+8, .packet = {
             0x9fU, 0x3fU, 0x00U, 0x50U, 0xe2U, 0x3cU, 0x7aU, 0xbeU, 0x00U, 0x00U, 0x00U, 0x00U, 0xa0U, 0x02U, 0x16U, 0xd0U,
@@ -74,11 +73,12 @@ static struct parse_test {
     }
 };
 
+static unsigned current_pkt;
 static void tcp_info_check(struct proto_subscriber unused_ *s, struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet, struct timeval const unused_ *now)
 {
-    // Check info against parse_tests[current_test].expected
+    // Check info against parse_test_pkts[current_pkt].expected
     struct tcp_proto_info const *const info = DOWNCAST(info_, info, tcp_proto_info);
-    struct tcp_proto_info const *const expected = &parse_tests[current_test].expected;
+    struct tcp_proto_info const *const expected = &parse_test_pkts[current_pkt].expected;
     assert(info->info.head_len == expected->info.head_len);
     assert(info->info.payload == expected->info.payload);
     assert(info->key.port[0] == expected->key.port[0]);
@@ -94,9 +94,9 @@ static void parse_check(void)
     struct proto_subscriber sub;
     hook_subscriber_ctor(&pkt_hook, &sub, tcp_info_check);
 
-    for (current_test = 0; current_test < NB_ELEMS(parse_tests); current_test++) {
-        size_t const len = parse_tests[current_test].size;
-        int ret = tcp_parse(tcp_parser, NULL, 0, parse_tests[current_test].packet, len, len, &now, len, parse_tests[current_test].packet);
+    for (current_pkt = 0; current_pkt < NB_ELEMS(parse_test_pkts); current_pkt++) {
+        size_t const len = parse_test_pkts[current_pkt].size;
+        int ret = tcp_parse(tcp_parser, NULL, 0, parse_test_pkts[current_pkt].packet, len, len, &now, len, parse_test_pkts[current_pkt].packet);
         assert(0 == ret);
     }
 
@@ -123,44 +123,141 @@ static struct packet pkt_s2c_1 = {
     .way = FROM_SERVER,
     .packet = {
 //                              SEQ                     ACK
-        0x01, 0xbd, 0xf6, 0xaa, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x80, 0x18, 0x2e, 0x96,
+        0x01, 0xbd, 0xf6, 0xaa, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x30, 0x80, 0x18, 0x2e, 0x96,
         0xf0, 0x7c, 0x00, 0x00, 0x01, 0x01, 0x08, 0x0a, 0x61, 0xdc, 0x20, 0x48, 0x00, 0x2c, 0x59, 0x8e } };
 
 static struct packet pkt_c2s_2 = {
     .way = FROM_CLIENT,
     .packet = {
 //                              SEQ                     ACK
-        0xf6, 0xaa, 0x01, 0xbd, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0x20, 0x80, 0x18, 0x2e, 0x96,
+        0xf6, 0xaa, 0x01, 0xbd, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0x40, 0x80, 0x18, 0x2e, 0x96,
         0xf0, 0x7c, 0x00, 0x00, 0x01, 0x01, 0x08, 0x0a, 0x61, 0xdc, 0x20, 0x48, 0x00, 0x2c, 0x59, 0x8e }, };
 
-uint32_t previous_ack_expected_seqs[3] = {0x20, 0x10, 0x30};
-static void previous_ack_check(struct proto_subscriber unused_ *s, struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet, struct timeval const unused_ *now)
-{
-    struct tcp_proto_info const *const info = DOWNCAST(info_, info, tcp_proto_info);
-    cb_called++;
-    assert(info->seq_num == previous_ack_expected_seqs[current_test]);
-    return;
-}
+static struct packet pkt_s2c_2 = {
+    .way = FROM_SERVER,
+    .packet = {
+//                              SEQ                     ACK
+        0x01, 0xbd, 0xf6, 0xaa, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x50, 0x80, 0x18, 0x2e, 0x96,
+        0xf0, 0x7c, 0x00, 0x00, 0x01, 0x01, 0x08, 0x0a, 0x61, 0xdc, 0x20, 0x48, 0x00, 0x2c, 0x59, 0x8e } };
 
-static void parse_with_previous_ack(void)
+static struct packet pkt_c2s_3 = {
+    .way = FROM_CLIENT,
+    .packet = {
+//                              SEQ                     ACK
+        0xf6, 0xaa, 0x01, 0xbd, 0x00, 0x00, 0x00, 0x50, 0x00, 0x00, 0x00, 0x60, 0x80, 0x18, 0x2e, 0x96,
+        0xf0, 0x7c, 0x00, 0x00, 0x01, 0x01, 0x08, 0x0a, 0x61, 0xdc, 0x20, 0x48, 0x00, 0x2c, 0x59, 0x8e }, };
+
+static void check_pkt(struct packet *pkts, unsigned nb_pkts, proto_cb_t cb)
 {
-    struct packet previous_ack_packets[3] = { pkt_s2c_1, pkt_c2s_1, pkt_c2s_2 };
     struct timeval now;
     timeval_set_now(&now);
     struct parser *tcp_parser = proto_tcp->ops->parser_new(proto_tcp);
     assert(tcp_parser);
     struct proto_subscriber sub;
-    hook_subscriber_ctor(&pkt_hook, &sub, previous_ack_check);
+    hook_subscriber_ctor(&pkt_hook, &sub, cb);
     cb_called = 0;
-    for (current_test = 0; current_test < NB_ELEMS(previous_ack_packets); current_test++) {
-        int ret = tcp_parse(tcp_parser, NULL, previous_ack_packets[current_test].way,
-                previous_ack_packets[current_test].packet,
-                test_cap_len, test_wire_len, &now, test_cap_len, previous_ack_packets[current_test].packet);
+    unsigned i = 0;
+    for (i = 0; i < nb_pkts; i++) {
+        int ret = tcp_parse(tcp_parser, NULL, pkts[i].way,
+                    pkts[i].packet,
+                    test_cap_len, test_wire_len, &now, test_cap_len, pkts[i].packet);
         assert(0 == ret);
-        assert(cb_called == current_test + 1);
     }
+    SLOG(LOG_DEBUG, "Expected %d called, got %d", i, cb_called);
+    for (unsigned l = 0; l < NB_ELEMS(tcp_wl_config.lists); l++) {
+        for (unsigned i = 0; i < NB_ELEMS(tcp_wl_config.lists[l].list); i++) {
+            struct pkt_wait_list *pkt_wl;
+            LIST_FOREACH(pkt_wl, &tcp_wl_config.lists[l].list[i], entry) {
+                pkt_wait_list_empty(pkt_wl);
+            }
+        }
+    }
+
+    assert(cb_called == i);
     hook_subscriber_dtor(&pkt_hook, &sub);
     parser_unref(&tcp_parser);
+}
+
+static uint32_t previous_ack_expected_seqs[3] = {0x20, 0x10, 0x30};
+static void previous_ack_check(struct proto_subscriber unused_ *s, struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet, struct timeval const unused_ *now)
+{
+    struct tcp_proto_info const *const info = DOWNCAST(info_, info, tcp_proto_info);
+    assert(info->seq_num == previous_ack_expected_seqs[cb_called++]);
+    return;
+}
+
+static uint32_t reorder_expected_seqs[5] = {0x10, 0x20, 0x30, 0x40, 0x50};
+static void reorder_pkt_cb(struct proto_subscriber unused_ *s, struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet, struct timeval const unused_ *now)
+{
+    struct tcp_proto_info const *const info = DOWNCAST(info_, info, tcp_proto_info);
+    SLOG(LOG_DEBUG, "Cb %d, Got seq 0x%"PRIx32", expected 0x%"PRIx32, cb_called, info->seq_num, reorder_expected_seqs[cb_called]);
+    assert(info->seq_num == reorder_expected_seqs[cb_called++]);
+    return;
+}
+
+static uint32_t timeout_expected_seqs[5] = {0x10, 0x20, 0x40, 0x50, 0x30};
+static void timeout_pkt_cb(struct proto_subscriber unused_ *s, struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet, struct timeval const unused_ *now)
+{
+    if (cap_len == 0) return; // gap
+    struct tcp_proto_info const *const info = DOWNCAST(info_, info, tcp_proto_info);
+    SLOG(LOG_DEBUG, "Cb %d, Got seq 0x%"PRIx32", expected 0x%"PRIx32, cb_called, info->seq_num, timeout_expected_seqs[cb_called]);
+    assert(info->seq_num == timeout_expected_seqs[cb_called++]);
+    return;
+}
+
+static uint32_t parse_err_expected_seqs[5] = {0x10, 0x20, 0x50, 0x30, 0x40};
+static void parse_err_pkt_cb(struct proto_subscriber unused_ *s, struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet, struct timeval const unused_ *now)
+{
+    if (!packet) {
+        SLOG(LOG_DEBUG, "Got a gap, ignoring it");
+        return; // gap
+    }
+    struct tcp_proto_info const *const info = DOWNCAST(info_, info, tcp_proto_info);
+    SLOG(LOG_DEBUG, "Cb %d, Got seq 0x%"PRIx32", expected 0x%"PRIx32, cb_called, info->seq_num, parse_err_expected_seqs[cb_called]);
+    assert(info->seq_num == parse_err_expected_seqs[cb_called++]);
+    return;
+}
+
+static enum proto_parse_status parse_err_parse(struct parser unused_ *parser, struct proto_info *parent,
+        unsigned way, uint8_t const unused_ *packet, size_t cap_len, size_t wire_len,
+        struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
+{
+    if (cb_called < 2) {
+        return proto_parse(NULL, parent,
+                way, NULL,
+                cap_len, wire_len,
+                now, tot_cap_len, tot_packet);
+    }
+    return PROTO_PARSE_ERR;
+}
+
+static void pkt_wl_check(void)
+{
+    struct packet previous_ack_packets[3] = { pkt_s2c_1, pkt_c2s_1, pkt_c2s_2 };
+    check_pkt(previous_ack_packets, NB_ELEMS(previous_ack_packets), previous_ack_check);
+
+    struct packet reorder_packets[5] = { pkt_c2s_1, pkt_s2c_1, pkt_c2s_3, pkt_s2c_2, pkt_c2s_2 };
+    check_pkt(reorder_packets, NB_ELEMS(reorder_packets), reorder_pkt_cb);
+
+    // Force timeout of wl
+    tcp_wl_config.nb_pkts_max = 1;
+
+    static struct proto_ops const ops = {
+        .parse      = parse_err_parse,
+        .parser_new = uniq_parser_new,
+        .parser_del = uniq_parser_del,
+        .info_2_str = proto_info_2_str,
+    };
+    static struct uniq_proto uniq_proto_parse_err;
+    static struct port_muxer tcp_port_muxer;
+    uniq_proto_ctor(&uniq_proto_parse_err, &ops, "ParseErr", 42);
+    port_muxer_ctor(&tcp_port_muxer, &tcp_port_muxers, 445, 445, &uniq_proto_parse_err.proto);
+    struct packet parse_err_packets[5] = { pkt_c2s_1, pkt_s2c_1, pkt_c2s_3, pkt_s2c_2, pkt_c2s_2 };
+    check_pkt(parse_err_packets, NB_ELEMS(parse_err_packets), parse_err_pkt_cb);
+    port_muxer_dtor(&tcp_port_muxer, &tcp_port_muxers);
+
+    struct packet timeout_packets[5] = { pkt_c2s_1, pkt_s2c_1, pkt_c2s_3, pkt_s2c_2, pkt_c2s_2 };
+    check_pkt(timeout_packets, NB_ELEMS(timeout_packets), timeout_pkt_cb);
 }
 
 int main(void)
@@ -172,32 +269,29 @@ int main(void)
     ref_init();
     hash_init();
     ext_init();
-    streambuf_init();
     proto_init();
     cap_init();
     eth_init();
     ip_init();
     ip6_init();
     tcp_init();
-    mysql_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_level(LOG_WARNING, "mutex");
     log_set_file("tcp_check.log");
 
     seqnum_test();
     parse_check();
-    parse_with_previous_ack();
+    pkt_wl_check();
+
     stress_check(proto_tcp);
 
     doomer_stop();
-    mysql_fini();
     tcp_fini();
     ip6_fini();
     ip_fini();
     eth_fini();
     cap_fini();
     proto_fini();
-    streambuf_fini();
     hash_fini();
     ext_fini();
     ref_fini();
