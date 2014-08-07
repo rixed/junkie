@@ -25,6 +25,7 @@
 #include "junkie/proto/tcp.h"
 #include "junkie/proto/ip.h"
 #include "junkie/proto/der.h"
+#include "junkie/proto/netbios.h"
 
 #undef LOG_CAT
 #define LOG_CAT proto_cifs_log_category
@@ -4615,7 +4616,7 @@ static enum proto_parse_status smb_parse(struct cursor *cursor, struct cifs_prot
 }
 
 static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_info *parent,
-        unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len,
+        unsigned way, uint8_t const *packet, size_t cap_len, size_t unused_ wire_len,
         struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     if (cap_len < 4) return PROTO_TOO_SHORT;
@@ -4628,16 +4629,17 @@ static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_in
     if (tcp) is_query = tcp->to_srv;
 
     struct cursor cursor;
-    cursor_ctor(&cursor, packet, cap_len);
+    ASSIGN_INFO_CHK(netbios, parent, PROTO_PARSE_ERR);
+    cursor_ctor(&cursor, packet, netbios->size);
 
     enum proto_parse_status status = PROTO_OK;
     switch (smb_version) {
         case 0xff534d42:
-            cifs_proto_info_ctor(&info, &cifs_parser->parser, parent, SMB_HEADER_SIZE, wire_len - SMB_HEADER_SIZE, is_query, smb_version_1);
+            cifs_proto_info_ctor(&info, &cifs_parser->parser, parent, SMB_HEADER_SIZE, netbios->size - SMB_HEADER_SIZE, is_query, smb_version_1);
             status = smb_parse(&cursor, &info, cifs_parser);
             break;
         case 0xfe534d42:
-            cifs_proto_info_ctor(&info, &cifs_parser->parser, parent, SMB2_HEADER_SIZE, wire_len - SMB2_HEADER_SIZE, is_query, smb_version_2);
+            cifs_proto_info_ctor(&info, &cifs_parser->parser, parent, SMB2_HEADER_SIZE, netbios->size - SMB2_HEADER_SIZE, is_query, smb_version_2);
             status = smb2_parse(&cursor, &info, cifs_parser);
             break;
         default:

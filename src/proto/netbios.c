@@ -91,9 +91,10 @@ static void const *netbios_info_addr(struct proto_info const *info_, size_t *siz
     return info;
 }
 
-static void netbios_proto_info_ctor(struct netbios_proto_info *info, struct parser *parser, struct proto_info *parent, size_t header, size_t payload)
+static void netbios_proto_info_ctor(struct netbios_proto_info *info, struct parser *parser, struct proto_info *parent, size_t header, size_t payload, uint32_t size)
 {
     proto_info_ctor(&info->info, parser, parent, header, payload);
+    info->size = size;
 }
 
 static enum proto_parse_status netbios_sbuf_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
@@ -112,7 +113,7 @@ static enum proto_parse_status netbios_sbuf_parse(struct parser *parser, struct 
 
     /* Parse */
     struct netbios_proto_info info;
-    netbios_proto_info_ctor(&info, parser, parent, NETBIOS_HEADER_SIZE, wire_len - NETBIOS_HEADER_SIZE);
+    netbios_proto_info_ctor(&info, parser, parent, NETBIOS_HEADER_SIZE, wire_len - NETBIOS_HEADER_SIZE, len);
 
     SLOG(LOG_DEBUG, "Parsing netbios content");
     uint8_t const *next_packet = packet + NETBIOS_HEADER_SIZE;

@@ -12,6 +12,7 @@ extern struct proto *proto_netbios;
 
 struct netbios_proto_info {
     struct proto_info info;
+    uint32_t size;
 };
 
 void netbios_init(void);
