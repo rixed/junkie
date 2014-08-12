@@ -33,6 +33,6 @@ if ! diff "$srcdir/$OUTPUT" "$output"; then
 	echo "Output differ from $OUTPUT ! (see actual output in $output)"
 	exit 1
 else
-    rm -f "$output" "$log"
+    rm -f "$output"
 fi
 
