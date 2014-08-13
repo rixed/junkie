@@ -146,7 +146,7 @@ static enum proto_parse_status pkt_wait_finalize(struct pkt_wait *pkt, struct pk
         // advertise the gap instead of the packet (if the gap is credible)
         size_t const gap = pkt->offset - pkt_wl->next_offset;
         if (pkt_wl->config->acceptable_gap == 0 || gap <= pkt_wl->config->acceptable_gap) {
-            SLOG(LOG_DEBUG, "Advertise a gap of %zu bytes for waiting list @%p", gap, pkt_wl);
+            SLOG(LOG_DEBUG, "Advertize a gap of %zu bytes @(%u:%u) for waiting list @%p", gap, pkt_wl->next_offset, pkt->offset, pkt_wl);
             pkt_wl->next_offset = pkt->offset;
             // We can't merely borrow pkt parent since proto_parse is going to flag it when calling subscribers (which would prevent callback of subscribers for actual packet)
             struct proto_info *copy = copy_info_rec(pkt->parent);
@@ -460,7 +460,7 @@ static bool pkt_wait_list_try_locked(struct pkt_wait_list *pkt_wl, enum proto_pa
         ) break;
 
         force_timeout = false;  // this works only once (so that caller has a chance to advance the reciprocal waiting_list)
-        SLOG(LOG_DEBUG, "Finalizing list @%p, wait_same_dir %d, wait_other_dir %d", pkt_wl, wait_same_dir, wait_other_dir);
+        SLOG(LOG_DEBUG, "Finalizing list @%p, wait_same_dir %d, wait_other_dir %d, now %s, cap_tv %s", pkt_wl, wait_same_dir, wait_other_dir, timeval_2_str(now), timeval_2_str(&pkt->cap_tv));
         // Advance this direction (gaps will be signaled)
         *status = pkt_wait_finalize(pkt, pkt_wl);
         ret = true;
@@ -493,7 +493,7 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
         }
     }
 
-    SLOG(LOG_DEBUG, "Add a packet of %zu bytes at offset %u to waiting list @%p (currently at %u)", wire_len, offset, pkt_wl, pkt_wl->next_offset);
+    SLOG(LOG_DEBUG, "Add a packet of %zu bytes (%u:%zu) to waiting list @%p (currently at %u)", wire_len, offset, offset + wire_len, pkt_wl, pkt_wl->next_offset);
     if (sync) SLOG(LOG_DEBUG, "  ...waiting for reciprocal waiting list @%p to reach offset %u (currently at %u)", pkt_wl->sync_with, sync_offset, pkt_wl->sync_with->next_offset);
 
     // Find its location and the previous pkt
