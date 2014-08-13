@@ -4565,6 +4565,7 @@ static enum proto_parse_status smb2_parse(struct cursor *cursor, struct cifs_pro
     if (!info->is_query) {
         info->status = READ_U32LE(&smb2_hdr->u1.status);
     }
+    info->ids.message_id = READ_U64LE(&smb2_hdr->message_id);
     cursor_drop(cursor, SMB2_HEADER_SIZE);
     enum proto_parse_status status = PROTO_OK;
     if (info->status != SMB_STATUS_OK) {
@@ -4593,6 +4594,7 @@ static enum proto_parse_status smb_parse(struct cursor *cursor, struct cifs_prot
     info->command.smb_command = READ_U8(&smb_hdr->command);
     info->status = READ_U32LE(&smb_hdr->status);
     info->tree_id = READ_U16LE(&smb_hdr->tree_id);
+    info->ids.multiplex_id = READ_U16LE(&smb_hdr->multiplex_id);
 
     cursor_drop(cursor, SMB_HEADER_SIZE);
 
@@ -4635,11 +4637,11 @@ static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_in
     enum proto_parse_status status = PROTO_OK;
     switch (smb_version) {
         case 0xff534d42:
-            cifs_proto_info_ctor(&info, &cifs_parser->parser, parent, SMB_HEADER_SIZE, netbios->size - SMB_HEADER_SIZE, is_query, smb_version_1);
+            cifs_proto_info_ctor(&info, &cifs_parser->parser, parent, SMB_HEADER_SIZE, netbios->size - SMB_HEADER_SIZE, is_query, SMB_VERSION_1);
             status = smb_parse(&cursor, &info, cifs_parser);
             break;
         case 0xfe534d42:
-            cifs_proto_info_ctor(&info, &cifs_parser->parser, parent, SMB2_HEADER_SIZE, netbios->size - SMB2_HEADER_SIZE, is_query, smb_version_2);
+            cifs_proto_info_ctor(&info, &cifs_parser->parser, parent, SMB2_HEADER_SIZE, netbios->size - SMB2_HEADER_SIZE, is_query, SMB_VERSION_2);
             status = smb2_parse(&cursor, &info, cifs_parser);
             break;
         default:

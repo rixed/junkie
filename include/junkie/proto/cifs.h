@@ -1209,9 +1209,9 @@ enum ctl_code {
 };
 
 enum smb_version {
-    smb_version_1 = 0x1,
-    smb_version_2 = 0x2,
-    smb_version_3 = 0x3,
+    SMB_VERSION_1 = 0x1,
+    SMB_VERSION_2 = 0x2,
+    SMB_VERSION_3 = 0x3,
 };
 
 #define CIFS_DOMAIN_SIZE 256
@@ -1263,6 +1263,11 @@ struct cifs_proto_info {
     enum smb_file_info_levels level_of_interest;
     uint64_t fid;
     uint32_t tree_id;
+
+    union {
+        uint16_t multiplex_id;    // SMB1
+        uint64_t message_id; // SMB2
+    } ids;
 
     unsigned query_write_bytes;
     unsigned response_read_bytes;
