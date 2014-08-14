@@ -116,7 +116,7 @@ static enum proto_parse_status proto_parse_or_die(struct proto *proto, struct pa
     struct parser *parser = *ref_parser;
     if (!parser && proto) {
         SLOG(LOG_DEBUG, "Building parser from proto %s", proto->name);
-        *ref_parser = parser_ref(proto->ops->parser_new(proto));
+        *ref_parser = proto->ops->parser_new(proto);
     }
     enum proto_parse_status status = proto_parse(*ref_parser, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
     if (status == PROTO_PARSE_ERR) {

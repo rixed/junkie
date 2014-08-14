@@ -101,6 +101,7 @@ static void parse_check(void)
     }
 
     hook_subscriber_dtor(&pkt_hook, &sub);
+    assert(tcp_parser->ref.count == 1);
     parser_unref(&tcp_parser);
 }
 
@@ -175,6 +176,7 @@ static void check_pkt(struct packet *pkts, unsigned nb_pkts, proto_cb_t cb)
 
     assert(cb_called == i);
     hook_subscriber_dtor(&pkt_hook, &sub);
+    assert(tcp_parser->ref.count == 1);
     parser_unref(&tcp_parser);
 }
 
@@ -255,6 +257,9 @@ static void pkt_wl_check(void)
     struct packet parse_err_packets[5] = { pkt_c2s_1, pkt_s2c_1, pkt_c2s_3, pkt_s2c_2, pkt_c2s_2 };
     check_pkt(parse_err_packets, NB_ELEMS(parse_err_packets), parse_err_pkt_cb);
     port_muxer_dtor(&tcp_port_muxer, &tcp_port_muxers);
+    struct parser *parser = uniq_proto_parse_err.parser;
+    uniq_proto_dtor(&uniq_proto_parse_err);
+    assert(parser->ref.count == 1);
 
     struct packet timeout_packets[5] = { pkt_c2s_1, pkt_s2c_1, pkt_c2s_3, pkt_s2c_2, pkt_c2s_2 };
     check_pkt(timeout_packets, NB_ELEMS(timeout_packets), timeout_pkt_cb);
