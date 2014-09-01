@@ -776,10 +776,14 @@ static enum proto_parse_status parse_type_info_value(struct string_buffer *buffe
                         buffer_append_unicode(buffer, get_iconv(), (char*)cursor->head, length_parsed);
                         cursor_drop(cursor, length_parsed);
                     } else {
-                        char *str;
-                        status = cursor_read_fixed_string(cursor, &str, length_parsed);
-                        if (PROTO_OK != status) return status;
-                        buffer_append_string(buffer, str);
+                        if (buffer) {
+                            int bytes_written = cursor_read_fixed_string(cursor, buffer->head + buffer->pos,
+                                    buffer_left_size(buffer), length_parsed);
+                            if (bytes_written < 0) return PROTO_PARSE_ERR;
+                            buffer->pos += bytes_written;
+                        } else {
+                            cursor_read_fixed_string(cursor, NULL, 0, length_parsed);
+                        }
                     }
                 } else {    // rest as number
                     uint_least64_t value;
@@ -865,7 +869,7 @@ static enum proto_parse_status parse_type_info_value(struct string_buffer *buffe
 
 static enum proto_parse_status skip_type_info_value(struct cursor *cursor, struct type_info *type_info)
 {
-    return  parse_type_info_value(NULL, cursor, type_info, NULL);
+    return parse_type_info_value(NULL, cursor, type_info, NULL);
 }
 
 static enum proto_parse_status tds_prelogin(struct cursor *cursor, struct sql_proto_info *info, bool is_client)

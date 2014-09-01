@@ -272,7 +272,6 @@ static enum proto_parse_status mysql_parse_error(struct sql_proto_info *info, st
 {
     SLOG(LOG_DEBUG, "Parse mysql error");
     #define MYSQL_ERROR_HEADER (2 + 1 + SQL_ERROR_SQL_STATUS_SIZE)
-    enum proto_parse_status status;
     if (packet_len <= MYSQL_ERROR_HEADER) return PROTO_PARSE_ERR;
     sql_set_request_status(info, SQL_REQUEST_ERROR);
 
@@ -285,17 +284,16 @@ static enum proto_parse_status mysql_parse_error(struct sql_proto_info *info, st
     // Drop the # after error code
     cursor_drop(cursor, 1);
 
-    char *str;
-    status = cursor_read_fixed_string(cursor, &str, SQL_ERROR_SQL_STATUS_SIZE);
-    if (status != PROTO_OK) return status;
-    strncpy(info->error_sql_status, str, sizeof(info->error_sql_status));
+    int written_bytes;
+    written_bytes = cursor_read_fixed_string(cursor, info->error_sql_status,
+            sizeof(info->error_sql_status), SQL_ERROR_SQL_STATUS_SIZE);
+    if (written_bytes < 0) return PROTO_PARSE_ERR;
     info->set_values |= SQL_ERROR_SQL_STATUS;
 
     // The end of message is the error message
     size_t message_len = packet_len - MYSQL_ERROR_HEADER;
-    status = cursor_read_fixed_string(cursor, &str, message_len);
-    if (status != PROTO_OK) return status;
-    strncpy(info->error_message, str, sizeof(info->error_message));
+    written_bytes = cursor_read_fixed_string(cursor, info->error_message, sizeof(info->error_message), message_len);
+    if (written_bytes < 0) return PROTO_PARSE_ERR;
     info->set_values |= SQL_ERROR_MESSAGE;
 
     return PROTO_OK;

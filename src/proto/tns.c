@@ -22,6 +22,7 @@
 #include <stdbool.h>
 #include <ctype.h>
 #include "junkie/cpp.h"
+#include "junkie/tools/string_buffer.h"
 #include "junkie/tools/log.h"
 #include "junkie/tools/string.h"
 #include "junkie/tools/objalloc.h"
@@ -128,12 +129,12 @@ static void tns_parser_del(struct parser *parser)
  */
 
 #define DROP_VAR_STR(cursor)                                                        \
-    if ((status = cursor_read_variable_string(cursor, NULL, NULL) != PROTO_OK))     \
+    if ((status = cursor_read_variable_string(cursor, NULL, 0, NULL) != PROTO_OK))     \
         return status;
 
 #define DROP_VAR_STRS(cursor, count)                                                \
     for (unsigned x = 0; x < count; x++) {                                          \
-        if ((status = cursor_read_variable_string(cursor, NULL, NULL) != PROTO_OK)) \
+        if ((status = cursor_read_variable_string(cursor, NULL, 0, NULL) != PROTO_OK)) \
         return status;                                                              \
     }
 
@@ -155,7 +156,7 @@ static void tns_parser_del(struct parser *parser)
 #define MAX_OCI_CHUNK 0x40
 
 #define DROP_DALC(cursor)                                                                \
-    if ((status = cursor_read_chunked_string_with_size(cursor, NULL, MAX_OCI_CHUNK) != PROTO_OK)) \
+    if ((status = cursor_read_chunked_string_with_size(cursor, NULL, 0, MAX_OCI_CHUNK) != PROTO_OK)) \
         return status;
 
 /* TNS PDU have a header consisting of (in network byte order) :
@@ -203,14 +204,17 @@ static enum proto_parse_status cursor_read_tns_hdr(struct cursor *cursor, size_t
  * Size  String-------------
  * 0x04  0x41 0x42 0x42 0x40
  */
-static enum proto_parse_status cursor_read_variable_string(struct cursor *cursor, char **out_str, unsigned *out_str_len)
+static enum proto_parse_status cursor_read_variable_string(struct cursor *cursor,
+        char *buf, size_t size_buf, unsigned *out_str_len)
 {
     unsigned str_len;
     CHECK(1);
     str_len = cursor_read_u8(cursor);
     SLOG(LOG_DEBUG, "Reading variable str of length %d", str_len);
     if (out_str_len) *out_str_len = str_len;
-    return cursor_read_fixed_string(cursor, out_str, str_len);
+    int ret = cursor_read_fixed_string(cursor, buf, size_buf, str_len);
+    if (ret == -1) return PROTO_TOO_SHORT;
+    else return PROTO_OK;
 }
 
 /* Read a string splitted in chunk prefixed by 1 byte size
@@ -230,25 +234,23 @@ static enum proto_parse_status cursor_read_variable_string(struct cursor *cursor
  * The global size might be unknown, so we try to guess it. We will have a parse problem
  * for string of size 0x40
  */
-static enum proto_parse_status cursor_read_chunked_string(struct cursor *cursor, char **out_str, size_t max_chunk)
+static enum proto_parse_status cursor_read_chunked_string(struct cursor *cursor,
+        char *buf, size_t size_buf, size_t max_chunk)
 {
-    char *str = tempstr();
-    unsigned pos = 0;
-    while (pos < TEMPSTR_SIZE) {
+    unsigned str_len = 0;
+    struct string_buffer string_buf;
+    if (buf) string_buffer_ctor(&string_buf, buf, size_buf);
+    do {
         if (cursor->cap_len < 1) break;
-        unsigned str_len = cursor_read_u8(cursor);
+        str_len = cursor_read_u8(cursor);
         SLOG(LOG_DEBUG, "Chunk of size of %u", str_len);
-        size_t max_src = MIN(TEMPSTR_SIZE - (pos + str_len + 1), str_len);
-        size_t copied_len = MIN(cursor->cap_len, max_src);
-        cursor_copy(str + pos, cursor, copied_len);
-        pos += copied_len;
-        if (str_len < max_chunk) break;
-    }
+        size_t available_bytes = MIN(cursor->cap_len, str_len);
+        if (buf) buffer_append_stringn(&string_buf, (char const *)cursor->head, available_bytes);
+        cursor_drop(cursor, available_bytes);
+    } while (str_len >= max_chunk);
     // There seems to be an null terminator when string length is > 0x40
     // However, it can be a flag after the string. Ignore it for now.
-    if (out_str) *out_str = str;
-    str[MIN(pos, TEMPSTR_SIZE)] = 0;
-    SLOG(LOG_DEBUG, "Chunk parsed of size %u", pos);
+    if (buf) buffer_get_string(&string_buf);
     return PROTO_OK;
 }
 
@@ -269,13 +271,13 @@ static enum proto_parse_status cursor_read_variable_int(struct cursor *cursor, u
  * | Size of Size | Size  Size  String---  Size  String---
  * |         0x01 | 0x04  0x02  0x40 0x41  0x02  0x50 0x51
  */
-static enum proto_parse_status cursor_read_chunked_string_with_size(struct cursor *cursor, char **res, size_t max_chunk)
+static enum proto_parse_status cursor_read_chunked_string_with_size(struct cursor *cursor, char *buf, size_t buf_size, size_t max_chunk)
 {
     uint_least64_t size;
     enum proto_parse_status status;
     status = cursor_read_variable_int(cursor, &size);
     if (status != PROTO_OK) return status;
-    if (size > 0) status = cursor_read_chunked_string(cursor, res, max_chunk);
+    if (size > 0) status = cursor_read_chunked_string(cursor, buf, buf_size, max_chunk);
     return status;
 }
 
@@ -606,7 +608,7 @@ static enum proto_parse_status tns_parse_end(struct sql_proto_info *info, struct
 
     if (error_code != 0) {
         SLOG(LOG_DEBUG, "Parsing error message");
-        char *error_msg;
+        char *error_msg = tempstr();
         unsigned error_len;
 
         // Drop an unknown number of bytes here
@@ -614,7 +616,7 @@ static enum proto_parse_status tns_parse_end(struct sql_proto_info *info, struct
             DROP_FIX(cursor, 1);
         }
         SLOG(LOG_DEBUG, "First printable char is %c", cursor_peek_u8(cursor, 1));
-        status = cursor_read_variable_string(cursor, &error_msg, &error_len);
+        status = cursor_read_variable_string(cursor, error_msg, TEMPSTR_SIZE, &error_len);
         if (status != PROTO_OK) return status;
         if (error_len < 12) return PROTO_PARSE_ERR;
         // Split "ORA-XXXX: msg"
@@ -754,17 +756,17 @@ static bool lookup_query(struct cursor *cursor, bool *is_chunked, uint8_t sql_si
 static enum proto_parse_status tns_parse_sql_query_oci(struct sql_proto_info *info, struct cursor *cursor)
 {
     SLOG(LOG_DEBUG, "Parsing an oci query");
-    char *sql = "";
     uint8_t sql_size = parse_query_header(cursor);
     bool is_chunked;
     bool has_query = lookup_query(cursor, &is_chunked, sql_size);
+    info->u.query.sql[0] = '\0';
     if (has_query) {
         SLOG(LOG_DEBUG, "Found a query, parsing it");
-        if (is_chunked) cursor_read_chunked_string(cursor, &sql, MAX_OCI_CHUNK);
-        else cursor_read_fixed_string(cursor, &sql, sql_size);
+        if (is_chunked) cursor_read_chunked_string(cursor, info->u.query.sql, sizeof(info->u.query.sql), MAX_OCI_CHUNK);
+        else cursor_read_fixed_string(cursor, info->u.query.sql, sizeof(info->u.query.sql), sql_size);
     }
-    SLOG(LOG_DEBUG, "Sql parsed: %s", sql);
-    sql_set_query(info, "%s", sql);
+    SLOG(LOG_DEBUG, "Sql parsed: %s", info->u.query.sql);
+    info->set_values |= SQL_SQL;
     // Drop the rest
     if(cursor->cap_len > 0) cursor_drop(cursor, cursor->cap_len - 1);
 
@@ -778,7 +780,7 @@ static enum proto_parse_status tns_parse_sql_query_oci(struct sql_proto_info *in
 static enum proto_parse_status tns_parse_sql_query_jdbc(struct sql_proto_info *info, struct cursor *cursor)
 {
     SLOG(LOG_DEBUG, "Parsing a jdbc query");
-    enum proto_parse_status status;
+    enum proto_parse_status status = PROTO_OK;
 
     DROP_FIX(cursor, 1);
 
@@ -790,7 +792,7 @@ static enum proto_parse_status tns_parse_sql_query_jdbc(struct sql_proto_info *i
     DROP_VAR(cursor);
     DROP_FIX(cursor, 2);
 
-    char *sql = "";
+    info->u.query.sql[0] = '\0';
     if (sql_len > 0) {
         // Some unknown bytes
         while (cursor->cap_len > 1 && PROTO_OK != is_range_print(cursor, MIN(MIN_QUERY_SIZE, sql_len), 1)) {
@@ -800,10 +802,10 @@ static enum proto_parse_status tns_parse_sql_query_jdbc(struct sql_proto_info *i
         CHECK(1);
         if (sql_len > 0xff && 0xff == cursor_peek_u8(cursor, 0)) {
             SLOG(LOG_DEBUG, "Looks like prefixed length chunks of size 0xff...");
-            status = cursor_read_chunked_string(cursor, &sql, 0xff);
+            status = cursor_read_chunked_string(cursor, info->u.query.sql, sizeof(info->u.query.sql), 0xff);
         } else if (sql_len > MAX_OCI_CHUNK && MAX_OCI_CHUNK == cursor_peek_u8(cursor, 0)) {
             SLOG(LOG_DEBUG, "Looks like prefixed length chunks of size 0x40...");
-            status = cursor_read_chunked_string(cursor, &sql, MAX_OCI_CHUNK);
+            status = cursor_read_chunked_string(cursor, info->u.query.sql, sizeof(info->u.query.sql), MAX_OCI_CHUNK);
         } else {
             // We don't care about the first non printable character
             cursor_drop(cursor, 1);
@@ -813,12 +815,14 @@ static enum proto_parse_status tns_parse_sql_query_jdbc(struct sql_proto_info *i
             if (cursor_peek_u8(cursor, 0) == sql_len && sql_len < cursor->cap_len && is_print(cursor_peek_u8(cursor, sql_len)))
                 cursor_drop(cursor, 1);
             SLOG(LOG_DEBUG, "Looks like a fixed string of size %zu", sql_len);
-            status = cursor_read_fixed_string(cursor, &sql, sql_len);
+            int written_bytes = cursor_read_fixed_string(cursor, info->u.query.sql,
+                    sizeof(info->u.query.sql), sql_len);
+            if (written_bytes < 0) return PROTO_TOO_SHORT;
         }
         if (status != PROTO_OK) return status;
     }
-    SLOG(LOG_DEBUG, "Sql parsed: %s", sql);
-    sql_set_query(info, "%s", sql);
+    SLOG(LOG_DEBUG, "Sql parsed: %s", info->u.query.sql);
+    info->set_values |= SQL_SQL;
 
     return PROTO_OK;
 }
@@ -860,6 +864,7 @@ static enum proto_parse_status tns_parse_sql_query(struct sql_proto_info *info, 
         struct cursor save_cursor = *cursor;
         if (tns_parse_sql_query_jdbc(info, cursor) != PROTO_OK) {
             // Fallback to query guessing
+            SLOG(LOG_DEBUG, "jdbc query failed, fallback to oci");
             *cursor = save_cursor;
             return tns_parse_sql_query_oci(info, cursor);
         } else {

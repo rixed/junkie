@@ -167,23 +167,22 @@ uint_least64_t cursor_peek_u64le(struct cursor *cursor, size_t offset)
     return a | (b << 32);
 }
 
-enum proto_parse_status cursor_read_fixed_string(struct cursor *cursor, char **out_str, size_t str_len)
+int cursor_read_fixed_string(struct cursor *cursor, char *out_buf, size_t size_buf,
+        size_t str_len)
 {
-    SLOG(LOG_DEBUG, "Reading string of size %zu", str_len);
-    if (cursor->cap_len < str_len) return PROTO_PARSE_ERR;
-    if (!out_str) {
+    SLOG(LOG_DEBUG, "Reading string of size %zu on buffer of size %zu", str_len, size_buf);
+    if (cursor->cap_len < str_len) return -1;
+    if (!out_buf) {
         cursor_drop(cursor, str_len);
-        return PROTO_OK;
+        return 0;
     }
-    char *str = tempstr();
-    unsigned copied_len = MIN(str_len, TEMPSTR_SIZE - 1);
-    cursor_copy(str, cursor, copied_len);
-    str[copied_len] = '\0';
+    unsigned copied_len = MIN(str_len, size_buf - 1);
+    cursor_copy(out_buf, cursor, copied_len);
+    out_buf[copied_len] = '\0';
     if (copied_len < str_len) {
         cursor_drop(cursor, str_len - copied_len);
     }
-    if(out_str) *out_str = str;
-    return PROTO_OK;
+    return copied_len;
 }
 
 int cursor_read_string(struct cursor *cursor, char *out_buf, size_t size_buf, size_t max_src)
@@ -242,8 +241,9 @@ int cursor_read_utf16(struct cursor *cursor, iconv_t cd, char *out_buf, size_t b
     if (str_size & 1) str_size = MIN(str_size + 1, max_src);
     int dropped = cursor_read_fixed_utf16(cursor, cd, out_buf, buf_size, str_size);
     if (dropped == -1) return dropped;
-    cursor_drop(cursor, sizeof(marker));
-    return dropped + sizeof(marker);
+    int dropped_mark = MIN(cursor->cap_len, sizeof(marker));
+    cursor_drop(cursor, dropped_mark);
+    return dropped + dropped_mark;
 }
 
 int cursor_lookup_marker(struct cursor *cursor, const void *marker, size_t marker_len, size_t max_src)

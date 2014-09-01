@@ -66,8 +66,9 @@ int cursor_read_fixed_utf16(struct cursor *cursor, iconv_t cd, char *out_buf, si
 
 /*
  * Reads a specific length string
+ * Return -1 if there is not enough bytes in cursor
  */
-enum proto_parse_status cursor_read_fixed_string(struct cursor *cursor, char **out_str, size_t src_len);
+int cursor_read_fixed_string(struct cursor *cursor, char *out_buf, size_t size_buf, size_t src_len);
 
 enum proto_parse_status cursor_read_fixed_int_n(struct cursor *cursor, uint_least64_t *res, unsigned len);
 enum proto_parse_status cursor_read_fixed_int_le(struct cursor *cursor, uint_least64_t *res, unsigned len);
