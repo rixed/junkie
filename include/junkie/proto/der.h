@@ -61,9 +61,11 @@ struct der {
 };
 
 enum proto_parse_status cursor_read_der(struct cursor *cursor, struct der *der);
-enum proto_parse_status cursor_read_oid(struct cursor *cursor, size_t size, uint16_t *oid, size_t *oid_length);
+enum proto_parse_status cursor_read_oid(struct cursor *cursor, size_t size, uint32_t *oid, uint8_t *out_oid_length);
 
-char *der_2_str(struct der *der);
+char const *oid_2_str(uint32_t const *oid, uint8_t size_oid);
+char const *der_2_str(struct der const *der);
+bool der_type_equal(struct der const *der1, struct der const *der2);
 
 #endif
 

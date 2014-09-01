@@ -21,6 +21,7 @@
 #include "junkie/proto/der.h"
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/log.h"
+#include "junkie/tools/string_buffer.h"
 #include <inttypes.h>
 
 static char *der_class_identifier_2_str(enum der_class_identifier der_class_identifier)
@@ -80,7 +81,7 @@ static char *der_class_tag_2_str(enum der_class_tag der_class_tag)
     }
 }
 
-char *der_2_str(struct der *der)
+char const *der_2_str(struct der const *der)
 {
     char *str = tempstr_printf("Der class %s, type: %s, class tag: %s, size %"PRIu64,
             der_class_identifier_2_str(der->class_identifier),
@@ -89,6 +90,25 @@ char *der_2_str(struct der *der)
             der->length);
     return str;
 }
+
+bool der_type_equal(struct der const *der1, struct der const *der2)
+{
+    return (der1->class_identifier == der2->class_identifier
+            && der1->type == der2->type
+            && der1->class_tag == der2->class_tag);
+}
+
+char const *oid_2_str(uint32_t const *oid, uint8_t size_oid)
+{
+    struct string_buffer buf;
+    string_buffer_ctor(&buf, tempstr(), TEMPSTR_SIZE);
+    for (uint8_t i = 0; i < size_oid; ++i) {
+        buffer_append_printf(&buf, "%"PRIu16".", oid[i]);
+    }
+    buffer_rollback(&buf, 1);
+    return buffer_get_string(&buf);
+}
+
 
 #define DER_CLASS_IDENTIFIER 0b11000000
 #define DER_TYPE 0b00100000
@@ -105,7 +125,7 @@ static enum proto_parse_status cursor_read_der_length(struct cursor *cursor, uin
 {
     uint8_t current = cursor_read_u8(cursor);
     if (current & DER_LEFT_BIT_MASK) {
-        uint16_t num_bytes = current & ~DER_LEFT_BIT_MASK;
+        uint32_t num_bytes = current & ~DER_LEFT_BIT_MASK;
         if (num_bytes > cursor->cap_len) return 0;
         return cursor_read_fixed_int_n(cursor, out_res, num_bytes);
     } else {
@@ -122,7 +142,7 @@ enum proto_parse_status cursor_read_der(struct cursor *cursor, struct der *der)
     der->type = (der_header & DER_TYPE) >> 5;
     der->class_tag = der_header & DER_CLASS_TAG;
     if (PROTO_OK != (status = cursor_read_der_length(cursor, &der->length))) return status;
-    SLOG(LOG_DEBUG, "Parsed der %s, %"PRIx16, der_2_str(der), der_header);
+    SLOG(LOG_DEBUG, "Parsed der %s, 0x%"PRIx8, der_2_str(der), der_header);
     if (der->length > cursor->cap_len) return PROTO_TOO_SHORT;
     der->value = cursor->head;
     return PROTO_OK;
@@ -132,37 +152,40 @@ enum proto_parse_status cursor_read_der(struct cursor *cursor, struct der *der)
  * Node values less than or equal to 127 are encoded on one byte.
  * Node values greater than or equal to 128 are encoded on multiple bytes. Bit 7 of the leftmost byte is set to one. Bits 0 through 6 of each byte contains the encoded value.
  */
-static uint16_t cursor_read_oid_node(struct cursor *cursor)
+static uint32_t cursor_read_oid_node(struct cursor *cursor)
 {
     uint8_t current = cursor_read_u8(cursor);
-    if (current & DER_LEFT_BIT_MASK) {
-        uint16_t left = (current & ~DER_LEFT_BIT_MASK) << 7;
-        uint8_t right = cursor_read_u8(cursor) & ~DER_LEFT_BIT_MASK;
-        SLOG(LOG_DEBUG, "Got a multibyte length, left part %"PRIu16", right part %"PRIu8, left, right);
-        return left + right;
-    } else {
-        return current;
+    uint32_t node = 0;
+    while (current & DER_LEFT_BIT_MASK) {
+        node <<= 7;
+        node |= (current & ~DER_LEFT_BIT_MASK) << 7;
+        current = cursor_read_u8(cursor);
+        SLOG(LOG_DEBUG, "Got a multibyte length, node %"PRIu32", current %"PRIu8, node, current);
     }
+    node += current;
+    return node;
 }
 
-enum proto_parse_status cursor_read_oid(struct cursor *cursor, size_t size, uint16_t *oid, size_t *oid_length)
+enum proto_parse_status cursor_read_oid(struct cursor *cursor, size_t size_oid,
+        uint32_t *oid, uint8_t *out_oid_length)
 {
     assert(oid);
-    if (cursor->cap_len < size) return PROTO_TOO_SHORT;
+    if (cursor->cap_len < size_oid) return PROTO_TOO_SHORT;
+    size_t end_len = cursor->cap_len - size_oid;
 
     // The first two nodes are encoded on a single byte.
     // The first node is multiplied by the decimal 40 and the result is added to the value of the second node.
-    int oid_indice = 0;
+    uint8_t oid_indice = 0;
     uint8_t first_byte = cursor_read_u8(cursor);
     oid[oid_indice++] = first_byte / 40;
     oid[oid_indice++] = first_byte - oid[0] * 40;
 
-    for (unsigned i = 1; i < size; i++) {
-         uint16_t node = cursor_read_oid_node(cursor);
-         if (node > 127) i++;
+    while (cursor->cap_len > end_len) {
+         uint32_t node = cursor_read_oid_node(cursor);
          oid[oid_indice++] = node;
     }
-    if (oid_length) *oid_length = oid_indice;
+    if (out_oid_length) *out_oid_length = oid_indice;
+    SLOG(LOG_DEBUG, "Found oid %s", oid_2_str(oid, oid_indice));
     return PROTO_OK;
 }
 

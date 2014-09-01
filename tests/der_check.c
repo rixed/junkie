@@ -46,21 +46,40 @@ static void parse_check(void)
     }
 }
 
-static void read_oid_check(void)
+static void check_oid(uint8_t *source, size_t source_size, uint32_t *expected_oid, uint8_t expected_oid_length)
 {
-    uint16_t oid[9];
-    uint8_t pkt[9] = {0x2b, 0x06, 0x01, 0x04, 0x01, 0x82, 0x37, 0x15, 0x14};
-    struct cursor cursor = {.head = pkt, .cap_len = 9};
-    size_t oid_length;
-    cursor_read_oid(&cursor, sizeof(pkt), oid, &oid_length);
-    uint16_t expected_oid[9] = {1, 3, 6, 1, 4, 1 ,311, 21, 20};
-    assert(oid_length == 9);
+    uint32_t oid[expected_oid_length];
+    struct cursor cursor = {.head = source, .cap_len = source_size};
+    uint8_t oid_length;
+    cursor_read_oid(&cursor, source_size, oid, &oid_length);
+    if (oid_length != expected_oid_length) {
+        SLOG(LOG_ERR, "Oid size incorrect (%d != %d), expected:\n%s\ngot:\n%s",
+                expected_oid_length, oid_length,
+                oid_2_str(expected_oid, expected_oid_length), oid_2_str(oid, oid_length));
+        assert(oid_length == expected_oid_length);
+    }
     for (unsigned i = 0; i < oid_length; i++) {
         if (expected_oid[i] != oid[i]) {
-            SLOG(LOG_ERR, "Problem of oid at %d (expected %"PRIu16", got %"PRIu16")\n", i, expected_oid[i], oid[i]);
+            SLOG(LOG_ERR, "Problem of oid at %d (expected %"PRIu16", got %"PRIu16")\n", i,
+                    expected_oid[i], oid[i]);
             assert(expected_oid[i] == oid[i]);
         }
     }
+}
+
+static void read_oid_check(void)
+{
+    uint8_t pkt[9] = {0x2b, 0x06, 0x01, 0x04, 0x01, 0x82, 0x37, 0x15, 0x14};
+    uint32_t expected_oid[9] = {1, 3, 6, 1, 4, 1 ,311, 21, 20};
+    check_oid(pkt, NB_ELEMS(pkt), expected_oid, NB_ELEMS(expected_oid));
+
+    uint8_t pkt2[9] = {0x2a, 0x86, 0x48, 0x82, 0xf7, 0x12, 0x01, 0x02, 0x02};
+    uint32_t expected_oid2[7] = {1, 2, 840, 48018, 1, 2, 2};
+    check_oid(pkt2, NB_ELEMS(pkt2), expected_oid2, NB_ELEMS(expected_oid2));
+
+    uint8_t pkt3[9] = {0x2a, 0x86, 0x48, 0x86, 0xf7, 0x12, 0x01, 0x02, 0x02};
+    uint32_t expected_oid3[7] = {1, 2, 840, 113554, 1, 2, 2};
+    check_oid(pkt3, NB_ELEMS(pkt3), expected_oid3, NB_ELEMS(expected_oid3));
 }
 
 static void read_recursif_der(void)
