@@ -1445,10 +1445,15 @@ static int parse_smb_string(struct cifs_parser *cifs_parser, struct cursor *curs
         char *buf, int buf_size)
 {
     int ret = 0;
-    if (!cifs_parser->unicode)
+    if (!cifs_parser->unicode) {
         ret = cursor_read_string(cursor, buf, buf_size, cursor->cap_len);
-    else
+    } else {
+        if (cursor->cap_len > 3 && cursor->head[1] != 0x00 && cursor->head[2] == 0x00) {
+            SLOG(LOG_DEBUG, "Skipping some bytes to align utf16");
+            cursor_drop(cursor, 1);
+        }
         ret = cursor_read_utf16(cursor, get_iconv(), buf, buf_size, cursor->cap_len);
+    }
     SLOG(LOG_DEBUG, "Parse smb string as %sunicode: %s", cifs_parser->unicode ? "" : "non-",
             ret > 0 ? buf : "error");
     return ret;
@@ -1488,17 +1493,353 @@ static int parse_and_check_word_count_superior(struct cursor *cursor, uint8_t mi
     return word_count;
 }
 
-static int parse_and_check_byte_count_superior(struct cursor *cursor, uint8_t minimum_byte_count)
+static int parse_and_check_byte_count_superior(struct cursor *cursor, uint16_t minimum_byte_count)
 {
     if (cursor->cap_len < 2) return -1;
     uint16_t byte_count = cursor_read_u16le(cursor);
     SLOG(LOG_DEBUG, "Byte count is 0x%"PRIx16, byte_count);
     if (byte_count < minimum_byte_count) {
-        SLOG(LOG_DEBUG, "Byte count is too small  (0x%02"PRIx8" > 0x%02"PRIx16")", minimum_byte_count, byte_count);
+        SLOG(LOG_DEBUG, "Byte count is too small  (0x%02"PRIx16" > 0x%02"PRIx16")", minimum_byte_count, byte_count);
         return -1;
     }
-    if (cursor->cap_len < byte_count) return -1;
+    if (cursor->cap_len < byte_count) {
+        SLOG(LOG_DEBUG, "Cursor buffer too small (0x%02"PRIx16" > %zu)", minimum_byte_count, cursor->cap_len);
+        return -1;
+    }
     return byte_count;
+}
+
+// Parse of security buffer
+
+enum mech_type { MS_KRB5, NTLMSSP };
+
+static bool der_application_equal(struct der const *der, int application)
+{
+    return (der->class_identifier == DER_APPLICATION
+            && der->type == DER_CONSTRUCTED
+            && der->class_tag == application);
+}
+
+static bool der_choice_equal(struct der const *der, int choice)
+{
+    return ((der->class_identifier == DER_UNIVERSAL || der->class_identifier == DER_CONTEXT_SPECIFIC)
+            && der->type == DER_CONSTRUCTED
+            && der->class_tag == choice);
+}
+
+static const struct der sequence_der = {.class_identifier = DER_UNIVERSAL, .type = DER_CONSTRUCTED,
+    .class_tag = DER_SEQUENCE };
+static const struct der oid_der = {.class_identifier = DER_UNIVERSAL, .type = DER_PRIMITIVE,
+    .class_tag = DER_OBJECT_IDENTIFIER };
+static const struct der octet_string_der = {.class_identifier = DER_UNIVERSAL, .type = DER_PRIMITIVE,
+    .class_tag = DER_OCTET_STRING };
+
+#define PARSE_DER_APPLICATION(ID) \
+    if (PROTO_OK != (status = cursor_read_der(cursor, &der))) return status; \
+    if (!der_application_equal(&der, ID)) return PROTO_PARSE_ERR;
+
+#define PARSE_DER_OID() \
+    if (PROTO_OK != (status = cursor_read_der(cursor, &der))) return status; \
+    if (!der_type_equal(&der, &oid_der)) return PROTO_PARSE_ERR; \
+    cursor_read_oid(cursor, der.length, oid, NULL); \
+
+#define PARSE_DER_OCTET_STRING() \
+    if (PROTO_OK != (status = cursor_read_der(cursor, &der))) return status; \
+    if (!der_type_equal(&der, &octet_string_der)) return PROTO_PARSE_ERR;
+
+#define PARSE_DER_SEQUENCE() \
+    if (PROTO_OK != (status = cursor_read_der(cursor, &der))) return status; \
+    if (!der_type_equal(&der, &sequence_der)) return PROTO_PARSE_ERR;
+
+#define PARSE_DER_UNTIL_CHOICE_ID(ID) \
+    do { \
+        if (PROTO_OK != (status = cursor_read_der(cursor, &der))) return status; \
+        if (der_choice_equal(&der, ID)) break; \
+    } while (cursor->cap_len > 0); \
+    if (cursor->cap_len == 0) return PROTO_PARSE_ERR; \
+
+#define PARSE_DER_CHOICE_ID(ID) \
+    if (PROTO_OK != (status = cursor_read_der(cursor, &der))) return status; \
+    if (!der_choice_equal(&der, ID)) return PROTO_PARSE_ERR;
+
+#define DROP_DER() \
+    if (PROTO_OK != (status = cursor_read_der(cursor, &der))) return status; \
+    cursor_drop(cursor, der.length);
+
+enum ntlm_message_type {
+    NTLMSSP_NEGOCIATE = 0x1,
+    NTLMSSP_CHALLENGE,
+    NTLMSSP_AUTHENTICATE,
+};
+
+/**
+ * NTLM message
+ *
+ * | Signature | Message type |
+ * | 8 bytes   | 4 bytes      |
+ *
+ * Body payload depends of message type
+ * For NTLMSSP_AUTHENTICATE:
+ *
+ * | LmChallengeResponseFields       | NtChallengeResponseFields | DomainNameFields | UserNameFields | WorkstationFields |
+ * | 8 bytes                         | 8 bytes                   | 8 bytes          | 8 bytes        | 8 bytes           |
+ *
+ * | EncryptedRandomSessionKeyFields | NegotiateFlags            | Version          | MIC            | Payload           |
+ * | 8 bytes                         | 4 bytes                   | 8 bytes          | 16 bytes       | variable          |
+ *
+ */
+static enum proto_parse_status parse_ntlm_request_message(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    uint8_t const *start = cursor->head;
+    CHECK(8 + 4);
+    char buf[8];
+#define CIFS_NTLMSSP_ID "NTLMSSP"
+    if (-1 == cursor_read_string(cursor, buf, sizeof(buf), sizeof(CIFS_NTLMSSP_ID)))
+        return PROTO_PARSE_ERR;
+    if (0 != strcmp(buf, CIFS_NTLMSSP_ID)) {
+        SLOG(LOG_DEBUG, "Expected %s as ntlm id, got %s", CIFS_NTLMSSP_ID, buf);
+        return PROTO_PARSE_ERR;
+    }
+
+    enum ntlm_message_type message_type = cursor_read_u32le(cursor);
+    SLOG(LOG_DEBUG, "Found an ntlm message of type %"PRIu32, message_type);
+    if (message_type != NTLMSSP_AUTHENTICATE) {
+        // nothing interesting to fetch
+        return PROTO_OK;
+    }
+
+    CHECK(8 * 6 + 4 + 8 + 16);
+    cursor_drop(cursor, 8 + 8);
+
+    uint16_t domain_length = cursor_read_u16le(cursor);
+    cursor_drop(cursor, 2);
+    uint32_t domain_offset = cursor_read_u32le(cursor);
+    uint16_t user_length = cursor_read_u16le(cursor);
+    cursor_drop(cursor, 2);
+    uint32_t user_offset = cursor_read_u32le(cursor);
+    uint16_t workstation_length = cursor_read_u16le(cursor);
+    cursor_drop(cursor, 2);
+    uint32_t workstation_offset = cursor_read_u32le(cursor);
+
+    assert(workstation_offset == (user_offset + user_length));
+
+    size_t current_position = cursor->head - start;
+    CHECK(workstation_offset + workstation_length - current_position);
+    cursor_drop(cursor, domain_offset - current_position);
+    if (-1 == cursor_read_fixed_utf16(cursor, get_iconv(), info->domain, sizeof(info->domain), domain_length))
+        return PROTO_PARSE_ERR;
+    info->set_values |= CIFS_DOMAIN;
+    SLOG(LOG_DEBUG, "Parsed domain %s", info->domain);
+    if (-1 == cursor_read_fixed_utf16(cursor, get_iconv(), info->user, sizeof(info->user), user_length))
+        return PROTO_PARSE_ERR;
+    info->set_values |= CIFS_USER;
+    SLOG(LOG_DEBUG, "Parsed user %s", info->user);
+    if (-1 == cursor_read_fixed_utf16(cursor, get_iconv(), info->hostname, sizeof(info->hostname), workstation_length))
+        return PROTO_PARSE_ERR;
+    info->set_values |= CIFS_HOSTNAME;
+    SLOG(LOG_DEBUG, "Parsed hostname %s", info->hostname);
+
+    return PROTO_OK;
+}
+
+static uint32_t krb5_oid[] = {1, 2, 840, 48018, 1, 2, 2};
+static uint32_t ntlmssp_oid[] = {1, 3, 6, 1, 4, 1, 311, 2, 2, 10};
+
+/**
+ * AP-REQ ::= [APPLICATION 14] SEQUENCE {
+ *         pvno [0]        INTEGER,        -- indicates Version 5
+ *         msg-type [1]    INTEGER,        -- indicates KRB_AP_REQ
+ *         ap-options[2]   APOptions,
+ *         ticket[3]       Ticket,
+ *         authenticator[4]        EncryptedData
+ * }
+ *
+ * APOptions ::= BIT STRING {
+ *         reserved (0),
+ *         use-session-key (1),
+ *         mutual-required (2)
+ * }
+ *
+ * Ticket ::= [APPLICATION 1] SEQUENCE {
+ *         tkt-vno [0]     INTEGER,        -- indicates Version 5
+ *         realm [1]       Realm,
+ *         sname [2]       PrincipalName,
+ *         enc-part [3]    EncryptedData
+ * }
+ *
+ * -- Encrypted part of ticket
+ * EncTicketPart ::= [APPLICATION 3] SEQUENCE {
+ *         flags[0]        TicketFlags,
+ *         key[1]          EncryptionKey,
+ *         crealm[2]       Realm,
+ *         cname[3]        PrincipalName,
+ *         transited[4]    TransitedEncoding,
+ *         authtime[5]     KerberosTime,
+ *         starttime[6]    KerberosTime OPTIONAL,
+ *         endtime[7]      KerberosTime,
+ *         renew-till[8]   KerberosTime OPTIONAL,
+ *         caddr[9]        HostAddresses OPTIONAL,
+ *         authorization-data[10]  AuthorizationData OPTIONAL
+ * }
+ *
+ * -- Unencrypted authenticator
+ * Authenticator ::= [APPLICATION 2] SEQUENCE  {
+ *         authenticator-vno[0]    INTEGER,
+ *         crealm[1]               Realm,
+ *         cname[2]                PrincipalName,
+ *         cksum[3]                Checksum OPTIONAL,
+ *         cusec[4]                INTEGER,
+ *         ctime[5]                KerberosTime,
+ *         subkey[6]               EncryptionKey OPTIONAL,
+ *         seq-number[7]           INTEGER OPTIONAL,
+ *         authorization-data[8]   AuthorizationData OPTIONAL
+ * }
+ */
+static enum proto_parse_status parse_krb5_blob(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    SLOG(LOG_DEBUG, "Parsing krb5 blob");
+    enum proto_parse_status status;
+    struct der der;
+    uint32_t oid[10];
+    // krb5 application
+    PARSE_DER_APPLICATION(0);
+    // Mech type
+    PARSE_DER_OID();
+    if (!memcmp(oid, krb5_oid, sizeof(krb5_oid))) return PROTO_PARSE_ERR;
+    // 2 bytes token id
+    uint16_t tok_id = cursor_read_u16le(cursor);
+    SLOG(LOG_DEBUG, "Found tok id %"PRIu16, tok_id);
+    if (tok_id == 1) {
+        // KRB_AP_REQ (application 14)
+        PARSE_DER_APPLICATION(14);
+        PARSE_DER_SEQUENCE();
+        // pvno
+        PARSE_DER_CHOICE_ID(0);
+        DROP_DER();
+        // msg-type
+        PARSE_DER_CHOICE_ID(1);
+        DROP_DER();
+        // ap-options
+        PARSE_DER_CHOICE_ID(2);
+        DROP_DER();
+       // ticket (Sequence id 3) (application 1)
+        PARSE_DER_CHOICE_ID(3);
+        PARSE_DER_APPLICATION(1);
+        PARSE_DER_SEQUENCE();
+        // tkt_vno
+        PARSE_DER_CHOICE_ID(0);
+        DROP_DER();
+        // Realm
+        PARSE_DER_CHOICE_ID(1);
+        if (PROTO_OK != (status = cursor_read_der(cursor, &der))) return status;
+        cursor_read_fixed_string(cursor, info->domain, sizeof(info->domain), der.length);
+        info->set_values |= CIFS_DOMAIN;
+    } else if (tok_id == 2) {
+        // KRB_AP_REP
+    } else if (tok_id == 3) {
+        // KRB_ERROR
+    } else {
+        return PROTO_PARSE_ERR;
+    }
+    return PROTO_OK;
+}
+
+/**
+ * NegTokenInit ::= SEQUENCE {
+ *                             mechTypes       [0] MechTypeList  OPTIONAL,
+ *                             reqFlags        [1] ContextFlags  OPTIONAL,
+ *                             mechToken       [2] OCTET STRING  OPTIONAL,
+ *                             mechListMIC     [3] OCTET STRING  OPTIONAL
+ *                          }
+ */
+static enum proto_parse_status parse_neg_token_init(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    enum proto_parse_status status;
+    struct der der;
+    uint32_t oid[10];
+
+    PARSE_DER_SEQUENCE();
+    // MechTypeList
+    PARSE_DER_CHOICE_ID(0);
+    struct der mech_type_list_der = der;
+    PARSE_DER_SEQUENCE();
+    PARSE_DER_OID();
+
+    // Skip the rest of mech lists
+    size_t delta = cursor->head - mech_type_list_der.value;
+    if (mech_type_list_der.length < delta) return PROTO_PARSE_ERR;
+    cursor_drop(cursor, mech_type_list_der.length - delta);
+
+    // We Sequence identifier for mech token
+    PARSE_DER_UNTIL_CHOICE_ID(2);
+
+    // Mech token
+    if (PROTO_OK != (status = cursor_read_der(cursor, &der))) return status;
+    if (!der_type_equal(&der, &octet_string_der)) return PROTO_PARSE_ERR;
+
+    if (memcmp(oid, ntlmssp_oid, sizeof(ntlmssp_oid)) == 0) {
+        SLOG(LOG_DEBUG, "Found a ntlmssp mech type");
+        return parse_ntlm_request_message(cursor, info);
+    } else if (memcmp(oid, krb5_oid, sizeof(krb5_oid)) == 0) {
+        SLOG(LOG_DEBUG, "Found a krb5 mech type");
+        return parse_krb5_blob(cursor, info);
+    } else {
+        SLOG(LOG_DEBUG, "Unknown mech type oid");
+    }
+    return PROTO_OK;
+}
+
+/**
+ * Security buffer encoded in der.
+ * Contains a gss-api message.
+ * The gss-api message contains an SPNEGO message
+ * The SPNEGO can use ntlm or krb5 mechanism type
+ *
+ * NegotiationToken ::= CHOICE {
+ *                               negTokenInit  [0]  NegTokenInit,
+ *                               negTokenTarg  [1]  NegTokenTarg }
+ *
+ * MechTypeList ::= SEQUENCE OF MechType
+ *
+ * NegTokenTarg ::= SEQUENCE {
+ *     negResult      [0] ENUMERATED {
+ *                             accept_completed    (0),
+ *                             accept_incomplete   (1),
+ *                             reject              (2) }          OPTIONAL,
+ *     supportedMech  [1] MechType                                OPTIONAL,
+ *     responseToken  [2] OCTET STRING                            OPTIONAL,
+ *     mechListMIC    [3] OCTET STRING                            OPTIONAL
+ * }
+ **/
+static enum proto_parse_status parse_security_buffer(struct cursor *cursor, struct cifs_proto_info *info)
+{
+    enum proto_parse_status status;
+
+    struct der der;
+    if (PROTO_OK != (status = cursor_read_der(cursor, &der))) return status;
+    // Gss api or negtokentarg
+    if (der_application_equal(&der, 0)) {
+        // oid
+        uint32_t oid[10];
+        static uint32_t spnego_oid[] = {1, 3, 6, 1, 5, 5, 2};
+        PARSE_DER_OID();
+        if (memcmp(oid, spnego_oid, sizeof(spnego_oid)) != 0) return PROTO_PARSE_ERR;
+
+        // Advance neg token init choice
+        if (PROTO_OK != (status = cursor_read_der(cursor, &der))) return status;
+        if (der_choice_equal(&der, 0)) {
+            return parse_neg_token_init(cursor, info);
+        }
+        return PROTO_OK;
+    } else if (der_choice_equal(&der, 1)) {
+        // NegTokenTarg
+        PARSE_DER_SEQUENCE();
+        PARSE_DER_UNTIL_CHOICE_ID(2);
+        PARSE_DER_OCTET_STRING();
+        return parse_ntlm_request_message(cursor, info);
+    } else {
+        return PROTO_PARSE_ERR;
+    }
 }
 
 // Parse functions
@@ -1591,8 +1932,7 @@ static size_t compute_padding(struct cursor *cursor, uint8_t offset, size_t alig
 }
 
 /*
- * Session setup query
- * Word count: 0x0d
+ * Session setup query 0x0d version
  *
  * Parameters
  * | 4 bytes | USHORT        | USHORT      | USHORT   | ULONG      | USHORT         | USHORT             | ULONG    | ULONG        |
@@ -1602,11 +1942,9 @@ static size_t compute_padding(struct cursor *cursor, uint8_t offset, size_t alig
  * | UCHAR         | UCHAR             | UCHAR | SMB_STRING    | SMB_STRING      | SMB_STRING | SMB_STRING     |
  * | OEMPassword[] | UnicodePassword[] | Pad[] | AccountName[] | PrimaryDomain[] | NativeOS[] | NativeLanMan[] |
  */
-static enum proto_parse_status parse_session_setup_andx_query(struct cifs_parser *cifs_parser,
+static enum proto_parse_status parse_session_setup_andx_query_normal(struct cifs_parser *cifs_parser,
         struct cursor *cursor, struct cifs_proto_info *info)
 {
-    SLOG(LOG_DEBUG, "Parse of setup query");
-    if (parse_and_check_word_count(cursor, 0x0d) == -1) return PROTO_PARSE_ERR;
     cursor_drop(cursor, 14);
     uint16_t oem_password_len = cursor_read_u16le(cursor);
     uint16_t unicode_password_len = cursor_read_u16le(cursor);
@@ -1624,6 +1962,43 @@ static enum proto_parse_status parse_session_setup_andx_query(struct cifs_parser
     PARSE_SMB_DRIVER(info, FROM_CLIENT);
     SLOG(LOG_DEBUG, "Found driver %s", info->driver);
     return PROTO_OK;
+}
+
+/*
+ * Session setup query 0x0c version
+ *
+ * Parameters
+ * | 4 bytes | USHORT        | USHORT      | USHORT   | ULONG      | USHORT               | ULONG    | ULONG        |
+ * | Andx    | MaxBufferSize | MaxMpxCount | VcNumber | SessionKey | Security Blob length | Reserved | Capabilities |
+ *
+ * Data
+ * | Variable      | SMB_STRING | SMB_STRING     |
+ * | Security blob | NativeOS[] | NativeLanMan[] |
+ */
+static enum proto_parse_status parse_session_setup_andx_query_security_blob(struct cursor *cursor,
+        struct cifs_proto_info *info)
+{
+    cursor_drop(cursor, 14);
+    uint16_t security_blob_length = cursor_read_u16le(cursor);
+    cursor_drop(cursor, 8);
+    // Check if we have padding here
+    int byte_count = parse_and_check_byte_count_superior(cursor, security_blob_length);
+    if (byte_count == -1) return PROTO_PARSE_ERR;
+    return parse_security_buffer(cursor, info);
+}
+
+/*
+ * Session setup query
+ * Word count: 0x0d for normal version, 0x0c for security blob version
+ */
+static enum proto_parse_status parse_session_setup_andx_query(struct cifs_parser *cifs_parser,
+        struct cursor *cursor, struct cifs_proto_info *info)
+{
+    SLOG(LOG_DEBUG, "Parse of setup query");
+    int word_count = parse_and_check_word_count_superior(cursor, 0x0c);
+    if (word_count == 0x0d) return parse_session_setup_andx_query_normal(cifs_parser, cursor, info);
+    else if (word_count == 0x0c) return parse_session_setup_andx_query_security_blob(cursor, info);
+    return PROTO_PARSE_ERR;
 }
 
 /*
@@ -3897,82 +4272,6 @@ static enum proto_parse_status parse_ioctl_request(struct cifs_parser unused_ *c
     uint16_t structure_size = cursor_read_u16le(cursor); \
     if (structure_size != expected_size) return PROTO_PARSE_ERR;
 
-enum ntlm_message_type {
-    NTLMSSP_NEGOCIATE = 0x1,
-    NTLMSSP_CHALLENGE,
-    NTLMSSP_AUTHENTICATE,
-};
-
-/**
- * NTLM message
- *
- * | Signature | Message type |
- * | 8 bytes   | 4 bytes      |
- *
- * Body payload depends of message type
- * For NTLMSSP_AUTHENTICATE:
- *
- * | LmChallengeResponseFields       | NtChallengeResponseFields | DomainNameFields | UserNameFields | WorkstationFields |
- * | 8 bytes                         | 8 bytes                   | 8 bytes          | 8 bytes        | 8 bytes           |
- *
- * | EncryptedRandomSessionKeyFields | NegotiateFlags            | Version          | MIC            | Payload           |
- * | 8 bytes                         | 4 bytes                   | 8 bytes          | 16 bytes       | variable          |
- *
- */
-static enum proto_parse_status parse_ntlm_request_message(struct cursor *cursor, struct cifs_proto_info *info)
-{
-    uint8_t const *start = cursor->head;
-    CHECK(8 + 4);
-    char buf[8];
-#define CIFS_NTLMSSP_ID "NTLMSSP"
-    if (-1 == cursor_read_string(cursor, buf, sizeof(buf), sizeof(CIFS_NTLMSSP_ID)))
-        return PROTO_PARSE_ERR;
-    if (0 != strcmp(buf, CIFS_NTLMSSP_ID)) {
-        SLOG(LOG_DEBUG, "Expected %s as ntlm id, got %s", CIFS_NTLMSSP_ID, buf);
-        return PROTO_PARSE_ERR;
-    }
-
-    enum ntlm_message_type message_type = cursor_read_u32le(cursor);
-    SLOG(LOG_DEBUG, "Found an ntlm message of type %"PRIu32, message_type);
-    if (message_type != NTLMSSP_AUTHENTICATE) {
-        // nothing interesting to fetch
-        return PROTO_OK;
-    }
-
-    CHECK(8 * 6 + 4 + 8 + 16);
-    cursor_drop(cursor, 8 + 8);
-
-    uint16_t domain_length = cursor_read_u16le(cursor);
-    cursor_drop(cursor, 2);
-    uint32_t domain_offset = cursor_read_u32le(cursor);
-    uint16_t user_length = cursor_read_u16le(cursor);
-    cursor_drop(cursor, 2);
-    uint32_t user_offset = cursor_read_u32le(cursor);
-    uint16_t workstation_length = cursor_read_u16le(cursor);
-    cursor_drop(cursor, 2);
-    uint32_t workstation_offset = cursor_read_u32le(cursor);
-
-    assert(workstation_offset == (user_offset + user_length));
-
-    size_t current_position = cursor->head - start;
-    CHECK(workstation_offset + workstation_length - current_position);
-    cursor_drop(cursor, domain_offset - current_position);
-    if (-1 == cursor_read_fixed_utf16(cursor, get_iconv(), info->domain, sizeof(info->domain), domain_length))
-        return PROTO_PARSE_ERR;
-    info->set_values |= CIFS_DOMAIN;
-    SLOG(LOG_DEBUG, "Parsed domain %s", info->domain);
-    if (-1 == cursor_read_fixed_utf16(cursor, get_iconv(), info->user, sizeof(info->user), user_length))
-        return PROTO_PARSE_ERR;
-    info->set_values |= CIFS_USER;
-    SLOG(LOG_DEBUG, "Parsed user %s", info->user);
-    if (-1 == cursor_read_fixed_utf16(cursor, get_iconv(), info->hostname, sizeof(info->hostname), workstation_length))
-        return PROTO_PARSE_ERR;
-    info->set_values |= CIFS_HOSTNAME;
-    SLOG(LOG_DEBUG, "Parsed hostname %s", info->hostname);
-
-    return PROTO_OK;
-}
-
 /**
  * Session setup request
  *
@@ -4017,18 +4316,7 @@ static enum proto_parse_status parse_smb2_session_setup_request(struct cifs_pars
     CHECK(security_buffer_length + start_security_buffer);
     cursor_drop(cursor, start_security_buffer);
 
-    enum proto_parse_status status;
-    struct der der;
-    do  {
-        if (PROTO_OK != (status = cursor_read_der(cursor, &der)))
-            return status;
-    } while (der.type == DER_CONSTRUCTED);
-
-    if (der.class_tag == DER_OCTET_STRING) {
-        return parse_ntlm_request_message(cursor, info);
-    }
-
-    return PROTO_OK;
+    return parse_security_buffer(cursor, info);
 }
 
 /**
