@@ -1917,7 +1917,14 @@ static enum proto_parse_status parse_negociate_response(struct cifs_parser *cifs
 
     cursor_drop(cursor, 10);
     uint8_t challenge_length = cursor_read_u8(cursor);
-    if (parse_and_check_byte_count_superior(cursor, challenge_length) == -1) return PROTO_PARSE_ERR;
+    int byte_count = parse_and_check_byte_count_superior(cursor, challenge_length);
+    if (byte_count == -1) return PROTO_PARSE_ERR;
+    else if (byte_count > 50) {
+        static uint8_t spnego_oid[6] = {0x2b, 0x06, 0x01, 0x05, 0x05, 0x02};
+        if (cursor_lookup_marker(cursor, spnego_oid, sizeof(spnego_oid), cursor->cap_len)) {
+            return PROTO_OK; // Should be a security blob from ntlm 0.12, ignore it
+        }
+    }
     cursor_drop(cursor, challenge_length);
 
     PARSE_SMB_DOMAIN(info);
