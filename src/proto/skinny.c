@@ -378,6 +378,7 @@ static enum proto_parse_status skinny_sbuf_parse(struct parser *parser, struct p
 #   define SKINNY_HDR_SIZE 8
 #   define SKINNY_MIN_MSG_SIZE 12
     if (wire_len < SKINNY_MIN_MSG_SIZE) {
+        proto_parse(NULL, parent, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
         streambuf_set_restart(&skinny_parser->sbuf, way, packet, true); // wait for more
         return PROTO_OK;
     }

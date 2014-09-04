@@ -1584,6 +1584,7 @@ static enum proto_parse_status tds_msg_sbuf_parse(struct parser *parser, struct 
     // Immediatly parse on first gap, else, bufferize
     if (!tds_msg_parser->had_gap && !has_gap && !is_eom) {
         SLOG(LOG_DEBUG, "Packet is not an EOM, buffering it");
+        proto_parse(NULL, parent, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
         streambuf_set_restart(&tds_msg_parser->sbuf, way, payload, true);
         return PROTO_OK;
     }

@@ -1059,6 +1059,7 @@ static enum proto_parse_status tns_sbuf_parse(struct parser *parser, struct prot
 
     bool has_gap = cap_len < wire_len;
     if (status == PROTO_TOO_SHORT && !has_gap) {
+        proto_parse(NULL, parent, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
         streambuf_set_restart(&tns_parser->sbuf, way, msg_start, true);
         SLOG(LOG_DEBUG, "Payload too short for parsing message, will restart @ %zu", tns_parser->sbuf.dir->restart_offset);
         return PROTO_OK;

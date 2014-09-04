@@ -512,7 +512,6 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
     mux_subparser_unref(&subparser);
 
     if (err == PROTO_OK) return PROTO_OK;
-
 fallback:
     (void)proto_parse(NULL, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, wire_len - tcphdr_len, now, tot_cap_len, tot_packet);
     return PROTO_OK;

@@ -1469,6 +1469,7 @@ static enum proto_parse_status tls_sbuf_parse(struct parser *parser, struct prot
 #   define TLS_RECORD_HEAD 5
     if (wire_len < TLS_RECORD_HEAD) {
 restart_record:
+        proto_parse(NULL, parent, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
         streambuf_set_restart(&tls_parser->sbuf, way, payload, true);
         return PROTO_OK;
     }
