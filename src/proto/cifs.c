@@ -4403,6 +4403,22 @@ static enum proto_parse_status parse_smb2_query_directory_request(struct cifs_pa
 }
 
 /**
+ * Smb2 query directory response
+ *
+ * | Structure Size = 9 | OutputBufferOffset | OutputBufferLength | Buffer   |
+ * | 2 bytes            | 2 bytes            | 4 bytes            | Variable |
+ */
+static enum proto_parse_status parse_smb2_query_directory_response(struct cifs_parser unused_ *cifs_parser,
+        struct cursor *cursor,
+        struct cifs_proto_info *info)
+{
+    READ_AND_CHECK_STRUCTURE_SIZE(9);
+    cursor_drop(cursor, 2);
+    info->meta_read_bytes = cursor_read_u32le(cursor);
+    return PROTO_OK;
+}
+
+/**
  * Smb2 create request
  *
  * | Structure Size = 57 | SecurityFlags | RequestedOplockLevel | ImpersonationLevel |
@@ -4831,7 +4847,7 @@ struct smb_command_parser smb2_command_parsers[19] = {
 //    SMB2_COM_ECHO,
     { NULL, NULL },
 //    SMB2_COM_QUERY_DIRECTORY,
-    { parse_smb2_query_directory_request, NULL },
+    { parse_smb2_query_directory_request, parse_smb2_query_directory_response },
 //    SMB2_COM_CHANGE_NOTIFY,
     { parse_smb2_change_notify_request, parse_smb2_change_notify_response },
 //    SMB2_COM_QUERY_INFO,
