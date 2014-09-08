@@ -50,6 +50,7 @@ int streambuf_ctor(struct streambuf *sbuf, parse_fun *parse, size_t max_size, st
     for (unsigned d = 0; d < 2; d++) {
         sbuf->dir[d].buffer = NULL;
         sbuf->dir[d].buffer_size = 0;
+        sbuf->dir[d].wire_len = 0;
         sbuf->dir[d].restart_offset = 0;
     }
 
@@ -87,7 +88,8 @@ void streambuf_set_restart(struct streambuf *sbuf, unsigned way, uint8_t const *
         assert(p >= sbuf->dir[way].buffer);
     }
 
-    SLOG(LOG_DEBUG, "Setting restart offset of streambuf@%p[%u] to %zu (while size=%zu)", sbuf, way, offset, sbuf->dir[way].buffer_size);
+    SLOG(LOG_DEBUG, "Setting restart offset of streambuf@%p[%u] to %zu (while size=%zu, wire_len %zu)", sbuf, way, offset,
+            sbuf->dir[way].buffer_size, sbuf->dir[way].wire_len);
     sbuf->dir[way].restart_offset = offset;
     sbuf->dir[way].wait = wait;
 }
@@ -98,16 +100,18 @@ static void streambuf_empty(struct streambuf_unidir *dir)
         if (dir->buffer_is_malloced) objfree((void*)dir->buffer);
         dir->buffer = NULL;
         dir->buffer_size = 0;
+        dir->wire_len = 0;
     } else {
         assert(0 == dir->buffer_size);
     }
 }
 
-static enum proto_parse_status streambuf_append(struct streambuf *sbuf, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len)
+static enum proto_parse_status streambuf_append(struct streambuf *sbuf, unsigned way, uint8_t const *packet,
+        size_t cap_len, size_t wire_len)
 {
     assert(way < 2);
-    SLOG(LOG_DEBUG, "Append %zu bytes (%zu captured) to streambuf@%p[%u] of size %zu (restart @ %zu)",
-        wire_len, cap_len, sbuf, way, sbuf->dir[way].buffer_size, sbuf->dir[way].restart_offset);
+    SLOG(LOG_DEBUG, "Append %zu bytes (%zu captured) to streambuf@%p[%u] of size %zu, wire_len %zu (restart @ %zu)",
+        wire_len, cap_len, sbuf, way, sbuf->dir[way].buffer_size, sbuf->dir[way].wire_len, sbuf->dir[way].restart_offset);
     // Naive implementation : each time we add some bytes we realloc buffer
     // FIXME: use a redim_array ?
     // FIXME: better yet, rewrite everything using pkt-lists from end to end
@@ -115,43 +119,59 @@ static enum proto_parse_status streambuf_append(struct streambuf *sbuf, unsigned
     struct streambuf_unidir *dir = sbuf->dir+way;
 
     if (! dir->buffer) {
+        SLOG(LOG_DEBUG, "Initializing new streambuffer using packet on stack");
         dir->buffer = packet;
         dir->buffer_size = cap_len;
+        dir->wire_len = wire_len;
         dir->buffer_is_malloced = false;
-    } else {
-        ssize_t const keep_size = dir->buffer_size - dir->restart_offset;
-        ssize_t const new_size = keep_size + cap_len;
+        return PROTO_OK;
+    }
 
-        if (new_size > 0) { // we restart in captured bytes
-            if ((size_t)new_size > sbuf->max_size) return PROTO_PARSE_ERR;
-            uint8_t *new_buffer = objalloc_nice(new_size, "streambufs");
-            if (! new_buffer) return PROTO_PARSE_ERR;
+    ssize_t const new_wire_len = dir->wire_len - dir->restart_offset + wire_len;
+    if (dir->restart_offset == 0 && dir->buffer_size == sbuf->max_size) {
+        SLOG(LOG_DEBUG, "Streambuf full, updating wire_len from %zu to %zu", dir->wire_len, new_wire_len);
+        dir->wire_len = new_wire_len;
+        return PROTO_OK;
+    }
 
-            // Assemble kept buffer and new payload
-            if (keep_size > 0) memcpy(new_buffer, dir->buffer + dir->restart_offset, keep_size);
-            else if (keep_size < 0) {
-                // skip some part of captured bytes
-                size_t const skip_size = -keep_size;
-                assert(skip_size < cap_len);    // since new_size > 0
-                packet += skip_size;
-                cap_len -= skip_size;
-                assert(wire_len >= cap_len);    // thus skip_size < wire_len too
-                wire_len -= skip_size;
-            }
-            memcpy(new_buffer + (keep_size > 0 ? keep_size:0), packet, cap_len);
-            assert(dir->buffer);
-            if (dir->buffer_is_malloced) objfree((void*)dir->buffer);
-            dir->buffer = new_buffer;
-            dir->buffer_size = new_size;
-            dir->buffer_is_malloced = true;
-            dir->restart_offset = 0;
-        } else {    // we restart after captured bytes
-            ssize_t const new_restart_offset = dir->restart_offset - (dir->buffer_size + wire_len);
-            // check we don't want to restart within uncaptured bytes
-            if (new_restart_offset < 0) return PROTO_TOO_SHORT;
-            dir->restart_offset = new_restart_offset;
-            streambuf_empty(dir);
+    size_t const keep_size = (dir->buffer_size > dir->restart_offset) ? dir->buffer_size - dir->restart_offset : 0;
+    size_t const size_append = MIN(cap_len, sbuf->max_size - keep_size);
+    bool const keep_initial_buffer = keep_size > 0;
+    bool const append_pkt = dir->wire_len - dir->restart_offset < sbuf->max_size;
+
+    ssize_t new_size = 0;
+    if (append_pkt) new_size += size_append;
+    if (keep_initial_buffer) new_size += keep_size;
+
+    SLOG(LOG_DEBUG, "Buffer keep size %zu, size_append %zu, keep initial %d, append pkt %d, new_size %zu",
+            keep_size, size_append, keep_initial_buffer, append_pkt, new_size);
+    if (new_size > 0) {
+        uint8_t *new_buffer = objalloc_nice(new_size, "streambufs");
+        if (! new_buffer) return PROTO_PARSE_ERR;
+        if (keep_initial_buffer) {
+            SLOG(LOG_DEBUG, "Assemble kept buffer (%zu bytes) and new payload", keep_size);
+            memcpy(new_buffer, dir->buffer + dir->restart_offset, keep_size);
         }
+        if (append_pkt) {
+            ssize_t const max_copied_cap_len = MIN(sbuf->max_size - keep_size, cap_len);
+            memcpy(new_buffer + keep_size, packet, max_copied_cap_len);
+        }
+        assert(dir->buffer);
+        if (dir->buffer_is_malloced) objfree((void*)dir->buffer);
+        dir->buffer = new_buffer;
+        dir->buffer_size = new_size;
+        dir->buffer_is_malloced = true;
+        dir->restart_offset = 0;
+        dir->wire_len = new_wire_len;
+    } else {
+        ssize_t const new_restart_offset = dir->restart_offset - (dir->wire_len + wire_len);
+        SLOG(LOG_DEBUG, "Buffer restart after captured bytes or in a middle of a gap (restart at %zu, buf wire len %zu, pkt wire len %zu)",
+                dir->restart_offset, dir->wire_len, wire_len);
+        // check we don't want to restart within uncaptured bytes
+        if (new_restart_offset < 0) return PROTO_TOO_SHORT;
+        dir->restart_offset = new_restart_offset;
+        dir->wire_len = new_wire_len;
+        streambuf_empty(dir);
     }
 
     return PROTO_OK;
@@ -176,6 +196,7 @@ static int streambuf_keep(struct streambuf_unidir *dir)
         dir->buffer = buf;
         dir->buffer_is_malloced = true;
         dir->buffer_size = keep;
+        dir->wire_len -= dir->restart_offset;
         dir->restart_offset = 0;
     } else {
         dir->restart_offset -= dir->buffer_size;
@@ -195,7 +216,7 @@ enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *par
 
     struct streambuf_unidir *dir = sbuf->dir+way;
 
-    size_t uncap_len = wire_len - cap_len;
+    size_t uncap_len = dir->wire_len - dir->buffer_size;
     unsigned nb_max_restart = 10;
     while (nb_max_restart--) {
         // We may want to restart in the middle of uncaptured bytes (either because we just added a gap or because or a previous set_restart.

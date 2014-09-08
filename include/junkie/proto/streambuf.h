@@ -39,6 +39,7 @@ struct streambuf {
     struct streambuf_unidir {
         uint8_t const *buffer;      ///< The buffer itself.
         size_t buffer_size;         ///< The size of the buffer. must be 0 if !buffer.
+        size_t wire_len;            ///< The size seen on wire
         /** The offset where to start parsing from (don't store a pointer to buffer since buffer will be reallocated).
          * Note that restart_offset is allowed to be outside of the buffer (in case you intend to skip a portion of payload). */
         size_t restart_offset;
