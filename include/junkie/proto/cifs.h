@@ -8,6 +8,9 @@
  * @brief CIFS informations
  */
 
+#define CIFS_SMB_HEADER 0xff534d42
+#define CIFS_SMB2_HEADER 0xfe534d42
+
 extern struct proto *proto_cifs;
 
 enum smb_status {

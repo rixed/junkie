@@ -4277,7 +4277,11 @@ static enum proto_parse_status parse_ioctl_request(struct cifs_parser unused_ *c
 #define READ_AND_CHECK_STRUCTURE_SIZE(expected_size) \
     CHECK(2); \
     uint16_t structure_size = cursor_read_u16le(cursor); \
-    if (structure_size != expected_size) return PROTO_PARSE_ERR;
+    if (structure_size != expected_size) { \
+        SLOG(LOG_DEBUG, "Expected structure size %"PRIu16", got %"PRIu16, expected_size, structure_size); \
+        return PROTO_PARSE_ERR; \
+    }
+
 
 /**
  * Session setup request
@@ -4947,11 +4951,11 @@ static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_in
 
     enum proto_parse_status status = PROTO_OK;
     switch (smb_version) {
-        case 0xff534d42:
+        case CIFS_SMB_HEADER:
             cifs_proto_info_ctor(&info, &cifs_parser->parser, parent, SMB_HEADER_SIZE, netbios->size - SMB_HEADER_SIZE, is_query, SMB_VERSION_1);
             status = smb_parse(&cursor, &info, cifs_parser);
             break;
-        case 0xfe534d42:
+        case CIFS_SMB2_HEADER:
             cifs_proto_info_ctor(&info, &cifs_parser->parser, parent, SMB2_HEADER_SIZE, netbios->size - SMB2_HEADER_SIZE, is_query, SMB_VERSION_2);
             status = smb2_parse(&cursor, &info, cifs_parser);
             break;
