@@ -44,7 +44,7 @@ ssize_t tcp_stream_next(struct tcp_stream *stream, unsigned *way);
     unsigned exp = EXP;                           \
     unsigned val = VAL;                           \
     if (exp != val) {                             \
-        printf("Expected 0x%"PRIx32" got 0x%"PRIx32" from field %s\n", exp, val, #VAL); \
+        printf("Expected %"PRIu32" got %"PRIu32" from field %s\n", exp, val, #VAL); \
         return -1;                                 \
     } } while (0)
 
