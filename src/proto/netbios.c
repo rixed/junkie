@@ -106,7 +106,10 @@ static enum proto_parse_status netbios_sbuf_parse(struct parser *parser, struct 
     if (cap_len < NETBIOS_HEADER_SIZE) return PROTO_TOO_SHORT;
 
     uint32_t len = READ_U32N((uint32_t*) packet) & 0x00ffffff;
-    if (len > (wire_len - NETBIOS_HEADER_SIZE)) {
+    size_t current_payload = wire_len - NETBIOS_HEADER_SIZE;
+    SLOG(LOG_DEBUG, "Found netbios payload of %"PRIu32", current payload %zu",
+            len, current_payload);
+    if (len > current_payload) {
         streambuf_set_restart(&netbios_parser->sbuf, way, packet, true);
         return PROTO_OK;
     }
