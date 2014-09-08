@@ -23,7 +23,6 @@ static struct parse_test {
     struct cifs_proto_info expected;
     bool way;
 } parse_tests[] = {
-
     {
         .name = "A negociate response",
         .packet = (uint8_t const []) {
@@ -3200,6 +3199,71 @@ static struct parse_test {
 
 };
 
+static struct parse_with_netbios_test {
+    char const *name;
+    uint8_t const *packet;
+    int size;
+    enum proto_parse_status ret;
+    int number_expected;
+    struct cifs_proto_info expected[2];
+    bool way;
+} parse_with_netbios_tests[] = {
+    {
+        .name = "Multiple read request",
+        .packet = (uint8_t const []) {
+            // First netbios header
+            0x00, 0x00, 0x00, 0x71,
+            // First smb2 packet
+            0xfe, 0x53, 0x4d, 0x42, 0x40, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0xe0, 0x1e,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x57, 0xff, 0x00, 0x00, 0xd1, 0x3d, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x31, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x1c, 0x4a, 0xa9, 0x77, 0x84, 0x1c, 0xce, 0x93, 0x1c, 0x4a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00,
+            // Second netbios header
+            0x00, 0x00, 0x00, 0x71,
+            // Second smb2 packet
+            0xfe, 0x53, 0x4d, 0x42, 0x40, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0xf0, 0x1e,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x57, 0xff, 0x00, 0x00, 0xd1, 0x3d, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x31, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x1c, 0x4a, 0xa9, 0x77, 0x84, 0x1c, 0xce, 0x93, 0x1c, 0x4a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00
+        },
+        .size = (NETBIOS_HEADER_SIZE + 0x71) * 2,
+        .ret = PROTO_OK,
+        .way = FROM_CLIENT,
+        .number_expected = 2,
+        .expected = {
+            {
+                .info = { .head_len = SMB2_HEADER_SIZE, .payload = 0x71 - SMB2_HEADER_SIZE },
+                .command.smb2_command = SMB2_COM_READ,
+                .domain = "WORKGROUP",
+                .set_values = CIFS_FID,
+                .tree_id = 65367,
+                .status = SMB_STATUS_OK,
+                .version = SMB_VERSION_2,
+                .ids.message_id = 0x0b,
+                .fid = 0x93ce1c8477a94a1c,
+            }, {
+                .info = { .head_len = SMB2_HEADER_SIZE, .payload = 0x71 - SMB2_HEADER_SIZE },
+                .command.smb2_command = SMB2_COM_READ,
+                .domain = "WORKGROUP",
+                .set_values = CIFS_FID,
+                .tree_id = 65367,
+                .status = SMB_STATUS_OK,
+                .version = SMB_VERSION_2,
+                .ids.message_id = 0x1b,
+                .fid = 0x93ce1c8477a94a1c,
+            },
+        },
+    },
+};
+
 #define CHECK_SMB_SET(INFO, EXPECTED, MASK) \
     check_set_values(INFO->set_values, EXPECTED->set_values, MASK, #MASK);
 
@@ -3292,6 +3356,18 @@ static void cifs_info_check(struct proto_subscriber unused_ *s, struct proto_inf
     called++;
 }
 
+static unsigned netbios_callback_called = 0;
+static unsigned current_netbios_frame = 0;
+static void cifs_info_with_netbios_check(struct proto_subscriber unused_ *s, struct proto_info const *info_,
+        size_t unused_ cap_len, uint8_t const unused_ *packet, struct timeval const unused_ *now)
+{
+    // Check info against parse_with_netbios_tests[cur_test].expected
+    struct cifs_proto_info const *const info = DOWNCAST(info_, info, cifs_proto_info);
+    struct cifs_proto_info const *const expected = &parse_with_netbios_tests[cur_test].expected[current_netbios_frame++];
+    assert(0 == compare_expected_cifs(info, expected));
+    netbios_callback_called++;
+}
+
 static void parse_check(void)
 {
     struct timeval now;
@@ -3310,6 +3386,20 @@ static void parse_check(void)
                 test->size, &now, test->size, test->packet);
         assert(ret == test->ret);
         assert(called == cur_test + 1);
+    }
+    hook_subscriber_dtor(&pkt_hook, &sub);
+
+    hook_subscriber_ctor(&pkt_hook, &sub, cifs_info_with_netbios_check);
+    static unsigned current_called = 0;
+    for (cur_test = 0; cur_test < NB_ELEMS(parse_with_netbios_tests); cur_test++) {
+        struct parse_with_netbios_test const *test = parse_with_netbios_tests + cur_test;
+        printf("Check packet %d '%s' of size 0x%x (%d)\n", cur_test, test->name, test->size, test->size);
+        current_netbios_frame = 0;
+        enum proto_parse_status ret = netbios_parse(parser_netbios, NULL,
+                test->way, test->packet, test->size, test->size, &now, test->size, test->packet);
+        current_called += test->number_expected;
+        assert(ret == test->ret);
+        assert(netbios_callback_called == current_called);
     }
     hook_subscriber_dtor(&pkt_hook, &sub);
 }
@@ -3338,6 +3428,7 @@ int main(void)
     tcp_init();
     netbios_init();
     cifs_init();
+    streambuf_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_level(LOG_WARNING, "mutex");
     log_set_file("cifs_check.log");
@@ -3345,6 +3436,7 @@ int main(void)
     compute_padding_check();
     parse_check();
 
+    streambuf_fini();
     cifs_fini();
     netbios_fini();
     tcp_fini();
