@@ -1432,12 +1432,15 @@ static void const *cifs_info_addr(struct proto_info const *info_, size_t *size)
     return info;
 }
 
-static void cifs_proto_info_ctor(struct cifs_proto_info *info, struct parser *parser, struct proto_info *parent, size_t header, size_t payload, bool is_query, enum smb_version version)
+static void cifs_proto_info_ctor(struct cifs_proto_info *info, struct parser *parser,
+        struct proto_info *parent, size_t header, size_t payload, bool is_query,
+        enum smb_version version, struct timeval const *first_packet_tv)
 {
     memset(info, 0, sizeof(*info));
     proto_info_ctor(&info->info, parser, parent, header, payload);
     info->is_query = is_query;
     info->version = version;
+    info->first_packet_tv = *first_packet_tv;
 }
 
 static int drop_smb_string(struct cifs_parser *cifs_parser, struct cursor *cursor)
@@ -4966,11 +4969,15 @@ static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_in
     enum proto_parse_status status = PROTO_OK;
     switch (smb_version) {
         case CIFS_SMB_HEADER:
-            cifs_proto_info_ctor(&info, &cifs_parser->parser, parent, SMB_HEADER_SIZE, netbios->size - SMB_HEADER_SIZE, is_query, SMB_VERSION_1);
+            cifs_proto_info_ctor(&info, &cifs_parser->parser, parent, SMB_HEADER_SIZE,
+                    netbios->size - SMB_HEADER_SIZE, is_query, SMB_VERSION_1,
+                    &netbios->first_packet_tv);
             status = smb_parse(&cursor, &info, cifs_parser);
             break;
         case CIFS_SMB2_HEADER:
-            cifs_proto_info_ctor(&info, &cifs_parser->parser, parent, SMB2_HEADER_SIZE, netbios->size - SMB2_HEADER_SIZE, is_query, SMB_VERSION_2);
+            cifs_proto_info_ctor(&info, &cifs_parser->parser, parent, SMB2_HEADER_SIZE,
+                    netbios->size - SMB2_HEADER_SIZE, is_query, SMB_VERSION_2,
+                    &netbios->first_packet_tv);
             status = smb2_parse(&cursor, &info, cifs_parser);
             break;
         default:

@@ -1284,6 +1284,7 @@ struct cifs_proto_info {
     unsigned flag_file;
 
     bool is_query;
+    struct timeval first_packet_tv;
 };
 
 void cifs_init(void);

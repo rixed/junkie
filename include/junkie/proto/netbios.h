@@ -13,6 +13,8 @@ extern struct proto *proto_netbios;
 struct netbios_proto_info {
     struct proto_info info;
     uint32_t size;
+    // Used to save time of the first buffered packet
+    struct timeval first_packet_tv;
 };
 
 void netbios_init(void);

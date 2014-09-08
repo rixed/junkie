@@ -3381,7 +3381,7 @@ static void parse_check(void)
     for (cur_test = 0; cur_test < NB_ELEMS(parse_tests); cur_test++) {
         struct parse_test const *test = parse_tests + cur_test;
         printf("Check packet %d '%s' of size 0x%x (%d)\n", cur_test, test->name, test->size, test->size);
-        netbios_proto_info_ctor(&netbios_proto_info, parser_netbios, NULL, NETBIOS_HEADER_SIZE, test->size, test->size);
+        netbios_proto_info_ctor(&netbios_proto_info, parser_netbios, NULL, NETBIOS_HEADER_SIZE, test->size, test->size, &now);
         enum proto_parse_status ret = cifs_parse(parser, &netbios_proto_info.info, test->way, test->packet, test->size,
                 test->size, &now, test->size, test->packet);
         assert(ret == test->ret);

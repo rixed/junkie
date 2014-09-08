@@ -41,6 +41,7 @@ struct netbios_parser {
     struct parser parser;
     struct parser *msg_parser;
     struct streambuf sbuf;
+    struct timeval first_packet_tv[2];
 };
 
 static parse_fun netbios_sbuf_parse;
@@ -51,6 +52,8 @@ static int netbios_parser_ctor(struct netbios_parser *netbios_parser, struct pro
     assert(proto == proto_netbios);
     if (0 != parser_ctor(&netbios_parser->parser, proto)) return -1;
     netbios_parser->msg_parser = NULL;
+    timeval_reset(&netbios_parser->first_packet_tv[0]);
+    timeval_reset(&netbios_parser->first_packet_tv[1]);
     if (0 != streambuf_ctor(&netbios_parser->sbuf, netbios_sbuf_parse, 30000, NULL)) {
         parser_dtor(&netbios_parser->parser);
         return -1;
@@ -91,18 +94,27 @@ static void const *netbios_info_addr(struct proto_info const *info_, size_t *siz
     return info;
 }
 
-static void netbios_proto_info_ctor(struct netbios_proto_info *info, struct parser *parser, struct proto_info *parent, size_t header, size_t payload, uint32_t size)
+static void netbios_proto_info_ctor(struct netbios_proto_info *info, struct parser *parser,
+        struct proto_info *parent, size_t header, size_t payload, uint32_t size,
+        struct timeval const *first_packet_tv)
 {
     proto_info_ctor(&info->info, parser, parent, header, payload);
     info->size = size;
+    info->first_packet_tv = *first_packet_tv;
 }
 
 static enum proto_parse_status netbios_parse_frame(struct netbios_parser *netbios_parser, struct proto_info *parent,
         unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now,
         size_t tot_cap_len, uint8_t const *tot_packet, size_t *pos)
 {
-    /* Sanity checks */
-    if (wire_len < NETBIOS_HEADER_SIZE + 4) return PROTO_PARSE_ERR;
+    if (!timeval_is_set(&netbios_parser->first_packet_tv[way])) {
+        SLOG(LOG_DEBUG, "Set first packet ts for way %d to %s", way, timeval_2_str(now));
+        netbios_parser->first_packet_tv[way] = *now;
+    }
+    if (wire_len < NETBIOS_HEADER_SIZE + 4) {
+        streambuf_set_restart(&netbios_parser->sbuf, way, packet, NETBIOS_HEADER_SIZE + 4);
+        return PROTO_OK;
+    }
     if (cap_len < NETBIOS_HEADER_SIZE + 4) {
         // Last packet might be pending
         streambuf_set_restart(&netbios_parser->sbuf, way, packet, false);
@@ -128,7 +140,9 @@ static enum proto_parse_status netbios_parse_frame(struct netbios_parser *netbio
     /* Parse */
     struct netbios_proto_info info;
     netbios_proto_info_ctor(&info, &netbios_parser->parser, parent,
-            NETBIOS_HEADER_SIZE, wire_len - NETBIOS_HEADER_SIZE, len);
+            NETBIOS_HEADER_SIZE, wire_len - NETBIOS_HEADER_SIZE, len,
+            netbios_parser->first_packet_tv + way);
+    timeval_reset(netbios_parser->first_packet_tv + way);
 
     SLOG(LOG_DEBUG, "Parsing netbios content");
     uint8_t const *next_packet = packet + NETBIOS_HEADER_SIZE;
