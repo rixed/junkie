@@ -178,12 +178,15 @@ static enum proto_parse_status streambuf_append(struct streambuf *sbuf, unsigned
 }
 
 // Copy the packet into a buffer for later use
-static int streambuf_keep(struct streambuf_unidir *dir)
+static int streambuf_keep(struct streambuf *sbuf, unsigned way)
 {
+    struct streambuf_unidir *dir = sbuf->dir+way;
+
     if (! dir->buffer) return 0;
     if (dir->buffer_is_malloced) return 0;  // we already own a copy, do not touch it.
 
-    size_t const keep = dir->buffer_size > dir->restart_offset ? dir->buffer_size - dir->restart_offset : 0;
+    size_t const keep = MIN(dir->buffer_size > dir->restart_offset ? dir->buffer_size - dir->restart_offset : 0,
+            sbuf->max_size);
     SLOG(LOG_DEBUG, "Keeping only %zu bytes of streambuf_unidir@%p", keep, dir);
 
     if (keep > 0) {
@@ -244,6 +247,7 @@ enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *par
             now, tot_cap_len, tot_packet);
 
         assert(dir->restart_offset >= offset);
+        SLOG(LOG_DEBUG, "streambuf@%p[%u] parse returned %s", sbuf, way, proto_parse_status_2_str(status));
 
         /* 3 cases here:
          * - either the parser failed,
@@ -254,7 +258,7 @@ enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *par
                 goto quit;
             case PROTO_OK:
                 if (dir->wait) {
-                    if (0 != streambuf_keep(dir)) status = PROTO_PARSE_ERR;
+                    if (0 != streambuf_keep(sbuf, way)) status = PROTO_PARSE_ERR;
                     goto quit;
                 }
                 break;
