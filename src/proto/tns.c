@@ -760,6 +760,7 @@ static enum proto_parse_status tns_parse_sql_query_oci(struct sql_proto_info *in
     bool is_chunked;
     bool has_query = lookup_query(cursor, &is_chunked, sql_size);
     info->u.query.sql[0] = '\0';
+    info->u.query.truncated = 0;
     if (has_query) {
         SLOG(LOG_DEBUG, "Found a query, parsing it");
         if (is_chunked) cursor_read_chunked_string(cursor, info->u.query.sql, sizeof(info->u.query.sql), MAX_OCI_CHUNK);
@@ -793,6 +794,7 @@ static enum proto_parse_status tns_parse_sql_query_jdbc(struct sql_proto_info *i
     DROP_FIX(cursor, 2);
 
     info->u.query.sql[0] = '\0';
+    info->u.query.truncated = 0; // TODO Handle truncated
     if (sql_len > 0) {
         // Some unknown bytes
         while (cursor->cap_len > 1 && PROTO_OK != is_range_print(cursor, MIN(MIN_QUERY_SIZE, sql_len), 1)) {
@@ -1053,7 +1055,7 @@ static enum proto_parse_status tns_sbuf_parse(struct parser *parser, struct prot
     cursor_ctor(&cursor, payload, cap_len);
 
     uint8_t const *const msg_start = cursor.head;
-    size_t pdu_len;
+    size_t pdu_len = 0;
     enum tns_type pdu_type = 0;
     enum proto_parse_status status = cursor_read_tns_hdr(&cursor, &pdu_len, &pdu_type, wire_len);
     if (status == PROTO_PARSE_ERR) {
@@ -1065,7 +1067,7 @@ static enum proto_parse_status tns_sbuf_parse(struct parser *parser, struct prot
     bool has_gap = cap_len < wire_len;
     if (status == PROTO_TOO_SHORT && !has_gap) {
         proto_parse(NULL, parent, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
-        streambuf_set_restart(&tns_parser->sbuf, way, msg_start, true);
+        streambuf_set_restart(&tns_parser->sbuf, way, msg_start, pdu_len > 0 ? pdu_len : 8);
         SLOG(LOG_DEBUG, "Payload too short for parsing message, will restart @ %zu", tns_parser->sbuf.dir->restart_offset);
         return PROTO_OK;
     }

@@ -1468,9 +1468,8 @@ static enum proto_parse_status tls_sbuf_parse(struct parser *parser, struct prot
     // Wait for a full record before proceeding
 #   define TLS_RECORD_HEAD 5
     if (wire_len < TLS_RECORD_HEAD) {
-restart_record:
         proto_parse(NULL, parent, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
-        streambuf_set_restart(&tls_parser->sbuf, way, payload, true);
+        streambuf_set_restart(&tls_parser->sbuf, way, payload, wire_len + 1);
         return PROTO_OK;
     }
     if (cap_len < TLS_RECORD_HEAD) return PROTO_TOO_SHORT;
@@ -1486,7 +1485,11 @@ restart_record:
         return PROTO_PARSE_ERR;
     }
 
-    if (wire_len < TLS_RECORD_HEAD + length) goto restart_record;
+    if (wire_len < TLS_RECORD_HEAD + length) {
+        proto_parse(NULL, parent, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
+        streambuf_set_restart(&tls_parser->sbuf, way, payload, wire_len + 1);
+        return PROTO_OK;
+    }
 
     // Now build the proto_info
     struct tls_proto_info info;
@@ -1499,7 +1502,7 @@ restart_record:
     info.set_values = 0;
 
     // Parse the rest of the record according to the content_type
-    streambuf_set_restart(&tls_parser->sbuf, way, payload + TLS_RECORD_HEAD + length, false);
+    streambuf_set_restart(&tls_parser->sbuf, way, payload + TLS_RECORD_HEAD + length, 0);
 
     enum proto_parse_status status = tls_parse_record(tls_parser, way, &info, MIN(cap_len - TLS_RECORD_HEAD, length), length, payload + TLS_RECORD_HEAD, now, tot_cap_len, tot_packet);
 

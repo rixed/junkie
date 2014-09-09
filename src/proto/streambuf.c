@@ -49,9 +49,10 @@ int streambuf_ctor(struct streambuf *sbuf, parse_fun *parse, size_t max_size, st
 
     for (unsigned d = 0; d < 2; d++) {
         sbuf->dir[d].buffer = NULL;
-        sbuf->dir[d].buffer_size = 0;
+        sbuf->dir[d].cap_len = 0;
         sbuf->dir[d].wire_len = 0;
         sbuf->dir[d].restart_offset = 0;
+        sbuf->dir[d].wait_offset = 0;
     }
 
     return 0;
@@ -69,7 +70,14 @@ void streambuf_dtor(struct streambuf *sbuf)
     }
 }
 
-void streambuf_set_restart(struct streambuf *sbuf, unsigned way, uint8_t const *p, bool wait)
+static const char *streambuf_2_str(struct streambuf *sbuf, unsigned way)
+{
+    return tempstr_printf("streambuf@%p[%u], buffer size %zu, wire_len %zu, restart_offset %zu, wait_offset %zu, is_malloced %d",
+            sbuf, way, sbuf->dir[way].cap_len, sbuf->dir[way].wire_len, sbuf->dir[way].restart_offset,
+            sbuf->dir[way].wait_offset, sbuf->dir[way].buffer_is_malloced);
+}
+
+void streambuf_set_restart(struct streambuf *sbuf, unsigned way, uint8_t const *p, size_t wait_offset)
 {
     assert(way < 2);
 
@@ -88,10 +96,10 @@ void streambuf_set_restart(struct streambuf *sbuf, unsigned way, uint8_t const *
         assert(p >= sbuf->dir[way].buffer);
     }
 
-    SLOG(LOG_DEBUG, "Setting restart offset of streambuf@%p[%u] to %zu (while size=%zu, wire_len %zu)", sbuf, way, offset,
-            sbuf->dir[way].buffer_size, sbuf->dir[way].wire_len);
+    SLOG(LOG_DEBUG, "Setting restart offset to %zu, waiting offset to %zu for %s", offset, wait_offset,
+            streambuf_2_str(sbuf, way));
     sbuf->dir[way].restart_offset = offset;
-    sbuf->dir[way].wait = wait;
+    sbuf->dir[way].wait_offset = wait_offset;
 }
 
 static void streambuf_empty(struct streambuf_unidir *dir)
@@ -99,19 +107,46 @@ static void streambuf_empty(struct streambuf_unidir *dir)
     if (dir->buffer) {
         if (dir->buffer_is_malloced) objfree((void*)dir->buffer);
         dir->buffer = NULL;
-        dir->buffer_size = 0;
+        dir->cap_len = 0;
         dir->wire_len = 0;
     } else {
-        assert(0 == dir->buffer_size);
+        assert(0 == dir->cap_len);
     }
+}
+
+static enum proto_parse_status streambuf_shrink(struct streambuf *sbuf, unsigned way, uint8_t const *packet,
+        size_t cap_len, size_t wire_len)
+{
+    struct streambuf_unidir *dir = sbuf->dir+way;
+    if ( dir->restart_offset > (dir->wire_len - wire_len) && dir->restart_offset < dir->wire_len ) {
+        size_t num_bytes = dir->wire_len - dir->restart_offset;
+        size_t pkt_offset = wire_len - num_bytes;
+        SLOG(LOG_DEBUG, "Num bytes %zu, pkt offset %zu", num_bytes, pkt_offset);
+        if (pkt_offset > cap_len) {
+            SLOG(LOG_DEBUG, "Shrink in a middle of uncaptured bytes");
+            return PROTO_TOO_SHORT;
+        }
+        size_t uncap_bytes = wire_len - cap_len;
+        size_t copied_bytes = MIN(sbuf->max_size, num_bytes - uncap_bytes);
+        uint8_t *new_buffer = objalloc_nice(copied_bytes, "streambufs");
+        memcpy(new_buffer, packet + pkt_offset, copied_bytes);
+        if (dir->buffer_is_malloced) objfree((void*)dir->buffer);
+        dir->buffer = new_buffer;
+        dir->cap_len = copied_bytes;
+        dir->buffer_is_malloced = true;
+        dir->restart_offset = 0;
+        dir->wire_len = wire_len - pkt_offset;
+        return PROTO_OK;
+    }
+    // No need to shrink, it will be handle on next append
+    return PROTO_OK;
 }
 
 static enum proto_parse_status streambuf_append(struct streambuf *sbuf, unsigned way, uint8_t const *packet,
         size_t cap_len, size_t wire_len)
 {
     assert(way < 2);
-    SLOG(LOG_DEBUG, "Append %zu bytes (%zu captured) to streambuf@%p[%u] of size %zu, wire_len %zu (restart @ %zu)",
-        wire_len, cap_len, sbuf, way, sbuf->dir[way].buffer_size, sbuf->dir[way].wire_len, sbuf->dir[way].restart_offset);
+    SLOG(LOG_DEBUG, "Append %zu bytes (%zu captured) to %s", wire_len, cap_len, streambuf_2_str(sbuf, way));
     // Naive implementation : each time we add some bytes we realloc buffer
     // FIXME: use a redim_array ?
     // FIXME: better yet, rewrite everything using pkt-lists from end to end
@@ -121,20 +156,20 @@ static enum proto_parse_status streambuf_append(struct streambuf *sbuf, unsigned
     if (! dir->buffer) {
         SLOG(LOG_DEBUG, "Initializing new streambuffer using packet on stack");
         dir->buffer = packet;
-        dir->buffer_size = cap_len;
+        dir->cap_len = cap_len;
         dir->wire_len = wire_len;
         dir->buffer_is_malloced = false;
         return PROTO_OK;
     }
 
     ssize_t const new_wire_len = dir->wire_len - dir->restart_offset + wire_len;
-    if (dir->restart_offset == 0 && dir->buffer_size == sbuf->max_size) {
+    if (dir->restart_offset == 0 && dir->cap_len == sbuf->max_size) {
         SLOG(LOG_DEBUG, "Streambuf full, updating wire_len from %zu to %zu", dir->wire_len, new_wire_len);
         dir->wire_len = new_wire_len;
         return PROTO_OK;
     }
 
-    size_t const keep_size = (dir->buffer_size > dir->restart_offset) ? dir->buffer_size - dir->restart_offset : 0;
+    size_t const keep_size = (dir->cap_len > dir->restart_offset) ? dir->cap_len - dir->restart_offset : 0;
     size_t const size_append = MIN(cap_len, sbuf->max_size - keep_size);
     bool const keep_initial_buffer = keep_size > 0;
     bool const append_pkt = dir->wire_len - dir->restart_offset < sbuf->max_size;
@@ -143,8 +178,8 @@ static enum proto_parse_status streambuf_append(struct streambuf *sbuf, unsigned
     if (append_pkt) new_size += size_append;
     if (keep_initial_buffer) new_size += keep_size;
 
-    SLOG(LOG_DEBUG, "Buffer keep size %zu, size_append %zu, keep initial %d, append pkt %d, new_size %zu",
-            keep_size, size_append, keep_initial_buffer, append_pkt, new_size);
+    SLOG(LOG_DEBUG, "Buffer keep size %zu, size_append %zu, keep initial %d, append pkt %d, new_size %zu, new_wire_len %zu",
+            keep_size, size_append, keep_initial_buffer, append_pkt, new_size, new_wire_len);
     if (new_size > 0) {
         uint8_t *new_buffer = objalloc_nice(new_size, "streambufs");
         if (! new_buffer) return PROTO_PARSE_ERR;
@@ -159,7 +194,7 @@ static enum proto_parse_status streambuf_append(struct streambuf *sbuf, unsigned
         assert(dir->buffer);
         if (dir->buffer_is_malloced) objfree((void*)dir->buffer);
         dir->buffer = new_buffer;
-        dir->buffer_size = new_size;
+        dir->cap_len = new_size;
         dir->buffer_is_malloced = true;
         dir->restart_offset = 0;
         dir->wire_len = new_wire_len;
@@ -185,7 +220,7 @@ static int streambuf_keep(struct streambuf *sbuf, unsigned way)
     if (! dir->buffer) return 0;
     if (dir->buffer_is_malloced) return 0;  // we already own a copy, do not touch it.
 
-    size_t const keep = MIN(dir->buffer_size > dir->restart_offset ? dir->buffer_size - dir->restart_offset : 0,
+    size_t const keep = MIN(dir->cap_len > dir->restart_offset ? dir->cap_len - dir->restart_offset : 0,
             sbuf->max_size);
     SLOG(LOG_DEBUG, "Keeping only %zu bytes of streambuf_unidir@%p", keep, dir);
 
@@ -198,18 +233,38 @@ static int streambuf_keep(struct streambuf *sbuf, unsigned way)
         memcpy(buf, dir->buffer + dir->restart_offset, keep);
         dir->buffer = buf;
         dir->buffer_is_malloced = true;
-        dir->buffer_size = keep;
+        dir->cap_len = keep;
         dir->wire_len -= dir->restart_offset;
         dir->restart_offset = 0;
     } else {
-        dir->restart_offset -= dir->buffer_size;
+        dir->restart_offset -= dir->cap_len;
         streambuf_empty(dir);
     }
 
     return 0;
 }
 
-enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
+static bool offset_in_last_packet(struct streambuf_unidir const *dir, size_t wire_len, size_t cap_len)
+{
+    size_t old_wire_len = dir->wire_len - wire_len;
+    bool offset_in_wire = dir->restart_offset >= old_wire_len && (dir->restart_offset + dir->wait_offset) <= dir->wire_len;
+    return (dir->restart_offset > 0 &&
+            offset_in_wire &&
+            dir->restart_offset - old_wire_len < cap_len);
+}
+
+static bool offset_start_in_last_packet(struct streambuf_unidir const *dir, size_t wire_len, size_t cap_len)
+{
+    size_t old_wire_len = dir->wire_len - wire_len;
+    bool offset_in_wire = dir->restart_offset >= old_wire_len && (dir->restart_offset + dir->wait_offset) > dir->wire_len;
+    return (dir->restart_offset > 0 &&
+            offset_in_wire &&
+            dir->restart_offset - old_wire_len < cap_len);
+}
+
+enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *parser, struct proto_info *parent,
+        unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now,
+        size_t tot_cap_len, uint8_t const *tot_packet)
 {
     mutex_lock(sbuf->mutex);
 
@@ -218,56 +273,84 @@ enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *par
     if (status != PROTO_OK) goto quit;
 
     struct streambuf_unidir *dir = sbuf->dir+way;
+    if (dir->wire_len < dir->wait_offset) {
+        goto quit;
+    }
 
-    size_t uncap_len = dir->wire_len - dir->buffer_size;
     unsigned nb_max_restart = 10;
     while (nb_max_restart--) {
         // We may want to restart in the middle of uncaptured bytes (either because we just added a gap or because or a previous set_restart.
         size_t offset = dir->restart_offset;
-        dir->wait = false;
-        if (offset < dir->buffer_size) {    // simple case: we restart from the buffer
-        } else if (offset < dir->buffer_size + uncap_len) { // restart from the uncaptured zone: signal the gap (up to the end of uncaptured zone)
-            SLOG(LOG_DEBUG, "streambuf@%p[%u] restart is set within uncaptured bytes", sbuf, way);
-            uncap_len -= offset - dir->buffer_size;
+        dir->wait_offset = 0;
+        if (offset < dir->cap_len) {
+            SLOG(LOG_DEBUG, "Restart from the buffer with offset %zu", offset);
+        } else if (offset_in_last_packet(dir, wire_len, cap_len)) {
+            // Restart is after truncated packet but in the middle of current packet, we can parse
+            if (dir->buffer_is_malloced) objfree((void*)dir->buffer);
+            offset -= dir->wire_len - wire_len;
+            SLOG(LOG_DEBUG, "We restart after %zu of the last packet (cap_len %zu, wire_len %zu) for %s, use packet on stack",
+                    offset, cap_len, wire_len, streambuf_2_str(sbuf, way));
+            dir->buffer = packet;
+            dir->cap_len = cap_len;
+            dir->wire_len = wire_len;
+            dir->buffer_is_malloced = false;
+        } else if (offset < dir->wire_len) { // restart from the uncaptured zone: signal the gap (up to the end of uncaptured zone)
+            SLOG(LOG_DEBUG, "restart for %s is set within uncaptured bytes", streambuf_2_str(sbuf, way));
+            size_t dir_wire_len = dir->wire_len;
             streambuf_empty(dir);
+            dir->wire_len = dir_wire_len - offset;
             offset = 0;
         } else {    // restart from after wire_len: just be patient
-            SLOG(LOG_DEBUG, "streambuf@%p[%u] was totally parsed", sbuf, way);
-            dir->restart_offset -= dir->buffer_size + uncap_len;
+            SLOG(LOG_DEBUG, "%s was totally parsed removing %zu from restart offset", streambuf_2_str(sbuf, way), dir->wire_len);
+            dir->restart_offset -= dir->wire_len;
             streambuf_empty(dir);
             goto quit;
         }
 
-        dir->restart_offset = dir->buffer_size + uncap_len;
+        dir->restart_offset = dir->wire_len;
         status = sbuf->parse(
             parser, parent, way,
             dir->buffer + offset,
-            dir->buffer_size - offset,
-            dir->buffer_size - offset + uncap_len,
+            dir->cap_len - offset,
+            dir->wire_len - offset,
             now, tot_cap_len, tot_packet);
 
         assert(dir->restart_offset >= offset);
-        SLOG(LOG_DEBUG, "streambuf@%p[%u] parse returned %s", sbuf, way, proto_parse_status_2_str(status));
+        SLOG(LOG_DEBUG, "parse returned %s for %s", proto_parse_status_2_str(status), streambuf_2_str(sbuf, way));
 
         /* 3 cases here:
          * - either the parser failed,
          * - or it succeeded and parsed everything, and we can dispose of the buffer,
-         * - or restart_offset was set somewhere because the parser expect more data (that may already been there). */
+         * - or restart_offset was set somewhere because the parser expect more data (that may already been there).
+         */
         switch (status) {
             case PROTO_PARSE_ERR:
                 goto quit;
             case PROTO_OK:
-                if (dir->wait) {
+                if (offset_in_last_packet(dir, cap_len, wire_len)) {
+                    break;
+                } else if (offset_start_in_last_packet(dir, cap_len, wire_len)) {
+                    SLOG(LOG_DEBUG, "Restart start in last packet, buffering it");
+                    status = streambuf_shrink(sbuf, way, packet, cap_len, wire_len);
+                    goto quit;
+                } else if (dir->wait_offset > 0) {
                     if (0 != streambuf_keep(sbuf, way)) status = PROTO_PARSE_ERR;
                     goto quit;
                 }
                 break;
             case PROTO_TOO_SHORT:
-                if (uncap_len > 0) {
+                if (offset_in_last_packet(dir, cap_len, wire_len)) {
+                    break;
+                } else if (offset_start_in_last_packet(dir, cap_len, wire_len)) {
+                    SLOG(LOG_DEBUG, "Restart start in last packet, buffering it");
+                    status = streambuf_shrink(sbuf, way, packet, cap_len, wire_len);
+                    goto quit;
+                }
+                if (dir->wire_len > dir->cap_len) {
                     status = PROTO_PARSE_ERR; // FIXME: in this case we should kill only in one direction!
                     goto quit;
                 }
-                if (dir->wait) goto quit;
+                if (dir->wait_offset > 0) goto quit;
                 break;
         }
     }

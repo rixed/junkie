@@ -116,10 +116,10 @@ static enum proto_parse_status netbios_parse_frame(struct netbios_parser *netbio
         return PROTO_OK;
     }
     if (cap_len < NETBIOS_HEADER_SIZE + 4) {
-        // Last packet might be pending
-        streambuf_set_restart(&netbios_parser->sbuf, way, packet, false);
+        streambuf_set_restart(&netbios_parser->sbuf, way, packet, NETBIOS_HEADER_SIZE + 4);
         return PROTO_TOO_SHORT;
     }
+
     uint32_t smb_version = READ_U32N(packet + NETBIOS_HEADER_SIZE);
     if (smb_version != CIFS_SMB_HEADER && smb_version != CIFS_SMB2_HEADER) {
         SLOG(LOG_DEBUG, "Netbios payload does not expected header (expected %"PRIx32" or %"PRIx32"), got %"PRIx32,
@@ -133,7 +133,7 @@ static enum proto_parse_status netbios_parse_frame(struct netbios_parser *netbio
     SLOG(LOG_DEBUG, "Found netbios payload of %"PRIu32", current payload %zu",
             len, current_payload);
     if (len > current_payload) {
-        streambuf_set_restart(&netbios_parser->sbuf, way, packet, true);
+        streambuf_set_restart(&netbios_parser->sbuf, way, packet, len);
         return PROTO_OK;
     }
 

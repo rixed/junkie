@@ -551,7 +551,7 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
             SLOG(LOG_DEBUG, "Incomplete HTTP headers, will restart later");
             // So header end must be in next packet(s)
             proto_parse(NULL, parent, way, NULL, 0, 0, now, tot_cap_len, tot_packet);    // ack what we had so far
-            streambuf_set_restart(&http_parser->sbuf, way, packet, true);   // retry later with (hopefully) complete header this time
+            streambuf_set_restart(&http_parser->sbuf, way, packet, expected_bytes);   // retry later with (hopefully) complete header this time
             return PROTO_OK;
         } else {
             // No, the header was truncated. We want to report as much as we can.
@@ -634,7 +634,7 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
     hook_subscribers_call(&http_head_hook, &info.info, httphdr_len, packet, now);
 
     // Restart from the end of this header
-    streambuf_set_restart(&http_parser->sbuf, way, packet + httphdr_len, false);
+    streambuf_set_restart(&http_parser->sbuf, way, packet + httphdr_len, 0);
     // Report the header
     return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
@@ -700,7 +700,7 @@ static enum proto_parse_status http_parse_body(struct http_parser *http_parser, 
             return PROTO_TOO_SHORT;
         }
         // Else the (chunk) header is already waiting for us
-        streambuf_set_restart(&http_parser->sbuf, way, packet + body_part, false);
+        streambuf_set_restart(&http_parser->sbuf, way, packet + body_part, 0);
     }
 
     return PROTO_OK;
@@ -727,7 +727,7 @@ static enum proto_parse_status http_parse_chunk_header(struct http_parser *http_
     liner_init(&liner, &delim_lines, (char const *)packet, cap_len);
     if (liner_eof(&liner)) {    // not a single char to read?
         proto_parse(NULL, parent, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
-        streambuf_set_restart(&http_parser->sbuf, way, packet, true);   // more luck later
+        streambuf_set_restart(&http_parser->sbuf, way, packet, 1);   // more luck later
         return PROTO_OK;
     }
     char const *end;
@@ -741,10 +741,10 @@ static enum proto_parse_status http_parse_chunk_header(struct http_parser *http_
     if (len > 0) {
         http_parser_reset_phase(http_parser, way, CHUNK);
         http_parser->state[way].remaining_content = len;    // for the CR+LF following the chunk (the day we will pass the body to a subparser we will need to parse these in next http_parse_chunk_header() call instead).
-        streambuf_set_restart(&http_parser->sbuf, way, (const uint8_t *)liner.start, false);
+        streambuf_set_restart(&http_parser->sbuf, way, (const uint8_t *)liner.start, 0);
     } else {
         http_parser_reset_phase(http_parser, way, CHUNK_TRAILER);
-        streambuf_set_restart(&http_parser->sbuf, way, (const uint8_t *)liner.start, false);
+        streambuf_set_restart(&http_parser->sbuf, way, (const uint8_t *)liner.start, 0);
     }
 
     return PROTO_OK;
@@ -760,7 +760,7 @@ static enum proto_parse_status http_parse_chunk_crlf(struct http_parser *http_pa
 
     if (wire_len < 2) {
         proto_parse(NULL, parent, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
-        streambuf_set_restart(&http_parser->sbuf, way, packet, true);   // more luck later
+        streambuf_set_restart(&http_parser->sbuf, way, packet, 2);   // more luck later
         return PROTO_OK;
     }
 
@@ -778,7 +778,7 @@ invalid:
     if (2 == wire_len) return PROTO_OK;
 
     if (cap_len > 2) {
-        streambuf_set_restart(&http_parser->sbuf, way, packet + 2, false);
+        streambuf_set_restart(&http_parser->sbuf, way, packet + 2, 0);
     } else {
         // Next header was not captured :-(
         return PROTO_TOO_SHORT;
@@ -803,12 +803,12 @@ static enum proto_parse_status http_parse_chunk_trailer(struct http_parser *http
     liner_init(&liner, &delim_lines, (char const *)packet, cap_len);
     if (liner_eof(&liner)) {    // not a single char to read?
         proto_parse(NULL, parent, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
-        streambuf_set_restart(&http_parser->sbuf, way, packet, true);   // more luck later
+        streambuf_set_restart(&http_parser->sbuf, way, packet, 1);   // more luck later
         return PROTO_OK;
     }
 
     liner_next(&liner);
-    streambuf_set_restart(&http_parser->sbuf, way, (const uint8_t *)liner.start, false);
+    streambuf_set_restart(&http_parser->sbuf, way, (const uint8_t *)liner.start, 0);
 
     SLOG(LOG_DEBUG, "Chunk trailer line of length %zu", liner_tok_length(&liner));
     if (liner_tok_length(&liner) == 0) {    // hourra, get out of here!

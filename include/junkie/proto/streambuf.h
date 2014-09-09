@@ -19,8 +19,9 @@
  *
  * To use it, first construct a streambuf for your parser (which implies that
  * your parser cannot be unique, which is already certainly the case), giving
- * the constructor a callback and a maximum size to buffer (after which a
- * PROTO_PARSE_ERR will automatically occur).
+ * the constructor a callback and a maximum size to buffer. If inserted
+ * payload exceed the maximum buffer size, it will be truncated and wire len
+ * will be increased accordingly.
  *
  * Then, in your parse method, just call streambuf_add with your constructed
  * buffer and all the parse parameters, and your callback will be called with
@@ -28,7 +29,9 @@
  * proto_parse as usual, but in addition, when your parser needs more data to
  * continue, leave the streambuf_cursor to where you would like to resume
  * parsing. Next time (provided you returned PROTO_OK) you will be called with
- * more data, starting to this byte.
+ * more data, starting to this byte. Restart in PROTO_TOO_SHORT can occured if
+ * the cursor is set to the current packet (which was truncated because of
+ * maximum buffer size).
  */
 
 struct streambuf {
@@ -38,13 +41,13 @@ struct streambuf {
     /// We want actually one buffer for each direction
     struct streambuf_unidir {
         uint8_t const *buffer;      ///< The buffer itself.
-        size_t buffer_size;         ///< The size of the buffer. must be 0 if !buffer.
+        size_t cap_len;             ///< The size of the buffer. must be 0 if !buffer.
         size_t wire_len;            ///< The size seen on wire
         /** The offset where to start parsing from (don't store a pointer to buffer since buffer will be reallocated).
          * Note that restart_offset is allowed to be outside of the buffer (in case you intend to skip a portion of payload). */
         size_t restart_offset;
         bool buffer_is_malloced;    ///< True if the buffer was malloced, false if it references the original packet. unset if !buffer.
-        bool wait;                  ///< Wait for more data before restarting.
+        size_t wait_offset;         ///< How many data it needs before parsing
     } dir[2];
 };
 
@@ -52,9 +55,9 @@ int streambuf_ctor(struct streambuf *, parse_fun *parse, size_t max_size, struct
 void streambuf_dtor(struct streambuf *);
 
 /// When a parser want to be called later with (part of) current data
-/** @param wait wait for reception of more data before restarting
+/** @param wait_offset how many bytes is needed before restarting
  *  @param way direction of the stream (@see struct mux_proto) */
-void streambuf_set_restart(struct streambuf *, unsigned way, uint8_t const *, bool wait);
+void streambuf_set_restart(struct streambuf *, unsigned way, uint8_t const *, size_t wait_offset);
 
 /// Add the new payload to the buffered payload, then call the parse callback
 enum proto_parse_status streambuf_add(struct streambuf *, struct parser *, struct proto_info *, unsigned, uint8_t const *, size_t, size_t, struct timeval const *, size_t tot_cap_len, uint8_t const *tot_packet);

@@ -344,34 +344,33 @@ static unsigned command_to_expected_eof(enum query_command command)
  * | Msg header | Catalog                | Database               | ... |
  * Eof Marker
  */
-static enum proto_parse_status mysql_parse_server_response(struct mysql_parser *mysql_parser, struct cursor *cursor,
-        struct sql_proto_info *info)
+static enum proto_parse_status mysql_parse_server_response(struct mysql_parser *mysql_parser,
+        struct mysql_header *header, struct cursor *cursor, struct sql_proto_info *info)
 {
     SLOG(LOG_DEBUG, "Parse mysql server response, last query %s", query_command_2_str(mysql_parser->last_command));
-    struct mysql_header header;
-    enum proto_parse_status status = read_mysql_header(cursor, &header);
-    if (status != PROTO_OK) return status;
-    uint8_t const *msg_end = cursor->head + header.length;
-    if (header.packet_num == 1) mysql_parser->nb_eof = 0;
+    uint8_t const *msg_end = cursor->head + header->length;
+    if (header->packet_num == 1) mysql_parser->nb_eof = 0;
 
-    if (header.length < 1) return PROTO_PARSE_ERR;
+    if (header->length < 1) return PROTO_PARSE_ERR;
     unsigned res = cursor_peek_u8(cursor, 0);
+
+    enum proto_parse_status status = PROTO_OK;
     if (res == 0xff) {
         SLOG(LOG_DEBUG, "Got an error pdu");
         cursor_drop(cursor, 1);
-        status = mysql_parse_error(info, cursor, header.length - 1);
+        status = mysql_parse_error(info, cursor, header->length - 1);
         if (status != PROTO_OK) return status;
     } else if (res == 0xfe) {
-        if (header.length != 5) return PROTO_PARSE_ERR;
+        if (header->length != 5) return PROTO_PARSE_ERR;
         mysql_parser->nb_eof ++;
         SLOG(LOG_DEBUG, "Got an eof pdu, count is %u", mysql_parser->nb_eof);
     } else if (mysql_parser->last_command == COM_STMT_PREPARE) {
         // Do nothing, fields and rows will be fetch from execute
     } else if (mysql_parser->last_command == COM_STMT_EXECUTE) {
         SLOG(LOG_DEBUG, "Got execute statement response");
-        if (header.packet_num == 1) {
+        if (header->packet_num == 1) {
             uint_least64_t field_count;
-            if (PROTO_OK != (status = cursor_read_varlen(cursor, &field_count, header.length))) return status;
+            if (PROTO_OK != (status = cursor_read_varlen(cursor, &field_count, header->length))) return status;
             sql_set_field_count(info, field_count);
         } else if (res == 0x00 && mysql_parser->nb_eof == 1) {
             sql_increment_row_count(info, 1);
@@ -379,11 +378,11 @@ static enum proto_parse_status mysql_parse_server_response(struct mysql_parser *
     } else if (mysql_parser->last_command == COM_FIELD_LIST) {
         sql_increment_field_count(info, 1);
     } else if (res > 0 && mysql_parser->last_command == COM_QUERY) { // Query pdu
-        SLOG(LOG_DEBUG, "Got query response, eof %u, pkt number %u", mysql_parser->nb_eof, header.packet_num);
-        if (header.packet_num == 1 && msg_end == (cursor->head + 1)) {  // result set header
+        SLOG(LOG_DEBUG, "Got query response, eof %u, pkt number %u", mysql_parser->nb_eof, header->packet_num);
+        if (header->packet_num == 1 && msg_end == (cursor->head + 1)) {  // result set header
             // We must re-read the field count since it's actually a varlen binary
             uint_least64_t field_count;
-            if (PROTO_OK != (status = cursor_read_varlen(cursor, &field_count, header.length))) return status;
+            if (PROTO_OK != (status = cursor_read_varlen(cursor, &field_count, header->length))) return status;
             sql_set_field_count(info, field_count);
         } else if (mysql_parser->nb_eof == 1) { // Row data pdu
             sql_increment_row_count(info, 1);
@@ -395,7 +394,7 @@ static enum proto_parse_status mysql_parse_server_response(struct mysql_parser *
         mysql_parser->phase = QUERY;
         if (mysql_parser->phase == QUERY) {
             uint_least64_t nb_rows;
-            status = cursor_read_varlen(cursor, &nb_rows, header.length - 1);
+            status = cursor_read_varlen(cursor, &nb_rows, header->length - 1);
             if (status != PROTO_OK) return status;
             sql_set_row_count(info, nb_rows); // number of affected rows
         }
@@ -433,19 +432,17 @@ static enum sql_encoding mysql_charset_to_encoding(unsigned charset)
  * | 1 byte  | Null terminated | Null terminated | Null terminated |
  * | Charset | Username        | Password        | Schema          |
  */
-static enum proto_parse_status mysql_parse_client_login(struct cursor *cursor, struct sql_proto_info *info)
+static enum proto_parse_status mysql_parse_client_login(struct cursor *cursor,
+        struct mysql_header const *header, struct sql_proto_info *info)
 {
     SLOG(LOG_DEBUG, "Parse mysql client login");
-    struct mysql_header header;
-    enum proto_parse_status status = read_mysql_header(cursor, &header);
-    if (status != PROTO_OK) return status;
 
-    uint8_t const *msg_end = cursor->head + header.length;
-    if (header.packet_num != 1) {
-        SLOG(LOG_DEBUG, "Wrong packet number, expected 1, got %d", header.packet_num);
+    uint8_t const *msg_end = cursor->head + header->length;
+    if (header->packet_num != 1) {
+        SLOG(LOG_DEBUG, "Wrong packet number, expected 1, got %d", header->packet_num);
         return PROTO_PARSE_ERR;
     }
-    if (header.length < 0x20) return PROTO_PARSE_ERR;
+    if (header->length < 0x20) return PROTO_PARSE_ERR;
 
     cursor_drop(cursor, 8);
     SLOG(LOG_DEBUG, "Reading encoding charset");
@@ -459,7 +456,7 @@ static enum proto_parse_status mysql_parse_client_login(struct cursor *cursor, s
         return PROTO_TOO_SHORT;
     info->set_values |= SQL_USER;
     snprintf(info->u.startup.user, sizeof(info->u.startup.user), "%s", str);
-    status = cursor_read_le_string(cursor, &str, msg_end - cursor->head);
+    enum proto_parse_status status = cursor_read_le_string(cursor, &str, msg_end - cursor->head);
     if (status != PROTO_OK) return status;
     info->set_values |= SQL_PASSWD;
     snprintf(info->u.startup.passwd, sizeof(info->u.startup.passwd), "%s", str);
@@ -484,13 +481,16 @@ static enum proto_parse_status mysql_parse_startup(struct mysql_parser *mysql_pa
 
     struct cursor cursor;
     cursor_ctor(&cursor, payload, cap_len);
-    enum proto_parse_status status;
 
     SLOG(LOG_DEBUG, "Set values before %u", info->set_values);
+
+    struct mysql_header header;
+    enum proto_parse_status status = read_mysql_header(&cursor, &header);
+    if (status != PROTO_OK) return status;
     if (info->is_query) {
-        status = mysql_parse_client_login(&cursor, info);
+        status = mysql_parse_client_login(&cursor, &header, info);
     } else {
-        status = mysql_parse_server_response(mysql_parser, &cursor, info);
+        status = mysql_parse_server_response(mysql_parser, &header, &cursor, info);
     }
     if (status != PROTO_OK) return status;
     SLOG(LOG_DEBUG, "Set values after %u", info->set_values);
@@ -528,46 +528,44 @@ static char const *com_shutdown_2_str(uint8_t code)
     return NULL;
 }
 
-static enum proto_parse_status mysql_parse_client_query(struct mysql_parser *mysql_parser, struct sql_proto_info *info, struct cursor *cursor)
+static enum proto_parse_status mysql_parse_client_query(struct mysql_parser *mysql_parser,
+        struct mysql_header *header, struct sql_proto_info *info, struct cursor *cursor)
 {
     SLOG(LOG_DEBUG, "Parse client query");
-    struct mysql_header header;
-    enum proto_parse_status status = read_mysql_header(cursor, &header);
-    if (status != PROTO_OK) return status;
-    uint8_t const *const msg_end = cursor->head + header.length;
+    uint8_t const *const msg_end = cursor->head + header->length;
 
-    if (header.packet_num != 0) return PROTO_PARSE_ERR;    // TODO: are there some commands that are split amongst several packets ?
-    if (header.length-- < 1) return PROTO_PARSE_ERR;
+    if (header->packet_num != 0) return PROTO_PARSE_ERR;    // TODO: are there some commands that are split amongst several packets ?
+    if (header->length-- < 1) return PROTO_PARSE_ERR;
     enum query_command command = cursor_read_u8(cursor);
     mysql_parser->last_command = command;
     switch (command) {
         case COM_STMT_PREPARE:
         case COM_QUERY:
-            sql_set_query(info, "%.*s", (int)header.length, cursor->head);
+            sql_set_query(info, "%.*s", (int)header->length, cursor->head);
             break;
         case COM_QUIT:
             {
-                if (header.length != 0) return PROTO_PARSE_ERR;
+                if (header->length != 0) return PROTO_PARSE_ERR;
                 mysql_parser->phase = EXIT;
                 info->msg_type = SQL_EXIT;
                 sql_set_request_status(info, SQL_REQUEST_COMPLETE);
                 return PROTO_OK;
             }
         case COM_INIT_DB:
-            sql_set_query(info, "USE %.*s", (int)header.length, cursor->head);
+            sql_set_query(info, "USE %.*s", (int)header->length, cursor->head);
             break;
         case COM_FIELD_LIST:
-            sql_set_query(info, "SHOW FIELDS FROM %.*s", (int)header.length, cursor->head);
+            sql_set_query(info, "SHOW FIELDS FROM %.*s", (int)header->length, cursor->head);
             break;
         case COM_CREATE_DB:
-            sql_set_query(info, "CREATE DATABASE %.*s", (int)header.length, cursor->head);
+            sql_set_query(info, "CREATE DATABASE %.*s", (int)header->length, cursor->head);
             break;
         case COM_DROP_DB:
-            sql_set_query(info, "DROP DATABASE %.*s", (int)header.length, cursor->head);
+            sql_set_query(info, "DROP DATABASE %.*s", (int)header->length, cursor->head);
             break;
         case COM_REFRESH:
             {
-                if (header.length-- < 1) return PROTO_PARSE_ERR;
+                if (header->length-- < 1) return PROTO_PARSE_ERR;
                 char const *sql = com_refresh_2_str(cursor_read_u8(cursor));
                 if (! sql) return PROTO_PARSE_ERR;
                 sql_set_query(info, "%s", sql);
@@ -575,35 +573,35 @@ static enum proto_parse_status mysql_parse_client_query(struct mysql_parser *mys
             break;
         case COM_SHUTDOWN:
             {
-                if (header.length-- < 1) return PROTO_PARSE_ERR;
+                if (header->length-- < 1) return PROTO_PARSE_ERR;
                 char const *sql = com_shutdown_2_str(cursor_read_u8(cursor));
                 if (! sql) return PROTO_PARSE_ERR;
                 sql_set_query(info, "%s", sql);
             }
             break;
         case COM_STATISTICS:
-            if (header.length != 0) return PROTO_PARSE_ERR;
+            if (header->length != 0) return PROTO_PARSE_ERR;
             sql_set_query(info, "STATISTICS");
             break;
         case COM_PROCESS_INFO:
-            if (header.length != 0) return PROTO_PARSE_ERR;
+            if (header->length != 0) return PROTO_PARSE_ERR;
             sql_set_query(info, "SHOW PROCESSLIST");
             break;
         case COM_CONNECT:
             break;
         case COM_PROCESS_KILL:
             {
-                if (header.length != 4) return PROTO_PARSE_ERR;
+                if (header->length != 4) return PROTO_PARSE_ERR;
                 uint32_t pid = cursor_read_u32(cursor);
                 sql_set_query(info, "KILL %"PRIu32, pid);
             }
             break;
         case COM_DEBUG:
-            if (header.length != 0) return PROTO_PARSE_ERR;
+            if (header->length != 0) return PROTO_PARSE_ERR;
             sql_set_query(info, "DEBUG");
             break;
         case COM_PING:
-            if (header.length != 0) return PROTO_PARSE_ERR;
+            if (header->length != 0) return PROTO_PARSE_ERR;
             sql_set_query(info, "PING");
             break;
         case COM_CHANGE_USER:
@@ -637,14 +635,18 @@ static enum proto_parse_status mysql_parse_query(struct mysql_parser *mysql_pars
     cursor_ctor(&cursor, payload, cap_len);
 
     enum proto_parse_status status = PROTO_OK;
-    uint8_t const * last_start = cursor.head;
+    uint8_t const *last_start;
 
+    struct mysql_header header;
     while (! cursor_is_empty(&cursor)) {
         last_start = cursor.head;
+
+        status = read_mysql_header(&cursor, &header);
+        if (status != PROTO_OK) break;
         if (info->is_query) {
-            status = mysql_parse_client_query(mysql_parser, info, &cursor);
+            status = mysql_parse_client_query(mysql_parser, &header, info, &cursor);
         } else {
-            status = mysql_parse_server_response(mysql_parser, &cursor, info);
+            status = mysql_parse_server_response(mysql_parser, &header, &cursor, info);
         }
         if (status != PROTO_OK) break;
     }
@@ -652,7 +654,7 @@ static enum proto_parse_status mysql_parse_query(struct mysql_parser *mysql_pars
     if (status == PROTO_TOO_SHORT) {
         SLOG(LOG_DEBUG, "Payload too short for parsing message, will restart");
         status = proto_parse(NULL, &info->info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);    // ack what we had so far
-        streambuf_set_restart(&mysql_parser->sbuf, way, last_start, true);
+        streambuf_set_restart(&mysql_parser->sbuf, way, last_start, header.length);
         return PROTO_OK;
     }
 

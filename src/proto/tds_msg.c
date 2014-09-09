@@ -1589,7 +1589,7 @@ static enum proto_parse_status tds_msg_sbuf_parse(struct parser *parser, struct 
     if (!tds_msg_parser->had_gap && !has_gap && !is_eom) {
         SLOG(LOG_DEBUG, "Packet is not an EOM, buffering it");
         proto_parse(NULL, parent, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
-        streambuf_set_restart(&tds_msg_parser->sbuf, way, payload, true);
+        streambuf_set_restart(&tds_msg_parser->sbuf, way, payload, wire_len + 1);
         return PROTO_OK;
     }
 
@@ -1648,17 +1648,8 @@ quit:
 static enum proto_parse_status tds_msg_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct tds_msg_parser *tds_msg_parser = DOWNCAST(parser, parser, tds_msg_parser);
-
-    enum proto_parse_status status;
-    if (tds_msg_parser->sbuf.dir[way].buffer_size + cap_len > tds_msg_parser->sbuf.max_size) {
-        status = streambuf_add(&tds_msg_parser->sbuf, parser, parent, way,
-                NULL, 0, wire_len, now, tot_cap_len, tot_packet);
-    } else {
-        status = streambuf_add(&tds_msg_parser->sbuf, parser, parent, way,
-                payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
-    }
-
-    return status;
+    return streambuf_add(&tds_msg_parser->sbuf, parser, parent, way,
+            payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
 }
 
 /*

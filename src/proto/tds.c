@@ -362,7 +362,7 @@ static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct prot
             tds_parser->first_ts = *now;
         }
         proto_parse(NULL, parent, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
-        streambuf_set_restart(&tds_parser->sbuf, way, payload, true);
+        streambuf_set_restart(&tds_parser->sbuf, way, payload, tds_header.len);
         return PROTO_OK;
     }
 
