@@ -1286,26 +1286,8 @@ struct smb_hdr {
     uint8_t command;
     uint32_t status;
 
-    // flags
-    unsigned request:1;
-    unsigned notify:1;
-    unsigned oplocks:1;
-    unsigned canonicalized:1;
-    unsigned case_sensitivity:1;
-    unsigned receive_buffer_posted:1;
-    unsigned lock_and_read:1;
-
-    // flags 2
-    unsigned unicode:1;
-    unsigned error_code_type:1;
-    unsigned execute_only_reads:1;
-    unsigned dfs:1;
-    unsigned reparse_path:1;
-    unsigned long_names:1;
-    unsigned security_signatures_required:1;
-    unsigned compressed:1;
-    unsigned extended_attributes:1;
-    unsigned long_names_allowed:1;
+    uint8_t flags;
+    uint16_t flags2;
 
     uint16_t process_id_high;
     uint64_t signature;
@@ -1443,16 +1425,6 @@ static void cifs_proto_info_ctor(struct cifs_proto_info *info, struct parser *pa
     info->first_packet_tv = *first_packet_tv;
 }
 
-static int drop_smb_string(struct cifs_parser *cifs_parser, struct cursor *cursor)
-{
-    if (cifs_parser->unicode)
-        return cursor_drop_utf16(cursor, cursor->cap_len);
-    else
-        return cursor_drop_string(cursor, cursor->cap_len);
-}
-
-#define DROP_SMB_STRING() if (drop_smb_string(cifs_parser, cursor) < 0) return PROTO_PARSE_ERR;
-
 /*
  * Can be either uchar or unicode (utf-16le) depending on capabilities in negociate response
  * It must be 16-bit aligned.
@@ -1474,14 +1446,6 @@ static int parse_smb_string(struct cifs_parser *cifs_parser, struct cursor *curs
     SLOG(LOG_DEBUG, "Parse smb string as %sunicode: %s", cifs_parser->unicode ? "" : "non-",
             ret > 0 ? buf : "error");
     return ret;
-}
-
-static void parse_capabilities(struct cifs_parser *cifs_parser, struct cursor *cursor)
-{
-    uint32_t capabilities = cursor_read_u32le(cursor);
-    #define CAP_UNICODE 0x00000004
-    cifs_parser->unicode = (capabilities & CAP_UNICODE) == CAP_UNICODE;
-    SLOG(LOG_DEBUG, "Found capabilities 0x%04"PRIx16, capabilities);
 }
 
 static int parse_and_check_word_count(struct cursor *cursor, uint8_t expected_word_count)
@@ -1907,7 +1871,7 @@ static enum proto_parse_status parse_security_buffer(struct cursor *cursor, stru
     if (fid != 0xffffffffffffffff) cifs_set_fid(info, fid);
 
 #define CHECK_AND_DROP_WITH_PADDING(NUM_BYTES) \
-        CHECK_AND_DROP(NUM_BYTES + compute_padding(cursor, NUM_BYTES, 2));
+        CHECK_AND_DROP(NUM_BYTES + compute_padding(cifs_parser, cursor, NUM_BYTES, 2));
 
 
 /*
@@ -1928,11 +1892,9 @@ static enum proto_parse_status parse_negociate_response(struct cifs_parser *cifs
     SLOG(LOG_DEBUG, "Parse of negociate query");
     // We are only interested in negociate response
     if (parse_and_check_word_count(cursor, 0x11) == -1) return PROTO_PARSE_ERR;
-    // Reach capabilities
-    cursor_drop(cursor, 19);
-    parse_capabilities(cifs_parser, cursor);
+    // Reach challenge length
+    cursor_drop(cursor, 33);
 
-    cursor_drop(cursor, 10);
     uint8_t challenge_length = cursor_read_u8(cursor);
     int byte_count = parse_and_check_byte_count_superior(cursor, challenge_length);
     if (byte_count == -1) return PROTO_PARSE_ERR;
@@ -1950,9 +1912,10 @@ static enum proto_parse_status parse_negociate_response(struct cifs_parser *cifs
     return PROTO_OK;
 }
 
-static size_t compute_padding(struct cursor *cursor, uint8_t offset, size_t alignment)
+static size_t compute_padding(struct cifs_parser *cifs_parser, struct cursor *cursor,
+        uint8_t offset, size_t alignment)
 {
-    return (cursor->cap_len - offset) % alignment;
+    return cifs_parser->unicode ? (cursor->cap_len - offset) % alignment : 0;
 }
 
 /*
@@ -1972,15 +1935,16 @@ static enum proto_parse_status parse_session_setup_andx_query_normal(struct cifs
     cursor_drop(cursor, 14);
     uint16_t oem_password_len = cursor_read_u16le(cursor);
     uint16_t unicode_password_len = cursor_read_u16le(cursor);
-    cursor_drop(cursor, 4);
-    parse_capabilities(cifs_parser, cursor);
+    cursor_drop(cursor, 8);
 
-    uint8_t padding = compute_padding(cursor, oem_password_len + unicode_password_len, 2);
+    uint8_t padding = compute_padding(cifs_parser, cursor, oem_password_len + unicode_password_len, 2);
     if (parse_and_check_byte_count_superior(cursor, oem_password_len + unicode_password_len + padding) == -1) return PROTO_PARSE_ERR;
+    SLOG(LOG_DEBUG, "Padding of %d", padding);
     cursor_drop(cursor, oem_password_len + unicode_password_len + padding);
     PARSE_SMB_USER(info);
     SLOG(LOG_DEBUG, "Found user %s", info->user);
-    DROP_SMB_STRING(); // We don't care of domain request
+    PARSE_SMB_DOMAIN(info);
+    SLOG(LOG_DEBUG, "Found domain %s", info->domain);
     PARSE_SMB_OS(info, FROM_CLIENT);
     SLOG(LOG_DEBUG, "Found os %s", info->os);
     PARSE_SMB_DRIVER(info, FROM_CLIENT);
@@ -2046,7 +2010,7 @@ static enum proto_parse_status parse_session_setup_andx_response(struct cifs_par
     cursor_drop(cursor, 0x03 * 2);
 
     if (parse_and_check_byte_count_superior(cursor, 0) == -1) return PROTO_PARSE_ERR;
-    uint8_t padding = compute_padding(cursor, 0, 2);
+    uint8_t padding = compute_padding(cifs_parser, cursor, 0, 2);
     CHECK_AND_DROP(padding);
     PARSE_SMB_OS(info, FROM_SERVER);
     SLOG(LOG_DEBUG, "Found os %s", info->os);
@@ -2077,7 +2041,7 @@ static enum proto_parse_status parse_tree_connect_andx_request_query(struct cifs
     cursor_drop(cursor, 6);
     uint16_t password_len = cursor_read_u16le(cursor);
 
-    uint8_t padding = compute_padding(cursor, password_len + 2, 2);
+    uint8_t padding = compute_padding(cifs_parser, cursor, password_len + 2, 2);
     if (parse_and_check_byte_count_superior(cursor, password_len + padding) == -1) return PROTO_PARSE_ERR;
     cursor_drop(cursor, password_len + padding);
     PARSE_SMB_PATH(info);
@@ -2571,7 +2535,7 @@ static enum proto_parse_status parse_nt_create_andx_request(struct cifs_parser *
 
     info->meta_write_bytes = 0x18*2 + cursor_read_u16le(cursor);
 
-    cursor_drop(cursor, compute_padding(cursor, 0, 2)); // skip padding
+    cursor_drop(cursor, compute_padding(cifs_parser, cursor, 0, 2)); // skip padding
     PARSE_SMB_PATH(info);
     return PROTO_OK;
 }
@@ -2640,7 +2604,7 @@ static enum proto_parse_status parse_rename_request(struct cifs_parser *cifs_par
 
     if(parse_and_check_byte_count_superior(cursor, 0x0002) == -1) return PROTO_PARSE_ERR;
 
-    uint8_t padding = compute_padding(cursor, 1, 2);
+    uint8_t padding = compute_padding(cifs_parser, cursor, 1, 2);
     cursor_drop(cursor, 1 + padding); // skip BufferFormat1
 
     PARSE_SMB_PATH(info);
@@ -2697,7 +2661,7 @@ static enum proto_parse_status parse_open_andx_request(struct cifs_parser *cifs_
     if(-1 == byte_count) return PROTO_PARSE_ERR;
     info->meta_write_bytes = word_count*2 + byte_count;
 
-    cursor_drop(cursor, compute_padding(cursor, 0, 2));
+    cursor_drop(cursor, compute_padding(cifs_parser, cursor, 0, 2));
     PARSE_SMB_PATH(info);
     return PROTO_OK;
 }
@@ -3314,7 +3278,7 @@ static enum proto_parse_status parse_create_directory_request(struct cifs_parser
     if (-1 == parse_and_check_byte_count_superior(cursor, 0x02))
         return PROTO_PARSE_ERR;
 
-    cursor_drop(cursor, 1 + compute_padding(cursor, 1, 2));
+    cursor_drop(cursor, 1 + compute_padding(cifs_parser, cursor, 1, 2));
     PARSE_SMB_PATH(info);
     return PROTO_OK;
 }
@@ -3359,7 +3323,7 @@ static enum proto_parse_status parse_check_directory_request(struct cifs_parser*
     if (-1 == parse_and_check_byte_count_superior(cursor, 0x02))
         return PROTO_PARSE_ERR;
 
-    cursor_drop(cursor, 1 + compute_padding(cursor, 1, 2));
+    cursor_drop(cursor, 1 + compute_padding(cifs_parser, cursor, 1, 2));
     PARSE_SMB_PATH(info);
     return PROTO_OK;
 }
@@ -3384,7 +3348,7 @@ static enum proto_parse_status parse_open_request(struct cifs_parser *cifs_parse
     if(-1 == parse_and_check_byte_count_superior(cursor, 0x2)) return PROTO_PARSE_ERR;
 
     // skip to smb string
-    cursor_drop(cursor, 1 + compute_padding(cursor, 1, 2));
+    cursor_drop(cursor, 1 + compute_padding(cifs_parser, cursor, 1, 2));
     PARSE_SMB_PATH(info);
     return PROTO_OK;
 }
@@ -3431,7 +3395,7 @@ static enum proto_parse_status parse_query_info_request(struct cifs_parser *cifs
     if(-1 == parse_and_check_byte_count_superior(cursor, 0x2)) return PROTO_PARSE_ERR;
 
     // skip to smb string
-    cursor_drop(cursor, 1 + compute_padding(cursor, 1, 2));
+    cursor_drop(cursor, 1 + compute_padding(cifs_parser, cursor, 1, 2));
     PARSE_SMB_PATH(info);
     return PROTO_OK;
 }
@@ -3487,7 +3451,7 @@ static enum proto_parse_status parse_set_info_request(struct cifs_parser *cifs_p
     if(-1 == parse_and_check_byte_count_superior(cursor, 0x2)) return PROTO_PARSE_ERR;
 
     // skip to smb string
-    cursor_drop(cursor, 1 + compute_padding(cursor, 1, 2));
+    cursor_drop(cursor, 1 + compute_padding(cifs_parser, cursor, 1, 2));
     PARSE_SMB_PATH(info);
     return PROTO_OK;
 }
@@ -3517,7 +3481,7 @@ static enum proto_parse_status parse_create_request(struct cifs_parser *cifs_par
     if(-1 == parse_and_check_byte_count_superior(cursor, 0x2)) return PROTO_PARSE_ERR;
 
     // skip to smb string
-    cursor_drop(cursor, 1 + compute_padding(cursor, 1, 2));
+    cursor_drop(cursor, 1 + compute_padding(cifs_parser, cursor, 1, 2));
     PARSE_SMB_PATH(info);
     return PROTO_OK;
 }
@@ -3609,7 +3573,7 @@ static enum proto_parse_status parse_create_temp_request(struct cifs_parser *cif
     if(-1 == parse_and_check_byte_count_superior(cursor, 0x2)) return PROTO_PARSE_ERR;
 
     // skip to smb string
-    cursor_drop(cursor, 1 + compute_padding(cursor, 1, 2));
+    cursor_drop(cursor, 1 + compute_padding(cifs_parser, cursor, 1, 2));
     PARSE_SMB_PATH(info);
     return PROTO_OK;
 }
@@ -3670,7 +3634,7 @@ static enum proto_parse_status parse_create_new_request(struct cifs_parser *cifs
     if(-1 == parse_and_check_byte_count_superior(cursor, 0x2)) return PROTO_PARSE_ERR;
 
     // skip to smb string
-    cursor_drop(cursor, 1 + compute_padding(cursor, 1, 2));
+    cursor_drop(cursor, 1 + compute_padding(cifs_parser, cursor, 1, 2));
     PARSE_SMB_PATH(info);
     return PROTO_OK;
 }
@@ -4231,7 +4195,7 @@ static enum proto_parse_status parse_nt_rename_request(struct cifs_parser *cifs_
     if(-1 == parse_and_check_byte_count_superior(cursor, 0x04)) return PROTO_PARSE_ERR;
 
     // skip to OldFileName
-    cursor_drop(cursor, 1 + compute_padding(cursor, 1, 2));
+    cursor_drop(cursor, 1 + compute_padding(cifs_parser, cursor, 1, 2));
     PARSE_SMB_PATH(info);
     return PROTO_OK;
 }
@@ -4679,7 +4643,7 @@ static enum proto_parse_status parse_smb2_ioctl_request(struct cifs_parser *cifs
                 cursor_drop(cursor, 8);
                 uint32_t name_length = cursor_read_u32le(cursor);
                 // drop TimeoutSpecified, Padding
-                cursor_drop(cursor, 2 + compute_padding(cursor, 2, 2));
+                cursor_drop(cursor, 2 + compute_padding(cifs_parser, cursor, 2, 2));
                 PARSE_SMB2_PATH(info, name_length);
             }
             break;
@@ -4923,6 +4887,8 @@ static enum proto_parse_status smb_parse(struct cursor *cursor, struct cifs_prot
 
     struct smb_hdr const *smb_hdr = (struct smb_hdr const *) cursor->head;
 
+#define SMB_FLAGS2_UNICODE 0x8000
+    cifs_parser->unicode = smb_hdr->flags2 & SMB_FLAGS2_UNICODE;
     info->command.smb_command = READ_U8(&smb_hdr->command);
     info->status = READ_U32LE(&smb_hdr->status);
     info->tree_id = READ_U16LE(&smb_hdr->tree_id);
