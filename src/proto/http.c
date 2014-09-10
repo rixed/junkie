@@ -541,7 +541,8 @@ static enum proto_parse_status http_parse_header(struct http_parser *http_parser
     http_proto_info_ctor(&info, &http_parser->state[way].first, http_parser->state[way].pkts);    // we init the proto_info once validated
 
     size_t httphdr_len;
-    enum proto_parse_status status = httper_parse(&httper, &httphdr_len, packet, cap_len, &info);
+    size_t expected_bytes = 0;
+    enum proto_parse_status status = httper_parse(&httper, &httphdr_len, packet, cap_len, &info, &expected_bytes);
     if (status == PROTO_PARSE_ERR) return PROTO_PARSE_ERR;
 
     // Handle short capture

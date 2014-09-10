@@ -26,6 +26,6 @@ struct httper {
 /// @returns PROTO_OK if a complete header was available
 /// @returns PROTO_TOO_SHORT if the header was not complete
 /// @note If you have several commands that share a common prefix you must order them longest first
-enum proto_parse_status httper_parse(struct httper const *, size_t *head_sz, uint8_t const *packet, size_t packet_len, void *);
+enum proto_parse_status httper_parse(struct httper const *, size_t *head_sz, uint8_t const *packet, size_t packet_len, void *, size_t *expected_bytes);
 
 #endif

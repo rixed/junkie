@@ -39,7 +39,8 @@
  * to the callback function.
  */
 
-enum proto_parse_status httper_parse(struct httper const *httper, size_t *head_sz, uint8_t const *packet, size_t packet_len, void *user_data)
+enum proto_parse_status httper_parse(struct httper const *httper, size_t *head_sz, uint8_t const *packet,
+        size_t packet_len, void *user_data, size_t *expected_bytes)
 {
     struct liner liner, tokenizer;
     bool found = false;
@@ -49,7 +50,10 @@ enum proto_parse_status httper_parse(struct httper const *httper, size_t *head_s
 
         // Start by looking for the command before tokenizing (tokenizing takes too much time on random traffic)
         if (0 != strncmp(cmd->name, (char const *)packet, MIN(packet_len, cmd->len))) continue;
-        if (packet_len < cmd->len) return PROTO_TOO_SHORT;
+        if (packet_len < cmd->len) {
+            if (expected_bytes) *expected_bytes = cmd->len;
+            return PROTO_TOO_SHORT;
+        }
 
         liner_init(&liner, &delim_lines, (char const *)packet, packet_len);
         liner_init(&tokenizer, &delim_blanks, liner.start, liner_tok_length(&liner));
@@ -84,6 +88,7 @@ no_command:
             // As an accommodation to old HTTP implementations, we allow a single line command
             // FIXME: check line termination with "*/x.y" ?
             if (nb_hdr_lines == 0 && has_newline) break;
+            if (expected_bytes) *expected_bytes = 1;
             return PROTO_TOO_SHORT;
         }
 
