@@ -143,7 +143,7 @@ static enum proto_parse_status streambuf_shrink(struct streambuf *sbuf, unsigned
 }
 
 static enum proto_parse_status streambuf_append(struct streambuf *sbuf, unsigned way, uint8_t const *packet,
-        size_t cap_len, size_t wire_len)
+        size_t cap_len, size_t wire_len, struct timeval const *now)
 {
     assert(way < 2);
     SLOG(LOG_DEBUG, "Append %zu bytes (%zu captured) to %s", wire_len, cap_len, streambuf_2_str(sbuf, way));
@@ -152,6 +152,10 @@ static enum proto_parse_status streambuf_append(struct streambuf *sbuf, unsigned
     // FIXME: better yet, rewrite everything using pkt-lists from end to end
 
     struct streambuf_unidir *dir = sbuf->dir+way;
+    if (cap_len > 0) {
+        SLOG(LOG_DEBUG, "Set last_received_tv to %s", timeval_2_str(now));
+        dir->last_received_tv = *now;
+    }
 
     if (! dir->buffer) {
         SLOG(LOG_DEBUG, "Initializing new streambuffer using packet on stack");
@@ -269,7 +273,7 @@ enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *par
     mutex_lock(sbuf->mutex);
 
     assert(way < 2);
-    enum proto_parse_status status = streambuf_append(sbuf, way, packet, cap_len, wire_len);
+    enum proto_parse_status status = streambuf_append(sbuf, way, packet, cap_len, wire_len, now);
     if (status != PROTO_OK) goto quit;
 
     struct streambuf_unidir *dir = sbuf->dir+way;
@@ -307,13 +311,15 @@ enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *par
             goto quit;
         }
 
+        struct timeval const *tv = timeval_is_set(&dir->last_received_tv) ? &dir->last_received_tv : now;
+
         dir->restart_offset = dir->wire_len;
         status = sbuf->parse(
             parser, parent, way,
             dir->buffer + offset,
             dir->cap_len - offset,
             dir->wire_len - offset,
-            now, tot_cap_len, tot_packet);
+            tv, tot_cap_len, tot_packet);
 
         assert(dir->restart_offset >= offset);
         SLOG(LOG_DEBUG, "parse returned %s for %s", proto_parse_status_2_str(status), streambuf_2_str(sbuf, way));
