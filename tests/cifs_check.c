@@ -123,7 +123,8 @@ static struct parse_test {
             .user = "root",
             .driver = "CIFS VFS Client for Linux",
             .os = "Linux version 3.2.0-4-amd64",
-            .set_values = CIFS_USER | CIFS_DRIVER | CIFS_OS,
+            .domain = "",
+            .set_values = CIFS_USER | CIFS_DRIVER | CIFS_OS | CIFS_DOMAIN,
             .status = SMB_STATUS_OK,
             .version = SMB_VERSION_1,
             .ids.multiplex_id = 0x0e,
@@ -215,10 +216,11 @@ static struct parse_test {
             .tree_id = 0,
             .version = SMB_VERSION_1,
             .ids.multiplex_id = 2,
-            .set_values = CIFS_USER | CIFS_DRIVER | CIFS_OS,
+            .set_values = CIFS_USER | CIFS_DRIVER | CIFS_OS | CIFS_DOMAIN,
             .user = "",
             .driver = "Samba",
             .os = "Unix",
+            .domain = "",
         }
     },
 
