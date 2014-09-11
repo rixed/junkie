@@ -1243,9 +1243,16 @@ static char const *cifs_id_2_str(struct cifs_proto_info const *info)
     }
 }
 
+bool cifs_has_flag_file(struct cifs_proto_info const *info)
+{
+    return info->version == 1 && info->command.smb_command == SMB_COM_TRANSACTION2
+        && info->subcommand.trans2_subcmd == SMB_TRANS2_SET_PATH_INFORMATION;
+}
+
 static char const *cifs_info_2_str(struct proto_info const *info_)
 {
     struct cifs_proto_info const *info = DOWNCAST(info_, info, cifs_proto_info);
+    bool has_flag_file = cifs_has_flag_file(info);
     char *str = tempstr_printf("%s, version=%s, command=%s, status=%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s, tree_id=%"PRIu32", id=%s, query_write_bytes=%"PRIu32", response_read_bytes=%"PRIu32", response_write_bytes=%"PRIu32", meta_read_bytes=%"PRIu32", meta_write_bytes=%"PRIu32,
             proto_info_2_str(info_),
             info->version == 1 ? "SMB1" : "SMB2",
@@ -1270,9 +1277,9 @@ static char const *cifs_info_2_str(struct proto_info const *info_)
             info->set_values & CIFS_LEVEL_OF_INTEREST ? smb_file_info_levels_2_str(info->level_of_interest) : "",
             info->set_values & CIFS_FID ? ", fid=" : "",
             info->set_values & CIFS_FID ? tempstr_printf("0x%"PRIx64, info->fid) : "",
-            info->flag_file &  CIFS_FILE_CREATE ? ", creation" : "",
-            info->flag_file &  CIFS_FILE_DIRECTORY ? ", directory" : "",
-            info->flag_file &  CIFS_FILE_UNLINK ? ", unlink" : "",
+            has_flag_file && info->parameters.flag_file &  CIFS_FILE_CREATE ? ", creation" : "",
+            has_flag_file && info->parameters.flag_file &  CIFS_FILE_DIRECTORY ? ", directory" : "",
+            has_flag_file && info->parameters.flag_file &  CIFS_FILE_UNLINK ? ", unlink" : "",
             info->is_query ? ", query" : "",
             info->tree_id,
             cifs_id_2_str(info),
@@ -2177,13 +2184,13 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
                             #define SMB_O_CREAT 0x10
                             #define SMB_O_DIRECTORY 0x200
                             if(SMB_O_CREAT == (posix_flags & SMB_O_CREAT))
-                                info->flag_file |= CIFS_FILE_CREATE;
+                                info->parameters.flag_file |= CIFS_FILE_CREATE;
                             if(SMB_O_DIRECTORY == (posix_flags & SMB_O_DIRECTORY))
-                                info->flag_file |= CIFS_FILE_DIRECTORY;
+                                info->parameters.flag_file |= CIFS_FILE_DIRECTORY;
                         }
                         break;
                     case SMB_POSIX_PATH_UNLINK:
-                        info->flag_file |= CIFS_FILE_UNLINK;
+                        info->parameters.flag_file |= CIFS_FILE_UNLINK;
                         break;
                     default:
                         break;
@@ -2633,6 +2640,7 @@ static enum proto_parse_status parse_locking_andx_request(struct cifs_parser unu
     if(parse_and_check_word_count(cursor, 0x08) == -1) return PROTO_PARSE_ERR;
     cursor_drop(cursor, 4); // skip AndX
     cifs_set_fid(info, cursor_read_u16le(cursor));
+    info->parameters.lock_type = cursor_read_u8(cursor);
     return PROTO_OK;
 }
 

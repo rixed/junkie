@@ -462,7 +462,7 @@ static struct parse_test {
                 .trans2_subcmd = SMB_TRANS2_SET_PATH_INFORMATION,
             },
             .status = SMB_STATUS_OK,
-            .flag_file = CIFS_FILE_CREATE,
+            .parameters.flag_file = CIFS_FILE_CREATE,
             .level_of_interest = SMB_POSIX_PATH_OPEN,
             .path = "/tmp/test/ga",
             .version = SMB_VERSION_1,
@@ -564,6 +564,30 @@ static struct parse_test {
             .tree_id = 0x01,
             .meta_write_bytes = 0x64,
             .ids.multiplex_id = 0x8b,
+        },
+    },
+
+    {
+        .name = "Locking andx request",
+        .packet = (uint8_t const []) {
+            0xff, 0x53, 0x4d, 0x42, 0x24, 0x00, 0x00, 0x00, 0x00, 0x18, 0x07, 0xc8, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x08, 0x88, 0x19, 0x00, 0x08, 0xff, 0xff,
+            0x08, 0xff, 0x00, 0x00, 0x00, 0x17, 0x80, 0x02, 0x01, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00
+        },
+        .size = 0x33,
+        .ret = PROTO_OK,
+        .way = FROM_CLIENT,
+        .expected = {
+            .info = { .head_len = SMB_HEADER_SIZE, .payload = 0x33 - SMB_HEADER_SIZE},
+            .set_values = CIFS_FID,
+            .command.smb_command = SMB_COM_LOCKING_ANDX,
+            .status = SMB_STATUS_OK,
+            .version = SMB_VERSION_1,
+            .parameters.lock_type = 0x02,
+            .tree_id = 2049,
+            .fid = 0x8017,
+            .ids.multiplex_id = 0xffff,
         },
     },
 
@@ -881,7 +905,7 @@ static struct parse_test {
             .command.smb_command = SMB_COM_TRANSACTION2,
             .status = SMB_STATUS_OK,
             .set_values = CIFS_TRANS2_SUBCMD | CIFS_PATH | CIFS_LEVEL_OF_INTEREST,
-            .flag_file = CIFS_FILE_CREATE | CIFS_FILE_DIRECTORY,
+            .parameters.flag_file = CIFS_FILE_CREATE | CIFS_FILE_DIRECTORY,
             .level_of_interest = SMB_POSIX_PATH_OPEN,
             .path = "/tmp/test2",
             .subcommand = {
@@ -912,7 +936,7 @@ static struct parse_test {
             .command.smb_command = SMB_COM_TRANSACTION2,
             .status = SMB_STATUS_OK,
             .set_values = CIFS_TRANS2_SUBCMD | CIFS_PATH | CIFS_LEVEL_OF_INTEREST,
-            .flag_file = CIFS_FILE_UNLINK,
+            .parameters.flag_file = CIFS_FILE_UNLINK,
             .level_of_interest = SMB_POSIX_PATH_UNLINK,
             .path = "/tmp/toto",
             .subcommand = {
@@ -3305,7 +3329,7 @@ static unsigned cur_test;
 
 
 #define CHECK_FLAG_FILE(INFO, EXPECTED, MASK) \
-    check_set_values(INFO->flag_file, EXPECTED->flag_file, MASK, #MASK);
+    check_set_values(INFO->parameters.flag_file, EXPECTED->parameters.flag_file, MASK, #MASK);
 
 static int compare_expected_cifs(struct cifs_proto_info const *const info,
         struct cifs_proto_info const *const expected)

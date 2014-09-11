@@ -1278,10 +1278,13 @@ struct cifs_proto_info {
     unsigned meta_read_bytes;
     unsigned meta_write_bytes;
 
+    union {
 #define         CIFS_FILE_CREATE                         0x0001
 #define         CIFS_FILE_DIRECTORY                      0x0002
 #define         CIFS_FILE_UNLINK                         0x0004
-    unsigned flag_file;
+        unsigned flag_file;
+        uint8_t lock_type;
+    } parameters;
 
     bool is_query;
     struct timeval first_packet_tv;
@@ -1296,5 +1299,6 @@ static inline void cifs_set_fid(struct cifs_proto_info *info, uint64_t fid)
     SLOG(LOG_DEBUG, "Set fid to 0x%"PRIx64, info->fid);
     info->set_values |= CIFS_FID;
 }
+bool cifs_has_flag_file(struct cifs_proto_info const *info);
 
 #endif
