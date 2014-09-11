@@ -208,18 +208,19 @@ ssize_t tcp_stream_next(struct tcp_stream *stream, unsigned *way_)
     return stream_packet(stream, way);
 }
 
-void check_set_values(unsigned value, unsigned expected, unsigned mask, char const *mask_name)
+int check_set_values(unsigned value, unsigned expected, unsigned mask, char const *mask_name)
 {
     unsigned expected_set = expected & mask;
     unsigned value_set = value & mask;
     if (expected_set != value_set) {
         if (0 != expected_set) {
             printf("Expected %s to be set\n", mask_name);
-            assert(expected_set == value_set);
+            return -1;
         } else {
             printf("Unexpected %s set\n", mask_name);
-            assert(expected_set != value_set);
+            return -1;
         }
     }
+    return 0;
 }
 

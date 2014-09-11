@@ -62,9 +62,9 @@ ssize_t tcp_stream_next(struct tcp_stream *stream, unsigned *way);
         return -1;                                 \
     } } while (0)
 
-void check_set_values(unsigned value, unsigned expected, unsigned mask, char const *mask_name);
+int check_set_values(unsigned value, unsigned expected, unsigned mask, char const *mask_name);
 
 #define CHECK_SET_VALUE(INFO, EXPECTED, MASK) \
-    check_set_values(INFO->set_values, EXPECTED->set_values, MASK, #MASK);
+    if (check_set_values(INFO->set_values, EXPECTED->set_values, MASK, #MASK) < 0) return -1;
 
 #endif
