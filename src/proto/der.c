@@ -83,10 +83,10 @@ static char *der_class_tag_2_str(enum der_class_tag der_class_tag)
 
 char const *der_2_str(struct der const *der)
 {
-    char *str = tempstr_printf("Der class %s, type: %s, class tag: %s, size %"PRIu64,
+    char *str = tempstr_printf("Der class %s, type: %s, class tag: %s (%d), size %"PRIu64,
             der_class_identifier_2_str(der->class_identifier),
             der_type_2_str(der->type),
-            der_class_tag_2_str(der->class_tag),
+            der_class_tag_2_str(der->class_tag), der->class_tag,
             der->length);
     return str;
 }
@@ -123,6 +123,7 @@ char const *oid_2_str(uint32_t const *oid, uint8_t size_oid)
  */
 static enum proto_parse_status cursor_read_der_length(struct cursor *cursor, uint_least64_t *out_res)
 {
+    CHECK(1);
     uint8_t current = cursor_read_u8(cursor);
     if (current & DER_LEFT_BIT_MASK) {
         uint32_t num_bytes = current & ~DER_LEFT_BIT_MASK;

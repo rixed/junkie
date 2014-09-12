@@ -1543,6 +1543,7 @@ static const struct der octet_string_der = {.class_identifier = DER_UNIVERSAL, .
     do { \
         if (PROTO_OK != (status = cursor_read_der(cursor, &der))) return status; \
         if (der_choice_equal(&der, ID)) break; \
+        else cursor_drop(cursor, der.length); \
     } while (cursor->cap_len > 0); \
     if (cursor->cap_len == 0) return PROTO_PARSE_ERR; \
 
@@ -1807,7 +1808,7 @@ static enum proto_parse_status parse_security_buffer(struct cursor *cursor, stru
     if (PROTO_OK != (status = cursor_read_der(cursor, &der))) return status;
     // Gss api or negtokentarg
     if (der_application_equal(&der, 0)) {
-        // oid
+        SLOG(LOG_DEBUG, "Got a Gss api");
         uint32_t oid[10];
         static uint32_t spnego_oid[] = {1, 3, 6, 1, 5, 5, 2};
         PARSE_DER_OID();
@@ -1820,7 +1821,7 @@ static enum proto_parse_status parse_security_buffer(struct cursor *cursor, stru
         }
         return PROTO_OK;
     } else if (der_choice_equal(&der, 1)) {
-        // NegTokenTarg
+        SLOG(LOG_DEBUG, "Got a NegTokenTarg");
         PARSE_DER_SEQUENCE();
         PARSE_DER_UNTIL_CHOICE_ID(2);
         PARSE_DER_OCTET_STRING();
