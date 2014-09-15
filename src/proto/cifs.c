@@ -1363,9 +1363,9 @@ struct cifs_parser {
     bool unicode;
     uint16_t level_of_interest;
     union subcommand {
-        uint16_t trans2_subcmd;
-        uint16_t nt_trans_subcmd;
-        uint16_t transaction_subcmd;
+        enum smb_trans2_subcommand trans2_subcmd;
+        enum smb_nt_transact_subcommand nt_trans_subcmd;
+        enum smb_transaction_subcommand transaction_subcmd;
     } subcommand;
 };
 
@@ -1459,7 +1459,11 @@ static int parse_and_check_word_count(struct cursor *cursor, uint8_t expected_wo
 {
     if (expected_word_count == 0xff) return -1;
     uint8_t total_expected = expected_word_count + 1;
-    if (cursor->cap_len < total_expected) return -1;
+    if (cursor->cap_len < total_expected) {
+        SLOG(LOG_DEBUG, "Expected word count of %"PRIu8", cap_len too small %zu",
+                total_expected, cursor->cap_len);
+        return -1;
+    }
     uint8_t word_count = cursor_read_u8(cursor);
     if (expected_word_count != word_count) {
         SLOG(LOG_DEBUG, "Expected word count of 0x%02"PRIx8", got 0x%02"PRIx8, expected_word_count, word_count);
@@ -1843,7 +1847,7 @@ static enum proto_parse_status parse_security_buffer(struct cursor *cursor, stru
     CHECK(2);\
     if (parse_smb_string(cifs_parser, cursor, info->driver, sizeof(info->driver)) < 0) \
         return PROTO_PARSE_ERR; \
-    info->set_values |= way == FROM_CLIENT ? CIFS_DRIVER : CIFS_SERVER_OS;
+    info->set_values |= way == FROM_CLIENT ? CIFS_DRIVER : CIFS_SERVER_DRIVER;
 
 #define PARSE_SMB_DOMAIN(info) \
     CHECK(2);\
@@ -1961,7 +1965,7 @@ static enum proto_parse_status parse_session_setup_andx_query_normal(struct cifs
 }
 
 /*
- * Session setup query 0x0c version
+ * Session setup query, security blob version
  *
  * Parameters
  * | 4 bytes | USHORT        | USHORT      | USHORT   | ULONG      | USHORT               | ULONG    | ULONG        |
@@ -1998,9 +2002,7 @@ static enum proto_parse_status parse_session_setup_andx_query(struct cifs_parser
 }
 
 /*
- * Session setup response
- *
- * Word count: 0x03
+ * Session setup query, normal version
  *
  * Parameters
  * | 4 bytes | USHORT |
@@ -2010,13 +2012,10 @@ static enum proto_parse_status parse_session_setup_andx_query(struct cifs_parser
  * | UCHAR | SMB_STRING | SMB_STRING     | SMB_STRING      |
  * | Pad[] | NativeOS[] | NativeLanMan[] | PrimaryDomain[] |
  */
-static enum proto_parse_status parse_session_setup_andx_response(struct cifs_parser *cifs_parser,
+static enum proto_parse_status parse_session_setup_andx_response_normal(struct cifs_parser *cifs_parser,
         struct cursor *cursor, struct cifs_proto_info *info)
 {
-    SLOG(LOG_DEBUG, "Parse of setup response");
-    if (parse_and_check_word_count(cursor, 0x03) == -1) return PROTO_PARSE_ERR;
     cursor_drop(cursor, 0x03 * 2);
-
     if (parse_and_check_byte_count_superior_or_equal(cursor, 0) == -1) return PROTO_PARSE_ERR;
     uint8_t padding = compute_padding(cifs_parser, cursor, 0, 2);
     CHECK_AND_DROP(padding);
@@ -2027,6 +2026,46 @@ static enum proto_parse_status parse_session_setup_andx_response(struct cifs_par
     PARSE_SMB_DOMAIN(info);
     SLOG(LOG_DEBUG, "Found domain %s", info->domain);
     return PROTO_OK;
+}
+
+/*
+ * Session setup response, security blob version
+ *
+ * Parameters
+ * | 4 bytes | USHORT | USHORT               |
+ * | Andx    | Action | Security blob length |
+ *
+ * Data
+ * | Variable      | SMB_STRING | SMB_STRING     |
+ * | Security blob | NativeOS[] | NativeLanMan[] |
+ */
+static enum proto_parse_status parse_session_setup_andx_response_security_blob(struct cifs_parser *cifs_parser,
+        struct cursor *cursor, struct cifs_proto_info *info)
+{
+    cursor_drop(cursor, 4 + 2);
+    uint16_t blob_length = cursor_read_u16le(cursor);
+    if (parse_and_check_byte_count_superior_or_equal(cursor, blob_length + 2) == -1) return PROTO_PARSE_ERR;
+    cursor_drop(cursor, blob_length);
+    PARSE_SMB_OS(info, FROM_SERVER);
+    SLOG(LOG_DEBUG, "Found os %s", info->os);
+    PARSE_SMB_DRIVER(info, FROM_SERVER);
+    SLOG(LOG_DEBUG, "Found driver %s", info->driver);
+    return PROTO_OK;
+}
+
+/*
+ * Session setup response
+ *
+ * Word count: 0x03 for normal version, 0x04 for security blob
+ */
+static enum proto_parse_status parse_session_setup_andx_response(struct cifs_parser *cifs_parser,
+        struct cursor *cursor, struct cifs_proto_info *info)
+{
+    SLOG(LOG_DEBUG, "Parse of setup response");
+    int word_count = parse_and_check_word_count_superior_or_equal(cursor, 0x03);
+    if (word_count == 0x03) return parse_session_setup_andx_response_normal(cifs_parser, cursor, info);
+    else if (word_count == 0x04) return parse_session_setup_andx_response_security_blob(cifs_parser, cursor, info);
+    else return PROTO_PARSE_ERR;
 }
 
 /*
@@ -2234,17 +2273,26 @@ static enum proto_parse_status parse_trans2_request(struct cifs_parser *cifs_par
 
 /*
  * Trans2 response
+ * Word count = 0x0a or 0x00
  *
  * Parameters
  *
- * | USHORT              | USHORT         | USHORT    | USHORT         | USHORT          | USHORT                | USHORT    | USHORT     | USHORT           | UCHAR      | UCHAR     | USHORT            |
- * | TotalParameterCount | TotalDataCount | Reserved1 | ParameterCount | ParameterOffset | ParameterDisplacement | DataCount | DataOffset | DataDisplacement | SetupCount | Reserved2 | Setup[SetupCount] |
+ * | USHORT              | USHORT         | USHORT    | USHORT         | USHORT          |
+ * | TotalParameterCount | TotalDataCount | Reserved1 | ParameterCount | ParameterOffset |
+ *
+ * | USHORT                | USHORT    | USHORT     | USHORT           | UCHAR      |
+ * | ParameterDisplacement | DataCount | DataOffset | DataDisplacement | SetupCount |
+ *
+ * | UCHAR     | USHORT            |
+ * | Reserved2 | Setup[SetupCount] |
  *
  * Data
  *
  * | UCHAR  | UCHAR                             | UCHAR  | UCHAR                  |
  * | Pad1[] | Trans2_Parameters[ParameterCount] | Pad2[] | Trans2_Data[DataCount] |
  *
+ * When a trans2 request is splitted on multiple smb request, the first response contains nothing
+ * (WC and BC is 0) and tran2 secondary request should be send from client following this response.
  */
 static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_parser,
         struct cursor *cursor, struct cifs_proto_info *info)
@@ -2253,8 +2301,9 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
             smb_trans2_subcmd_2_str(cifs_parser->subcommand.trans2_subcmd),
             smb_file_info_levels_2_str(cifs_parser->level_of_interest));
     uint8_t const *start_cursor = cursor->head;
-    int word_count = parse_and_check_word_count_superior_or_equal(cursor, 0x0a);
-    if (word_count == -1) return PROTO_PARSE_ERR;
+    int word_count = parse_and_check_word_count_superior_or_equal(cursor, 0x00);
+    if (word_count == 0) return PROTO_OK; // Nothing to parse in this case
+    else if (word_count != 0x0a) return PROTO_PARSE_ERR;
 
     cursor_drop(cursor, 2 + 2 + 2); // total counts + Reserved bytes
 
@@ -2343,8 +2392,6 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
             }
             break;
         case SMB_TRANS2_FIND_NEXT2:
-            info->meta_read_bytes = data_count;
-            break;
         case SMB_TRANS2_FIND_FIRST2:
             info->meta_read_bytes = data_count;
             break;
@@ -2355,6 +2402,51 @@ static enum proto_parse_status parse_trans2_response(struct cifs_parser *cifs_pa
             break;
     }
     return status;
+}
+
+/*
+ * Trans2 secondary request
+ * Word count = 0x09
+ *
+ * Parameters
+ *
+ * | USHORT              | USHORT         | USHORT         | USHORT          |
+ * | TotalParameterCount | TotalDataCount | ParameterCount | ParameterOffset |
+ *
+ * | USHORT                | USHORT    | USHORT     | USHORT           | USHORT     |
+ * | ParameterDisplacement | DataCount | DataOffset | DataDisplacement | FID        |
+ *
+ * Data
+ *
+ * | UCHAR  | UCHAR                             | UCHAR  | UCHAR                  |
+ * | Pad1[] | Trans2_Parameters[ParameterCount] | Pad2[] | Trans2_Data[DataCount] |
+ */
+static enum proto_parse_status parse_trans2_secondary_request(struct cifs_parser *cifs_parser,
+        struct cursor *cursor, struct cifs_proto_info *info)
+{
+    if (-1 == parse_and_check_word_count(cursor, 0x09)) return PROTO_PARSE_ERR;
+    cursor_drop(cursor, 2 + 2 + 2 + 2 + 2); // Reach data count
+    uint16_t data_count = cursor_read_u16le(cursor);
+    cursor_drop(cursor, 2 + 2); // reach fid
+    cifs_set_fid(info, cursor_read_u16le(cursor));
+    switch (cifs_parser->subcommand.trans2_subcmd) {
+        case SMB_TRANS2_OPEN2:
+        case SMB_TRANS2_FIND_FIRST2:
+        case SMB_TRANS2_FIND_NEXT2:
+        case SMB_TRANS2_QUERY_FS_INFO:
+        case SMB_TRANS2_QUERY_FILE_INFORMATION:
+        case SMB_TRANS2_QUERY_PATH_INFORMATION:
+            info->meta_read_bytes = data_count;
+            break;
+        case SMB_TRANS2_SET_FS_INFORMATION:
+        case SMB_TRANS2_SET_PATH_INFORMATION:
+        case SMB_TRANS2_SET_FILE_INFORMATION:
+            info->meta_write_bytes = data_count;
+            break;
+        default:
+            break;
+    }
+    return PROTO_OK;
 }
 
 /*
@@ -2677,22 +2769,30 @@ static enum proto_parse_status parse_open_andx_request(struct cifs_parser *cifs_
 
 /*
  * Open AndX response
- * Word count 0x0f
+ * Word count 0x0f or 0x13
  *
  * Parameters
  * | 4 bytes | USHORT | SMB_FILE_ATTRIBUTES | UTIME         | ULONG        | USHORT       |
  * | AndX    | FID    | FileAttrs           | LastWriteTime | FileDataSize | AccessRights |
  *
- * | USHORT       | SMB_NMPIPE_STATUS | USHORT      | USHORT[3] |
- * | ResourceType | NBPipeStatus      | OpenResults | Reserved  |
+ * | USHORT       | SMB_NMPIPE_STATUS | USHORT      |
+ * | ResourceType | NBPipeStatus      | OpenResults |
+ *
+ * 0x0f version:
+ * |  USHORT[3] |
+ * |  Reserved  |
+ *
+ * 0x13 version:
+ * | ULONG     | USHORT   | ACCESS_MASK         | ACCESS_MASK              |
+ * | ServerFID | Reserved | MaximalAccessRights | GuestMaximalAccessRights |
  *
  * No Data
  */
 static enum proto_parse_status parse_open_andx_response(struct cifs_parser unused_ *cifs_parser,
         struct cursor *cursor, struct cifs_proto_info *info)
 {
-    int word_count = parse_and_check_word_count(cursor, 0x0f);
-    if(-1 == word_count) return PROTO_PARSE_ERR;
+    int word_count = parse_and_check_word_count_superior_or_equal(cursor, 0x0f);
+    if(word_count != 0x0f && word_count != 0x13) return PROTO_PARSE_ERR;
     info->meta_read_bytes = word_count * 2;
     cursor_drop(cursor, 4); // skip AndX
     cifs_set_fid(info, cursor_read_u16le(cursor));
@@ -2979,14 +3079,12 @@ static enum proto_parse_status parse_transaction_request(struct cifs_parser *cif
     // drop the DataOffset
     cursor_drop(cursor, 2);
     uint8_t setup_count = cursor_read_u8(cursor);
-    if(setup_count != 0x02)
-        return PROTO_PARSE_ERR;
+    if (setup_count == 0) return PROTO_OK;
     cursor_drop(cursor, 1); // reserved3
 
     // read subcommand
     cifs_parser->subcommand.transaction_subcmd = info->subcommand.transaction_subcmd = cursor_read_u16le(cursor);
     info->set_values |= CIFS_TRANSACTION_SUBCMD;
-
     switch (info->subcommand.transaction_subcmd) {
         case SMB_TRANS_SET_NMPIPE_STATE:
             /*
@@ -4213,25 +4311,26 @@ static enum proto_parse_status parse_nt_rename_request(struct cifs_parser *cifs_
 
 /*
  * Close print file request
- * Word count 0x01
+ * Word count 0x01 or 0x03
  *
  * Parameters
- * | USHORT |
- * | FID    |
+ * | USHORT | ( UTIME         | )
+ * | FID    | ( LastWriteTime | )
  *
  * No Data
  */
 static enum proto_parse_status parse_close_print_file_request(struct cifs_parser unused_ *cifs_parser,
         struct cursor *cursor, struct cifs_proto_info *info)
 {
-    if(-1 == parse_and_check_word_count(cursor, 0x01)) return PROTO_PARSE_ERR;
+    int word_count = parse_and_check_word_count_superior_or_equal(cursor, 0x01);
+    if (word_count != 0x01 && word_count != 0x03) return PROTO_PARSE_ERR;
     cifs_set_fid(info, cursor_read_u16le(cursor));
     return PROTO_OK;
 }
 
 /*
  * Ioctl request
- * Word count 0x0e
+ * Word count 0x0e or 0x03
  *
  * Parameters
  * | USHORT | USHORT   | USHORT   | USHORT              | USHORT         |
@@ -4251,18 +4350,19 @@ static enum proto_parse_status parse_close_print_file_request(struct cifs_parser
  * on a particular server type. Therefore, the functions supported are not defined by
  * the protocol, but by the systems on which the CIFS implementations execute.
  * The protocol simply provides a means of delivering the requests and accepting the responses.
+ *
+ * The 0x03 version contains:
+ * | USHORT | ULONG   |
+ * | FID    | Unknown |
  */
 static enum proto_parse_status parse_ioctl_request(struct cifs_parser unused_ *cifs_parser,
         struct cursor *cursor, struct cifs_proto_info *info)
 {
-    if(-1 == parse_and_check_word_count(cursor, 0x0e)) return PROTO_PARSE_ERR;
+    int word_count = parse_and_check_word_count_superior_or_equal(cursor, 0x03);
+    if (word_count != 0x03 && word_count != 0x0e) return PROTO_PARSE_ERR;
     cifs_set_fid(info, cursor_read_u16le(cursor));
     return PROTO_OK;
 }
-
-
-
-
 
 // SMB2 parse functions
 
@@ -4989,72 +5089,73 @@ void cifs_init(void)
     uniq_proto_ctor(&uniq_proto_cifs, &ops, "CIFS", PROTO_CODE_CIFS);
     pthread_key_create(&iconv_pthread_key, (void (*)(void *))iconv_close);
 
-    smb_command_parsers[SMB_COM_SESSION_SETUP_ANDX].request = parse_session_setup_andx_query;
-    smb_command_parsers[SMB_COM_SESSION_SETUP_ANDX].response = parse_session_setup_andx_response;
-    smb_command_parsers[SMB_COM_TREE_CONNECT_ANDX].request = parse_tree_connect_andx_request_query;
-    smb_command_parsers[SMB_COM_NEGOCIATE].response = parse_negociate_response;
-    smb_command_parsers[SMB_COM_TRANSACTION2].request = parse_trans2_request;
-    smb_command_parsers[SMB_COM_TRANSACTION2].response = parse_trans2_response;
-    smb_command_parsers[SMB_COM_WRITE_ANDX].request = parse_write_andx_request;
-    smb_command_parsers[SMB_COM_WRITE_ANDX].response = parse_write_andx_response;
-    smb_command_parsers[SMB_COM_CLOSE].request = parse_close_request;
-    smb_command_parsers[SMB_COM_DELETE].request = parse_delete_request;
-    smb_command_parsers[SMB_COM_DELETE_DIRECTORY].request = parse_delete_directory_request;
-    smb_command_parsers[SMB_COM_READ_ANDX].request = parse_read_andx_request;
-    smb_command_parsers[SMB_COM_READ_ANDX].response = parse_read_andx_response;
-    smb_command_parsers[SMB_COM_NT_CREATE_ANDX].request = parse_nt_create_andx_request;
-    smb_command_parsers[SMB_COM_NT_CREATE_ANDX].response = parse_nt_create_andx_response;
-    smb_command_parsers[SMB_COM_FLUSH].request = parse_flush_request;
-    smb_command_parsers[SMB_COM_RENAME].request = parse_rename_request;
-    smb_command_parsers[SMB_COM_LOCKING_ANDX].request = parse_locking_andx_request;
-    smb_command_parsers[SMB_COM_OPEN_ANDX].request = parse_open_andx_request;
-    smb_command_parsers[SMB_COM_OPEN_ANDX].response = parse_open_andx_response;
-    smb_command_parsers[SMB_COM_NT_TRANSACT].request = parse_nt_transact_request;
-    smb_command_parsers[SMB_COM_NT_TRANSACT].response = parse_nt_transact_response;
-    smb_command_parsers[SMB_COM_TRANSACTION].request = parse_transaction_request;
-    smb_command_parsers[SMB_COM_TRANSACTION].response = parse_transaction_response;
-    smb_command_parsers[SMB_COM_WRITE].request  = parse_write_request;
-    smb_command_parsers[SMB_COM_WRITE].response = parse_write_response;
-    smb_command_parsers[SMB_COM_READ].request  = parse_read_request;
-    smb_command_parsers[SMB_COM_READ].response = parse_read_response;
-    smb_command_parsers[SMB_COM_CREATE_DIRECTORY].request  = parse_create_directory_request;
+    smb_command_parsers[SMB_COM_SESSION_SETUP_ANDX].request      = parse_session_setup_andx_query;
+    smb_command_parsers[SMB_COM_SESSION_SETUP_ANDX].response     = parse_session_setup_andx_response;
+    smb_command_parsers[SMB_COM_TREE_CONNECT_ANDX].request       = parse_tree_connect_andx_request_query;
+    smb_command_parsers[SMB_COM_NEGOCIATE].response              = parse_negociate_response;
+    smb_command_parsers[SMB_COM_TRANSACTION2].request            = parse_trans2_request;
+    smb_command_parsers[SMB_COM_TRANSACTION2].response           = parse_trans2_response;
+    smb_command_parsers[SMB_COM_TRANSACTION2_SECONDARY].request  = parse_trans2_secondary_request;
+    smb_command_parsers[SMB_COM_WRITE_ANDX].request              = parse_write_andx_request;
+    smb_command_parsers[SMB_COM_WRITE_ANDX].response             = parse_write_andx_response;
+    smb_command_parsers[SMB_COM_CLOSE].request                   = parse_close_request;
+    smb_command_parsers[SMB_COM_DELETE].request                  = parse_delete_request;
+    smb_command_parsers[SMB_COM_DELETE_DIRECTORY].request        = parse_delete_directory_request;
+    smb_command_parsers[SMB_COM_READ_ANDX].request               = parse_read_andx_request;
+    smb_command_parsers[SMB_COM_READ_ANDX].response              = parse_read_andx_response;
+    smb_command_parsers[SMB_COM_NT_CREATE_ANDX].request          = parse_nt_create_andx_request;
+    smb_command_parsers[SMB_COM_NT_CREATE_ANDX].response         = parse_nt_create_andx_response;
+    smb_command_parsers[SMB_COM_FLUSH].request                   = parse_flush_request;
+    smb_command_parsers[SMB_COM_RENAME].request                  = parse_rename_request;
+    smb_command_parsers[SMB_COM_LOCKING_ANDX].request            = parse_locking_andx_request;
+    smb_command_parsers[SMB_COM_OPEN_ANDX].request               = parse_open_andx_request;
+    smb_command_parsers[SMB_COM_OPEN_ANDX].response              = parse_open_andx_response;
+    smb_command_parsers[SMB_COM_NT_TRANSACT].request             = parse_nt_transact_request;
+    smb_command_parsers[SMB_COM_NT_TRANSACT].response            = parse_nt_transact_response;
+    smb_command_parsers[SMB_COM_TRANSACTION].request             = parse_transaction_request;
+    smb_command_parsers[SMB_COM_TRANSACTION].response            = parse_transaction_response;
+    smb_command_parsers[SMB_COM_WRITE].request                   = parse_write_request;
+    smb_command_parsers[SMB_COM_WRITE].response                  = parse_write_response;
+    smb_command_parsers[SMB_COM_READ].request                    = parse_read_request;
+    smb_command_parsers[SMB_COM_READ].response                   = parse_read_response;
+    smb_command_parsers[SMB_COM_CREATE_DIRECTORY].request        = parse_create_directory_request;
     smb_command_parsers[SMB_COM_QUERY_INFORMATION_DISK].response = parse_query_info_disk_response;
-    smb_command_parsers[SMB_COM_CHECK_DIRECTORY].request = parse_check_directory_request;
-    smb_command_parsers[SMB_COM_OPEN].request = parse_open_request;
-    smb_command_parsers[SMB_COM_OPEN].response = parse_open_response;
-    smb_command_parsers[SMB_COM_QUERY_INFORMATION].request  = parse_query_info_request;
-    smb_command_parsers[SMB_COM_QUERY_INFORMATION].response = parse_query_info_response;
-    smb_command_parsers[SMB_COM_SET_INFORMATION].request = parse_set_info_request;
-    smb_command_parsers[SMB_COM_CREATE].request = parse_create_request;
-    smb_command_parsers[SMB_COM_CREATE].response = parse_create_response;
-    smb_command_parsers[SMB_COM_LOCK_BYTE_RANGE].request = parse_lock_byte_range_request;
-    smb_command_parsers[SMB_COM_UNLOCK_BYTE_RANGE].request = parse_unlock_byte_range_request;
-    smb_command_parsers[SMB_COM_CREATE_TEMPORARY].request = parse_create_temp_request;
-    smb_command_parsers[SMB_COM_CREATE_TEMPORARY].response = parse_create_temp_response;
-    smb_command_parsers[SMB_COM_CREATE_NEW].request  = parse_create_new_request;
-    smb_command_parsers[SMB_COM_CREATE_NEW].response = parse_create_new_response;
-    smb_command_parsers[SMB_COM_SEEK].request  = parse_seek_request;
-    smb_command_parsers[SMB_COM_SEEK].response = parse_seek_response;
-    smb_command_parsers[SMB_COM_LOCK_AND_READ].request  = parse_lock_and_read_request;
-    smb_command_parsers[SMB_COM_LOCK_AND_READ].response = parse_lock_and_read_response;
-    smb_command_parsers[SMB_COM_WRITE_AND_UNLOCK].request  = parse_write_and_unlock_request;
-    smb_command_parsers[SMB_COM_WRITE_AND_UNLOCK].response = parse_write_and_unlock_response;
-    smb_command_parsers[SMB_COM_READ_RAW].request  = parse_read_raw_request;
-    smb_command_parsers[SMB_COM_SET_INFORMATION2].request  = parse_set_info2_request;
-    smb_command_parsers[SMB_COM_QUERY_INFORMATION2].request  = parse_query_info2_request;
-    smb_command_parsers[SMB_COM_QUERY_INFORMATION2].response = parse_query_info2_response;
-    smb_command_parsers[SMB_COM_WRITE_AND_CLOSE].request  = parse_write_and_close_request;
-    smb_command_parsers[SMB_COM_WRITE_AND_CLOSE].response = parse_write_and_close_response;
-    smb_command_parsers[SMB_COM_SEARCH].request  = parse_search_request;
-    smb_command_parsers[SMB_COM_SEARCH].response = parse_search_response;
-    smb_command_parsers[SMB_COM_FIND].request  = parse_find_request;
-    smb_command_parsers[SMB_COM_FIND].response = parse_find_response;
-    smb_command_parsers[SMB_COM_FIND_UNIQUE].request  = parse_find_unique_request;
-    smb_command_parsers[SMB_COM_FIND_UNIQUE].response = parse_find_unique_response;
-    smb_command_parsers[SMB_COM_FIND_CLOSE].request  = parse_find_close_request;
-    smb_command_parsers[SMB_COM_NT_RENAME].request  = parse_nt_rename_request;
-    smb_command_parsers[SMB_COM_CLOSE_PRINT_FILE].request  = parse_close_print_file_request;
-    smb_command_parsers[SMB_COM_IOCTL].request  = parse_ioctl_request;
+    smb_command_parsers[SMB_COM_CHECK_DIRECTORY].request         = parse_check_directory_request;
+    smb_command_parsers[SMB_COM_OPEN].request                    = parse_open_request;
+    smb_command_parsers[SMB_COM_OPEN].response                   = parse_open_response;
+    smb_command_parsers[SMB_COM_QUERY_INFORMATION].request       = parse_query_info_request;
+    smb_command_parsers[SMB_COM_QUERY_INFORMATION].response      = parse_query_info_response;
+    smb_command_parsers[SMB_COM_SET_INFORMATION].request         = parse_set_info_request;
+    smb_command_parsers[SMB_COM_CREATE].request                  = parse_create_request;
+    smb_command_parsers[SMB_COM_CREATE].response                 = parse_create_response;
+    smb_command_parsers[SMB_COM_LOCK_BYTE_RANGE].request         = parse_lock_byte_range_request;
+    smb_command_parsers[SMB_COM_UNLOCK_BYTE_RANGE].request       = parse_unlock_byte_range_request;
+    smb_command_parsers[SMB_COM_CREATE_TEMPORARY].request        = parse_create_temp_request;
+    smb_command_parsers[SMB_COM_CREATE_TEMPORARY].response       = parse_create_temp_response;
+    smb_command_parsers[SMB_COM_CREATE_NEW].request              = parse_create_new_request;
+    smb_command_parsers[SMB_COM_CREATE_NEW].response             = parse_create_new_response;
+    smb_command_parsers[SMB_COM_SEEK].request                    = parse_seek_request;
+    smb_command_parsers[SMB_COM_SEEK].response                   = parse_seek_response;
+    smb_command_parsers[SMB_COM_LOCK_AND_READ].request           = parse_lock_and_read_request;
+    smb_command_parsers[SMB_COM_LOCK_AND_READ].response          = parse_lock_and_read_response;
+    smb_command_parsers[SMB_COM_WRITE_AND_UNLOCK].request        = parse_write_and_unlock_request;
+    smb_command_parsers[SMB_COM_WRITE_AND_UNLOCK].response       = parse_write_and_unlock_response;
+    smb_command_parsers[SMB_COM_READ_RAW].request                = parse_read_raw_request;
+    smb_command_parsers[SMB_COM_SET_INFORMATION2].request        = parse_set_info2_request;
+    smb_command_parsers[SMB_COM_QUERY_INFORMATION2].request      = parse_query_info2_request;
+    smb_command_parsers[SMB_COM_QUERY_INFORMATION2].response     = parse_query_info2_response;
+    smb_command_parsers[SMB_COM_WRITE_AND_CLOSE].request         = parse_write_and_close_request;
+    smb_command_parsers[SMB_COM_WRITE_AND_CLOSE].response        = parse_write_and_close_response;
+    smb_command_parsers[SMB_COM_SEARCH].request                  = parse_search_request;
+    smb_command_parsers[SMB_COM_SEARCH].response                 = parse_search_response;
+    smb_command_parsers[SMB_COM_FIND].request                    = parse_find_request;
+    smb_command_parsers[SMB_COM_FIND].response                   = parse_find_response;
+    smb_command_parsers[SMB_COM_FIND_UNIQUE].request             = parse_find_unique_request;
+    smb_command_parsers[SMB_COM_FIND_UNIQUE].response            = parse_find_unique_response;
+    smb_command_parsers[SMB_COM_FIND_CLOSE].request              = parse_find_close_request;
+    smb_command_parsers[SMB_COM_NT_RENAME].request               = parse_nt_rename_request;
+    smb_command_parsers[SMB_COM_CLOSE_PRINT_FILE].request        = parse_close_print_file_request;
+    smb_command_parsers[SMB_COM_IOCTL].request                   = parse_ioctl_request;
 }
 
 void cifs_fini(void)
