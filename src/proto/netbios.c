@@ -133,7 +133,7 @@ static enum proto_parse_status netbios_parse_frame(struct netbios_parser *netbio
     SLOG(LOG_DEBUG, "Found netbios payload of %"PRIu32", current payload %zu",
             len, current_payload);
     if (len > current_payload) {
-        streambuf_set_restart(&netbios_parser->sbuf, way, packet, len);
+        streambuf_set_restart(&netbios_parser->sbuf, way, packet, len + NETBIOS_HEADER_SIZE);
         return PROTO_OK;
     }
 
