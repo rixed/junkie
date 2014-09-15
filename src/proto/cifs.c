@@ -1260,13 +1260,13 @@ static char const *cifs_info_2_str(struct proto_info const *info_)
                 smb2_command_2_str(info->command.smb2_command),
             smb_status_2_str(info->status),
             info->set_values & CIFS_DOMAIN ? ", domain=" : "",
-            info->set_values & CIFS_DOMAIN ? info->domain : "",
+            info->set_values & CIFS_DOMAIN ? info->u.connection.domain : "",
             info->set_values & CIFS_USER ? ", user=" : "",
-            info->set_values & CIFS_USER ? info->user : "",
+            info->set_values & CIFS_USER ? info->u.connection.user : "",
             info->set_values & CIFS_TREE ? ", tree=" : "",
-            info->set_values & CIFS_TREE ? info->tree : "",
+            info->set_values & CIFS_TREE ? info->u.path : "",
             info->set_values & CIFS_PATH ? ", path=" : "",
-            info->set_values & CIFS_PATH ? info->path : "",
+            info->set_values & CIFS_PATH ? info->u.path : "",
             info->set_values & CIFS_TRANS2_SUBCMD ? ", trans2_subcmd=" : "",
             info->set_values & CIFS_TRANS2_SUBCMD ? smb_trans2_subcmd_2_str(info->subcommand.trans2_subcmd) : "",
             info->set_values & CIFS_TRANSACTION_SUBCMD ? ", transaction_subcmd=" : "",
@@ -1619,18 +1619,21 @@ static enum proto_parse_status parse_ntlm_request_message(struct cursor *cursor,
     size_t current_position = cursor->head - start;
     CHECK(workstation_offset + workstation_length - current_position);
     cursor_drop(cursor, domain_offset - current_position);
-    if (-1 == cursor_read_fixed_utf16(cursor, get_iconv(), info->domain, sizeof(info->domain), domain_length))
+    if (-1 == cursor_read_fixed_utf16(cursor, get_iconv(), info->u.connection.domain,
+                sizeof(info->u.connection.domain), domain_length))
         return PROTO_PARSE_ERR;
     info->set_values |= CIFS_DOMAIN;
-    SLOG(LOG_DEBUG, "Parsed domain %s", info->domain);
-    if (-1 == cursor_read_fixed_utf16(cursor, get_iconv(), info->user, sizeof(info->user), user_length))
+    SLOG(LOG_DEBUG, "Parsed domain %s", info->u.connection.domain);
+    if (-1 == cursor_read_fixed_utf16(cursor, get_iconv(), info->u.connection.user,
+                sizeof(info->u.connection.user), user_length))
         return PROTO_PARSE_ERR;
     info->set_values |= CIFS_USER;
-    SLOG(LOG_DEBUG, "Parsed user %s", info->user);
-    if (-1 == cursor_read_fixed_utf16(cursor, get_iconv(), info->hostname, sizeof(info->hostname), workstation_length))
+    SLOG(LOG_DEBUG, "Parsed user %s", info->u.connection.user);
+    if (-1 == cursor_read_fixed_utf16(cursor, get_iconv(), info->u.connection.hostname,
+                sizeof(info->u.connection.hostname), workstation_length))
         return PROTO_PARSE_ERR;
     info->set_values |= CIFS_HOSTNAME;
-    SLOG(LOG_DEBUG, "Parsed hostname %s", info->hostname);
+    SLOG(LOG_DEBUG, "Parsed hostname %s", info->u.connection.hostname);
 
     return PROTO_OK;
 }
@@ -1725,7 +1728,8 @@ static enum proto_parse_status parse_krb5_blob(struct cursor *cursor, struct cif
         // Realm
         PARSE_DER_CHOICE_ID(1);
         if (PROTO_OK != (status = cursor_read_der(cursor, &der))) return status;
-        cursor_read_fixed_string(cursor, info->domain, sizeof(info->domain), der.length);
+        cursor_read_fixed_string(cursor, info->u.connection.domain,
+                sizeof(info->u.connection.domain), der.length);
         info->set_values |= CIFS_DOMAIN;
     } else if (tok_id == 2) {
         // KRB_AP_REP
@@ -1839,41 +1843,47 @@ static enum proto_parse_status parse_security_buffer(struct cursor *cursor, stru
 
 #define PARSE_SMB_OS(info, way) \
     CHECK(2);\
-    if (parse_smb_string(cifs_parser, cursor, info->os, sizeof(info->os)) < 0) \
+    if (parse_smb_string(cifs_parser, cursor, info->u.connection.os, sizeof(info->u.connection.os)) < 0) \
         return PROTO_PARSE_ERR; \
     info->set_values |= way == FROM_CLIENT ? CIFS_OS : CIFS_SERVER_OS;
 
 #define PARSE_SMB_DRIVER(info, way) \
     CHECK(2);\
-    if (parse_smb_string(cifs_parser, cursor, info->driver, sizeof(info->driver)) < 0) \
+    if (parse_smb_string(cifs_parser, cursor, info->u.connection.driver, sizeof(info->u.connection.driver)) < 0) \
         return PROTO_PARSE_ERR; \
     info->set_values |= way == FROM_CLIENT ? CIFS_DRIVER : CIFS_SERVER_DRIVER;
 
 #define PARSE_SMB_DOMAIN(info) \
     CHECK(2);\
-    if (parse_smb_string(cifs_parser, cursor, info->domain, sizeof(info->domain)) < 0) \
+    if (parse_smb_string(cifs_parser, cursor, info->u.connection.domain, sizeof(info->u.connection.domain)) < 0) \
         return PROTO_PARSE_ERR; \
     info->set_values |= CIFS_DOMAIN;
 
 #define PARSE_SMB_USER(info) \
     CHECK(2);\
-    if (parse_smb_string(cifs_parser, cursor, info->user, sizeof(info->user)) < 0) \
+    if (parse_smb_string(cifs_parser, cursor, info->u.connection.user, sizeof(info->u.connection.user)) < 0) \
         return PROTO_PARSE_ERR; \
     info->set_values |= CIFS_USER;
 
+#define PARSE_SMB_TREE(info) \
+    CHECK(2);\
+    if (parse_smb_string(cifs_parser, cursor, info->u.path, sizeof(info->u.path)) < 0) \
+        return PROTO_PARSE_ERR; \
+    info->set_values |= CIFS_TREE;
+
 #define PARSE_SMB_PATH(info) \
     CHECK(2);\
-    if (parse_smb_string(cifs_parser, cursor, info->path, sizeof(info->path)) < 0) \
+    if (parse_smb_string(cifs_parser, cursor, info->u.path, sizeof(info->u.path)) < 0) \
         return PROTO_PARSE_ERR; \
     info->set_values |= CIFS_PATH;
 
 #define PARSE_SMB2_PATH(info, length) \
-    if (cursor_read_fixed_utf16(cursor, get_iconv(), info->path, sizeof(info->path), length) < 0) \
+    if (cursor_read_fixed_utf16(cursor, get_iconv(), info->u.path, sizeof(info->u.path), length) < 0) \
         return PROTO_PARSE_ERR; \
     info->set_values |= CIFS_PATH;
 
 #define PARSE_SMB2_TREE(info, length) \
-    if (cursor_read_fixed_utf16(cursor, get_iconv(), info->tree, sizeof(info->tree), length) < 0) \
+    if (cursor_read_fixed_utf16(cursor, get_iconv(), info->u.path, sizeof(info->u.path), length) < 0) \
         return PROTO_PARSE_ERR; \
     info->set_values |= CIFS_TREE;
 
@@ -1919,7 +1929,7 @@ static enum proto_parse_status parse_negociate_response(struct cifs_parser *cifs
     cursor_drop(cursor, challenge_length);
 
     PARSE_SMB_DOMAIN(info);
-    SLOG(LOG_DEBUG, "Found domain %s", info->domain);
+    SLOG(LOG_DEBUG, "Found domain %s", info->u.connection.domain);
 
     return PROTO_OK;
 }
@@ -1954,13 +1964,13 @@ static enum proto_parse_status parse_session_setup_andx_query_normal(struct cifs
     SLOG(LOG_DEBUG, "Padding of %d", padding);
     cursor_drop(cursor, oem_password_len + unicode_password_len + padding);
     PARSE_SMB_USER(info);
-    SLOG(LOG_DEBUG, "Found user %s", info->user);
+    SLOG(LOG_DEBUG, "Found user %s", info->u.connection.user);
     PARSE_SMB_DOMAIN(info);
-    SLOG(LOG_DEBUG, "Found domain %s", info->domain);
+    SLOG(LOG_DEBUG, "Found domain %s", info->u.connection.domain);
     PARSE_SMB_OS(info, FROM_CLIENT);
-    SLOG(LOG_DEBUG, "Found os %s", info->os);
+    SLOG(LOG_DEBUG, "Found os %s", info->u.connection.os);
     PARSE_SMB_DRIVER(info, FROM_CLIENT);
-    SLOG(LOG_DEBUG, "Found driver %s", info->driver);
+    SLOG(LOG_DEBUG, "Found driver %s", info->u.connection.driver);
     return PROTO_OK;
 }
 
@@ -2020,11 +2030,11 @@ static enum proto_parse_status parse_session_setup_andx_response_normal(struct c
     uint8_t padding = compute_padding(cifs_parser, cursor, 0, 2);
     CHECK_AND_DROP(padding);
     PARSE_SMB_OS(info, FROM_SERVER);
-    SLOG(LOG_DEBUG, "Found os %s", info->os);
+    SLOG(LOG_DEBUG, "Found os %s", info->u.connection.os);
     PARSE_SMB_DRIVER(info, FROM_SERVER);
-    SLOG(LOG_DEBUG, "Found driver %s", info->driver);
+    SLOG(LOG_DEBUG, "Found driver %s", info->u.connection.driver);
     PARSE_SMB_DOMAIN(info);
-    SLOG(LOG_DEBUG, "Found domain %s", info->domain);
+    SLOG(LOG_DEBUG, "Found domain %s", info->u.connection.domain);
     return PROTO_OK;
 }
 
@@ -2047,9 +2057,9 @@ static enum proto_parse_status parse_session_setup_andx_response_security_blob(s
     if (parse_and_check_byte_count_superior_or_equal(cursor, blob_length + 2) == -1) return PROTO_PARSE_ERR;
     cursor_drop(cursor, blob_length);
     PARSE_SMB_OS(info, FROM_SERVER);
-    SLOG(LOG_DEBUG, "Found os %s", info->os);
+    SLOG(LOG_DEBUG, "Found os %s", info->u.connection.os);
     PARSE_SMB_DRIVER(info, FROM_SERVER);
-    SLOG(LOG_DEBUG, "Found driver %s", info->driver);
+    SLOG(LOG_DEBUG, "Found driver %s", info->u.connection.driver);
     return PROTO_OK;
 }
 
@@ -2091,7 +2101,7 @@ static enum proto_parse_status parse_tree_connect_andx_request_query(struct cifs
     uint8_t padding = compute_padding(cifs_parser, cursor, password_len + 2, 2);
     if (parse_and_check_byte_count_superior_or_equal(cursor, password_len + padding) == -1) return PROTO_PARSE_ERR;
     cursor_drop(cursor, password_len + padding);
-    PARSE_SMB_PATH(info);
+    PARSE_SMB_TREE(info);
     return PROTO_OK;
 }
 
@@ -3711,7 +3721,7 @@ static enum proto_parse_status parse_create_temp_response(struct cifs_parser unu
 
     if(-1 == parse_and_check_byte_count_superior_or_equal(cursor, 0x2)) return PROTO_PARSE_ERR;
 
-    if(cursor_read_string(cursor, info->path, sizeof(info->path), cursor->cap_len) < 0)
+    if(cursor_read_string(cursor, info->u.path, sizeof(info->u.path), cursor->cap_len) < 0)
         return PROTO_PARSE_ERR;
     info->set_values |= CIFS_PATH;
 
@@ -4392,7 +4402,7 @@ static enum proto_parse_status parse_smb2_negociate_response(struct cifs_parser 
 {
     READ_AND_CHECK_STRUCTURE_SIZE(65);
     cursor_drop(cursor, 2 + 2 + 2); // SecurityMode + DialectRevision + Reserved
-    memcpy(info->hostname, cursor->head, sizeof(info->hostname));
+    memcpy(info->u.connection.hostname, cursor->head, sizeof(info->u.connection.hostname));
     info->set_values |= CIFS_SERVER_HOSTNAME;
     return PROTO_OK;
 }
@@ -4471,7 +4481,7 @@ static enum proto_parse_status parse_smb2_tree_connect_request(struct cifs_parse
     uint16_t length = cursor_read_u16le(cursor);
     CHECK(length);
     PARSE_SMB2_TREE(info, length);
-    SLOG(LOG_DEBUG, "Found tree path %s", info->tree);
+    SLOG(LOG_DEBUG, "Found tree path %s", info->u.path);
     return PROTO_OK;
 }
 

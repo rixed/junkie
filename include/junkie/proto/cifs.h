@@ -1249,13 +1249,16 @@ struct cifs_proto_info {
 #define         CIFS_SERVER_HOSTNAME                   0x2000
 #define         CIFS_SERVER_DRIVER                     0x4000
     unsigned set_values;
-    char user[CIFS_USER_SIZE];
-    char domain[CIFS_DOMAIN_SIZE];
-    char path[CIFS_PATH_SIZE];
-    char tree[CIFS_PATH_SIZE];
-    char os[CIFS_OS_SIZE];
-    char hostname[CIFS_HOSTNAME_SIZE];
-    char driver[CIFS_DRIVER_SIZE];
+    union {
+        char path[CIFS_PATH_SIZE];
+        struct connection {
+            char user[CIFS_USER_SIZE];
+            char domain[CIFS_DOMAIN_SIZE];
+            char os[CIFS_OS_SIZE];
+            char hostname[CIFS_HOSTNAME_SIZE];
+            char driver[CIFS_DRIVER_SIZE];
+        } connection;
+    } u;
 
     union smb_subcommand {
         enum smb_trans2_subcommand trans2_subcmd;
