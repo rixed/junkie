@@ -198,8 +198,8 @@ static enum proto_parse_status netbios_parse(struct parser *parser, struct proto
  * Initialization
  */
 
-static struct uniq_proto uniq_proto_netbios;
-struct proto *proto_netbios = &uniq_proto_netbios.proto;
+static struct proto proto_netbios_;
+struct proto *proto_netbios = &proto_netbios_;
 static struct port_muxer tcp_port_muxer;
 
 void netbios_init(void)
@@ -213,7 +213,7 @@ void netbios_init(void)
         .info_2_str = proto_info_2_str,
         .info_addr  = netbios_info_addr,
     };
-    uniq_proto_ctor(&uniq_proto_netbios, &ops, "Netbios", PROTO_CODE_NETBIOS);
+    proto_ctor(proto_netbios, &ops, "Netbios", PROTO_CODE_NETBIOS);
     port_muxer_ctor(&tcp_port_muxer, &tcp_port_muxers, 445, 445, proto_netbios);
 }
 
@@ -221,7 +221,7 @@ void netbios_fini(void)
 {
 #   ifdef DELETE_ALL_AT_EXIT
     port_muxer_dtor(&tcp_port_muxer, &tcp_port_muxers);
-    uniq_proto_dtor(&uniq_proto_netbios);
+    proto_dtor(proto_netbios);
 #   endif
     log_category_proto_netbios_fini();
 }

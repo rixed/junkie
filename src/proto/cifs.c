@@ -3004,6 +3004,7 @@ static enum proto_parse_status parse_nt_transact_response(struct cifs_parser *ci
              * | USHORT       | SMB_NMPIPE_STATUS | UCHAR     |
              * | ResourceType | NMPipeStatus      | Directory |
              */
+            CHECK(12);
             cursor_drop(cursor, 1+1); // skip OpLockLevel, Reserved
             cifs_set_fid(info, cursor_read_u16le(cursor));
             cursor_drop(cursor, 8); // skip CreateAction
@@ -5078,8 +5079,8 @@ static enum proto_parse_status cifs_parse(struct parser *parser, struct proto_in
     return status;
 }
 
-static struct uniq_proto uniq_proto_cifs;
-struct proto *proto_cifs = &uniq_proto_cifs.proto;
+static struct proto proto_cifs_;
+struct proto *proto_cifs = &proto_cifs_;
 
 /*
  * Initialization
@@ -5096,7 +5097,7 @@ void cifs_init(void)
         .info_2_str = cifs_info_2_str,
         .info_addr  = cifs_info_addr,
     };
-    uniq_proto_ctor(&uniq_proto_cifs, &ops, "CIFS", PROTO_CODE_CIFS);
+    proto_ctor(proto_cifs, &ops, "CIFS", PROTO_CODE_CIFS);
     pthread_key_create(&iconv_pthread_key, (void (*)(void *))iconv_close);
 
     smb_command_parsers[SMB_COM_SESSION_SETUP_ANDX].request      = parse_session_setup_andx_query;
@@ -5171,7 +5172,7 @@ void cifs_init(void)
 void cifs_fini(void)
 {
 #   ifdef DELETE_ALL_AT_EXIT
-    uniq_proto_dtor(&uniq_proto_cifs);
+    proto_dtor(proto_cifs);
     pthread_key_delete(iconv_pthread_key);
 #   endif
     log_category_proto_cifs_fini();
