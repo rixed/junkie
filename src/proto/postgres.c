@@ -624,8 +624,8 @@ static enum proto_parse_status pg_parse_query_phase(struct pgsql_parser *pg_pars
     }
     if (status == PROTO_TOO_SHORT) {
         SLOG(LOG_DEBUG, "Payload too short for parsing message, will restart");
-        status = proto_parse(NULL, &info->info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);    // ack what we had so far
-        streambuf_set_restart(&pg_parser->sbuf, way, cursor.head, header.length);
+        proto_parse(NULL, &info->info, way, NULL, 0, 0, now, tot_cap_len, tot_packet); // ack what we had so far
+        streambuf_set_restart(&pg_parser->sbuf, way, cursor.head, header.length + 5);  // We need to include type byte and length field
         return PROTO_OK;
     }
 
