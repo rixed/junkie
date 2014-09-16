@@ -278,6 +278,7 @@ enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *par
 
     struct streambuf_unidir *dir = sbuf->dir+way;
     if (dir->wire_len < dir->wait_offset) {
+        proto_parse(NULL, parent, way, NULL, 0, 0, now, tot_cap_len, tot_packet); // Advertize what we already parsed
         goto quit;
     }
 
