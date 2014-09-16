@@ -59,13 +59,15 @@ static void teardown(void)
     streambuf_dtor(&sbuf);
 }
 
+struct timeval now;
+
 // Check that we get all the payload we asked for, once
 static int check_simple(void)
 {
     for (unsigned p = 0; p < NB_ELEMS(payloads); p++) {
         size_t len = strlen(payloads[p]);
         enum proto_parse_status status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0,
-                (uint8_t *)payloads[p], len, len, NULL, len, (uint8_t *)payloads[p]);   // in actual situations the streambuf will be a member of the overloaded parser
+                (uint8_t *)payloads[p], len, len, &now, len, (uint8_t *)payloads[p]);   // in actual situations the streambuf will be a member of the overloaded parser
         assert(status == PROTO_OK);
     }
 
@@ -81,7 +83,7 @@ static int check_vicious(void)
     for (unsigned p = 0; p < NB_ELEMS(payloads); p++) {
         size_t len = strlen(payloads[p]);
         for (unsigned c = 0; c < len; c++) {
-            enum proto_parse_status status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0, (uint8_t *)(payloads[p]+c), 1, 1, NULL, 1, (uint8_t *)(payloads[p]+c));
+            enum proto_parse_status status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0, (uint8_t *)(payloads[p]+c), 1, 1, &now, 1, (uint8_t *)(payloads[p]+c));
             assert(status == PROTO_OK);
         }
     }
@@ -100,33 +102,33 @@ static int check_drop(void)
     enum proto_parse_status status;
 
     status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0, (uint8_t *)"A", 1, 1,
-            NULL, 1, (uint8_t *)"A");   // A first packet for triggering the buffering
+            &now, 1, (uint8_t *)"A");   // A first packet for triggering the buffering
     CHECK_INT(status, PROTO_OK);
     CHECK_INT(dir->cap_len, 1);
     CHECK_INT(dir->wire_len, 1);
 
     status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0, (uint8_t *)long_payload,
-            len_payload, len_payload, NULL, len_payload, (uint8_t *)long_payload);   // then a long one
+            len_payload, len_payload, &now, len_payload, (uint8_t *)long_payload);   // then a long one
     CHECK_INT(status, PROTO_OK);
     CHECK_INT(dir->cap_len, 80);
     CHECK_INT(dir->wire_len, len_payload + 1);
 
     status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0, (uint8_t *)long_payload,
-            len_payload, len_payload, NULL, len_payload, (uint8_t *)long_payload);   // another long one
+            len_payload, len_payload, &now, len_payload, (uint8_t *)long_payload);   // another long one
     CHECK_INT(status, PROTO_OK);
     CHECK_INT(dir->cap_len, 80);
     CHECK_INT(dir->wire_len, len_payload * 2 + 1);
 
     streambuf_set_restart(&sbuf, 0, dir->buffer + 1, 1);
     status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0, (uint8_t *)long_payload,
-            len_payload, len_payload, NULL, len_payload, (uint8_t *)long_payload);   // this time, advance buffer
+            len_payload, len_payload, &now, len_payload, (uint8_t *)long_payload);   // this time, advance buffer
     CHECK_INT(status, PROTO_OK);
     CHECK_INT(dir->cap_len, 79);
     CHECK_INT(dir->wire_len, len_payload * 3);
 
     streambuf_set_restart(&sbuf, 0, dir->buffer + len_payload * 3, 1);
     status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0, (uint8_t *)long_payload,
-            len_payload, len_payload, NULL, len_payload, (uint8_t *)long_payload);   // this time, really advance buffer
+            len_payload, len_payload, &now, len_payload, (uint8_t *)long_payload);   // this time, really advance buffer
     CHECK_INT(status, PROTO_OK);
     CHECK_INT(dir->cap_len, 80);
     CHECK_INT(dir->wire_len, len_payload);
@@ -149,7 +151,7 @@ static int check_max_keep(void)
     struct streambuf_unidir *dir = sbuf.dir + 0;
     enum proto_parse_status status;
     status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0, (uint8_t *)long_payload,
-            len_payload, len_payload, NULL, len_payload, (uint8_t *)long_payload);
+            len_payload, len_payload, &now, len_payload, (uint8_t *)long_payload);
     CHECK_INT(status, PROTO_OK);
     CHECK_INT(dir->cap_len, 80);
     CHECK_INT(dir->wire_len, len_payload);
@@ -245,34 +247,34 @@ static int check_last_packet_use(void)
     enum proto_parse_status status;
 
     status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0, (uint8_t *)payload, len_payload,
-            len_payload, NULL, len_payload, (uint8_t *)payload);   // First pkt
+            len_payload, &now, len_payload, (uint8_t *)payload);   // First pkt
     streambuf_keep(&sbuf, 0);
     CHECK_INT(status, PROTO_OK);
     CHECK_INT(dir->cap_len, 80);
     CHECK_INT(dir->wire_len, len_payload);
 
     status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0, (uint8_t *)payload, len_payload,
-            len_payload, NULL, len_payload, (uint8_t *)payload);   // Second one, stream should restart at the start of the second one
+            len_payload, &now, len_payload, (uint8_t *)payload);   // Second one, stream should restart at the start of the second one
     CHECK_INT(parse_last_packet_called, 4);
     CHECK_INT(status, PROTO_OK);
     CHECK_INT(dir->cap_len, 0);
     CHECK_INT(dir->wire_len, 0);
 
     status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0, (uint8_t *)payload, len_payload,
-            len_payload, NULL, len_payload, (uint8_t *)payload);   // Just fill buffer
+            len_payload, &now, len_payload, (uint8_t *)payload);   // Just fill buffer
 
     status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0, (uint8_t *)payload, 0,
-            300, NULL, 0, NULL);   // Push of gap
+            300, &now, 0, NULL);   // Push of gap
 
     // Check that a restart starting on last packet and requiring some bytes after is ok
     status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0, (uint8_t *)payload, len_payload,
-            len_payload, NULL, len_payload, (uint8_t *)payload);
+            len_payload, &now, len_payload, (uint8_t *)payload);
     status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0, (uint8_t *)payload, len_payload,
-            len_payload, NULL, len_payload, (uint8_t *)payload);
+            len_payload, &now, len_payload, (uint8_t *)payload);
     status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0, (uint8_t *)payload, 2,
-            2, NULL, len_payload, (uint8_t *)payload);
+            2, &now, len_payload, (uint8_t *)payload);
     status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0, (uint8_t *)payload, len_payload,
-            len_payload, NULL, len_payload, (uint8_t *)payload);
+            len_payload, &now, len_payload, (uint8_t *)payload);
 
     return 0;
 }
