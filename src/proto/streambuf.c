@@ -53,6 +53,7 @@ int streambuf_ctor(struct streambuf *sbuf, parse_fun *parse, size_t max_size, st
         sbuf->dir[d].wire_len = 0;
         sbuf->dir[d].restart_offset = 0;
         sbuf->dir[d].wait_offset = 0;
+        timeval_reset(&sbuf->dir[d].last_received_tv);
     }
 
     return 0;
