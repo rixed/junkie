@@ -208,6 +208,20 @@ static enum proto_parse_status streambuf_append(struct streambuf *sbuf, unsigned
         SLOG(LOG_DEBUG, "Buffer restart after captured bytes or in a middle of a gap (restart at %zu, buf wire len %zu, pkt wire len %zu)",
                 dir->restart_offset, dir->wire_len, wire_len);
         // check we don't want to restart within uncaptured bytes
+        // It can happens when stream buf was truncated
+        //               Restart offset v     (dir->wire_len + wire_len) v
+        // ----------------------------------------------------------------
+        // |XXXXXXXXXXXXXXXXXXXOOOOOOOOOOOOOOOOOOOOOOOOOOXXXXXXXXXXXXXXXX|
+        // ----------------------------------------------------------------
+        //   dir->capture_len ^           dir->wire_len ^
+        //
+        // Or when appended packet is a gap
+        //            cap_len v     (dir->wire_len + wire_len) v
+        // -----------------------------------------------------
+        // |XXXXXXXXXXXXXXXXXXXOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO|
+        // -----------------------------------------------------
+        //   dir->capture_len ^         ^ restart offset
+        //      dir->wire_len ^
         if (new_restart_offset < 0) return PROTO_TOO_SHORT;
         dir->restart_offset = new_restart_offset;
         dir->wire_len = new_wire_len;
