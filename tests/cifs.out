@@ -8,5 +8,7 @@ CIFS: head_len=32, payload=52, version=SMB1, command=SMB_COM_DELETE, status=SMB_
 Netbios: head_len=4, payload=35
 CIFS: head_len=32, payload=3, version=SMB1, command=SMB_COM_DELETE, status=SMB_STATUS_OBJECT_NAME_NOT_FOUND, tree_id=2048, id=5, query_write_bytes=0, response_read_bytes=0, response_write_bytes=0, meta_read_bytes=0, meta_write_bytes=0
 -- pcap/smb/splitted_smb.pcap --
+Netbios: head_len=4, payload=106
+CIFS: head_len=32, payload=74, version=SMB1, command=SMB_COM_TRANSACTION2, status=SMB_STATUS_OK, path=t599-599.txt, trans2_subcmd=SMB_TRANS2_FIND_NEXT2, query, tree_id=2048, id=1581, query_write_bytes=0, response_read_bytes=0, response_write_bytes=0, meta_read_bytes=0, meta_write_bytes=0
 Netbios: head_len=4, payload=4416
-CIFS: head_len=32, payload=4384, version=SMB1, command=SMB_COM_TRANSACTION2, status=SMB_STATUS_OK, fid=0xecb9, tree_id=2048, id=1581, query_write_bytes=0, response_read_bytes=0, response_write_bytes=0, meta_read_bytes=0, meta_write_bytes=0
+CIFS: head_len=32, payload=4384, version=SMB1, command=SMB_COM_TRANSACTION2, status=SMB_STATUS_OK, tree_id=2048, id=1581, query_write_bytes=0, response_read_bytes=0, response_write_bytes=0, meta_read_bytes=4352, meta_write_bytes=0
