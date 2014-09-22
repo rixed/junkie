@@ -6,6 +6,7 @@
 #include <sys/time.h>
 #include <stdbool.h>
 #include <limits.h>
+#include <assert.h>
 
 /** @file
  * @brief utilities for handling struct timeval
