@@ -128,6 +128,7 @@ static enum proto_parse_status cursor_read_der_length(struct cursor *cursor, uin
     if (current & DER_LEFT_BIT_MASK) {
         uint32_t num_bytes = current & ~DER_LEFT_BIT_MASK;
         if (num_bytes > cursor->cap_len) return 0;
+        CHECK(num_bytes);
         return cursor_read_fixed_int_n(cursor, out_res, num_bytes);
     } else {
         *out_res = current;
