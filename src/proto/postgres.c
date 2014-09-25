@@ -608,7 +608,9 @@ static enum proto_parse_status pg_parse_query_server(struct cursor *cursor, stru
     return PROTO_OK;
 }
 
-static enum proto_parse_status pg_parse_query_phase(struct pgsql_parser *pg_parser, struct sql_proto_info *info, unsigned way, uint8_t const *payload, size_t cap_len, size_t unused_ wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
+static enum proto_parse_status pg_parse_query_phase(struct pgsql_parser *pg_parser, struct sql_proto_info *info,
+        unsigned way, uint8_t const *payload, size_t cap_len, size_t unused_ wire_len,
+        struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     enum proto_parse_status status;
     info->msg_type = SQL_QUERY;
@@ -616,7 +618,7 @@ static enum proto_parse_status pg_parse_query_phase(struct pgsql_parser *pg_pars
     struct cursor cursor;
     cursor_ctor(&cursor, payload, cap_len);
 
-    struct pgsql_header header;
+    struct pgsql_header header = {.length = 0};
     if (info->is_query) {
         status = pg_parse_query_client(pg_parser, &cursor, info, &header);
     } else {
