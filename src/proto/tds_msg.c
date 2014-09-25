@@ -772,7 +772,9 @@ static enum proto_parse_status parse_type_info_value(struct string_buffer *buffe
                     buffer_append_string(buffer, "NULL");
                     if (is_null) *is_null = true;
                 } else if (type_is_text(type_info->token)) {  // display all kind of texts + Binary + varBinary as text
-                    if (type_info->token == NVARCHARTYPE || type_info->token == NTEXTTYPE) {
+                    if (type_info->token == NCHARTYPE
+                            || type_info->token == NVARCHARTYPE
+                            || type_info->token == NTEXTTYPE) {
                         buffer_append_unicode(buffer, get_iconv(), (char*)cursor->head, length_parsed);
                         cursor_drop(cursor, length_parsed);
                     } else {
