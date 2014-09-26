@@ -1401,6 +1401,7 @@ static struct multiplex_state *multiplex_state_new(struct cifs_parser *cifs_pars
         uint16_t multiplex_id, uint16_t level_of_interest, union smb_subcommand subcommand,
         struct timeval const *now)
 {
+    if (multiplex_id == 0) return NULL;
     struct multiplex_state *multiplex_state = objalloc_nice(sizeof(*multiplex_state), "multiplex_state");
     if (! multiplex_state) return NULL;
     if (-1 == multiplex_state_ctor(multiplex_state, cifs_parser, multiplex_id,
@@ -1436,7 +1437,8 @@ static void multiplex_state_delete_by_timeouter(struct timeouter_pool *timeouter
 struct multiplex_state *multiplex_lookup(struct cifs_parser *cifs_parser, uint16_t multiplex_id,
         struct timeval const *now) {
     struct multiplex_state *s;
-    if (cifs_parser->last_multiplex_state.multiplex_id == multiplex_id) {
+    if (multiplex_id == 0) return NULL;
+    else if (cifs_parser->last_multiplex_state.multiplex_id == multiplex_id) {
         s = &cifs_parser->last_multiplex_state;
     } else {
         HASH_LOOKUP(s, &cifs_parser->multiplex_state_hash, &multiplex_id, multiplex_id,
@@ -1466,6 +1468,7 @@ static int cifs_parser_ctor(struct cifs_parser *cifs_parser, struct proto *proto
     HASH_INIT(&cifs_parser->multiplex_state_hash, 32, "cifs-multiplex-state");
     timeouter_pool_ctor(&cifs_parser->timeouter_pool, &multiplex_timeout,
             &cifs_parser->multiplex_state_hash, multiplex_state_delete_by_timeouter);
+    cifs_parser->last_multiplex_state.multiplex_id = 0;
     return 0;
 }
 
