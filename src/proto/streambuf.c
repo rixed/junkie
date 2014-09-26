@@ -345,41 +345,32 @@ enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *par
          * - or it succeeded and parsed everything, and we can dispose of the buffer,
          * - or restart_offset was set somewhere because the parser expect more data (that may already been there).
          */
-        switch (status) {
-            case PROTO_PARSE_ERR:
-                goto quit;
-            case PROTO_OK:
-                if (offset_in_last_packet(dir, cap_len, wire_len)) {
-                    break;
-                } else if (offset_start_in_last_packet(dir, cap_len, wire_len)) {
-                    SLOG(LOG_DEBUG, "Restart start in last packet, buffering it");
-                    status = streambuf_shrink(sbuf, way, packet, cap_len, wire_len);
-                    goto quit;
-                } else if (dir->wait_offset > 0) {
-                    if (0 != streambuf_keep(sbuf, way)) status = PROTO_PARSE_ERR;
-                    goto quit;
-                }
-                break;
-            case PROTO_TOO_SHORT:
-                if (offset_in_last_packet(dir, cap_len, wire_len)) {
-                    break;
-                } else if (offset_start_in_last_packet(dir, cap_len, wire_len)) {
-                    SLOG(LOG_DEBUG, "Restart start in last packet, buffering it");
-                    status = streambuf_shrink(sbuf, way, packet, cap_len, wire_len);
-                    goto quit;
-                }
-                if (dir->wire_len > dir->cap_len) {
-                    status = PROTO_PARSE_ERR; // FIXME: in this case we should kill only in one direction!
-                    goto quit;
-                }
-                if (dir->wait_offset > 0) goto quit;
-                break;
+        if (status == PROTO_PARSE_ERR || (status == PROTO_TOO_SHORT && dir->wire_len > dir->cap_len)) {
+            status = PROTO_PARSE_ERR;
+            dir->restart_offset -= dir->wire_len;
+            goto quit;
+        } else if (offset_in_last_packet(dir, cap_len, wire_len)) {
+            continue;
+        } else if (offset_start_in_last_packet(dir, cap_len, wire_len)) {
+            SLOG(LOG_DEBUG, "Restart start in last packet, buffering it");
+            status = streambuf_shrink(sbuf, way, packet, cap_len, wire_len);
+            goto quit;
+        } else if (dir->wait_offset > 0) {
+            if (0 != streambuf_keep(sbuf, way)) status = PROTO_PARSE_ERR;
+            goto quit;
         }
     }
 
     // We reach here when we are constantly restarting. Assume the parser is bugged.
     status = PROTO_PARSE_ERR;
 quit:
+    // FIXME: in this case we should kill only in one direction!
+    if (status != PROTO_OK) {
+        // We might have another thread with a reference to this streambuf, we can't let it in an
+        // incorrect state hopping nobody will use it since it will be deindex.
+        dir->restart_offset = 0;
+        streambuf_empty(dir);
+    }
     mutex_unlock(sbuf->mutex);
     return status;
 }
