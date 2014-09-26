@@ -469,8 +469,8 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
     unsigned const next_offset = offset + packet_len + info.syn + info.fin;
     // FIXME: Here the parser is chosen before we actually parse anything. If later the parser fails we cannot try another one.
     //        Choice of parser should be delayed until we start actual parse.
-    unsigned sync_offset = info.ack_num - tcp_sub->wl_origin[!way];  // we must not parse this one before we parsed (or timeouted) this one from wl[!way]
     bool const do_sync = info.ack && IS_SET_FOR_WAY(!way, tcp_sub->origin);
+    unsigned sync_offset = do_sync ? info.ack_num - tcp_sub->wl_origin[!way] : 0;  // we must not parse this one before we parsed (or timeouted) this one from wl[!way]
     if (do_sync && info.ack_num < tcp_sub->wl_origin[!way]) {
         SLOG(LOG_DEBUG, "Packet ack (%"PRIu32") before the wl started (origin %"PRIu32")",
                 info.ack_num, tcp_sub->wl_origin[!way]);
