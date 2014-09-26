@@ -320,6 +320,7 @@ static void http_proto_info_ctor(struct http_proto_info *http, struct timeval co
     http->first = *first;
     http->ajax = false; // until proven otherwise
     http->compressed = false;
+    http->have_body = false;
     // http->info initialized later
 }
 
