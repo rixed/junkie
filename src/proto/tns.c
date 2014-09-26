@@ -509,8 +509,10 @@ static enum proto_parse_status tns_parse_row_description(struct cursor *cursor)
         DROP_DALC(cursor);
         DROP_VAR(cursor);
     }
+    CHECK(1);
     // Sometimes, we have some strange bytes...
     while (*cursor->head < 0x03 || *cursor->head > 0x15) {
+        CHECK(2);
         DROP_FIX(cursor, 1);
     }
     return PROTO_OK;
