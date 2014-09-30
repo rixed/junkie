@@ -55,6 +55,7 @@ struct callid_2_sdp {
     HASH_ENTRY(callid_2_sdp) entry;     // entry in the hash
     TAILQ_ENTRY(callid_2_sdp) used_entry;   // entry in the used list
     char call_id[SIP_CALLID_LEN+1];
+    struct mutex parser_mutex; // Mutex for sdp_parser
     struct parser *sdp_parser;
     struct timeval last_used;
 };
@@ -66,20 +67,26 @@ static TAILQ_HEAD(callids_2_sdps_tq, callid_2_sdp) callids_2_sdps_used = TAILQ_H
 // A mutex to protect both the hash and the tailqueue
 static struct mutex callids_2_sdps_mutex;
 
+// Caller must own callids_2_sdps_mutex mutex
 static void callid_2_sdp_dtor(struct callid_2_sdp *c2s)
 {
     SLOG(LOG_DEBUG, "Destruct callid_2_sdp@%p for callid '%s'", c2s, c2s->call_id);
     HASH_REMOVE(&callids_2_sdps, c2s, entry);
     TAILQ_REMOVE(&callids_2_sdps_used, c2s, used_entry);
+    // Lock and unlock parser mutex in case sdp_parser is used
+    WITH_LOCK(&c2s->parser_mutex){};
+    mutex_dtor(&c2s->parser_mutex);
     parser_unref(&c2s->sdp_parser);
 }
 
+// Caller must own callids_2_sdps_mutex mutex
 static void callid_2_sdp_del(struct callid_2_sdp *c2s)
 {
     callid_2_sdp_dtor(c2s);
     objfree(c2s);
 }
 
+// Caller must own callids_2_sdps_mutex mutex
 static void callids_2_sdps_timeout(struct timeval const *now)
 {
     PTHREAD_ASSERT_LOCK(&callids_2_sdps_mutex.mutex);
@@ -92,6 +99,7 @@ static void callids_2_sdps_timeout(struct timeval const *now)
     }
 }
 
+// Caller must own callids_2_sdps_mutex mutex
 static int callid_2_sdp_ctor(struct callid_2_sdp *c2s, char const *call_id, struct timeval const *now)
 {
     SLOG(LOG_DEBUG, "Construct callid_2_sdp@%p for callid '%s'", c2s, call_id);
@@ -99,15 +107,15 @@ static int callid_2_sdp_ctor(struct callid_2_sdp *c2s, char const *call_id, stru
     if (! c2s->sdp_parser) return -1;
     memset(c2s->call_id, 0, sizeof c2s->call_id); // because it's used as a hash key
     snprintf(c2s->call_id, sizeof(c2s->call_id), "%s", call_id);
+    mutex_ctor(&c2s->parser_mutex, "sdp_parser");
     c2s->last_used = *now;
-    mutex_lock(&callids_2_sdps_mutex);
     callids_2_sdps_timeout(now);
     HASH_INSERT(&callids_2_sdps, c2s, &c2s->call_id, entry);
     TAILQ_INSERT_TAIL(&callids_2_sdps_used, c2s, used_entry);
-    mutex_unlock(&callids_2_sdps_mutex);
     return 0;
 }
 
+// Caller must own callids_2_sdps_mutex mutex
 static struct callid_2_sdp *callid_2_sdp_new(char const *call_id, struct timeval const *now)
 {
     struct callid_2_sdp *c2s = objalloc_nice(sizeof(*c2s), "SIP->SDP");
@@ -119,13 +127,12 @@ static struct callid_2_sdp *callid_2_sdp_new(char const *call_id, struct timeval
     return c2s;
 }
 
+// Caller must own callids_2_sdps_mutex mutex
 static void callid_2_sdp_touch(struct callid_2_sdp *c2s, struct timeval const *now)
 {
-    mutex_lock(&callids_2_sdps_mutex);
     c2s->last_used = *now;
     TAILQ_REMOVE(&callids_2_sdps_used, c2s, used_entry);
     TAILQ_INSERT_TAIL(&callids_2_sdps_used, c2s, used_entry);
-    mutex_unlock(&callids_2_sdps_mutex);
 }
 
 /*
@@ -394,6 +401,7 @@ static enum proto_parse_status sip_parse(struct parser *parser, struct proto_inf
     }
 
     struct parser *subparser = NULL;
+    struct mutex *parser_mutex = NULL;
 
 #   define MIME_SDP "application/sdp"
     if (
@@ -414,24 +422,26 @@ static enum proto_parse_status sip_parse(struct parser *parser, struct proto_inf
         struct callid_2_sdp *c2s;
         SLOG(LOG_DEBUG, "Look for a callid_2_sdp for callid '%s'", info.call_id);
         HASH_LOOKUP(c2s, &callids_2_sdps, &info.call_id, call_id, entry);
-        mutex_unlock(&callids_2_sdps_mutex);
         if (c2s) {
             SLOG(LOG_DEBUG, "Found a previous callid_2_sdp@%p", c2s);
             callid_2_sdp_touch(c2s, now);
         } else {
             c2s = callid_2_sdp_new(info.call_id, now);
         }
-        if (c2s) subparser = c2s->sdp_parser;
+        if (c2s) {
+            subparser = c2s->sdp_parser;
+            parser_mutex = &c2s->parser_mutex;
+            mutex_lock(&c2s->parser_mutex);
+        }
+        mutex_unlock(&callids_2_sdps_mutex);
     }
 #   undef MIME_SDP
 
-    if (! subparser) goto fallback;
-
-    if (0 != proto_parse(subparser, &info.info, way, packet + siphdr_len, cap_len - siphdr_len, wire_len - siphdr_len, now, tot_cap_len, tot_packet)) goto fallback;
-    return PROTO_OK;
-
-fallback:
-    (void)proto_parse(NULL, &info.info, way, packet + siphdr_len, cap_len - siphdr_len, wire_len - siphdr_len, now, tot_cap_len, tot_packet);
+    status = proto_parse(subparser, &info.info, way, packet + siphdr_len, cap_len - siphdr_len, wire_len - siphdr_len, now, tot_cap_len, tot_packet);
+    if (parser_mutex) mutex_unlock(parser_mutex);
+    if (status != PROTO_OK) {
+        (void)proto_parse(NULL, &info.info, way, packet + siphdr_len, cap_len - siphdr_len, wire_len - siphdr_len, now, tot_cap_len, tot_packet);
+    }
     return PROTO_OK;
 }
 
