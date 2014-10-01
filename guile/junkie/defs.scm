@@ -216,7 +216,7 @@
            (next-filter (lambda (prevs i)
                           (if (> i mask)
                             prevs
-                            (let* ((partition   (format #f "ip[11] & 0x~x = ~d" mask i))
+                            (let* ((partition   (format #f "((tcp[0:2] + tcp[2:2]) & 0x~x = ~d) or ((udp[0:2] + udp[2:2]) & 0x~x = ~d)" mask i mask i))
                                    (with-user   (if (string-null? capfilter)
                                                     partition
                                                     (format #f "((~a) and (~a))" capfilter partition)))
