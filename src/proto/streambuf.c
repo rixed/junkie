@@ -53,6 +53,7 @@ int streambuf_ctor(struct streambuf *sbuf, parse_fun *parse, size_t max_size, st
         sbuf->dir[d].wire_len = 0;
         sbuf->dir[d].restart_offset = 0;
         sbuf->dir[d].wait_offset = 0;
+        sbuf->dir[d].buffer_is_malloced = 0;
         timeval_reset(&sbuf->dir[d].last_received_tv);
     }
 
@@ -168,8 +169,8 @@ static enum proto_parse_status streambuf_append(struct streambuf *sbuf, unsigned
     }
 
     ssize_t const new_wire_len = dir->wire_len - dir->restart_offset + wire_len;
-    if (dir->restart_offset == 0 && dir->cap_len == sbuf->max_size) {
-        SLOG(LOG_DEBUG, "Streambuf full, updating wire_len from %zu to %zu", dir->wire_len, new_wire_len);
+    if (dir->restart_offset == 0 && (dir->cap_len == sbuf->max_size || dir->wire_len > dir->cap_len)) {
+        SLOG(LOG_DEBUG, "Streambuf full or streambuf with gap, , updating wire_len from %zu to %zu", dir->wire_len, new_wire_len);
         dir->wire_len = new_wire_len;
         return PROTO_OK;
     }
