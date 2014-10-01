@@ -292,6 +292,8 @@ static enum proto_parse_status tds_parse_header(struct cursor *cursor, struct td
 
 static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
+    if (cap_len == 0 && wire_len > 0) return PROTO_TOO_SHORT;   // We do not know how to handle pure gaps
+
     struct tds_parser *tds_parser = DOWNCAST(parser, parser, tds_parser);
     SLOG(LOG_DEBUG, "Got tds packet, data_left %zu, way %d", tds_parser->data_left, way);
     bool has_gap = wire_len > cap_len;
@@ -414,7 +416,6 @@ static enum proto_parse_status tds_parse(struct parser *parser, struct proto_inf
 {
     struct tds_parser *tds_parser = DOWNCAST(parser, parser, tds_parser);
 
-    if (cap_len == 0 && wire_len > 0) return PROTO_TOO_SHORT;   // We do not know how to handle pure gaps
     enum proto_parse_status const status = streambuf_add(&tds_parser->sbuf, parser, parent, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
 
     return status;
