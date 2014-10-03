@@ -28,7 +28,7 @@ dist_check_SCRIPTS = \
 	tcp.test os-detect.test icmp.test tools-check \
 	netmatch_check0.scm netmatch_check1.scm \
 	netmatch_check2.scm netmatch_check3.scm \
-	netmatch_check4.scm netmatch_check5.scm \
+	netmatch_check5.scm \
 	netmatch_check6.scm netmatch_check7.scm \
 	netmatch_check8.scm netmatch_check8.scm \
 	sock-check.scm discovery.test tls.test  \

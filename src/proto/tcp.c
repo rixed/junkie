@@ -73,7 +73,7 @@ static char const *tcp_info_2_str(struct proto_info const *info_)
 {
     struct tcp_proto_info const *info = DOWNCAST(info_, info, tcp_proto_info);
     char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, ports=%"PRIu16"%s->%"PRIu16"%s, flags=%s%s%s%s%s%s, win=%"PRIu16", ack=%"PRIu32", seq=%"PRIu32" (%"PRIu32"), urg=%"PRIx16", opts=%s",
+    snprintf(str, TEMPSTR_SIZE, "%s, ports=%"PRIu16"%s->%"PRIu16"%s, flags=%s%s%s%s%s%s, win=%"PRIu16", ack=%"PRIu32", seq=%"PRIu32", urg=%"PRIx16", opts=%s",
         proto_info_2_str(info_),
         info->key.port[0], info->to_srv ? "":"(srv)",
         info->key.port[1], info->to_srv ? "(srv)":"",
@@ -86,7 +86,6 @@ static char const *tcp_info_2_str(struct proto_info const *info_)
         info->window,
         info->ack_num,
         info->seq_num,
-        info->rel_seq_num,
         info->urg_ptr,
         tcp_options_2_str(info));
     return str;
@@ -110,7 +109,6 @@ static void tcp_proto_info_ctor(struct tcp_proto_info *info, struct parser *pars
     info->urg_ptr = READ_U16N(&tcphdr->urg_ptr);
     info->ack_num = READ_U32N(&tcphdr->ack_seq);
     info->seq_num = READ_U32N(&tcphdr->seq_num);
-    info->rel_seq_num = 0U;
     info->set_values = 0;   // options will be set later
     info->nb_options = 0;
 }
@@ -215,14 +213,12 @@ struct tcp_subparser {
     uint32_t fin_seqnum[2];     // indice = way
     uint32_t max_acknum[2];
     uint32_t isn[2];            // if syn, used to compute relative seqnum.
-    uint32_t wl_origin[2];      // if origin, the origin for our waiting list (ideally, wl_origin == isn).
-    struct pkt_wait_list wl[2]; // for packets reordering. offsets will be relative to wl_origin
+    struct pkt_wait_list wl[2]; // for packets reordering.
     struct mutex *mutex;        // protects this structure
 #   define SET_FOR_WAY(way, field) (field |= (1U<<way))
 #   define RESET_FOR_WAY(way, field) (field &= ~(1U<<way))
 #   define IS_SET_FOR_WAY(way, field) (!!(field & (1U<<way)))
     uint8_t fin:2, ack:2, syn:2;
-    uint8_t origin:2;           // do we have wl_origin set yet?
     uint8_t srv_way:1;          // is srv the peer[0] when way==0 or peer[0] when way==1 ? (UNSET if !srv_set)
     uint8_t srv_set:2;          // 0 -> UNSET, 1 -> UNSURE, 2 -> CERTAIN (and 3 -> BUG)
     struct mux_subparser mux_subparser; // must be the last member of this struct since mux_subparser is variable in size
@@ -259,14 +255,13 @@ static int tcp_subparser_ctor(struct tcp_subparser *tcp_sub, struct mux_parser *
     tcp_sub->fin = 0;
     tcp_sub->ack = 0;
     tcp_sub->syn = 0;
-    tcp_sub->origin = 0;
     tcp_sub->srv_set = 0;   // will be set later
 
-    if (0 != pkt_wait_list_ctor(tcp_sub->wl+0, 0 /* relative to the ISN */, &tcp_wl_config, child, tcp_sub->wl+1)) {
+    if (0 != pkt_wait_list_ctor(tcp_sub->wl+0, 0, &tcp_wl_config, child, tcp_sub->wl+1)) {
         return -1;
     }
 
-    if (0 != pkt_wait_list_ctor(tcp_sub->wl+1, 0 /* relative to the ISN */, &tcp_wl_config, child, tcp_sub->wl+0)) {
+    if (0 != pkt_wait_list_ctor(tcp_sub->wl+1, 0, &tcp_wl_config, child, tcp_sub->wl+0)) {
         pkt_wait_list_dtor(tcp_sub->wl+0);
         return -1;
     }
@@ -322,7 +317,66 @@ static void tcp_subparser_del(struct mux_subparser *mux_subparser)
     objfree(tcp_subparser);
 }
 
-static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
+static struct proto *lookup_subproto(struct tcp_proto_info const *tcp, struct timeval const *now,
+        struct proto **requestor)
+{
+    struct proto *sub_proto = NULL;
+    ASSIGN_INFO_OPT2(ip, ip6, &tcp->info);
+    if (! ip) ip = ip6;
+    // Use connection tracking first
+    if (ip) {
+        sub_proto = cnxtrack_ip_lookup(IPPROTO_TCP, ip->key.addr+0, tcp->key.port[0], ip->key.addr+1,
+                tcp->key.port[1], now, requestor);
+    }
+    if (! sub_proto) { // Then try predefined ports
+        sub_proto = port_muxer_find(&tcp_port_muxers, tcp->key.port[0], tcp->key.port[1]);
+    }
+    return sub_proto;
+}
+
+/*
+ * Lookup for an existing subparser or create one if it does not exists
+ * If the found subparser does not have child parser, lookup correct proto and spawn it
+ */
+static struct mux_subparser *lookup_or_create_subparser(struct mux_parser *mux_parser, struct tcp_proto_info const *tcp,
+        struct timeval const *now, unsigned way)
+{
+    struct port_key key;
+    port_key_init(&key, tcp->key.port[0], tcp->key.port[1], way);
+    // Search an already spawned subparser
+    struct mux_subparser *subparser = mux_subparser_lookup(mux_parser, NULL, NULL, &key, now);
+    if (subparser && subparser->parser) {
+        SLOG(LOG_DEBUG, "Found subparser@%p for this cnx, for proto %s", subparser->parser, subparser->parser->proto->name);
+        return subparser;
+    }
+
+    struct proto *requestor = NULL;
+    struct proto *sub_proto = lookup_subproto(tcp, now, &requestor);
+    if (! subparser) {
+        if (sub_proto) {
+            subparser = mux_subparser_and_parser_new(mux_parser, sub_proto, requestor, &key, now);
+        } else {
+            // Even if we have no child parser to send payload to, we want to submit payload in stream order to our plugins
+            subparser = tcp_subparser_new(mux_parser, NULL, NULL, &key, now);
+        }
+        struct tcp_subparser *tcp_subparser = DOWNCAST(subparser, mux_subparser, tcp_subparser);
+        tcp_subparser->wl[way].next_offset = tcp->seq_num;
+        tcp_subparser->wl[!way].next_offset = tcp->ack_num;
+    } else if (subparser->parser == NULL && sub_proto) {
+        // Check if we killed our parser from a previous parse error,
+        SLOG(LOG_DEBUG, "Found subparser@%p without proto, spawning new parser for proto %s",
+                subparser->parser, sub_proto->name);
+        subparser->parser = sub_proto->ops->parser_new(sub_proto);
+        if (unlikely_(! subparser->parser)) return subparser;
+        subparser->requestor = requestor;
+        parser_unref(&subparser->parser);
+    }
+    return subparser;
+}
+
+static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_info *parent, unsigned way,
+        uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len,
+        uint8_t const *tot_packet)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct tcp_hdr const *tcphdr = (struct tcp_hdr *)packet;
@@ -378,42 +432,25 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
         options += len;
     }
 
-    // Search an already spawned subparser
-    struct port_key key;
-    port_key_init(&key, sport, dport, way);
-    struct mux_subparser *subparser = mux_subparser_lookup(mux_parser, NULL, NULL, &key, now);
-    if (subparser) SLOG(LOG_DEBUG, "Found subparser@%p for this cnx, for proto %s", subparser->parser, subparser->parser ? subparser->parser->proto->name : NULL);
-
-    if (! subparser) {
-        struct proto *requestor = NULL;
-        struct proto *sub_proto = NULL;
-        // Use connection tracking first
-        ASSIGN_INFO_OPT2(ip, ip6, parent);
-        if (! ip) ip = ip6;
-        if (ip) sub_proto = cnxtrack_ip_lookup(IPPROTO_TCP, ip->key.addr+0, sport, ip->key.addr+1, dport, now, &requestor);
-        if (! sub_proto) { // Then try predefined ports
-            sub_proto = port_muxer_find(&tcp_port_muxers, info.key.port[0], info.key.port[1]);
-        }
-        if (sub_proto) {
-            subparser = mux_subparser_and_parser_new(mux_parser, sub_proto, requestor, &key, now);
-        } else {
-            // Even if we have no child parser to send payload to, we want to submit payload in stream order to our plugins
-            subparser = tcp_subparser_new(mux_parser, NULL, NULL, &key, now);
-        }
-    }
+    struct mux_subparser *subparser = lookup_or_create_subparser(mux_parser, &info, now, way);
 
     if (! subparser) goto fallback;
 
     // Keep track of TCP flags & ISN
     struct tcp_subparser *tcp_sub = DOWNCAST(subparser, mux_subparser, tcp_subparser);
     mutex_lock(tcp_sub->mutex);
-    if (
-        info.ack &&
-        (!IS_SET_FOR_WAY(way, tcp_sub->ack) || seqnum_gt(info.ack_num, tcp_sub->max_acknum[way]))
-    ) {
+
+    if (info.ack &&
+        (!IS_SET_FOR_WAY(way, tcp_sub->ack) || seqnum_gt(info.ack_num, tcp_sub->max_acknum[way]))) {
+        SLOG(LOG_DEBUG, "Set ack for way %d", way);
+        if (!IS_SET_FOR_WAY(way, tcp_sub->ack)) {
+            SLOG(LOG_DEBUG, "First ack, set wl @%p[%d] offset to %"PRIu32, tcp_sub->wl, way, info.seq_num);
+            tcp_sub->wl[way].next_offset = info.seq_num;
+        }
         SET_FOR_WAY(way, tcp_sub->ack);
         tcp_sub->max_acknum[way] = info.ack_num;
     }
+
     if (info.fin) {
         SET_FOR_WAY(way, tcp_sub->fin);
         tcp_sub->fin_seqnum[way] = info.seq_num + info.info.payload;    // The FIN is acked after the payload
@@ -422,14 +459,6 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
         SET_FOR_WAY(way, tcp_sub->syn);
         tcp_sub->isn[way] = info.seq_num;
     }
-    if (!IS_SET_FOR_WAY(way, tcp_sub->origin)) {
-        SET_FOR_WAY(way, tcp_sub->origin);
-        tcp_sub->wl_origin[way] = info.seq_num;
-        if (! IS_SET_FOR_WAY(way, tcp_sub->syn)) SLOG(LOG_DEBUG, "Starting a WL while SYN is yet to be received!");
-    }
-
-    // Set relative sequence number if we know it
-    if (IS_SET_FOR_WAY(way, tcp_sub->syn)) info.rel_seq_num = info.seq_num - tcp_sub->isn[way];
 
     // Set srv_way
     assert(tcp_sub->srv_set < 3);
@@ -445,44 +474,29 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
     // Now patch it into tcp info
     info.to_srv = tcp_sub->srv_way != way;
 
-    SLOG(LOG_DEBUG, "Subparser@%p state: >ISN:%"PRIu32"%s Fin:%"PRIu32" Ack:%"PRIu32" <ISN:%"PRIu32"%s Fin:%"PRIu32" Ack:%"PRIu32", SrvWay=%u%s",
-        subparser->parser,
-        IS_SET_FOR_WAY(0, tcp_sub->syn) ? tcp_sub->isn[0] : IS_SET_FOR_WAY(0, tcp_sub->origin) ? tcp_sub->wl_origin[0] : 0,
-        IS_SET_FOR_WAY(0, tcp_sub->syn) ? "" : " (approx)",
-        IS_SET_FOR_WAY(0, tcp_sub->fin) ? tcp_sub->fin_seqnum[0] : 0,
-        IS_SET_FOR_WAY(0, tcp_sub->ack) ? tcp_sub->max_acknum[0] : 0,
-        IS_SET_FOR_WAY(1, tcp_sub->syn) ? tcp_sub->isn[1] : IS_SET_FOR_WAY(1, tcp_sub->origin) ? tcp_sub->wl_origin[1] : 0,
-        IS_SET_FOR_WAY(1, tcp_sub->syn) ? "" : " (approx)",
-        IS_SET_FOR_WAY(1, tcp_sub->fin) ? tcp_sub->fin_seqnum[1] : 0,
-        IS_SET_FOR_WAY(1, tcp_sub->ack) ? tcp_sub->max_acknum[1] : 0,
-        tcp_sub->srv_way,
-        tcp_sub->srv_set == 0 ? " (unset)":
-            tcp_sub->srv_set == 1 ? " (unsure)":"(certain)");
-
-    enum proto_parse_status err;
+    enum proto_parse_status err = PROTO_OK;
     /* Use the wait_list to parse this packet.
        Notice that we do queue empty packets because subparser (or subscriber) want to receive all packets in order, including empty ones. */
 
     size_t const packet_len = wire_len - tcphdr_len;
-    assert(IS_SET_FOR_WAY(way, tcp_sub->origin));
-    unsigned const offset = info.seq_num - tcp_sub->wl_origin[way];
+
+    unsigned const offset = info.seq_num;
     unsigned const next_offset = offset + packet_len + info.syn + info.fin;
-    // FIXME: Here the parser is chosen before we actually parse anything. If later the parser fails we cannot try another one.
-    //        Choice of parser should be delayed until we start actual parse.
-    bool const do_sync = info.ack && IS_SET_FOR_WAY(!way, tcp_sub->origin);
-    unsigned sync_offset = do_sync ? info.ack_num - tcp_sub->wl_origin[!way] : 0;  // we must not parse this one before we parsed (or timeouted) this one from wl[!way]
-    if (do_sync && info.ack_num < tcp_sub->wl_origin[!way]) {
-        SLOG(LOG_DEBUG, "Packet ack (%"PRIu32") before the wl started (origin %"PRIu32")",
-                info.ack_num, tcp_sub->wl_origin[!way]);
-        sync_offset = 0;
-    }
-    if (tcp_sub->wl_origin[way] > info.seq_num) {
-        SLOG(LOG_DEBUG, "Got a packet starting before wl origin :(");
-        err = proto_parse(tcp_sub->mux_subparser.parser, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, packet_len, now, tot_cap_len, tot_packet);
+    unsigned sync_offset = info.ack_num;
+    if (tcp_seqnum_cmp(info.seq_num, tcp_sub->wl[way].next_offset) < 0) {
+        SLOG(LOG_DEBUG, "Got a packet starting before current offset (%"PRIu32" < %"PRIu32")",
+                info.seq_num, tcp_sub->wl[way].next_offset);
+        err = proto_parse(NULL, parent, way, NULL, 0, 0, now, tot_cap_len, packet);
+    } else if (info.ack && packet_len > 0 && tcp_seqnum_cmp(info.ack_num, tcp_sub->wl[!way].next_offset) < 0) {
+        // No payload ack can ack a parsed packet, we don't care
+        SLOG(LOG_DEBUG, "Got a packet acking a previous packet (%"PRIu32" < %"PRIu32")",
+                info.ack_num, tcp_sub->wl[!way].next_offset);
+        err = proto_parse(NULL, parent, way, NULL, 0, 0, now, tot_cap_len, packet);
     } else {
-        err = pkt_wait_list_add(tcp_sub->wl+way, offset, next_offset, do_sync, sync_offset, true, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, packet_len, now, tot_cap_len, tot_packet);
+        err = pkt_wait_list_add(tcp_sub->wl+way, offset, next_offset, info.ack,
+                sync_offset, true, &info.info, way, packet + tcphdr_len,
+                cap_len - tcphdr_len, packet_len, now, tot_cap_len, tot_packet);
     }
-    SLOG(LOG_DEBUG, "Waiting list returned %s", proto_parse_status_2_str(err));
 
     if (err == PROTO_OK) {
         // Try advancing each WL until we are stuck or met an error
@@ -492,13 +506,13 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
     bool const term = tcp_subparser_term(tcp_sub);
     mutex_unlock(tcp_sub->mutex);
 
-    if (term || err == PROTO_PARSE_ERR) {
-        if (term) {
-            SLOG(LOG_DEBUG, "TCP cnx terminated (was %s)", parser_name(subparser->parser));
-        } else {
-            SLOG(LOG_DEBUG, "No suitable subparser for this payload");
-        }
+    if (term) {
+        SLOG(LOG_DEBUG, "TCP cnx terminated (was %s)", parser_name(subparser->parser));
         mux_subparser_deindex(subparser);
+    } else if (err == PROTO_PARSE_ERR) {
+        SLOG(LOG_DEBUG, "No suitable subparser for this payload, deref it");
+        parser_unref(&tcp_sub->mux_subparser.parser);
+        tcp_sub->mux_subparser.requestor = NULL;
     }
     mux_subparser_unref(&subparser);
 

@@ -425,7 +425,8 @@ struct mux_proto {
     struct proto proto; ///< The mux_proto is a specialization of this proto
     /// If you do not overload mux_subparser just use &mux_proto_ops
     struct mux_proto_ops {
-        struct mux_subparser *(*subparser_new)(struct mux_parser *mux_parser, struct parser *child, struct proto *requestor, void const *key, struct timeval const *now);
+        struct mux_subparser *(*subparser_new)(struct mux_parser *mux_parser, struct parser *child,
+                struct proto *requestor, void const *key, struct timeval const *now);
         void (*subparser_del)(struct mux_subparser *mux_subparser);
     } ops;
     size_t key_size;                ///< The size of the key used to multiplex
