@@ -74,7 +74,8 @@ static void callid_2_sdp_dtor(struct callid_2_sdp *c2s)
     HASH_REMOVE(&callids_2_sdps, c2s, entry);
     TAILQ_REMOVE(&callids_2_sdps_used, c2s, used_entry);
     // Lock and unlock parser mutex in case sdp_parser is used
-    WITH_LOCK(&c2s->parser_mutex){};
+    mutex_lock(&c2s->parser_mutex);
+    mutex_unlock(&c2s->parser_mutex);
     mutex_dtor(&c2s->parser_mutex);
     parser_unref(&c2s->sdp_parser);
 }
