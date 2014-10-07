@@ -10,49 +10,49 @@ head_len=4, payload=84, version=0, protocol=0x800, key=None
 head_len=4, payload=76, version=0, protocol=0x800, key=None
 head_len=4, payload=76, version=0, protocol=0x800, key=None
 head_len=4, payload=60, version=0, protocol=0x800, key=None
-head_len=40, payload=0, ports=40264->22(srv), flags=Syn, win=5744, ack=0, seq=813658343 (0), urg=0, opts=MSS(1436),4,8,nop,WSF(0)
+head_len=40, payload=0, ports=40264->22(srv), flags=Syn, win=5744, ack=0, seq=813658343, urg=0, opts=MSS(1436),4,8,nop,WSF(0)
 head_len=4, payload=60, version=0, protocol=0x800, key=None
-head_len=40, payload=0, ports=22(srv)->40264, flags=SynAck, win=5792, ack=813658344, seq=4183186840 (0), urg=0, opts=MSS(1460),4,8,nop,WSF(0)
+head_len=40, payload=0, ports=22(srv)->40264, flags=SynAck, win=5792, ack=813658344, seq=4183186840, urg=0, opts=MSS(1460),4,8,nop,WSF(0)
 head_len=4, payload=52, version=0, protocol=0x800, key=None
-head_len=32, payload=0, ports=40264->22(srv), flags=Ack, win=5744, ack=4183186841, seq=813658344 (1), urg=0, opts=nop,nop,8
+head_len=32, payload=0, ports=40264->22(srv), flags=Ack, win=5744, ack=4183186841, seq=813658344, urg=0, opts=nop,nop,8
 head_len=4, payload=75, version=0, protocol=0x800, key=None
-head_len=32, payload=23, ports=22(srv)->40264, flags=AckPsh, win=5792, ack=813658344, seq=4183186841 (1), urg=0, opts=nop,nop,8
+head_len=32, payload=23, ports=22(srv)->40264, flags=AckPsh, win=5792, ack=813658344, seq=4183186841, urg=0, opts=nop,nop,8
 head_len=4, payload=52, version=0, protocol=0x800, key=None
-head_len=32, payload=0, ports=40264->22(srv), flags=Ack, win=5744, ack=4183186864, seq=813658344 (1), urg=0, opts=nop,nop,8
+head_len=32, payload=0, ports=40264->22(srv), flags=Ack, win=5744, ack=4183186864, seq=813658344, urg=0, opts=nop,nop,8
 head_len=4, payload=76, version=0, protocol=0x800, key=None
-head_len=32, payload=24, ports=40264->22(srv), flags=AckPsh, win=5744, ack=4183186864, seq=813658344 (1), urg=0, opts=nop,nop,8
+head_len=32, payload=24, ports=40264->22(srv), flags=AckPsh, win=5744, ack=4183186864, seq=813658344, urg=0, opts=nop,nop,8
 head_len=4, payload=52, version=0, protocol=0x800, key=None
-head_len=32, payload=0, ports=22(srv)->40264, flags=Ack, win=5792, ack=813658368, seq=4183186864 (24), urg=0, opts=nop,nop,8
+head_len=32, payload=0, ports=22(srv)->40264, flags=Ack, win=5792, ack=813658368, seq=4183186864, urg=0, opts=nop,nop,8
 head_len=4, payload=540, version=0, protocol=0x800, key=None
-head_len=32, payload=488, ports=40264->22(srv), flags=AckPsh, win=5744, ack=4183186864, seq=813658368 (25), urg=0, opts=nop,nop,8
+head_len=32, payload=488, ports=40264->22(srv), flags=AckPsh, win=5744, ack=4183186864, seq=813658368, urg=0, opts=nop,nop,8
 head_len=4, payload=540, version=0, protocol=0x800, key=None
-head_len=32, payload=488, ports=22(srv)->40264, flags=AckPsh, win=5792, ack=813658368, seq=4183186864 (24), urg=0, opts=nop,nop,8
+head_len=32, payload=488, ports=22(srv)->40264, flags=AckPsh, win=5792, ack=813658368, seq=4183186864, urg=0, opts=nop,nop,8
 head_len=4, payload=52, version=0, protocol=0x800, key=None
-head_len=32, payload=0, ports=40264->22(srv), flags=Ack, win=6432, ack=4183187352, seq=813658856 (513), urg=0, opts=nop,nop,8
+head_len=32, payload=0, ports=40264->22(srv), flags=Ack, win=6432, ack=4183187352, seq=813658856, urg=0, opts=nop,nop,8
 head_len=4, payload=52, version=0, protocol=0x800, key=None
-head_len=32, payload=0, ports=22(srv)->40264, flags=Ack, win=6432, ack=813658856, seq=4183187352 (512), urg=0, opts=nop,nop,8
+head_len=32, payload=0, ports=22(srv)->40264, flags=Ack, win=6432, ack=813658856, seq=4183187352, urg=0, opts=nop,nop,8
 head_len=4, payload=76, version=0, protocol=0x800, key=None
-head_len=32, payload=24, ports=40264->22(srv), flags=AckPsh, win=6432, ack=4183187352, seq=813658856 (513), urg=0, opts=nop,nop,8
+head_len=32, payload=24, ports=40264->22(srv), flags=AckPsh, win=6432, ack=4183187352, seq=813658856, urg=0, opts=nop,nop,8
 head_len=4, payload=52, version=0, protocol=0x800, key=None
-head_len=32, payload=0, ports=22(srv)->40264, flags=Ack, win=6432, ack=813658880, seq=4183187352 (512), urg=0, opts=nop,nop,8
+head_len=32, payload=0, ports=22(srv)->40264, flags=Ack, win=6432, ack=813658880, seq=4183187352, urg=0, opts=nop,nop,8
 head_len=4, payload=476, version=0, protocol=0x800, key=None
-head_len=32, payload=424, ports=22(srv)->40264, flags=AckPsh, win=6432, ack=813658880, seq=4183187352 (512), urg=0, opts=nop,nop,8
+head_len=32, payload=424, ports=22(srv)->40264, flags=AckPsh, win=6432, ack=813658880, seq=4183187352, urg=0, opts=nop,nop,8
 head_len=4, payload=52, version=0, protocol=0x800, key=None
-head_len=32, payload=0, ports=40264->22(srv), flags=Ack, win=7504, ack=4183187776, seq=813658880 (537), urg=0, opts=nop,nop,8
+head_len=32, payload=0, ports=40264->22(srv), flags=Ack, win=7504, ack=4183187776, seq=813658880, urg=0, opts=nop,nop,8
 head_len=4, payload=468, version=0, protocol=0x800, key=None
-head_len=32, payload=416, ports=40264->22(srv), flags=AckPsh, win=7504, ack=4183187776, seq=813658880 (537), urg=0, opts=nop,nop,8
+head_len=32, payload=416, ports=40264->22(srv), flags=AckPsh, win=7504, ack=4183187776, seq=813658880, urg=0, opts=nop,nop,8
 head_len=4, payload=52, version=0, protocol=0x800, key=None
-head_len=32, payload=0, ports=22(srv)->40264, flags=Ack, win=7504, ack=813659296, seq=4183187776 (936), urg=0, opts=nop,nop,8
+head_len=32, payload=0, ports=22(srv)->40264, flags=Ack, win=7504, ack=813659296, seq=4183187776, urg=0, opts=nop,nop,8
 head_len=4, payload=788, version=0, protocol=0x800, key=None
-head_len=32, payload=736, ports=22(srv)->40264, flags=AckPsh, win=7504, ack=813659296, seq=4183187776 (936), urg=0, opts=nop,nop,8
+head_len=32, payload=736, ports=22(srv)->40264, flags=AckPsh, win=7504, ack=813659296, seq=4183187776, urg=0, opts=nop,nop,8
 head_len=4, payload=52, version=0, protocol=0x800, key=None
-head_len=32, payload=0, ports=40264->22(srv), flags=Ack, win=8832, ack=4183188512, seq=813659296 (953), urg=0, opts=nop,nop,8
+head_len=32, payload=0, ports=40264->22(srv), flags=Ack, win=8832, ack=4183188512, seq=813659296, urg=0, opts=nop,nop,8
 head_len=4, payload=52, version=0, protocol=0x800, key=None
-head_len=32, payload=0, ports=40264->22(srv), flags=AckFin, win=8832, ack=4183188512, seq=813659296 (953), urg=0, opts=nop,nop,8
+head_len=32, payload=0, ports=40264->22(srv), flags=AckFin, win=8832, ack=4183188512, seq=813659296, urg=0, opts=nop,nop,8
 head_len=4, payload=52, version=0, protocol=0x800, key=None
-head_len=32, payload=0, ports=22(srv)->40264, flags=AckFin, win=7504, ack=813659297, seq=4183188512 (1672), urg=0, opts=nop,nop,8
+head_len=32, payload=0, ports=22(srv)->40264, flags=AckFin, win=7504, ack=813659297, seq=4183188512, urg=0, opts=nop,nop,8
 head_len=4, payload=52, version=0, protocol=0x800, key=None
-head_len=32, payload=0, ports=40264->22(srv), flags=Ack, win=8832, ack=4183188513, seq=813659297 (954), urg=0, opts=nop,nop,8
+head_len=32, payload=0, ports=40264->22(srv), flags=Ack, win=8832, ack=4183188513, seq=813659297, urg=0, opts=nop,nop,8
 head_len=4, payload=61, version=0, protocol=0x800, key=None
 head_len=4, payload=89, version=0, protocol=0x800, key=None
 head_len=4, payload=61, version=0, protocol=0x800, key=None
@@ -66,7 +66,7 @@ head_len=4, payload=4124, version=0, protocol=0x800, key=None
 -- pcap/gre/erspan.pcap --
 head_len=8, payload=64, version=0, protocol=0x88be, key=None
 head_len=8, payload=56, version=1, vlan=352, priority=0, direction=outgoing, truncated=no, span_id=2
-head_len=20, payload=0, ports=1151(srv)->2598, flags=Ack, win=64716, ack=1742443205, seq=2637596065 (0), urg=0, opts=none
+head_len=20, payload=0, ports=1151(srv)->2598, flags=Ack, win=64716, ack=1742443205, seq=2637596065, urg=0, opts=none
 -- pcap/gre/wccp.pcap --
 head_len=8, payload=40, version=0, protocol=0x883e, key=None
-head_len=20, payload=0, ports=8080->2338(srv), flags=Ack, win=65534, ack=2577829862, seq=2128941189 (0), urg=0, opts=none
+head_len=20, payload=0, ports=8080->2338(srv), flags=Ack, win=65534, ack=2577829862, seq=2128941189, urg=0, opts=none

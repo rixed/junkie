@@ -297,6 +297,7 @@ static void random_check(void)
 
     bool sent[NB_ELEMS(pkts)] = { };
 
+    SLOG(LOG_DEBUG, "----------Start random check------------------");
     for (unsigned nb_sent = 0; nb_sent < NB_ELEMS(pkts); nb_sent++) {
         unsigned p = nb_sent < 2 ? nb_sent : random() % NB_ELEMS(pkts); // send the first syn first, then random
         while (sent[p]) p = (p+1) % NB_ELEMS(pkts);
