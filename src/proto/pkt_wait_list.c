@@ -32,6 +32,18 @@
 
 LOG_CATEGORY_DEF(pkt_wait_list);
 
+static const char *pkt_wait_list_2_str(struct pkt_wait_list const *pkt_wl)
+{
+    if (!pkt_wl) return "NULL";
+    return tempstr_printf("pkt_wl@%p, next_offset %u", pkt_wl, pkt_wl->next_offset);
+}
+
+static const char *pkt_2_str(struct pkt_wait const *pkt)
+{
+    return tempstr_printf("pkt@%p, offset %u, next_offset %u, sync_offset %u, way %d", pkt, pkt->offset,
+            pkt->next_offset, pkt->sync_offset, pkt->way);
+}
+
 /*
  * Destruction of a pending packet
  */
@@ -277,6 +289,7 @@ static void *pkt_wl_config_timeouter_thread(void *config_)
 // caller must own list->mutex
 static enum proto_parse_status pkt_wait_list_empty(struct pkt_wait_list *pkt_wl)
 {
+    SLOG(LOG_DEBUG, "Emptying pkt_wl @%p", pkt_wl);
     enum proto_parse_status last_status = PROTO_OK;
     struct pkt_wait *pkt;
     while (NULL != (pkt = LIST_FIRST(&pkt_wl->pkts))) {
@@ -306,7 +319,8 @@ enum proto_parse_status pkt_wait_list_flush(struct pkt_wait_list *pkt_wl, uint8_
         struct pkt_wait *pkt;
         while (NULL != (pkt = LIST_FIRST(&pkt_wl->pkts))) {
             if (LIST_IS_LAST(pkt, entry)) {
-                last_status = proto_parse(parser, pkt->parent, pkt->way, payload, cap_len, wire_len, &pkt->cap_tv, pkt->tot_cap_len, pkt->packet);   // FIXME: once again, payload not within pkt->packet !
+                last_status = proto_parse(parser, pkt->parent, pkt->way, payload, cap_len,
+                        wire_len, &pkt->cap_tv, pkt->tot_cap_len, pkt->packet);   // FIXME: once again, payload not within pkt->packet !
                 pkt_wait_del_nolock(pkt, pkt_wl);
             } else {
                 last_status = pkt_wait_finalize(pkt, pkt_wl);  // may deadlock
@@ -442,7 +456,9 @@ static bool pkt_wait_list_try_locked(struct pkt_wait_list *pkt_wl, enum proto_pa
 
     struct pkt_wait *pkt;
     while (NULL != (pkt = LIST_FIRST(&pkt_wl->pkts))) {
-        SLOG(LOG_DEBUG, "pkt_wait_list_try_locked pkt_wl=@%p, pkt=%p, force_timeout=%s", pkt_wl, pkt, force_timeout?"yes":"no");
+        SLOG(LOG_DEBUG, "pkt_wait_list_try_locked pkt_wl=%s, sync_pkt_wl=%s, pkt_wait=%s, force_timeout=%s",
+                pkt_wait_list_2_str(pkt_wl), pkt_wait_list_2_str(pkt_wl->sync_with),
+                pkt_2_str(pkt), force_timeout?"yes":"no");
 
         bool const wait_same_dir = !pkt_wl->config->allow_partial || pkt->offset > pkt_wl->next_offset;
         bool const wait_other_dir = pkt_wl->sync_with && pkt->sync && pkt_wl->sync_with->next_offset < pkt->sync_offset;
