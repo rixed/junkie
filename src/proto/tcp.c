@@ -481,6 +481,15 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
     enum proto_parse_status status = parse_tcp_proto_info(&info, parser, parent, cap_len, wire_len, tcphdr, tcphdr_len);
     if (status != PROTO_OK) return status;
 
+    // Patch way if we have the same ip
+    if (parent) {
+        ASSIGN_INFO_OPT2(ip, ip6, parent);
+        if (!ip) ip = ip6;
+        if (ip_addr_cmp(ip->key.addr + 0, ip->key.addr + 1) == 0) {
+            way = info.key.port[0] < info.key.port[1];
+        }
+    }
+
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct mux_subparser *subparser = lookup_or_create_mux_subparser(mux_parser, &info, now, way);
     if (! subparser) goto fallback;
