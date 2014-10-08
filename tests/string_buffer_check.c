@@ -9,7 +9,7 @@
 #include "junkie/tools/log.h"
 #include "junkie/tools/miscmacs.h"
 
-static void check_string_buffer(struct string_buffer const *buffer, char const *expected, bool truncated)
+static void check_string_buffer(struct string_buffer *buffer, char const *expected, bool truncated)
 {
     if (buffer->truncated != truncated) {
         printf("Buffer %s should %s be truncated\n", string_buffer_2_str(buffer), truncated ? "" : "not");

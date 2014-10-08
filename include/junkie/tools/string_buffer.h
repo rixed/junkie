@@ -12,7 +12,7 @@ struct string_buffer {
 };
 
 void string_buffer_ctor(struct string_buffer *buffer, char *head, size_t size);
-const char *string_buffer_2_str(struct string_buffer const *buffer);
+const char *string_buffer_2_str(struct string_buffer *buffer);
 
 /*
  * Convert and append to buffer using the given iconv character descriptor
@@ -53,7 +53,7 @@ static inline size_t buffer_left_size(struct string_buffer *buffer)
 /*
  * Add null terminator to buffer and return it
  */
-char *buffer_get_string(struct string_buffer const *buffer);
+char *buffer_get_string(struct string_buffer *buffer);
 
 #endif
 

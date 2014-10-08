@@ -35,15 +35,20 @@
     }                                           \
 } while(0)
 
-char *buffer_get_string(struct string_buffer const *buffer)
+char *buffer_get_string(struct string_buffer *buffer)
 {
     assert(buffer->pos <= buffer->size);
     buffer->head[buffer->pos] = '\0';
-    assert(rawmemchr(buffer->head, '\0') == (buffer->head + buffer->pos));
+    char* first_null = rawmemchr(buffer->head, '\0');
+    if (first_null != (buffer->head + buffer->pos)) {
+        SLOG(LOG_INFO, "Buffered string contained a null before pos (%zu): %s",
+                buffer->pos, buffer->head);
+        buffer->pos = first_null - buffer->head;
+    }
     return buffer->head;
 }
 
-const char *string_buffer_2_str(struct string_buffer const *buffer)
+const char *string_buffer_2_str(struct string_buffer *buffer)
 {
     return tempstr_printf("string buffer @%p, pos %zu, size %zu, %s, head: '%s'",
             buffer->head, buffer->pos, buffer->size, buffer->truncated ? "truncated" : "not truncated",
