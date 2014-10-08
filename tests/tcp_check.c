@@ -214,7 +214,7 @@ static enum proto_parse_status parse_err_parse(struct parser unused_ *parser, st
 static void pkt_wl_check(void)
 {
     struct packet previous_ack_packets[3] = { pkt_s2c_1, pkt_c2s_1, pkt_c2s_2 };
-    static uint32_t previous_ack_expected_seqs[2] = {0x20, 0x30};
+    static uint32_t previous_ack_expected_seqs[3] = {0x20, 0x10, 0x30};
     check_pkt(previous_ack_packets, NB_ELEMS(previous_ack_packets),
             previous_ack_expected_seqs, NB_ELEMS(previous_ack_expected_seqs));
 

@@ -538,7 +538,7 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
     if (tcp_seqnum_cmp(info.seq_num, tcp_sub->wl[way].next_offset) < 0) {
         SLOG(LOG_DEBUG, "Got a packet starting before current offset (%"PRIu32" < %"PRIu32")",
                 info.seq_num, tcp_sub->wl[way].next_offset);
-        status = proto_parse(NULL, parent, way, NULL, 0, 0, now, tot_cap_len, packet);
+        status = proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, packet);
     } else {
         status = pkt_wait_list_add(tcp_sub->wl+way, offset, next_offset, info.ack,
                 sync_offset, true, &info.info, way, packet + tcphdr_len,
