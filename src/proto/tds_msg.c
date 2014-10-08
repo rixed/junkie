@@ -728,6 +728,28 @@ static enum proto_parse_status parse_type_info(struct tds_msg_parser const *tds_
     return PROTO_OK;
 }
 
+static enum proto_parse_status read_text(struct string_buffer *buffer, struct cursor *cursor,
+        struct type_info *type_info, size_t length)
+{
+    if (type_info->token == NCHARTYPE
+            || type_info->token == NVARCHARTYPE
+            || type_info->token == XMLTYPE
+            || type_info->token == NTEXTTYPE) {
+        buffer_append_unicode(buffer, get_iconv(), (char*)cursor->head, length);
+        cursor_drop(cursor, length);
+    } else {
+        if (buffer) {
+            int bytes_written = cursor_read_fixed_string(cursor, buffer->head + buffer->pos,
+                    buffer_left_size(buffer), length);
+            if (bytes_written < 0) return PROTO_PARSE_ERR;
+            buffer->pos += bytes_written;
+        } else {
+            cursor_read_fixed_string(cursor, NULL, 0, length);
+        }
+    }
+    return PROTO_OK;
+}
+
 /*
  * Parse value from a given type info
  * if buffer is NULL, it skips the type info value.
@@ -772,21 +794,8 @@ static enum proto_parse_status parse_type_info_value(struct string_buffer *buffe
                     buffer_append_string(buffer, "NULL");
                     if (is_null) *is_null = true;
                 } else if (type_is_text(type_info->token)) {  // display all kind of texts + Binary + varBinary as text
-                    if (type_info->token == NCHARTYPE
-                            || type_info->token == NVARCHARTYPE
-                            || type_info->token == NTEXTTYPE) {
-                        buffer_append_unicode(buffer, get_iconv(), (char*)cursor->head, length_parsed);
-                        cursor_drop(cursor, length_parsed);
-                    } else {
-                        if (buffer) {
-                            int bytes_written = cursor_read_fixed_string(cursor, buffer->head + buffer->pos,
-                                    buffer_left_size(buffer), length_parsed);
-                            if (bytes_written < 0) return PROTO_PARSE_ERR;
-                            buffer->pos += bytes_written;
-                        } else {
-                            cursor_read_fixed_string(cursor, NULL, 0, length_parsed);
-                        }
-                    }
+                    if (PROTO_OK != (status = read_text(buffer, cursor, type_info, length_parsed)))
+                        return status;
                 } else {    // rest as number
                     uint_least64_t value;
                     if (!truncated && PROTO_OK == cursor_read_fixed_int_le(cursor, &value, length_parsed)) {
@@ -855,11 +864,12 @@ static enum proto_parse_status parse_type_info_value(struct string_buffer *buffe
                         }
                         CHECK(length);
                         if (type_is_text(type_info->token)) {
-                            buffer_append_unicode(buffer, get_iconv(), (char *)cursor->head, length);
+                            if (PROTO_OK != (status = read_text(buffer, cursor, type_info, length)))
+                                return status;
                         } else {
                             buffer_append_hexstring(buffer, (char *)cursor->head, length);
+                            cursor_drop(cursor, length);
                         }
-                        cursor_drop(cursor, length);
                         tot_len -= length;
                     }
                     break;
