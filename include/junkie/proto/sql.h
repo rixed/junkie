@@ -146,6 +146,7 @@ static inline void sql_increment_row_count(struct sql_proto_info *info, unsigned
 
 static inline void sql_set_request_status(struct sql_proto_info *info, enum sql_request_status status)
 {
+    SLOG(LOG_DEBUG, "Set sql status to %s", sql_request_status_2_str(status));
     info->set_values |= SQL_REQUEST_STATUS;
     info->request_status = status;
 }

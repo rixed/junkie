@@ -1325,9 +1325,10 @@ static enum proto_parse_status tds_result_token(struct tds_msg_parser *tds_msg_p
                     SLOG(LOG_DEBUG, "Got %zu rows", rowcount);
                     sql_set_row_count(info, rowcount);
                 }
-                if (! (msg_status & DONE_MORE)) {
+                if (! (msg_status & DONE_MORE) && !(info->set_values & SQL_REQUEST_STATUS)) {
                     // done with query
-                    sql_set_request_status(info, (msg_status & DONE_ERROR) ? SQL_REQUEST_ERROR : SQL_REQUEST_COMPLETE);
+                    // Seems like we can't really trust the DONE_ERROR flag
+                    sql_set_request_status(info, SQL_REQUEST_COMPLETE);
                 }
             }
             break;
