@@ -489,7 +489,7 @@ static void is_query_type(uint8_t type, bool *is_query)
 static enum proto_parse_status parse_postgres_sql(struct cursor *cursor, struct sql_proto_info *info,
         struct pgsql_header *header)
 {
-    int read_len = cursor_read_string(cursor, info->u.query.sql, TEMPSTR_SIZE, header->length);
+    int read_len = cursor_read_string(cursor, info->u.query.sql, SQL_QUERY_SIZE, header->length);
     if (read_len < 0) return PROTO_TOO_SHORT;
     if (read_len == 1) return PROTO_OK;
     info->set_values |= SQL_SQL;
