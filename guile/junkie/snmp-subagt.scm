@@ -129,6 +129,7 @@
                                   (let ((subagent (net:make-subagent "junkie" mib getters '())))
                                     (net:loop subagent)))
                                 (lambda (key . args)
+                                  (slog log-info "Error on snmp loop ~s ~s~%" key args)
                                   (sleep 10)))))))
     (if have-snmp
         (make-thread thread)
