@@ -31,6 +31,25 @@ In addition, junkie's design encompasses extendability and speed:
 Junkie is still being maintained and extended by SecurActive dedicated team
 but we believe it can be further extended to fulfill many unforeseen purposes.
 
+Parsers available
+=================
+
+- Ethernet
+
+- Protocols on Ethernet: ARP, IPv4, IPv6, ERSPAN, FCoE
+
+- Protocols on IP: TCP, UDP, GRE, ICMP, ICMPv6,
+
+- Protocols on TCP/UDP: DHCP, DNS, FTP, HTTP, Netbios, RPC, SSLv2, TLS
+
+- Filesharing protocols: SMB1, SMB2
+
+- Voip protocols: MGCP, RTCP, RTP, SDP, SIP, SKINNY
+
+- Database protocols: PostgreSQL, MySQL / MariaDB, TDS (MSSQL), TNS (Oracle)
+
+- Signature discovery: BGP, Bittorrent, Citrix, Gnutella, IMAP, IRC, Jabber,
+  NTP, PCanywhere, POP, RDP, SMTP, Telnet, VNC
 
 Todo
 ====
@@ -107,10 +126,6 @@ Parsers for:
 ------------
 
 - H323
-
-- SMB
-
-- MSSQL
 
 * Accounting protocols (such as RADIUS & DIAMETER)
 
