@@ -110,7 +110,7 @@ void proto_dtor(struct proto *proto)
 #   endif
     hook_dtor(&proto->hook);
     if (proto->nb_parsers != 0) {
-        SLOG(LOG_NOTICE, "Some parsers are still in use for %s", proto->name);
+        SLOG(LOG_NOTICE, "%d parsers are still in use for %s", proto->nb_parsers, proto->name);
     }
 
     bench_event_dtor(&proto->parsing);
