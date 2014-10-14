@@ -317,12 +317,13 @@ static void ip_subparser_del(struct mux_subparser *mux_subparser)
 static struct pkt_wl_config ip_reassembly_config;
 
 // Really construct the waiting list
-static int ip_reassembly_ctor(struct ip_reassembly *reassembly, struct parser *parser, uint16_t id)
+static int ip_reassembly_ctor(struct ip_reassembly *reassembly, struct proto **proto,
+        struct parser **parser, uint16_t id)
 {
-    SLOG(LOG_DEBUG, "Constructing ip_reassembly@%p for parser %s", reassembly, parser_name(parser));
+    SLOG(LOG_DEBUG, "Constructing ip_reassembly@%p for parser %s", reassembly, parser_name(*parser));
     assert(! reassembly->constructed);
 
-    if (0 != pkt_wait_list_ctor(&reassembly->wl, 0, &ip_reassembly_config, parser, NULL)) return -1;
+    if (0 != pkt_wait_list_ctor(&reassembly->wl, 0, &ip_reassembly_config, proto, parser, NULL)) return -1;
     reassembly->id = id;
     reassembly->got_last = 0;
     reassembly->constructed = 1;
@@ -331,9 +332,10 @@ static int ip_reassembly_ctor(struct ip_reassembly *reassembly, struct parser *p
     return 0;
 }
 
-static struct ip_reassembly *ip_reassembly_lookup(struct ip_subparser *ip_subparser, uint16_t id, struct parser *parser)
+static struct ip_reassembly *ip_reassembly_lookup(struct ip_subparser *ip_subparser, uint16_t id,
+        struct proto **proto, struct parser **parser)
 {
-    SLOG(LOG_DEBUG, "Looking for ip_reassembly for id=%"PRIu16" for subparser %s", id, parser_name(parser));
+    SLOG(LOG_DEBUG, "Looking for ip_reassembly for id=%"PRIu16" for subparser %s", id, parser_name(*parser));
 
     int last_unused = -1;
     for (unsigned r = 0; r < NB_ELEMS(ip_subparser->reassembly); r++) {
@@ -342,7 +344,7 @@ static struct ip_reassembly *ip_reassembly_lookup(struct ip_subparser *ip_subpar
             if (reassembly->id != id) continue;
             SLOG(LOG_DEBUG, "Found id at index %u in ip_reassembly@%p", r, reassembly);
             if (! reassembly->constructed) {
-                if (0 != ip_reassembly_ctor(reassembly, parser, id)) return NULL;
+                if (0 != ip_reassembly_ctor(reassembly, proto, parser, id)) return NULL;
             }
             return reassembly;
         } else {
@@ -358,7 +360,7 @@ static struct ip_reassembly *ip_reassembly_lookup(struct ip_subparser *ip_subpar
 
     struct ip_reassembly *const reassembly = ip_subparser->reassembly + last_unused;
     assert(! reassembly->in_use);
-    if (0 != ip_reassembly_ctor(reassembly, parser, id)) return NULL;
+    if (0 != ip_reassembly_ctor(reassembly, proto, parser, id)) return NULL;
     return reassembly;
 }
 
@@ -464,7 +466,7 @@ static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info
         unsigned const offset = fragment_offset(iphdr);
         uint16_t id = READ_U16N(&iphdr->id);
         SLOG(LOG_DEBUG, "IP packet is a fragment of id %"PRIu16", offset=%u", id, offset);
-        struct ip_reassembly *reassembly = ip_reassembly_lookup(ip_subparser, id, subparser->parser);
+        struct ip_reassembly *reassembly = ip_reassembly_lookup(ip_subparser, id, &subparser->proto, &subparser->parser);
         if (! reassembly) goto unlock_fallback;
         assert(reassembly->in_use && reassembly->constructed);
         if (! (READ_U8(&iphdr->flags) & IP_MORE_FRAGS_MASK)) {

@@ -491,6 +491,7 @@ struct mux_subparser {
     struct ref ref;                         ///< Note that being stored in parent's hash does count as a reference
     TAILQ_ENTRY(mux_subparser) to_entry;    ///< Its entry in its timeout queue (sorted in least recently used first)
     STAILQ_ENTRY(mux_subparser) h_entry;    ///< Its entry in the hash (sorted in more recently used first - so that lookups are faster)
+    struct proto *proto;                    ///< The actual proto
     struct parser *parser;                  ///< The actual parser
     struct timeval last_used;               ///< Last time we call it's parse method
     struct proto *requestor;                ///< The proto that requested its creation

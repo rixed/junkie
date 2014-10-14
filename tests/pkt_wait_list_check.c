@@ -8,7 +8,7 @@
 #include <junkie/tools/miscmacs.h>
 #include <junkie/tools/ext.h>
 #include <junkie/tools/objalloc.h>
-#include "pkt_wait_list.c"
+#include "proto/pkt_wait_list.c"
 
 #undef LOG_CAT
 #define LOG_CAT global_log_category
@@ -26,7 +26,7 @@ static void ctor_dtor_check(void)
     assert(dummy);
     struct pkt_wait_list wl;
 
-    assert(0 == pkt_wait_list_ctor(&wl, 10, &config, dummy, NULL));
+    assert(0 == pkt_wait_list_ctor(&wl, 10, &config, &proto_dummy, &dummy, NULL));
     pkt_wait_list_dtor(&wl);
 
     parser_unref(&dummy);
@@ -71,7 +71,8 @@ static void wl_check_setup(void)
     test_parser = test_proto.proto.ops->parser_new(&test_proto.proto);
     assert(test_parser);
 
-    assert(0 == pkt_wait_list_ctor(&wl, 0, &config, test_parser, NULL));
+    struct proto *proto = &test_proto.proto;
+    assert(0 == pkt_wait_list_ctor(&wl, 0, &config, &proto, &test_parser, NULL));
 
     next_msg = 0;
 

@@ -247,7 +247,8 @@ static bool tcp_subparser_term(struct tcp_subparser const *tcp_sub)
          seqnum_gt(tcp_sub->max_acknum[0], tcp_sub->fin_seqnum[1]));
 }
 
-static int tcp_subparser_ctor(struct tcp_subparser *tcp_sub, struct mux_parser *mux_parser, struct parser *child, struct proto *requestor, struct port_key const *key, struct timeval const *now)
+static int tcp_subparser_ctor(struct tcp_subparser *tcp_sub, struct mux_parser *mux_parser, struct parser *child,
+        struct proto *requestor, struct port_key const *key, struct timeval const *now)
 {
     SLOG(LOG_DEBUG, "Constructing TCP subparser @%p", tcp_sub);
 
@@ -259,11 +260,13 @@ static int tcp_subparser_ctor(struct tcp_subparser *tcp_sub, struct mux_parser *
     tcp_sub->wl_set = 0;
     tcp_sub->srv_set = 0;   // will be set later
 
-    if (0 != pkt_wait_list_ctor(tcp_sub->wl+0, 0, &tcp_wl_config, child, tcp_sub->wl+1)) {
+    if (0 != pkt_wait_list_ctor(tcp_sub->wl+0, 0, &tcp_wl_config, &tcp_sub->mux_subparser.proto,
+                &tcp_sub->mux_subparser.parser, tcp_sub->wl+1)) {
         return -1;
     }
 
-    if (0 != pkt_wait_list_ctor(tcp_sub->wl+1, 0, &tcp_wl_config, child, tcp_sub->wl+0)) {
+    if (0 != pkt_wait_list_ctor(tcp_sub->wl+1, 0, &tcp_wl_config, &tcp_sub->mux_subparser.proto,
+                &tcp_sub->mux_subparser.parser, tcp_sub->wl+0)) {
         pkt_wait_list_dtor(tcp_sub->wl+0);
         return -1;
     }
@@ -336,23 +339,26 @@ static struct proto *lookup_subproto(struct tcp_proto_info const *tcp, struct ti
     return sub_proto;
 }
 
-// mux_subparser->mutex should be locked
+/*
+ * mux_subparser->mutex should be locked
+ * Unref subparser parser and remove protos from waiting list to avoid having parser created.
+ * A new proto will be searched on the next call to tcp_parse
+ */
 static void tcp_mux_subparser_reset_proto(struct mux_subparser *mux_subparser)
 {
-    struct tcp_subparser *tcp_subparser = DOWNCAST(mux_subparser, mux_subparser, tcp_subparser);
     parser_unref(&mux_subparser->parser);
     mux_subparser->requestor = NULL;
-    tcp_subparser->wl[0].proto = NULL;
-    tcp_subparser->wl[0].parser = NULL;
-    tcp_subparser->wl[1].proto = NULL;
-    tcp_subparser->wl[1].parser = NULL;
+    parser_unref(&mux_subparser->parser);
+    mux_subparser->proto = NULL;
 }
 
-// mux_subparser->mutex should be locked
+/*
+ * mux_subparser->mutex should be locked
+ * Spawn parser for the given sub_proto and save proto in waiting list to respawn it when necessary.
+ */
 static void tcp_mux_subparser_spawn_parser(struct mux_subparser *mux_subparser, struct proto *sub_proto,
         struct proto *requestor)
 {
-    struct tcp_subparser *tcp_subparser = DOWNCAST(mux_subparser, mux_subparser, tcp_subparser);
     // Unref potential existing parser
     if (mux_subparser->parser) tcp_mux_subparser_reset_proto(mux_subparser);
     // Check if we killed our parser from a previous parse error,
@@ -361,11 +367,7 @@ static void tcp_mux_subparser_spawn_parser(struct mux_subparser *mux_subparser, 
     mux_subparser->parser = sub_proto->ops->parser_new(sub_proto);
     if (unlikely_(! mux_subparser->parser)) return;
     mux_subparser->requestor = requestor;
-    parser_unref(&mux_subparser->parser);
-    tcp_subparser->wl[0].proto = sub_proto;
-    tcp_subparser->wl[0].parser = mux_subparser->parser;
-    tcp_subparser->wl[1].proto = sub_proto;
-    tcp_subparser->wl[1].parser = mux_subparser->parser;
+    mux_subparser->proto = sub_proto;
 }
 
 static void set_wl_list(struct tcp_subparser *tcp_sub, struct tcp_proto_info const *info, unsigned way)

@@ -576,12 +576,14 @@ static void mux_subparser_del_as_ref(struct ref *ref)
     subparser->mux_proto->ops.subparser_del(subparser);
 }
 
-int mux_subparser_ctor(struct mux_subparser *subparser, struct mux_parser *mux_parser, struct parser *child, struct proto *requestor, void const *key, struct timeval const *now)
+int mux_subparser_ctor(struct mux_subparser *subparser, struct mux_parser *mux_parser, struct parser *child,
+        struct proto *requestor, void const *key, struct timeval const *now)
 {
     struct mux_proto *mux_proto = DOWNCAST(mux_parser->parser.proto, proto, mux_proto);
     SLOG(LOG_DEBUG, "Construct mux_subparser@%p for parser %s requested by %s", subparser, parser_name(child), requestor ? requestor->name : "nobody");
 
     subparser->parser = parser_ref(child);
+    subparser->proto = child ? child->proto : NULL;
     subparser->requestor = requestor;
     subparser->mux_parser = mux_parser; // backlink
     subparser->mux_proto = mux_proto;   // another backlink, see mux_subparser_del_as_ref().
@@ -615,7 +617,8 @@ void *mux_subparser_alloc(struct mux_parser *mux_parser, size_t size_without_key
 }
 
 // Creates the subparser _and_ the parser, returns a ref on the subparser
-struct mux_subparser *mux_subparser_new(struct mux_parser *mux_parser, struct parser *child, struct proto *requestor, void const *key, struct timeval const *now)
+struct mux_subparser *mux_subparser_new(struct mux_parser *mux_parser, struct parser *child,
+        struct proto *requestor, void const *key, struct timeval const *now)
 {
     struct mux_subparser *subparser = mux_subparser_alloc(mux_parser, sizeof(*subparser));
     if (unlikely_(! subparser)) return NULL;

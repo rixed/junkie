@@ -155,10 +155,10 @@ struct pkt_wait_list {
     size_t tot_payload;
     /// The offset we are currently waiting for to resume parsing
     unsigned next_offset;
-    /// A ref to build parser if necessary
-    struct proto *proto;
-    /// A ref to the parser this packet is intended to
-    struct parser *parser;
+    /// The proto to build parser if necessary
+    struct proto **proto;
+    /// A pointer to the parser ref this packet is intended to
+    struct parser **parser;
     /// Optionally, the other pkt_wait_list we may wait.
     struct pkt_wait_list *sync_with;
 };
@@ -168,7 +168,8 @@ int pkt_wait_list_ctor(
     struct pkt_wait_list *pkt_wl,   ///< The waiting list to construct
     unsigned next_offset,           ///< The initial offset we are waiting for
     struct pkt_wl_config *config,   ///< Where we store the pkt_wait_list created with these parameters (useful for timeouting) as well as global conf
-    struct parser *parser,          ///< The parser that's supposed to parse this packet whenever possible
+    struct proto **proto,           ///< The proto to spawn parser when necessary
+    struct parser **parser,         ///< The parser that's supposed to parse this packet whenever possible
     /// If <> NULL, synchronize this pkt_wait_list with another one (ie. packets from this one may wait for the other waiting list to advance)
     struct pkt_wait_list *restrict sync_with
 );
