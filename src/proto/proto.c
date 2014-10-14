@@ -866,7 +866,11 @@ void mux_proto_dtor(struct mux_proto *mux_proto)
     for (unsigned m = 0; m < NB_ELEMS(mux_proto->mutexes); m++) {
         mutex_dtor(&mux_proto->mutexes[m].mutex);
         if (! TAILQ_EMPTY(&mux_proto->mutexes[m].timeout_queue)) {
-            SLOG(LOG_NOTICE, "While destructing proto %s, timeout_queue %u not empty", mux_proto->proto.name, m);
+            struct mux_subparser *subparser;
+            int left_parsers = 0;
+            TAILQ_FOREACH(subparser, &mux_proto->mutexes[m].timeout_queue, to_entry) left_parsers++;
+            SLOG(LOG_NOTICE, "While destructing proto %s, timeout_queue %u not empty (%d parsers left)",
+                    mux_proto->proto.name, m, left_parsers);
         }
     }
     proto_dtor(&mux_proto->proto);
