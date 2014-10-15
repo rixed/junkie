@@ -91,7 +91,7 @@ enum tls_return_status {
 struct tls_keyfile {
     LIST_ENTRY(tls_keyfile) entry;
     SSL_CTX *ssl_ctx;
-    char path[PATH_MAX];
+    int id;
     char pwd[1024];
     struct ip_addr net, mask;
     bool is_mask;   // is false, then mask is actually the end of a range
@@ -202,8 +202,8 @@ static int tls_passwd_cb(char *buf, int bufsz, int rwflag, void *userdata_)
     return len;
 }
 
-static enum tls_return_status tls_keyfile_ctor(struct tls_keyfile *keyfile, char const *path, char const *pwd,
-        struct ip_addr const *net, struct ip_addr const *mask, bool is_mask, struct proto *proto)
+static enum tls_return_status tls_keyfile_ctor(struct tls_keyfile *keyfile, int id, char const *path,
+        char const *pwd, struct ip_addr const *net, struct ip_addr const *mask, bool is_mask, struct proto *proto)
 {
     SLOG(LOG_DEBUG, "Construct keyfile@%p '%s' for '%s', proto %s", keyfile, path, ip_addr_2_str(net), proto->name);
 
@@ -214,7 +214,7 @@ static enum tls_return_status tls_keyfile_ctor(struct tls_keyfile *keyfile, char
         goto err0;
     }
 
-    snprintf(keyfile->path, sizeof(keyfile->path), "%s", path);
+    keyfile->id = id;
     snprintf(keyfile->pwd, sizeof(keyfile->pwd), "%s", pwd ? pwd:"");
 
     struct tls_passwd_cb_userdata userdata = {.keyfile = keyfile, .tls_return_status = TLS_OK};
@@ -250,12 +250,13 @@ err0:
     return TLS_ERROR;
 }
 
-static enum tls_return_status tls_keyfile_new(char const *path, char const *pwd, struct ip_addr const *net, struct ip_addr const *mask, bool is_mask, struct proto *proto)
+static enum tls_return_status tls_keyfile_new(int id, char const *path, char const *pwd,
+        struct ip_addr const *net, struct ip_addr const *mask, bool is_mask, struct proto *proto)
 {
     enum tls_return_status tls_return_status = TLS_OK;
     struct tls_keyfile *keyfile = objalloc(sizeof(*keyfile), "keyfiles");
     if (! keyfile) return TLS_ERROR;
-    if (TLS_OK != (tls_return_status = tls_keyfile_ctor(keyfile, path, pwd, net, mask, is_mask, proto))) {
+    if (TLS_OK != (tls_return_status = tls_keyfile_ctor(keyfile, id, path, pwd, net, mask, is_mask, proto))) {
         objfree(keyfile);
         return tls_return_status;
     }
@@ -264,7 +265,7 @@ static enum tls_return_status tls_keyfile_new(char const *path, char const *pwd,
 
 static void tls_keyfile_dtor(struct tls_keyfile *keyfile)
 {
-    SLOG(LOG_DEBUG, "Destruct keyfile@%p '%s' for '%s'", keyfile, keyfile->path, ip_addr_2_str(&keyfile->net));
+    SLOG(LOG_DEBUG, "Destruct keyfile@%p for '%s'", keyfile, ip_addr_2_str(&keyfile->net));
 
     WITH_LOCK(&tls_keyfiles_lock) {
         LIST_REMOVE(keyfile, entry);
@@ -288,11 +289,11 @@ static void tls_keyfile_del(struct tls_keyfile *keyfile)
     objfree(keyfile);
 }
 
-static struct tls_keyfile *tls_keyfile_of_name(char const *name)
+static struct tls_keyfile *tls_keyfile_of_id(int id)
 {
     struct tls_keyfile *keyfile;
     WITH_LOCK(&tls_keyfiles_lock) {
-        LIST_LOOKUP(keyfile, &tls_keyfiles, entry, 0 == strcmp(keyfile->path, name));
+        LIST_LOOKUP(keyfile, &tls_keyfiles, entry, keyfile->id == id);
     }
     return keyfile;
 }
@@ -306,10 +307,10 @@ static bool ip_match_keyfile(struct ip_addr const *ip, struct tls_keyfile const 
     }
 }
 
-static struct tls_keyfile *tls_keyfile_of_scm_name(SCM name_)
+static struct tls_keyfile *tls_keyfile_of_scm_id(SCM id_)
 {
-    char *name = scm_to_tempstr(name_);
-    return tls_keyfile_of_name(name);
+    int id = scm_to_int(id_);
+    return tls_keyfile_of_id(id);
 }
 
 static struct ext_function sg_tls_keys;
@@ -323,7 +324,7 @@ static SCM g_tls_keys(void)
     scm_dynwind_unwind_handler(pthread_mutex_unlock_, &tls_keyfiles_lock.mutex, SCM_F_WIND_EXPLICITLY);
 
     LIST_FOREACH(keyfile, &tls_keyfiles, entry) {
-        ret = scm_cons(scm_from_latin1_string(keyfile->path), ret);
+        ret = scm_cons(scm_from_int(keyfile->id), ret);
     }
     scm_dynwind_end();
 
@@ -331,10 +332,11 @@ static SCM g_tls_keys(void)
 }
 
 static struct ext_function sg_tls_add_key;
-static SCM g_tls_add_key(SCM file_, SCM net_, SCM mask_, SCM is_mask_, SCM proto_, SCM pwd_)
+static SCM g_tls_add_key(SCM id_, SCM file_, SCM net_, SCM mask_, SCM is_mask_, SCM proto_, SCM pwd_)
 {
     (void)pwd_; // TODO
 
+    int id = scm_to_int(id_);
     char const *file = scm_to_tempstr(file_);
     struct ip_addr net, mask;
     if (0 != scm_netmask_2_ip_addr2(&net, &mask, net_, mask_)) return SCM_BOOL_F;
@@ -342,7 +344,7 @@ static SCM g_tls_add_key(SCM file_, SCM net_, SCM mask_, SCM is_mask_, SCM proto
     struct proto *proto = proto_of_scm_name(proto_);
     if (! proto) return SCM_BOOL_F;
 
-    enum tls_return_status return_status = tls_keyfile_new(file, NULL, &net, &mask, is_mask, proto);
+    enum tls_return_status return_status = tls_keyfile_new(id, file, NULL, &net, &mask, is_mask, proto);
     switch (return_status) {
         case TLS_OK:
             return tls_ok;
@@ -355,9 +357,9 @@ static SCM g_tls_add_key(SCM file_, SCM net_, SCM mask_, SCM is_mask_, SCM proto
 }
 
 static struct ext_function sg_tls_del_key;
-static SCM g_tls_del_key(SCM file_)
+static SCM g_tls_del_key(SCM id_)
 {
-    struct tls_keyfile *keyfile = tls_keyfile_of_scm_name(file_);
+    struct tls_keyfile *keyfile = tls_keyfile_of_scm_id(id_);
     if (! keyfile) return SCM_BOOL_F;
 
     tls_keyfile_del(keyfile);
@@ -854,7 +856,7 @@ static int decrypt_master_secret_with_keyfile(struct tls_keyfile *keyfile, struc
 {
     int err = -1;
 
-    SLOG(LOG_DEBUG, "Try to decrypt Master Secret using keyfile %s", keyfile->path);
+    SLOG(LOG_DEBUG, "Try to decrypt Master Secret using keyfile %d", keyfile->id);
 
     SSL *ssl = SSL_new(keyfile->ssl_ctx);
     if (! ssl) {
@@ -1583,14 +1585,14 @@ void tls_init(void)
         "(tls-keys): returns a list of all known private keys.\n");
 
     ext_function_ctor(&sg_tls_add_key,
-        "tls-add-key", 5, 1, 0, g_tls_add_key,
-        "(tls-add-key \"/var/keys/secret.pem\" \"192.168.1.42\" \"255.255.255.255\" #t \"http\"): use this key to decrypt HTTP traffic to this IP.\n"
+        "tls-add-key", 6, 1, 0, g_tls_add_key,
+        "(tls-add-key 1 \"/var/keys/secret.pem\" \"192.168.1.42\" \"255.255.255.255\" #t \"http\"): use this key to decrypt HTTP traffic to this IP.\n"
         "Optionally, you can pass a password (used to decrypt the file) as another argument.\n"
         "See also (? 'tls-del-key)\n");
 
     ext_function_ctor(&sg_tls_del_key,
         "tls-del-key", 1, 0, 0, g_tls_del_key,
-        "(tls-del-key \"/var/keys/secret.pem\"): forget about this key.\n"
+        "(tls-del-key 1): forget about this key.\n"
         "See also (? 'tls-add-key)\n");
 }
 

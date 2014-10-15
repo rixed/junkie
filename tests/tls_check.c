@@ -21,9 +21,9 @@ static void tls_check(void)
     static struct ip_addr const mask = IP4(1, 2, 3, 4);
     struct proto proto;
     proto.name = "";
-    assert(TLS_OK == tls_keyfile_new(passless_key, NULL, &net, &mask, false, &proto));
-    assert(TLS_MISSING_PASSPHRASE == tls_keyfile_new(passphrase_key, NULL, &net, &mask, false, &proto));
-    assert(TLS_OK == tls_keyfile_new(passphrase_key, "toto", &net, &mask, false, &proto));
+    assert(TLS_OK == tls_keyfile_new(1, passless_key, NULL, &net, &mask, false, &proto));
+    assert(TLS_MISSING_PASSPHRASE == tls_keyfile_new(2, passphrase_key, NULL, &net, &mask, false, &proto));
+    assert(TLS_OK == tls_keyfile_new(3, passphrase_key, "toto", &net, &mask, false, &proto));
 }
 
 int main(void)
