@@ -673,7 +673,7 @@ struct mux_subparser *mux_subparser_lookup(struct mux_parser *mux_parser, struct
             // whether or not we intend to create the child if not found (ie. use another flag for that).
             // But we cannot do that actually, because in case of contracking we want to find whatever the proto
             // registered the ports.
-            (!create_proto || subparser->parser->proto == create_proto) &&
+            (!create_proto || subparser->proto == create_proto) &&
             0 == memcmp(subparser->key, key, mux_proto->key_size)
         ) {
             break;

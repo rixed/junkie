@@ -346,7 +346,6 @@ static struct proto *lookup_subproto(struct tcp_proto_info const *tcp, struct ti
  */
 static void tcp_mux_subparser_reset_proto(struct mux_subparser *mux_subparser)
 {
-    parser_unref(&mux_subparser->parser);
     mux_subparser->requestor = NULL;
     parser_unref(&mux_subparser->parser);
     mux_subparser->proto = NULL;
