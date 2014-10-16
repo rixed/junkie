@@ -340,26 +340,28 @@ static struct proto *lookup_subproto(struct tcp_proto_info const *tcp, struct ti
 }
 
 /*
- * mux_subparser->mutex should be locked
  * Unref subparser parser and remove protos from waiting list to avoid having parser created.
  * A new proto will be searched on the next call to tcp_parse
+ *
+ * tcp_subparser->mutex should be locked
  */
-static void tcp_mux_subparser_reset_proto(struct mux_subparser *mux_subparser)
+static void tcp_mux_subparser_reset_proto(struct tcp_subparser *tcp_subparser)
 {
+    struct mux_subparser *mux_subparser = &tcp_subparser->mux_subparser;
     mux_subparser->requestor = NULL;
     parser_unref(&mux_subparser->parser);
     mux_subparser->proto = NULL;
 }
 
 /*
- * mux_subparser->mutex should be locked
  * Spawn parser for the given sub_proto and save proto in waiting list to respawn it when necessary.
+ *
+ * tcp_subparser->mutex should be locked
  */
-static void tcp_mux_subparser_spawn_parser(struct mux_subparser *mux_subparser, struct proto *sub_proto,
+static void tcp_mux_subparser_spawn_parser(struct tcp_subparser *tcp_subparser, struct proto *sub_proto,
         struct proto *requestor)
 {
-    // Unref potential existing parser
-    if (mux_subparser->parser) tcp_mux_subparser_reset_proto(mux_subparser);
+    struct mux_subparser *mux_subparser = &tcp_subparser->mux_subparser;
     // Check if we killed our parser from a previous parse error,
     SLOG(LOG_DEBUG, "tcp mux_subparser@%p without proto, spawning new parser for proto %s",
             mux_subparser, sub_proto->name);
@@ -384,25 +386,38 @@ static void set_wl_list(struct tcp_subparser *tcp_sub, struct tcp_proto_info con
     }
 }
 
+static struct tcp_subparser *downcast_and_lock_subparser(struct mux_subparser *mux_subparser)
+{
+    assert(mux_subparser);
+    struct tcp_subparser *tcp_subparser = DOWNCAST(mux_subparser, mux_subparser, tcp_subparser);
+    mutex_lock(tcp_subparser->mutex);
+    return tcp_subparser;
+}
+
 /*
  * Lookup for an existing subparser or create one if it does not exists
  * If the found subparser does not have child parser, lookup correct proto and spawn it
+ * Return a new ref to the tcp_subparser
+ * tcp_sub->mutex is locked if found
  */
-static struct mux_subparser *lookup_or_create_mux_subparser(struct mux_parser *mux_parser, struct tcp_proto_info const *tcp,
-        struct timeval const *now, unsigned way)
+static struct tcp_subparser *lookup_or_create_tcp_subparser(struct mux_parser *mux_parser,
+        struct tcp_proto_info const *tcp, struct timeval const *now, unsigned way)
 {
     struct port_key key;
     port_key_init(&key, tcp->key.port[0], tcp->key.port[1], way);
     SLOG(LOG_DEBUG, "Look tcp subparser for way %d with key %"PRIu16", %"PRIu16, way, key.port[0], key.port[1]);
-    // Search an already spawned subparser
+
     struct mux_subparser *mux_subparser = mux_subparser_lookup(mux_parser, NULL, NULL, &key, now);
+    // Got a subparser with a ready parser, end of lookup
     if (mux_subparser && mux_subparser->parser) {
-        SLOG(LOG_DEBUG, "Found mux_subparser@%p for this cnx, for proto %s", mux_subparser, mux_subparser->parser->proto->name);
-        return mux_subparser;
+        SLOG(LOG_DEBUG, "Found mux_subparser@%p for this cnx, for proto %s", mux_subparser,
+                mux_subparser->parser->proto->name);
+        return downcast_and_lock_subparser(mux_subparser);
     }
 
     struct proto *requestor = NULL;
     struct proto *sub_proto = lookup_subproto(tcp, now, &requestor);
+    // No subparser, spawn a new one
     if (! mux_subparser) {
         if (sub_proto) {
             mux_subparser = mux_subparser_and_parser_new(mux_parser, sub_proto, requestor, &key, now);
@@ -410,12 +425,20 @@ static struct mux_subparser *lookup_or_create_mux_subparser(struct mux_parser *m
             // Even if we have no child parser to send payload to, we want to submit payload in stream order to our plugins
             mux_subparser = tcp_subparser_new(mux_parser, NULL, NULL, &key, now);
         }
-        struct tcp_subparser *tcp_subparser = DOWNCAST(mux_subparser, mux_subparser, tcp_subparser);
+        struct tcp_subparser *tcp_subparser = downcast_and_lock_subparser(mux_subparser);
         set_wl_list(tcp_subparser, tcp, way);
-    } else if (mux_subparser->parser == NULL && sub_proto) {
-        tcp_mux_subparser_spawn_parser(mux_subparser, sub_proto, requestor);
+        return tcp_subparser;
     }
-    return mux_subparser;
+
+    // Got a subparser without parser, spawn a parser
+    if (mux_subparser->parser == NULL && sub_proto) {
+        struct tcp_subparser *tcp_subparser = downcast_and_lock_subparser(mux_subparser);
+        tcp_mux_subparser_spawn_parser(tcp_subparser, sub_proto, requestor);
+        return tcp_subparser;
+    }
+
+    // No luck, got a subparser without parser and subproto
+    return downcast_and_lock_subparser(mux_subparser);
 }
 
 static enum proto_parse_status parse_tcp_proto_info(struct tcp_proto_info *info,
@@ -492,12 +515,13 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
     }
 
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
-    struct mux_subparser *subparser = lookup_or_create_mux_subparser(mux_parser, &info, now, way);
-    if (! subparser) goto fallback;
-
-    // Keep track of TCP flags
-    struct tcp_subparser *tcp_sub = DOWNCAST(subparser, mux_subparser, tcp_subparser);
-    mutex_lock(tcp_sub->mutex);
+    struct tcp_subparser *tcp_sub = lookup_or_create_tcp_subparser(mux_parser, &info, now, way);
+    if (! tcp_sub) {
+        (void)proto_parse(NULL, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len,
+                wire_len - tcphdr_len, now, tot_cap_len, tot_packet);
+        return PROTO_OK;
+    }
+    struct mux_subparser *subparser = &tcp_sub->mux_subparser;
 
     set_wl_list(tcp_sub, &info, way);
     if (info.ack && (!IS_SET_FOR_WAY(way, tcp_sub->ack) || seqnum_gt(info.ack_num, tcp_sub->max_acknum[way]))) {
@@ -558,14 +582,14 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
         mux_subparser_deindex(subparser);
     } else if (status == PROTO_PARSE_ERR) {
         SLOG(LOG_DEBUG, "No suitable subparser for this payload, deref it");
-        tcp_mux_subparser_reset_proto(&tcp_sub->mux_subparser);
+        tcp_mux_subparser_reset_proto(tcp_sub);
     }
     mutex_unlock(tcp_sub->mutex);
 
     mux_subparser_unref(&subparser);
 
     if (status == PROTO_OK) return PROTO_OK;
-fallback:
+
     (void)proto_parse(NULL, &info.info, way, packet + tcphdr_len, cap_len - tcphdr_len, wire_len - tcphdr_len, now, tot_cap_len, tot_packet);
     return PROTO_OK;
 }
