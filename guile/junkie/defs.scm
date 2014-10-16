@@ -226,9 +226,9 @@
                                    (vlan-aware  (format #f "(~a) or (vlan and (~a))" with-user with-user)))
                               (next-filter (cons vlan-aware prevs) (1+ i))))))
            (unpartionable (if (string-null? capfilter)
-                              "not ip and not (vlan and ip)"
+                              "not (tcp or udp) and not (vlan and (tcp or udp))"
                               ; You'd better not mess with this one, this is not your ordinary logic!
-                              (format #f "not ip and (~a) and not (vlan and ip) and (~a)" capfilter capfilter))))
+                              (format #f "not (tcp or udp) and (~a) and not (vlan and (tcp or udp)) and (~a)" capfilter capfilter))))
     (next-filter (list unpartionable) 0)))
 
 ; Equivalent of set-ifaces for multiple CPUs
