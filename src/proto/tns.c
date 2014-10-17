@@ -655,7 +655,7 @@ static enum proto_parse_status tns_parse_end(struct sql_proto_info *info, struct
 
 static enum proto_parse_status is_range_print(struct cursor *cursor, size_t size, size_t offset)
 {
-    CHECK(size);
+    CHECK(size + offset);
     SLOG(LOG_DEBUG, "Check range print with size %zu, and offset %zu", size, offset);
     for (size_t i = 0; i < size; i++) {
         if (!is_print(cursor_peek_u8(cursor, i + offset)))
@@ -844,14 +844,14 @@ static bool is_oci(struct cursor *cursor)
 {
     CHECK(1);
     unsigned option_size = cursor_read_u8(cursor);
-    CHECK(option_size);
+    CHECK(MAX(option_size, 2));
     if (option_size > 0x04 || cursor_peek_u8(cursor, 1) == 0x00) return true;
     cursor_drop(cursor, option_size);
 
     // Should be a var here
     CHECK(1);
     unsigned var_size = cursor_read_u8(cursor);
-    CHECK(var_size);
+    CHECK(MAX(var_size, 2));
     if (var_size > 0x04 || cursor_peek_u8(cursor, 1) == 0x00) return true;
     cursor_drop(cursor, var_size);
 
