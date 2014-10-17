@@ -212,17 +212,20 @@ static enum proto_parse_status discovery_parse(struct parser *parser, struct pro
     SLOG(LOG_DEBUG, "Discovered protocol %s (which actual parser is %s)", sig->protocol.name, sig->actual_proto ? sig->actual_proto->name : "unknown");
     struct proto *sub_proto = sig->actual_proto;
 
+    struct mutex *mutex = NULL;
     if (sub_proto) {
         struct parser *actual_parser = NULL;
         struct mux_subparser *subparser = NULL;
         switch (parent->parser->proto->code) {
             case PROTO_CODE_TCP:;
                 struct tcp_proto_info *tcp = DOWNCAST(parent, info, tcp_proto_info);
-                subparser = tcp_subparser_and_parser_new(parent->parser, sub_proto, parser->proto, tcp->key.port[0], tcp->key.port[1], way, now);
+                subparser = tcp_subparser_and_parser_new(parent->parser, sub_proto, parser->proto,
+                        tcp->key.port[0], tcp->key.port[1], way, now, &mutex);
                 break;
             case PROTO_CODE_UDP:;
                 struct udp_proto_info *udp = DOWNCAST(parent, info, udp_proto_info);
-                subparser = udp_subparser_and_parser_new(parent->parser, sub_proto, parser->proto, udp->key.port[0], udp->key.port[1], way, now);
+                subparser = udp_subparser_and_parser_new(parent->parser, sub_proto, parser->proto,
+                        udp->key.port[0], udp->key.port[1], way, now);
                 break;
 
             default:
@@ -234,7 +237,8 @@ static enum proto_parse_status discovery_parse(struct parser *parser, struct pro
             actual_parser = parser_ref(subparser->parser);
         }
         if (actual_parser) {
-            enum proto_parse_status status = proto_parse(actual_parser, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
+            enum proto_parse_status status = proto_parse(actual_parser, parent, way, packet, cap_len, wire_len,
+                    now, tot_cap_len, tot_packet);
             parser_unref(&actual_parser);
             if (status != PROTO_OK) {
                 // remove the subparser if we added one
@@ -243,9 +247,11 @@ static enum proto_parse_status discovery_parse(struct parser *parser, struct pro
                     mux_subparser_deindex(subparser);
                 }
             }
+            if (mutex) mutex_unlock(mutex);
             mux_subparser_unref(&subparser);
             return status;
         }
+
         assert(!subparser && !actual_parser);
     }
 

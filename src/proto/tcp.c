@@ -213,7 +213,7 @@ struct tcp_subparser {
     uint32_t fin_seqnum[2];     // indice = way
     uint32_t max_acknum[2];
     struct pkt_wait_list wl[2]; // for packets reordering.
-    struct mutex *mutex;        // protects this structure
+    struct mutex *mutex;        // protects pkt_wait_lists, proto and parser since they can be erased by waiting list
 #   define SET_FOR_WAY(way, field) (field |= (1U<<way))
 #   define RESET_FOR_WAY(way, field) (field &= ~(1U<<way))
 #   define IS_SET_FOR_WAY(way, field) (!!(field & (1U<<way)))
@@ -247,6 +247,11 @@ static bool tcp_subparser_term(struct tcp_subparser const *tcp_sub)
          seqnum_gt(tcp_sub->max_acknum[0], tcp_sub->fin_seqnum[1]));
 }
 
+/*
+ * Construct a tcp subparser
+ *
+ * tcp_subparser->mutex is locked after this call
+ */
 static int tcp_subparser_ctor(struct tcp_subparser *tcp_sub, struct mux_parser *mux_parser, struct parser *child,
         struct proto *requestor, struct port_key const *key, struct timeval const *now)
 {
@@ -272,6 +277,7 @@ static int tcp_subparser_ctor(struct tcp_subparser *tcp_sub, struct mux_parser *
     }
 
     tcp_sub->mutex = mutex_pool_anyone(&tcp_locks);
+    mutex_lock(tcp_sub->mutex);
 
     // Now that everything is ready, make this subparser public
     if (0 != mux_subparser_ctor(&tcp_sub->mux_subparser, mux_parser, child, requestor, key, now)) {
@@ -283,6 +289,11 @@ static int tcp_subparser_ctor(struct tcp_subparser *tcp_sub, struct mux_parser *
     return 0;
 }
 
+/*
+ * Allocate and construct a tcp subparser
+ *
+ * tcp_subparser->mutex is locked after this call
+ */
 static struct mux_subparser *tcp_subparser_new(struct mux_parser *mux_parser, struct parser *child, struct proto *requestor, void const *key, struct timeval const *now)
 {
     struct tcp_subparser *tcp_subparser = mux_subparser_alloc(mux_parser, sizeof(*tcp_subparser));
@@ -296,13 +307,25 @@ static struct mux_subparser *tcp_subparser_new(struct mux_parser *mux_parser, st
     return &tcp_subparser->mux_subparser;
 }
 
-struct mux_subparser *tcp_subparser_and_parser_new(struct parser *parser, struct proto *proto, struct proto *requestor, uint16_t src, uint16_t dst, unsigned way, struct timeval const *now)
+/*
+ * Create a tcp subparser
+ *
+ * tcp_subparser->mutex is locked after call
+ */
+struct mux_subparser *tcp_subparser_and_parser_new(struct parser *parser, struct proto *proto,
+        struct proto *requestor, uint16_t src, uint16_t dst, unsigned way, struct timeval const *now,
+        struct mutex **mutex)
 {
     assert(parser->proto == proto_tcp);
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct port_key key;
     port_key_init(&key, src, dst, way);
-    return mux_subparser_and_parser_new(mux_parser, proto, requestor, &key, now);
+    struct mux_subparser *mux_subparser = mux_subparser_and_parser_new(mux_parser, proto, requestor, &key, now);
+    if (likely_(mux_subparser)) {
+        struct tcp_subparser *tcp_subparser = DOWNCAST(mux_subparser, mux_subparser, tcp_subparser);
+        *mutex = tcp_subparser->mutex;
+    }
+    return mux_subparser;
 }
 
 static void tcp_subparser_dtor(struct tcp_subparser *tcp_subparser)
@@ -371,6 +394,11 @@ static void tcp_mux_subparser_spawn_parser(struct tcp_subparser *tcp_subparser, 
     mux_subparser->proto = sub_proto;
 }
 
+/*
+ * Set offset of waiting list
+ *
+ * tcp_subparser->mutex should be locked
+ */
 static void set_wl_list(struct tcp_subparser *tcp_sub, struct tcp_proto_info const *info, unsigned way)
 {
     if (!IS_SET_FOR_WAY(way, tcp_sub->wl_set)) {
@@ -397,8 +425,10 @@ static struct tcp_subparser *downcast_and_lock_subparser(struct mux_subparser *m
 /*
  * Lookup for an existing subparser or create one if it does not exist
  * If the found subparser does not have child parser, lookup correct proto and spawn it
- * Return a new ref to the tcp_subparser
+ *
  * tcp_sub->mutex is locked if found
+ *
+ * Return a new ref to the tcp_subparser
  */
 static struct tcp_subparser *lookup_or_create_tcp_subparser(struct mux_parser *mux_parser,
         struct tcp_proto_info const *tcp, struct timeval const *now, unsigned way)
@@ -408,11 +438,16 @@ static struct tcp_subparser *lookup_or_create_tcp_subparser(struct mux_parser *m
     SLOG(LOG_DEBUG, "Look tcp subparser for way %d with key %"PRIu16", %"PRIu16, way, key.port[0], key.port[1]);
 
     struct mux_subparser *mux_subparser = mux_subparser_lookup(mux_parser, NULL, NULL, &key, now);
+    struct tcp_subparser *tcp_subparser = NULL;
+    if (mux_subparser) {
+        tcp_subparser = downcast_and_lock_subparser(mux_subparser);
+    }
+
     // Got a subparser with a ready parser, end of lookup
     if (mux_subparser && mux_subparser->parser) {
         SLOG(LOG_DEBUG, "Found mux_subparser@%p for this cnx, for proto %s", mux_subparser,
                 mux_subparser->parser->proto->name);
-        return downcast_and_lock_subparser(mux_subparser);
+        return tcp_subparser;
     }
 
     struct proto *requestor = NULL;
@@ -425,20 +460,19 @@ static struct tcp_subparser *lookup_or_create_tcp_subparser(struct mux_parser *m
             // Even if we have no child parser to send payload to, we want to submit payload in stream order to our plugins
             mux_subparser = tcp_subparser_new(mux_parser, NULL, NULL, &key, now);
         }
-        struct tcp_subparser *tcp_subparser = downcast_and_lock_subparser(mux_subparser);
+        tcp_subparser = DOWNCAST(mux_subparser, mux_subparser, tcp_subparser);
         set_wl_list(tcp_subparser, tcp, way);
         return tcp_subparser;
     }
 
     // Got a subparser without parser, spawn a parser
     if (mux_subparser->parser == NULL && sub_proto) {
-        struct tcp_subparser *tcp_subparser = downcast_and_lock_subparser(mux_subparser);
         tcp_mux_subparser_spawn_parser(tcp_subparser, sub_proto, requestor);
         return tcp_subparser;
     }
 
-    // No luck, got a subparser without parser and subproto
-    return downcast_and_lock_subparser(mux_subparser);
+    // No luck, got a subparser without parser and without subproto
+    return tcp_subparser;
 }
 
 static enum proto_parse_status parse_tcp_proto_info(struct tcp_proto_info *info,
@@ -502,7 +536,8 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
     struct tcp_proto_info info;
     struct tcp_hdr const *tcphdr = (struct tcp_hdr *)packet;
     size_t tcphdr_len = TCP_HDR_LENGTH(tcphdr);
-    enum proto_parse_status status = parse_tcp_proto_info(&info, parser, parent, cap_len, wire_len, tcphdr, tcphdr_len);
+    enum proto_parse_status status = parse_tcp_proto_info(&info, parser, parent, cap_len, wire_len, tcphdr,
+            tcphdr_len);
     if (status != PROTO_OK) return status;
 
     // Patch way if we have the same ip
