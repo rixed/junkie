@@ -119,6 +119,10 @@ static enum proto_parse_status netbios_parse_frame(struct netbios_parser *netbio
         streambuf_set_restart(&netbios_parser->sbuf, way, packet, NETBIOS_HEADER_SIZE + 4);
         return PROTO_TOO_SHORT;
     }
+    if (packet[0] != 0) {
+        SLOG(LOG_DEBUG, "Expected Session message type 0x00, got 0x%"PRIx8, packet[0]);
+        return PROTO_PARSE_ERR;
+    }
 
     uint32_t smb_version = READ_U32N(packet + NETBIOS_HEADER_SIZE);
     if (smb_version != CIFS_SMB_HEADER && smb_version != CIFS_SMB2_HEADER) {
