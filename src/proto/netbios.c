@@ -128,9 +128,9 @@ static enum proto_parse_status netbios_parse_frame(struct netbios_parser *netbio
     if (smb_version != CIFS_SMB_HEADER && smb_version != CIFS_SMB2_HEADER) {
         static unsigned char smb_header[4] = {0xff, 0x53, 0x4d, 0x42};
         static unsigned char smb2_header[4] = {0xfe, 0x53, 0x4d, 0x42};
-        void *res = memmem(packet, cap_len, &smb_header, sizeof(smb_header));
+        void *res = memmem(packet + NETBIOS_HEADER_SIZE, cap_len, &smb_header, sizeof(smb_header));
         if (!res) {
-            res = memmem(packet, cap_len, &smb2_header, sizeof(smb2_header));
+            res = memmem(packet + NETBIOS_HEADER_SIZE, cap_len, &smb2_header, sizeof(smb2_header));
         }
         if (!res) {
             SLOG(LOG_DEBUG, "Netbios payload does not expected header (expected %"PRIx32" or %"PRIx32"), got %"PRIx32,
