@@ -4543,7 +4543,7 @@ static enum proto_parse_status parse_smb2_read_request(struct cifs_parser unused
         struct cursor *cursor, struct cifs_proto_info *info, struct timeval unused_ const *now)
 {
     READ_AND_CHECK_STRUCTURE_SIZE(49);
-    CHECK(14 + 8);
+    CHECK(14 + 16);
     cursor_drop(cursor, 14); // Padding + flags + length + offset
     parse_smb2_fid(cursor, info);
     // Don't care about the rest
@@ -4600,7 +4600,7 @@ static enum proto_parse_status parse_smb2_query_directory_request(struct cifs_pa
         struct cifs_proto_info *info, struct timeval unused_ const *now)
 {
     READ_AND_CHECK_STRUCTURE_SIZE(33);
-    CHECK(6 + 8 + 2 + 2 + 2 + 4);
+    CHECK(6 + 16 + 2 + 2 + 2 + 4);
     cursor_drop(cursor, 6); // File information + flags + file index
     parse_smb2_fid(cursor, info);
     cursor_drop(cursor, 2); // offset
@@ -4679,7 +4679,7 @@ static enum proto_parse_status parse_smb2_create_response(struct cifs_parser unu
     unsigned to_drop = 1 + 1 + 4 + 8 // OpLockLevel + Flags + CreateAction + CreationTime
         + 8 + 8 + 8 + 8 // LastAccessTime + LastWriteTime + ChangeTime + AllocationSize
         + 8 + 4 + 4; // EndOfFile + FileAttributes + Reserved2
-    CHECK(to_drop + 8 + 4 + 4);
+    CHECK(to_drop + 16 + 4 + 4);
     cursor_drop(cursor, to_drop);
     parse_smb2_fid(cursor, info);
     cursor_drop(cursor, 4); // skip CreateContextOffset
@@ -4701,7 +4701,7 @@ static enum proto_parse_status parse_smb2_write_request(struct cifs_parser unuse
         struct cifs_proto_info *info, struct timeval unused_ const *now)
 {
     READ_AND_CHECK_STRUCTURE_SIZE(49);
-    CHECK(2 + 4 + 8 + 8);
+    CHECK(2 + 4 + 8 + 16);
     cursor_drop(cursor, 2); // Dataoffset
     info->query_write_bytes = cursor_read_u32le(cursor);
     cursor_drop(cursor, 8); // offset
@@ -4740,7 +4740,7 @@ static enum proto_parse_status parse_smb2_close_request(struct cifs_parser unuse
         struct cifs_proto_info *info, struct timeval unused_ const *now)
 {
     READ_AND_CHECK_STRUCTURE_SIZE(24);
-    CHECK(6 + 8);
+    CHECK(6 + 16);
     cursor_drop(cursor, 6); // Flags
     parse_smb2_fid(cursor, info);
     return PROTO_OK;
@@ -4761,7 +4761,7 @@ static enum proto_parse_status parse_smb2_query_info_request(struct cifs_parser 
 {
     READ_AND_CHECK_STRUCTURE_SIZE(41);
     unsigned to_drop = 1 + 1 + 4 + 2 + 2 + 4 + 4 + 4;
-    CHECK(to_drop + 8);
+    CHECK(to_drop + 16);
     cursor_drop(cursor, to_drop);
     parse_smb2_fid(cursor, info);
     return PROTO_OK;
@@ -4796,7 +4796,7 @@ static enum proto_parse_status parse_smb2_flush_request(struct cifs_parser unuse
         struct cifs_proto_info *info, struct timeval unused_ const *now)
 {
     READ_AND_CHECK_STRUCTURE_SIZE(24);
-    CHECK(4 + 8);
+    CHECK(4 + 16);
     cursor_drop(cursor, 4); // skip Reserved1 and Reserved2
     parse_smb2_fid(cursor, info);
     return PROTO_OK;
@@ -4819,16 +4819,16 @@ static enum proto_parse_status parse_smb2_ioctl_request(struct cifs_parser *cifs
 {
     uint8_t const *start_cursor = cursor->head;
     READ_AND_CHECK_STRUCTURE_SIZE(57);
-    unsigned to_drop_2 = 4 + 4 + 4 // skip MaxInputResponse, OutputOffset, OutputCount
+    unsigned to_drop = 4 + 4 + 4 // skip MaxInputResponse, OutputOffset, OutputCount
         + 4 + 4 + 4; // MaxOutputResponse, Flags, Reserved2
-    CHECK(2 + 4 + 8 + 4 + 4 + to_drop_2);
+    CHECK(2 + 4 + 16 + 4 + 4 + to_drop);
     cursor_drop(cursor, 2); // skip Reserved
     enum ctl_code ctl_code = cursor_read_u32le(cursor);
     parse_smb2_fid(cursor, info);
 
     uint32_t input_offset = cursor_read_u32le(cursor);
     uint32_t input_count = cursor_read_u32le(cursor);
-    cursor_drop(cursor, to_drop_2);
+    cursor_drop(cursor, to_drop);
 
     switch(ctl_code) {
         case FSCTL_GET_REPARSE_POINT:
@@ -4913,7 +4913,7 @@ static enum proto_parse_status parse_smb2_ioctl_response(struct cifs_parser unus
         struct cifs_proto_info *info, struct timeval unused_ const *now)
 {
     READ_AND_CHECK_STRUCTURE_SIZE(49);
-    CHECK(2 + 4 + 8 + 12 + 4 + 8);
+    CHECK(2 + 4 + 16 + 12 + 4 + 8);
     cursor_drop(cursor, 2); // skip Reserved
     enum ctl_code ctl_code = cursor_read_u32le(cursor);
     parse_smb2_fid(cursor, info);
@@ -4964,7 +4964,7 @@ static enum proto_parse_status parse_smb2_lock_request(struct cifs_parser unused
         struct cifs_proto_info *info, struct timeval unused_ const *now)
 {
     READ_AND_CHECK_STRUCTURE_SIZE(48);
-    CHECK(6 + 8);
+    CHECK(6 + 16);
     cursor_drop(cursor, 6); // skip LockCount, LockSequence
     parse_smb2_fid(cursor, info);
     return PROTO_OK;
@@ -4984,7 +4984,7 @@ static enum proto_parse_status parse_smb2_change_notify_request(struct cifs_pars
         struct cifs_proto_info *info, struct timeval unused_ const *now)
 {
     READ_AND_CHECK_STRUCTURE_SIZE(32);
-    CHECK(6 + 8);
+    CHECK(6 + 16);
     cursor_drop(cursor, 6); // skip Flags, OutputBufferLength
     parse_smb2_fid(cursor, info);
     return PROTO_OK;
@@ -5024,7 +5024,7 @@ static enum proto_parse_status parse_smb2_set_info_request(struct cifs_parser un
         struct cifs_proto_info *info, struct timeval unused_ const *now)
 {
     READ_AND_CHECK_STRUCTURE_SIZE(33);
-    CHECK(2 + 4 + 8 + 8);
+    CHECK(2 + 4 + 8 + 16);
     cursor_drop(cursor, 2); // skip InfoType, FileInfoClass
     info->meta_write_bytes = cursor_read_u32le(cursor);
     cursor_drop(cursor, 8); // skip BufferOffset, Reserved, AdditionalInformation
