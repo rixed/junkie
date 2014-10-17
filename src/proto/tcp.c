@@ -206,14 +206,12 @@ static SCM g_tcp_del_port(SCM name, SCM port_min, SCM port_max)
 
 static struct pkt_wl_config tcp_wl_config;
 
-static struct mutex_pool tcp_locks;
-
 // We overload the mux_subparser in order to store a waiting list.
 struct tcp_subparser {
     uint32_t fin_seqnum[2];     // indice = way
     uint32_t max_acknum[2];
     struct pkt_wait_list wl[2]; // for packets reordering.
-    struct mutex *mutex;        // protects pkt_wait_lists, proto and parser since they can be erased by waiting list
+    struct mutex mutex;         // protects pkt_wait_lists, proto and parser since they can be erased by waiting list
 #   define SET_FOR_WAY(way, field) (field |= (1U<<way))
 #   define RESET_FOR_WAY(way, field) (field &= ~(1U<<way))
 #   define IS_SET_FOR_WAY(way, field) (!!(field & (1U<<way)))
@@ -276,8 +274,8 @@ static int tcp_subparser_ctor(struct tcp_subparser *tcp_sub, struct mux_parser *
         return -1;
     }
 
-    tcp_sub->mutex = mutex_pool_anyone(&tcp_locks);
-    mutex_lock(tcp_sub->mutex);
+    mutex_ctor(&tcp_sub->mutex, "TCP subparser");
+    mutex_lock(&tcp_sub->mutex);
 
     // Now that everything is ready, make this subparser public
     if (0 != mux_subparser_ctor(&tcp_sub->mux_subparser, mux_parser, child, requestor, key, now)) {
@@ -323,7 +321,7 @@ struct mux_subparser *tcp_subparser_and_parser_new(struct parser *parser, struct
     struct mux_subparser *mux_subparser = mux_subparser_and_parser_new(mux_parser, proto, requestor, &key, now);
     if (likely_(mux_subparser)) {
         struct tcp_subparser *tcp_subparser = DOWNCAST(mux_subparser, mux_subparser, tcp_subparser);
-        *mutex = tcp_subparser->mutex;
+        *mutex = &tcp_subparser->mutex;
     }
     return mux_subparser;
 }
@@ -331,6 +329,8 @@ struct mux_subparser *tcp_subparser_and_parser_new(struct parser *parser, struct
 static void tcp_subparser_dtor(struct tcp_subparser *tcp_subparser)
 {
     SLOG(LOG_DEBUG, "Destructing TCP subparser @%p", tcp_subparser);
+
+    mutex_dtor(&tcp_subparser->mutex);
 
     pkt_wait_list_dtor(tcp_subparser->wl+0);
     pkt_wait_list_dtor(tcp_subparser->wl+1);
@@ -418,7 +418,7 @@ static struct tcp_subparser *downcast_and_lock_subparser(struct mux_subparser *m
 {
     assert(mux_subparser);
     struct tcp_subparser *tcp_subparser = DOWNCAST(mux_subparser, mux_subparser, tcp_subparser);
-    mutex_lock(tcp_subparser->mutex);
+    mutex_lock(&tcp_subparser->mutex);
     return tcp_subparser;
 }
 
@@ -619,7 +619,7 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
         SLOG(LOG_DEBUG, "No suitable subparser for this payload, deref it");
         tcp_mux_subparser_reset_proto(tcp_sub);
     }
-    mutex_unlock(tcp_sub->mutex);
+    mutex_unlock(&tcp_sub->mutex);
 
     mux_subparser_unref(&subparser);
 
@@ -639,7 +639,6 @@ static struct ip_subproto ip_subproto, ip6_subproto;
 
 void tcp_init(void)
 {
-    mutex_pool_ctor(&tcp_locks, "TCP subparsers");
     log_category_proto_tcp_init();
     pkt_wl_config_ctor(&tcp_wl_config, "TCP-reordering", 100000, 20, 100000, 3 /* REORDERING TIMEOUT (second) */, true);
 
@@ -683,7 +682,6 @@ void tcp_fini(void)
     ip6_subproto_dtor(&ip6_subproto);
     mux_proto_dtor(&mux_proto_tcp);
     pkt_wl_config_dtor(&tcp_wl_config);
-    mutex_pool_dtor(&tcp_locks);
 #   endif
 
     log_category_proto_tcp_fini();
