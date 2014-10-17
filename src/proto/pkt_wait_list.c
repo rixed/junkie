@@ -307,7 +307,7 @@ static enum proto_parse_status pkt_wait_list_empty(struct pkt_wait_list *pkt_wl)
 
 /*
  * Empty Waiting list and parse given payload.
- * Used after ip reassembly, waiting list is destroy after flush.
+ * Used after ip reassembly, waiting list is destroyed after flush.
  */
 enum proto_parse_status pkt_wait_list_flush(struct pkt_wait_list *pkt_wl, uint8_t *payload, size_t cap_len, size_t wire_len)
 {

@@ -395,7 +395,7 @@ static struct tcp_subparser *downcast_and_lock_subparser(struct mux_subparser *m
 }
 
 /*
- * Lookup for an existing subparser or create one if it does not exists
+ * Lookup for an existing subparser or create one if it does not exist
  * If the found subparser does not have child parser, lookup correct proto and spawn it
  * Return a new ref to the tcp_subparser
  * tcp_sub->mutex is locked if found
