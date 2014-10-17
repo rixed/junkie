@@ -182,6 +182,7 @@ static enum proto_parse_status parse_last_packet(struct parser *parser, struct p
         assert(dir->cap_len == 80);
         assert(dir->buffer_is_malloced == 1);
         streambuf_set_restart(sbuf, way, packet + len_payload, 0);
+        return PROTO_TOO_SHORT;
     } else if (parse_last_packet_called == 3) {
         // Restart at the start of the second packet, advance of 100 bytes
         assert(packet[0] == 'T');

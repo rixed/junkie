@@ -268,9 +268,8 @@ static bool offset_in_last_packet(struct streambuf_unidir const *dir, size_t wir
 {
     size_t old_wire_len = dir->wire_len - wire_len;
     bool offset_in_wire = dir->restart_offset >= old_wire_len && (dir->restart_offset + dir->wait_offset) <= dir->wire_len;
-    return (dir->restart_offset > 0 &&
-            offset_in_wire &&
-            dir->restart_offset - old_wire_len < cap_len);
+    bool offset_in_captured = dir->restart_offset - old_wire_len < cap_len;
+    return (dir->restart_offset > 0 && offset_in_wire && offset_in_captured);
 }
 
 static bool offset_start_in_last_packet(struct streambuf_unidir const *dir, size_t wire_len, size_t cap_len)
@@ -341,23 +340,30 @@ enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *par
         assert(dir->restart_offset >= offset);
         SLOG(LOG_DEBUG, "parse returned %s for %s", proto_parse_status_2_str(status), streambuf_2_str(sbuf, way));
 
-        /* 3 cases here:
+        /* 4 cases here:
          * - either the parser failed,
+         * - the parser returned too short but restart is set in the current packet (with a buffer full)
          * - or it succeeded and parsed everything, and we can dispose of the buffer,
          * - or restart_offset was set somewhere because the parser expect more data (that may already been there).
          */
-        if (status == PROTO_PARSE_ERR || (status == PROTO_TOO_SHORT && dir->wire_len > dir->cap_len)) {
+        if (status == PROTO_PARSE_ERR) {
             status = PROTO_PARSE_ERR;
             dir->restart_offset -= dir->wire_len;
             goto quit;
         } else if (offset_in_last_packet(dir, cap_len, wire_len)) {
+            SLOG(LOG_DEBUG, "Offset in last packet, restarting");
             continue;
         } else if (offset_start_in_last_packet(dir, cap_len, wire_len)) {
             SLOG(LOG_DEBUG, "Restart start in last packet, buffering it");
             status = streambuf_shrink(sbuf, way, packet, cap_len, wire_len);
             goto quit;
         } else if (dir->wait_offset > 0) {
+            SLOG(LOG_DEBUG, "Keeping streambuf since we are waiting for some bytes and exit streambuf");
             if (0 != streambuf_keep(sbuf, way)) status = PROTO_PARSE_ERR;
+            goto quit;
+        } else if (status == PROTO_TOO_SHORT) {
+            status = PROTO_PARSE_ERR;
+            dir->restart_offset -= dir->wire_len;
             goto quit;
         }
     }
