@@ -122,9 +122,20 @@ static enum proto_parse_status netbios_parse_frame(struct netbios_parser *netbio
 
     uint32_t smb_version = READ_U32N(packet + NETBIOS_HEADER_SIZE);
     if (smb_version != CIFS_SMB_HEADER && smb_version != CIFS_SMB2_HEADER) {
-        SLOG(LOG_DEBUG, "Netbios payload does not expected header (expected %"PRIx32" or %"PRIx32"), got %"PRIx32,
-                CIFS_SMB_HEADER, CIFS_SMB2_HEADER, smb_version);
-        return PROTO_PARSE_ERR;
+        static unsigned char smb_header[4] = {0xff, 0x53, 0x4d, 0x42};
+        static unsigned char smb2_header[4] = {0xfe, 0x53, 0x4d, 0x42};
+        void *res = memmem(packet, cap_len, &smb_header, sizeof(smb_header));
+        if (!res) {
+            res = memmem(packet, cap_len, &smb2_header, sizeof(smb2_header));
+        }
+        if (!res) {
+            SLOG(LOG_DEBUG, "Netbios payload does not expected header (expected %"PRIx32" or %"PRIx32"), got %"PRIx32,
+                    CIFS_SMB_HEADER, CIFS_SMB2_HEADER, smb_version);
+            return PROTO_PARSE_ERR;
+        }
+        SLOG(LOG_DEBUG, "Found a SMB header in payload, restarting there");
+        streambuf_set_restart(&netbios_parser->sbuf, way, res - NETBIOS_HEADER_SIZE, NETBIOS_HEADER_SIZE + 4);
+        return PROTO_OK;
     }
 
     uint32_t len = READ_U32N((uint32_t*) packet) & 0x00ffffff;
