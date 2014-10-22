@@ -107,6 +107,10 @@ static enum proto_parse_status netbios_parse_frame(struct netbios_parser *netbio
         unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now,
         size_t tot_cap_len, uint8_t const *tot_packet, size_t *pos)
 {
+    if (cap_len == 0 && netbios_parser->sbuf.dir[way].cap_len == 0) {
+        // Ignore pure gap start
+        return PROTO_PARSE_ERR;
+    }
     if (!timeval_is_set(&netbios_parser->first_packet_tv[way])) {
         SLOG(LOG_DEBUG, "Set first packet ts for way %d to %s", way, timeval_2_str(now));
         netbios_parser->first_packet_tv[way] = *now;
@@ -138,6 +142,7 @@ static enum proto_parse_status netbios_parse_frame(struct netbios_parser *netbio
             return PROTO_PARSE_ERR;
         }
         SLOG(LOG_DEBUG, "Found a SMB header in payload, restarting there");
+        timeval_reset(netbios_parser->first_packet_tv + way);
         streambuf_set_restart(&netbios_parser->sbuf, way, res - NETBIOS_HEADER_SIZE, NETBIOS_HEADER_SIZE + 4);
         return PROTO_OK;
     }

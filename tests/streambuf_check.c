@@ -61,7 +61,8 @@ static void teardown(void)
     streambuf_dtor(&sbuf);
 }
 
-struct timeval now;
+struct timeval now = {.tv_sec = 4};
+struct timeval later = {.tv_sec = 5};
 
 // Check that we get all the payload we asked for, once
 static int check_simple(void)
@@ -162,7 +163,7 @@ static int check_max_keep(void)
 
 static enum proto_parse_status parse_last_packet(struct parser *parser, struct proto_info unused_ *info,
         unsigned way, uint8_t const *packet, size_t cap_len, size_t unused_ wire_len,
-        struct timeval const unused_ *now, size_t unused_ tot_cap_len, uint8_t const unused_ *tot_packet)
+        struct timeval const *tv, size_t unused_ tot_cap_len, uint8_t const unused_ *tot_packet)
 {
     struct streambuf *sbuf = (struct streambuf *)parser;
     struct streambuf_unidir *dir = sbuf->dir + way;
@@ -174,6 +175,7 @@ static enum proto_parse_status parse_last_packet(struct parser *parser, struct p
         assert(packet[0] == 'T');
         assert(dir->cap_len == len_payload);
         assert(dir->buffer_is_malloced == 0);
+        assert(tv->tv_sec == now.tv_sec);
         streambuf_set_restart(sbuf, way, packet, 1);
     } else if (parse_last_packet_called == 2) {
         // Second packet, we advance buffer to the start of the second packet
@@ -181,6 +183,7 @@ static enum proto_parse_status parse_last_packet(struct parser *parser, struct p
         assert(dir->wire_len == len_payload * 2);
         assert(dir->cap_len == 80);
         assert(dir->buffer_is_malloced == 1);
+        assert(tv->tv_sec == later.tv_sec);
         streambuf_set_restart(sbuf, way, packet + len_payload, 0);
         return PROTO_TOO_SHORT;
     } else if (parse_last_packet_called == 3) {
@@ -229,7 +232,7 @@ static int check_last_packet_use(void)
     CHECK_INT(dir->wire_len, len_payload);
 
     status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0, (uint8_t *)long_payload, len_payload,
-            len_payload, &now, len_payload, (uint8_t *)long_payload);   // Second one, stream should restart at the start of the second one
+            len_payload, &later, len_payload, (uint8_t *)long_payload);   // Second one, stream should restart at the start of the second one
     CHECK_INT(parse_last_packet_called, 4);
     CHECK_INT(status, PROTO_OK);
     CHECK_INT(dir->cap_len, 0);
@@ -248,7 +251,7 @@ static int check_last_packet_use(void)
 
 static enum proto_parse_status parse_restart_last_packet(struct parser *parser, struct proto_info unused_ *info,
         unsigned way, uint8_t const *packet, size_t cap_len, size_t unused_ wire_len,
-        struct timeval const unused_ *now, size_t unused_ tot_cap_len, uint8_t const unused_ *tot_packet)
+        struct timeval const *tv, size_t unused_ tot_cap_len, uint8_t const unused_ *tot_packet)
 {
     struct streambuf *sbuf = (struct streambuf *)parser;
     parse_last_packet_called++;
@@ -257,16 +260,19 @@ static enum proto_parse_status parse_restart_last_packet(struct parser *parser, 
         // Just buffer to force malloc
         assert(wire_len == len_payload);
         assert(cap_len == len_payload);
+        assert(tv->tv_sec == now.tv_sec);
         streambuf_set_restart(sbuf, way, packet, len_payload * 2);
     } else if (parse_last_packet_called == 2) {
         // Now, set restart to last packet - 4
         assert(wire_len == len_payload * 2);
         assert(cap_len == 80);
+        assert(tv->tv_sec == now.tv_sec);
         streambuf_set_restart(sbuf, way, packet + len_payload * 2 - 4, 8);
     } else if (parse_last_packet_called == 3) {
         // The last 4 bytes of the previous packet should be available
         assert(wire_len == 6 + len_payload);
         assert(cap_len == 80);
+        assert(tv->tv_sec == later.tv_sec);
         assert(packet[0] == 'e');
     } else {
         return PROTO_PARSE_ERR;
@@ -288,14 +294,14 @@ static int check_restart_last_packet(void)
             2, &now, len_payload, (uint8_t *)long_payload);
     CHECK_INT(status, PROTO_OK);
     status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0, (uint8_t *)long_payload, len_payload,
-            len_payload, &now, len_payload, (uint8_t *)long_payload);
+            len_payload, &later, len_payload, (uint8_t *)long_payload);
     CHECK_INT(status, PROTO_OK);
     return 0;
 }
 
 static enum proto_parse_status parse_cap_after_gap(struct parser *parser, struct proto_info unused_ *info,
         unsigned way, uint8_t const *packet, size_t cap_len, size_t unused_ wire_len,
-        struct timeval const unused_ *now, size_t unused_ tot_cap_len, uint8_t const unused_ *tot_packet)
+        struct timeval const *tv, size_t unused_ tot_cap_len, uint8_t const unused_ *tot_packet)
 {
     struct streambuf *sbuf = (struct streambuf *)parser;
     parse_last_packet_called++;
@@ -304,23 +310,27 @@ static enum proto_parse_status parse_cap_after_gap(struct parser *parser, struct
         // Initial payload, store it
         assert(wire_len == len_payload);
         assert(cap_len == len_payload);
+        assert(tv->tv_sec == now.tv_sec);
         streambuf_set_restart(sbuf, way, packet, 1);
     } else if (parse_last_packet_called == 2) {
         // Got a gap, keep restart at begin
         assert(wire_len == len_payload + 300);
         assert(cap_len == len_payload);
+        assert(tv->tv_sec == now.tv_sec);
         streambuf_set_restart(sbuf, way, packet, 1);
     } else if (parse_last_packet_called == 3) {
         // Got a packet after gap, cap len should stay the same
         assert(packet[0] == 'T');
         assert(wire_len == len_payload * 2 + 300);
         assert(cap_len == len_payload);
+        assert(tv->tv_sec == later.tv_sec);
         streambuf_set_restart(sbuf, way, packet + len_payload + 300, 0);
     } else if (parse_last_packet_called == 4) {
         // Restart after the gap should have captured bytes
         assert(packet[0] == 'T');
         assert(wire_len == len_payload);
         assert(cap_len == len_payload);
+        assert(tv->tv_sec == later.tv_sec);
     } else {
         return PROTO_PARSE_ERR;
     }
@@ -338,7 +348,7 @@ static int check_cap_after_gap(void)
             300, &now, 0, NULL);   // Push of gap
     CHECK_INT(status, PROTO_OK);
     status = streambuf_add(&sbuf, (struct parser *)&sbuf, NULL, 0, (uint8_t *)long_payload, len_payload,
-            len_payload, &now, len_payload, (uint8_t *)long_payload); // Add a payload after a gap
+            len_payload, &later, len_payload, (uint8_t *)long_payload); // Add a payload after a gap
     CHECK_INT(status, PROTO_OK);
     CHECK_INT(parse_last_packet_called, 4);
     return 0;
