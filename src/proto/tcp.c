@@ -586,6 +586,7 @@ static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_inf
     }
     // Now patch it into tcp info
     info.to_srv = tcp_sub->srv_way != way;
+    SLOG(LOG_DEBUG, "Parsed tcp proto info: %s ", tcp_info_2_str(&info.info));
 
     /* Use the wait_list to parse this packet.
        Notice that we do queue empty packets because subparser (or subscriber) want to receive all packets in order, including empty ones. */
