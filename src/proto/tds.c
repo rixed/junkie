@@ -103,6 +103,13 @@ struct tds_parser {
     struct timeval first_ts;
 };
 
+static char const *tds_parser_2_str(struct tds_parser *tds_parser)
+{
+    return tempstr_printf("data_left %zu, channels %d, %d, had_gap %d, pkt_number %d, first_ts %s",
+            tds_parser->data_left, tds_parser->channels[0], tds_parser->channels[1], tds_parser->had_gap,
+            tds_parser->pkt_number, timeval_2_str(&tds_parser->first_ts));
+}
+
 static char const *tds_header_2_str(struct tds_header *header)
 {
     return tempstr_printf("Type: %s, Status: %d, Length: %zu, Channel %"PRIu16", Pkt number %"PRIu8", Window %"PRIu8"",
@@ -290,6 +297,13 @@ static enum proto_parse_status tds_parse_header(struct cursor *cursor, struct td
     return PROTO_OK;
 }
 
+static void reset_tds_parser(struct tds_parser *tds_parser)
+{
+    SLOG(LOG_DEBUG, "Reset tds parser %s", tds_parser_2_str(tds_parser));
+    tds_parser->pkt_number = 1;
+    timeval_reset(&tds_parser->first_ts);
+}
+
 static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     if (cap_len == 0 && wire_len > 0) return PROTO_TOO_SHORT;   // We do not know how to handle pure gaps
@@ -300,8 +314,8 @@ static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct prot
 
     if (tds_parser->had_gap && tds_parser->data_left > 0) {
         tds_parser->data_left = wire_len > tds_parser->data_left ? 0 : tds_parser->data_left - wire_len;
-        SLOG(LOG_DEBUG, "Discard tds with gap, data_left %zu...", tds_parser->data_left);
-        timeval_reset(&tds_parser->first_ts);
+        SLOG(LOG_DEBUG, "Discard tds with gap, parser: %s", tds_parser_2_str(tds_parser));
+        reset_tds_parser(tds_parser);
         return PROTO_OK;
     }
     tds_parser->had_gap = has_gap;
@@ -335,19 +349,15 @@ static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct prot
     if (tds_header.pkt_number > 1 && ((tds_parser->pkt_number + 1) != tds_header.pkt_number)) {
         SLOG(LOG_DEBUG, "Expected pkt number %"PRIu8", got %"PRIu8"",
                 tds_parser->pkt_number + 1, tds_header.pkt_number);
-        tds_parser->pkt_number = 1;
-        timeval_reset(&tds_parser->first_ts);
+        reset_tds_parser(tds_parser);
         return PROTO_PARSE_ERR;
-    } else if (tds_header.pkt_number <= 1) {
-        SLOG(LOG_DEBUG, "Reset pkt number from %"PRIu8"", tds_parser->pkt_number);
-        tds_parser->pkt_number = 1;
     }
 
     // Sanity check on channels
     if (tds_parser->channels[way] && (tds_parser->channels[way] != tds_header.channel)) {
         SLOG(LOG_DEBUG, "Expected channel %"PRIu16", got channel %"PRIu16"",
                 tds_parser->channels[way], tds_header.channel);
-        timeval_reset(&tds_parser->first_ts);
+        reset_tds_parser(tds_parser);
         return PROTO_PARSE_ERR;
     }
 
@@ -399,8 +409,8 @@ static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct prot
         }
     }
     if (tds_header.status & TDS_EOM) {
-        SLOG(LOG_DEBUG, "Reset pkt number from %"PRIu8" since we parsed an EOM", tds_parser->pkt_number);
-        tds_parser->pkt_number = 1;
+        SLOG(LOG_DEBUG, "Reset tds parser from pkt number %"PRIu8" since we parsed an EOM", tds_parser->pkt_number);
+        reset_tds_parser(tds_parser);
     }
     status = proto_parse(tds_parser->msg_parser, &info.info, way,
             cursor.head, cursor.cap_len, wire_len - TDS_PKT_HDR_LEN, now, tot_cap_len, tot_packet);
