@@ -351,10 +351,6 @@ static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct prot
         return PROTO_PARSE_ERR;
     }
 
-    if (wire_len > tds_header.len) {
-        SLOG(LOG_DEBUG, "Wire len %zu unexpected (> %zu), considering a gap", wire_len, tds_header.len);
-        has_gap = true;
-    }
     tds_parser->data_left = wire_len >= tds_header.len ? 0 : tds_header.len - wire_len;
     SLOG(LOG_DEBUG, "Data left after wire %zu", tds_parser->data_left);
     if (tds_parser->data_left > 0 && !has_gap) {
@@ -372,6 +368,11 @@ static enum proto_parse_status tds_sbuf_parse(struct parser *parser, struct prot
     if (!timeval_is_set(&tds_parser->first_ts)) {
         SLOG(LOG_DEBUG, "Setting first ts to %s for way %d since it is not setted", timeval_2_str(now), way);
         tds_parser->first_ts = *now;
+    }
+
+    if (wire_len > tds_header.len) {
+        SLOG(LOG_DEBUG, "Possible buffered packet, restarting at %zu (%zu wire_len) after parse", tds_header.len, wire_len);
+        streambuf_set_restart(&tds_parser->sbuf, way, payload + tds_header.len, TDS_PKT_HDR_LEN);
     }
 
     struct tds_proto_info info;
