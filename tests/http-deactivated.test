@@ -1,0 +1,11 @@
+#!/bin/sh
+
+NAME="HTTP"
+PCAPS="pcap/http/space_in_head_value.pcap"
+filter() {
+	grep -e '^TCP'
+}
+OUTPUT="http-deactivated.out"
+CMDLINE='(set-proto-enabled "HTTP" #f)'
+
+. "$srcdir/dump_test"

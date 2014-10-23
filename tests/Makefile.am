@@ -18,7 +18,7 @@ check_PROGRAMS = \
 
 dist_check_SCRIPTS = \
 	postgres.test mysql.test oracle.test tds.test dns.test \
-	http-truncation.test \
+	http-deactivated.test http-truncation.test \
 	pkt_source_stats.scm eth_padding.test \
 	pkt_source_dev_id.scm ftp.test gre.test \
 	ip.test timeout.scm eth.test cifs.test sip.test \
@@ -142,6 +142,7 @@ EXTRA_DIST = \
 	eth_padding.out \
 	ftp.out \
 	gre.out \
+	http-deactivated.out \
 	http-chunked.out \
 	http-multiline.out \
 	http-truncation.out \

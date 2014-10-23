@@ -454,7 +454,7 @@ static struct tcp_subparser *lookup_or_create_tcp_subparser(struct mux_parser *m
     struct proto *sub_proto = lookup_subproto(tcp, now, &requestor);
     // No subparser, spawn a new one
     if (! mux_subparser) {
-        if (sub_proto) {
+        if (sub_proto && sub_proto->enabled) {
             mux_subparser = mux_subparser_and_parser_new(mux_parser, sub_proto, requestor, &key, now);
         } else {
             // Even if we have no child parser to send payload to, we want to submit payload in stream order to our plugins

@@ -1,0 +1,12 @@
+-- pcap/http/space_in_head_value.pcap --
+TCP: head_len=40, payload=0, ports=53659->80(srv), flags=Syn, win=5840, ack=0, seq=2557234540, urg=0, opts=MSS(1460),4,8,nop,WSF(6)
+TCP: head_len=36, payload=0, ports=80(srv)->53659, flags=SynAck, win=65535, ack=2557234541, seq=3224325051, urg=0, opts=MSS(1460),4,8
+TCP: head_len=32, payload=0, ports=53659->80(srv), flags=Ack, win=5840, ack=3224325052, seq=2557234541, urg=0, opts=nop,nop,8
+TCP: head_len=32, payload=327, ports=53659->80(srv), flags=AckPsh, win=5840, ack=3224325052, seq=2557234541, urg=0, opts=nop,nop,8
+TCP: head_len=32, payload=1, ports=53659->80(srv), flags=AckPsh, win=5840, ack=3224325052, seq=2557234868, urg=0, opts=nop,nop,8
+TCP: head_len=32, payload=0, ports=80(srv)->53659, flags=Ack, win=65535, ack=2557234869, seq=3224325052, urg=0, opts=nop,nop,8
+TCP: head_len=32, payload=115, ports=80(srv)->53659, flags=AckPsh, win=65535, ack=2557234869, seq=3224325052, urg=0, opts=nop,nop,8
+TCP: head_len=32, payload=0, ports=80(srv)->53659, flags=AckFin, win=65535, ack=2557234869, seq=3224325167, urg=0, opts=nop,nop,8
+TCP: head_len=32, payload=0, ports=53659->80(srv), flags=Ack, win=5840, ack=3224325167, seq=2557234869, urg=0, opts=nop,nop,8
+TCP: head_len=32, payload=0, ports=53659->80(srv), flags=AckFin, win=5840, ack=3224325168, seq=2557234869, urg=0, opts=nop,nop,8
+TCP: head_len=32, payload=0, ports=80(srv)->53659, flags=Ack, win=65535, ack=2557234870, seq=3224325168, urg=0, opts=nop,nop,8

@@ -58,6 +58,7 @@ static struct parse_test_pkt {
             .syn = 1, .ack = 0, .rst = 0, .fin = 0,
             .window = 5840,
             .ack_num = 0, .seq_num = 3795614398,
+            .to_srv = 1,
         },
     }, {
         .size = 16*2, .packet = {
@@ -69,6 +70,7 @@ static struct parse_test_pkt {
             .syn = 0, .ack = 1, .rst = 0, .fin = 1,
             .window = 91,
             .ack_num = 3795614418, .seq_num = 931711889,
+            .to_srv = 0,
         },
     }
 };
@@ -83,6 +85,7 @@ static void tcp_info_check(struct proto_subscriber unused_ *s, struct proto_info
     assert(info->info.payload == expected->info.payload);
     assert(info->key.port[0] == expected->key.port[0]);
     assert(info->key.port[1] == expected->key.port[1]);
+    assert(info->to_srv == expected->to_srv);
 }
 
 /*
