@@ -109,9 +109,10 @@ static enum proto_parse_status netbios_parse_frame(struct netbios_parser *netbio
 {
     if (cap_len == 0 && netbios_parser->sbuf.dir[way].cap_len == 0) {
         // Ignore pure gap start
+        timeval_reset(netbios_parser->first_packet_tv + way);
         return PROTO_PARSE_ERR;
     }
-    if (!timeval_is_set(&netbios_parser->first_packet_tv[way])) {
+    if (cap_len > 0 && !timeval_is_set(&netbios_parser->first_packet_tv[way])) {
         SLOG(LOG_DEBUG, "Set first packet ts for way %d to %s", way, timeval_2_str(now));
         netbios_parser->first_packet_tv[way] = *now;
     }
@@ -125,6 +126,7 @@ static enum proto_parse_status netbios_parse_frame(struct netbios_parser *netbio
     }
     if (packet[0] != 0) {
         SLOG(LOG_DEBUG, "Expected Session message type 0x00, got 0x%"PRIx8, packet[0]);
+        timeval_reset(netbios_parser->first_packet_tv + way);
         return PROTO_PARSE_ERR;
     }
 
