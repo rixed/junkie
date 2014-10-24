@@ -456,7 +456,9 @@ static struct tcp_subparser *lookup_or_create_tcp_subparser(struct mux_parser *m
     if (! mux_subparser) {
         if (sub_proto && sub_proto->enabled) {
             mux_subparser = mux_subparser_and_parser_new(mux_parser, sub_proto, requestor, &key, now);
-        } else {
+        }
+        // We might hit the proto child limit
+        if (!mux_subparser) {
             // Even if we have no child parser to send payload to, we want to submit payload in stream order to our plugins
             mux_subparser = tcp_subparser_new(mux_parser, NULL, NULL, &key, now);
         }
