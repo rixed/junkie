@@ -224,6 +224,55 @@ int check_set_values(unsigned value, unsigned expected, unsigned mask, char cons
     return 0;
 }
 
+void compare_proto_info(struct proto_info const *const info, struct proto_info const *const expected)
+{
+    CHECK_INT(info->head_len, expected->head_len);
+    CHECK_INT(info->payload, expected->payload);
+}
+
+int check_big_int(uint64_t value, uint64_t expected, char const *field)
+{
+    if (expected != value) {
+        printf("Expected 0x%"PRIx64" got 0x%"PRIx64" from field %s\n", expected, value, field);
+        return -1;
+    }
+    return 0;
+}
+
+int check_int(uint32_t value, uint32_t expected, char const *field)
+{
+    if (expected != value) {
+        printf("Expected %"PRIu32" got %"PRIu32" from field %s\n", expected, value, field);
+        return -1;
+    }
+    return 0;
+}
+
+int check_str(char const *value, char const *expected, char const *field)
+{
+    if (0 != strcmp(expected, value)) {
+        printf("Expected '%s'\nGot      '%s' from field %s\n", expected, value, field);
+        for (unsigned i = 0; i < strlen(value); i++) {
+            if (value[i] != expected[i]) {
+                printf("Diff at character %d, got 0x%02x, expected 0x%02x\n", i, value[i], expected[i]);
+                break;
+            }
+        }
+        return -1;
+    }
+    return 0;
+}
+
+void compare_ip_proto_info(struct ip_proto_info const *const info, struct ip_proto_info const *const expected)
+{
+    compare_proto_info(&info->info, &expected->info);
+    assert(info->version == expected->version);
+    assert(0 == ip_addr_cmp(info->key.addr+0, expected->key.addr+0));
+    assert(0 == ip_addr_cmp(info->key.addr+1, expected->key.addr+1));
+    assert(info->key.protocol == expected->key.protocol);
+    assert(info->ttl == expected->ttl);
+}
+
 void set_debug_log(void)
 {
     log_set_level(LOG_DEBUG, NULL);

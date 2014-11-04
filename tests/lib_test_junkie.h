@@ -3,6 +3,7 @@
 #ifndef LIB_H_100427
 #define LIB_H_100427
 #include <junkie/proto/proto.h>
+#include <junkie/proto/ip.h>
 
 void stress_check(struct proto *proto);
 
@@ -32,40 +33,20 @@ ssize_t tcp_stream_next(struct tcp_stream *stream, unsigned *way);
 
 #define VALUES_ARE_SET(proto, x) ((proto->set_values & (x)) == (x))
 
-#define CHECK_BIG_INT(VAL, EXP) do {                  \
-    uint64_t exp = EXP;                           \
-    uint64_t val = VAL;                           \
-    if (exp != val) {                             \
-        printf("Expected 0x%"PRIx64" got 0x%"PRIx64" from field %s\n", exp, val, #VAL); \
-        return -1;                                 \
-    } } while (0)
+int check_big_int(uint64_t value, uint64_t expected, char const *field);
+#define CHECK_BIG_INT(VAL, EXP) assert(0 == check_big_int(VAL, EXP, #VAL))
 
-#define CHECK_INT(VAL, EXP) do {                  \
-    unsigned exp = EXP;                           \
-    unsigned val = VAL;                           \
-    if (exp != val) {                             \
-        printf("Expected %"PRIu32" got %"PRIu32" from field %s\n", exp, val, #VAL); \
-        return -1;                                 \
-    } } while (0)
+int check_int(uint32_t value, uint32_t expected, char const *field);
+#define CHECK_INT(VAL, EXP) assert(0 == check_int(VAL, EXP, #VAL))
 
-#define CHECK_STR(VAL, EXP) do {               \
-    char *exp = (char *)EXP;                              \
-    char *val = (char *)VAL;                              \
-    if (0 != strcmp(exp, val)) {                  \
-        printf("Expected '%s'\nGot      '%s' from field %s\n", exp, val, #VAL); \
-        for (unsigned i = 0; i < strlen(val); i++) { \
-            if (val[i] != exp[i]) { \
-               printf("Diff at character %d, got 0x%02x, expected 0x%02x\n", i, val[i], exp[i]); \
-               break; \
-            } \
-        } \
-        return -1;                                 \
-    } } while (0)
+int check_str(char const *value, char const *expected, char const *field);
+#define CHECK_STR(VAL, EXP) assert(0 == check_str(VAL, EXP, #VAL))
 
 int check_set_values(unsigned value, unsigned expected, unsigned mask, char const *mask_name);
+#define CHECK_SET_VALUE(INFO, EXPECTED, MASK) assert(0 == check_set_values(INFO->set_values, EXPECTED->set_values, MASK, #MASK))
 
-#define CHECK_SET_VALUE(INFO, EXPECTED, MASK) \
-    if (check_set_values(INFO->set_values, EXPECTED->set_values, MASK, #MASK) < 0) return -1;
+void compare_proto_info(struct proto_info const *const info, struct proto_info const *const expected);
+void compare_ip_proto_info(struct ip_proto_info const *const info, struct ip_proto_info const *const expected);
 
 void set_debug_log(void);
 

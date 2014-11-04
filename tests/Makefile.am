@@ -125,7 +125,7 @@ tds_check_SOURCES = tds_check.c lib_test_junkie.c lib_test_junkie.h sql_test.c s
 tds_check_LDADD = ../src/tools/libjunkietools.la ../src/proto/libproto.la -lm
 tns_check_SOURCES = tns_check.c lib_test_junkie.c lib_test_junkie.h sql_test.c sql_test.h
 tns_check_LDADD = ../src/tools/libjunkietools.la ../src/proto/libproto.la -lm
-der_check_SOURCES = der_check.c
+der_check_SOURCES = der_check.c lib_test_junkie.c lib_test_junkie.h
 der_check_LDADD = ../src/tools/libjunkietools.la ../src/proto/libproto.la -lm
 
 clean-local:

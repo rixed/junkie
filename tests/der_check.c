@@ -24,13 +24,12 @@ static struct parse_test {
     },
 };
 
-static int der_check(struct der *der, struct der *expected)
+static void der_check(struct der *der, struct der *expected)
 {
     CHECK_INT(der->class_identifier, expected->class_identifier);
     CHECK_INT(der->type, expected->type);
     CHECK_INT(der->class_tag, expected->class_tag);
     CHECK_INT(der->length, expected->length);
-    return 0;
 }
 
 static void parse_check(void)
@@ -42,7 +41,7 @@ static void parse_check(void)
         struct der der;
         enum proto_parse_status ret = cursor_read_der(&cursor, &der);
         assert(PROTO_OK == ret);
-        assert(0 == der_check(&der, &parse_test.expected));
+        der_check(&der, &parse_test.expected);
     }
 }
 
@@ -139,7 +138,7 @@ static void read_recursif_der(void)
         struct der der;
         cursor_read_der(&cursor, &der);
         SLOG(LOG_INFO, "Der found: %s\n", der_2_str(&der));
-        assert(0 == der_check(&der, &expecteds[i]));
+        der_check(&der, &expecteds[i]);
     }
 }
 
