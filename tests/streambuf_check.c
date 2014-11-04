@@ -362,9 +362,7 @@ int main(void)
     ext_init();
     objalloc_init();
     streambuf_init();
-    log_set_level(LOG_DEBUG, NULL);
-    log_set_level(LOG_WARNING, "mutex");
-    log_set_level(LOG_WARNING, "redim_array");
+    set_debug_log();
     log_set_file("streambuf_check.log");
 
     test_fun *funs[] = {check_simple, check_vicious, check_drop};

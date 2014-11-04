@@ -67,4 +67,6 @@ int check_set_values(unsigned value, unsigned expected, unsigned mask, char cons
 #define CHECK_SET_VALUE(INFO, EXPECTED, MASK) \
     if (check_set_values(INFO->set_values, EXPECTED->set_values, MASK, #MASK) < 0) return -1;
 
+void set_debug_log(void);
+
 #endif

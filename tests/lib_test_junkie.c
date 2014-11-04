@@ -224,3 +224,10 @@ int check_set_values(unsigned value, unsigned expected, unsigned mask, char cons
     return 0;
 }
 
+void set_debug_log(void)
+{
+    log_set_level(LOG_DEBUG, NULL);
+    log_set_level(LOG_WARNING, "mutex");
+    log_set_level(LOG_WARNING, "redim_array");
+}
+
