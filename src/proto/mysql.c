@@ -98,6 +98,7 @@ struct mysql_parser {
     unsigned c2s_way;       // The way when traffic is going from client to server (UNSET for unset)
     enum phase { NONE, STARTUP, QUERY, EXIT } phase;
     struct streambuf sbuf;
+    unsigned last_packet_num;
     unsigned nb_eof;        // count the Srv->Clt EOF packets (to parse result sets)
     enum query_command last_command;
 };
@@ -124,6 +125,7 @@ static int mysql_parser_ctor(struct mysql_parser *mysql_parser, struct proto *pr
     mysql_parser->c2s_way = UNSET;
     if (0 != streambuf_ctor(&mysql_parser->sbuf, mysql_sbuf_parse, 30000, NULL)) return -1;
     mysql_parser->nb_eof = 0;
+    mysql_parser->last_packet_num = 0;
     mysql_parser->last_command = 0;
 
     return 0;
@@ -215,7 +217,8 @@ static enum proto_parse_status cursor_read_le_string(struct cursor *cursor, char
  * | 3 bytes | 1 byte     |
  * | Length  | Packet Num |
  */
-static enum proto_parse_status read_mysql_header(struct cursor *cursor, struct mysql_header *header)
+static enum proto_parse_status read_mysql_header(struct mysql_parser *mysql_parser, struct cursor *cursor,
+        struct mysql_header *header)
 {
     assert(header);
     SLOG(LOG_DEBUG, "Reading new message");
@@ -225,8 +228,11 @@ static enum proto_parse_status read_mysql_header(struct cursor *cursor, struct m
     header->packet_num = cursor_read_u8(cursor);
 
     SLOG(LOG_DEBUG, "... of length %u and packet # %u", header->length, header->packet_num);
-
+    if (header->packet_num > 1 && mysql_parser->last_packet_num + 1 != header->packet_num) {
+        return PROTO_PARSE_ERR;
+    }
     CHECK(header->length);
+    mysql_parser->last_packet_num = header->packet_num;
 
     return PROTO_OK;
 }
@@ -250,7 +256,7 @@ static enum proto_parse_status mysql_parse_init(struct mysql_parser *mysql_parse
     struct cursor cursor;
     cursor_ctor(&cursor, payload, cap_len);
     struct mysql_header header;
-    enum proto_parse_status status = read_mysql_header(&cursor, &header);
+    enum proto_parse_status status = read_mysql_header(mysql_parser, &cursor, &header);
     if (status != PROTO_OK) return status;
     if (header.packet_num != 0) return PROTO_PARSE_ERR;
     if (header.length < 1) return PROTO_PARSE_ERR;    // should have at least the version number
@@ -485,7 +491,7 @@ static enum proto_parse_status mysql_parse_startup(struct mysql_parser *mysql_pa
     SLOG(LOG_DEBUG, "Set values before %u", info->set_values);
 
     struct mysql_header header;
-    enum proto_parse_status status = read_mysql_header(&cursor, &header);
+    enum proto_parse_status status = read_mysql_header(mysql_parser, &cursor, &header);
     if (status != PROTO_OK) return status;
     if (info->is_query) {
         status = mysql_parse_client_login(&cursor, &header, info);
@@ -641,7 +647,7 @@ static enum proto_parse_status mysql_parse_query(struct mysql_parser *mysql_pars
     while (! cursor_is_empty(&cursor)) {
         last_start = cursor.head;
 
-        status = read_mysql_header(&cursor, &header);
+        status = read_mysql_header(mysql_parser, &cursor, &header);
         if (status != PROTO_OK) break;
         if (info->is_query) {
             status = mysql_parse_client_query(mysql_parser, &header, info, &cursor);
