@@ -359,7 +359,7 @@ enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *par
             SLOG(LOG_DEBUG, "Restart start in last packet, buffering it");
             status = streambuf_shrink(sbuf, way, packet, cap_len, wire_len);
             goto quit;
-        } else if (dir->wait_offset > 0) {
+        } else if (status == PROTO_OK && dir->wait_offset > 0) {
             SLOG(LOG_DEBUG, "Keeping streambuf since we are waiting for some bytes and exit streambuf");
             if (0 != streambuf_keep(sbuf, way)) status = PROTO_PARSE_ERR;
             goto quit;
@@ -377,6 +377,7 @@ quit:
     if (status != PROTO_OK) {
         // We might have another thread with a reference to this streambuf, we can't let it in an
         // incorrect state hopping nobody will use it since it will be deindex.
+        SLOG(LOG_DEBUG, "Not exiting on ok status, emptying buffer %s", streambuf_2_str(sbuf, way));
         dir->restart_offset = 0;
         streambuf_empty(dir);
     }

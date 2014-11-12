@@ -121,8 +121,9 @@ static enum proto_parse_status netbios_parse_frame(struct netbios_parser *netbio
         return PROTO_OK;
     }
     if (cap_len < NETBIOS_HEADER_SIZE + 4) {
-        streambuf_set_restart(&netbios_parser->sbuf, way, packet, NETBIOS_HEADER_SIZE + 4);
-        return PROTO_TOO_SHORT;
+        SLOG(LOG_DEBUG, "Got a gap on neccessary bytes");
+        timeval_reset(netbios_parser->first_packet_tv + way);
+        return PROTO_PARSE_ERR;
     }
     if (packet[0] != 0) {
         SLOG(LOG_DEBUG, "Expected Session message type 0x00, got 0x%"PRIx8, packet[0]);
@@ -193,8 +194,8 @@ static enum proto_parse_status netbios_sbuf_parse(struct parser *parser, struct 
     while (wire_len > pos) {
         size_t netbios_payload = 0;
         size_t new_cap_len = cap_len > pos ? cap_len - pos : 0;
-        SLOG(LOG_DEBUG, "Parse netbios frame with cap len %zu, wire len %zu, pos %zu (%zu bytes captured, %zu bytes in wire)",
-                cap_len, wire_len, pos, new_cap_len, wire_len - pos);
+        SLOG(LOG_DEBUG, "Parse netbios frame with parser @%p, way %d, cap len %zu, wire len %zu, pos %zu (%zu bytes captured, %zu bytes in wire)",
+                netbios_parser, way, cap_len, wire_len, pos, new_cap_len, wire_len - pos);
         enum proto_parse_status status = netbios_parse_frame(netbios_parser, parent, way,
                 packet + pos, new_cap_len, wire_len - pos, now, tot_cap_len, tot_packet, &netbios_payload);
         if (status != PROTO_OK || netbios_payload == 0) return status;
