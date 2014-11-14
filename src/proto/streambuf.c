@@ -296,6 +296,9 @@ enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *par
 
     if (dir->wire_len < dir->wait_offset) {
         proto_parse(NULL, parent, way, NULL, 0, 0, now, tot_cap_len, tot_packet); // Advertize what we already parsed
+        SLOG(LOG_DEBUG, "Need to wait for more bytes on the packet (wire len %zu, wait offset %zu)",
+                dir->wire_len, dir->wait_offset);
+        if (0 != streambuf_keep(sbuf, way)) status = PROTO_PARSE_ERR;
         goto quit;
     }
 
