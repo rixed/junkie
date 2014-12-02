@@ -138,6 +138,7 @@ static enum proto_parse_status cursor_read_der_length(struct cursor *cursor, uin
 
 enum proto_parse_status cursor_read_der(struct cursor *cursor, struct der *der)
 {
+    CHECK(1);
     enum proto_parse_status status = PROTO_OK;
     uint8_t der_header = cursor_read_u8(cursor);
     der->class_identifier = (der_header & DER_CLASS_IDENTIFIER) >> 6;
@@ -156,11 +157,13 @@ enum proto_parse_status cursor_read_der(struct cursor *cursor, struct der *der)
  */
 static uint32_t cursor_read_oid_node(struct cursor *cursor)
 {
+    CHECK(1);
     uint8_t current = cursor_read_u8(cursor);
     uint32_t node = 0;
     while (current & DER_LEFT_BIT_MASK) {
         node <<= 7;
         node |= (current & ~DER_LEFT_BIT_MASK) << 7;
+        CHECK(1);
         current = cursor_read_u8(cursor);
         SLOG(LOG_DEBUG, "Got a multibyte length, node %"PRIu32", current %"PRIu8, node, current);
     }
@@ -178,6 +181,7 @@ enum proto_parse_status cursor_read_oid(struct cursor *cursor, size_t size_oid,
     // The first two nodes are encoded on a single byte.
     // The first node is multiplied by the decimal 40 and the result is added to the value of the second node.
     uint8_t oid_indice = 0;
+    CHECK(1);
     uint8_t first_byte = cursor_read_u8(cursor);
     oid[oid_indice++] = first_byte / 40;
     oid[oid_indice++] = first_byte - oid[0] * 40;
