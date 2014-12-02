@@ -1453,6 +1453,10 @@ struct multiplex_state *multiplex_lookup(struct cifs_parser *cifs_parser, uint16
     return s;
 }
 
+/*
+ * Parser functions
+ */
+
 static const char *cifs_parser_2_str(struct cifs_parser const *cifs_parser)
 {
     char *str = tempstr_printf("Parser @%p, unicode: %d", cifs_parser, cifs_parser->unicode);

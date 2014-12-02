@@ -36,6 +36,7 @@ LOG_CATEGORY_DEF(proto_netbios);
 
 #define NETBIOS_SESSION_MESSAGE 0x00 /* unused yet */
 #define NETBIOS_HEADER_SIZE 4
+#define SMB_FLAG_SIZE 4
 
 struct netbios_parser {
     struct parser parser;
@@ -103,9 +104,9 @@ static void netbios_proto_info_ctor(struct netbios_proto_info *info, struct pars
     info->first_packet_tv = *first_packet_tv;
 }
 
-static enum proto_parse_status netbios_parse_frame(struct netbios_parser *netbios_parser, struct proto_info *parent,
-        unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now,
-        size_t tot_cap_len, uint8_t const *tot_packet, size_t *pos)
+static enum proto_parse_status netbios_parse_frame(struct netbios_parser *netbios_parser,
+        struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len,
+        struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet, size_t *pos)
 {
     if (cap_len == 0 && netbios_parser->sbuf.dir[way].cap_len == 0) {
         // Ignore pure gap start
@@ -116,11 +117,11 @@ static enum proto_parse_status netbios_parse_frame(struct netbios_parser *netbio
         SLOG(LOG_DEBUG, "Set first packet ts for way %d to %s", way, timeval_2_str(now));
         netbios_parser->first_packet_tv[way] = *now;
     }
-    if (wire_len < NETBIOS_HEADER_SIZE + 4) {
-        streambuf_set_restart(&netbios_parser->sbuf, way, packet, NETBIOS_HEADER_SIZE + 4);
+    if (wire_len < NETBIOS_HEADER_SIZE + SMB_FLAG_SIZE) {
+        streambuf_set_restart(&netbios_parser->sbuf, way, packet, NETBIOS_HEADER_SIZE + SMB_FLAG_SIZE);
         return PROTO_OK;
     }
-    if (cap_len < NETBIOS_HEADER_SIZE + 4) {
+    if (cap_len < NETBIOS_HEADER_SIZE + SMB_FLAG_SIZE) {
         SLOG(LOG_DEBUG, "Got a gap on neccessary bytes");
         timeval_reset(netbios_parser->first_packet_tv + way);
         return PROTO_PARSE_ERR;
@@ -133,20 +134,23 @@ static enum proto_parse_status netbios_parse_frame(struct netbios_parser *netbio
 
     uint32_t smb_version = READ_U32N(packet + NETBIOS_HEADER_SIZE);
     if (smb_version != CIFS_SMB_HEADER && smb_version != CIFS_SMB2_HEADER) {
-        static unsigned char smb_header[4] = {0xff, 0x53, 0x4d, 0x42};
-        static unsigned char smb2_header[4] = {0xfe, 0x53, 0x4d, 0x42};
-        void *res = memmem(packet + NETBIOS_HEADER_SIZE, cap_len, &smb_header, sizeof(smb_header));
+        static unsigned char smb_header[SMB_FLAG_SIZE] = {0xff, 0x53, 0x4d, 0x42};
+        static unsigned char smb2_header[SMB_FLAG_SIZE] = {0xfe, 0x53, 0x4d, 0x42};
+        void *res = memmem(packet + NETBIOS_HEADER_SIZE, cap_len - NETBIOS_HEADER_SIZE, &smb_header,
+                SMB_FLAG_SIZE);
         if (!res) {
-            res = memmem(packet + NETBIOS_HEADER_SIZE, cap_len, &smb2_header, sizeof(smb2_header));
+            res = memmem(packet + NETBIOS_HEADER_SIZE, cap_len - NETBIOS_HEADER_SIZE, &smb2_header,
+                    SMB_FLAG_SIZE);
         }
         if (!res) {
-            SLOG(LOG_DEBUG, "Netbios payload does not expected header (expected %"PRIx32" or %"PRIx32"), got %"PRIx32,
-                    CIFS_SMB_HEADER, CIFS_SMB2_HEADER, smb_version);
+            SLOG(LOG_DEBUG, "Netbios payload does not expected header (expected %"PRIx32" or %"PRIx32"),"
+                    " got %"PRIx32, CIFS_SMB_HEADER, CIFS_SMB2_HEADER, smb_version);
             return PROTO_PARSE_ERR;
         }
         SLOG(LOG_DEBUG, "Found a SMB header in payload, restarting there");
         timeval_reset(netbios_parser->first_packet_tv + way);
-        streambuf_set_restart(&netbios_parser->sbuf, way, res - NETBIOS_HEADER_SIZE, NETBIOS_HEADER_SIZE + 4);
+        streambuf_set_restart(&netbios_parser->sbuf, way, res - NETBIOS_HEADER_SIZE,
+                NETBIOS_HEADER_SIZE + SMB_FLAG_SIZE);
         return PROTO_OK;
     }
 
