@@ -1383,7 +1383,7 @@ struct cifs_parser {
  * Multiplex state functions
  */
 
-static int multiplex_state_ctor(struct multiplex_state *state,
+static void multiplex_state_ctor(struct multiplex_state *state,
         struct cifs_parser *cifs_parser, uint16_t multiplex_id,
         uint16_t level_of_interest, union smb_subcommand subcommand, struct timeval const *now)
 {
@@ -1394,7 +1394,6 @@ static int multiplex_state_ctor(struct multiplex_state *state,
     HASH_INSERT(&cifs_parser->multiplex_state_hash, state, &multiplex_id, multiplex_state_entry);
     timeouter_ctor(&cifs_parser->timeouter_pool, &state->timeouter, now);
     cifs_parser->last_multiplex_state = *state;
-    return 0;
 }
 
 static struct multiplex_state *multiplex_state_new(struct cifs_parser *cifs_parser,
@@ -1404,11 +1403,7 @@ static struct multiplex_state *multiplex_state_new(struct cifs_parser *cifs_pars
     if (multiplex_id == 0) return NULL;
     struct multiplex_state *multiplex_state = objalloc_nice(sizeof(*multiplex_state), "multiplex_state");
     if (! multiplex_state) return NULL;
-    if (-1 == multiplex_state_ctor(multiplex_state, cifs_parser, multiplex_id,
-                level_of_interest, subcommand, now)) {
-        objfree(multiplex_state);
-        return NULL;
-    }
+    multiplex_state_ctor(multiplex_state, cifs_parser, multiplex_id, level_of_interest, subcommand, now);
     return multiplex_state;
 }
 
@@ -1434,7 +1429,7 @@ static void multiplex_state_delete_by_timeouter(struct timeouter_pool *timeouter
     multiplex_state_del(timeouter_pool, timeouter_pool->userdata, state);
 }
 
-struct multiplex_state *multiplex_lookup(struct cifs_parser *cifs_parser, uint16_t multiplex_id,
+static struct multiplex_state *multiplex_lookup(struct cifs_parser *cifs_parser, uint16_t multiplex_id,
         struct timeval const *now) {
     struct multiplex_state *s;
     if (multiplex_id == 0) return NULL;
@@ -1551,12 +1546,8 @@ static int parse_smb_string(struct cifs_parser *cifs_parser, struct cursor *curs
 static int parse_and_check_word_count(struct cursor *cursor, uint8_t expected_word_count)
 {
     if (expected_word_count == 0xff) return -1;
-    uint8_t minimum_bytes = expected_word_count * 2;
-    if (cursor->cap_len < minimum_bytes) {
-        SLOG(LOG_DEBUG, "Expected word count of %"PRIu8", cap_len too small %zu",
-                minimum_bytes, cursor->cap_len);
-        return -1;
-    }
+    uint8_t minimum_bytes = expected_word_count * 2 + 1;
+    if (cursor->cap_len < minimum_bytes) return -1;
     uint8_t word_count = cursor_read_u8(cursor);
     if (expected_word_count != word_count) {
         SLOG(LOG_DEBUG, "Expected word count of 0x%02"PRIx8", got 0x%02"PRIx8, expected_word_count, word_count);
@@ -1568,7 +1559,7 @@ static int parse_and_check_word_count(struct cursor *cursor, uint8_t expected_wo
 static int parse_and_check_word_count_superior_or_equal(struct cursor *cursor, uint8_t minimum_word_count)
 {
     if (minimum_word_count == 0xff) return -1;
-    uint8_t minimum_bytes = minimum_word_count * 2;
+    uint8_t minimum_bytes = minimum_word_count * 2 + 1;
     if (cursor->cap_len < minimum_bytes) return -1;
     uint8_t word_count = cursor_read_u8(cursor);
     if (word_count < minimum_word_count) {
@@ -1696,9 +1687,11 @@ static enum proto_parse_status parse_ntlm_request_message(struct cursor *cursor,
     uint16_t domain_length = cursor_read_u16le(cursor);
     cursor_drop(cursor, 2);
     uint32_t domain_offset = cursor_read_u32le(cursor);
+
     uint16_t user_length = cursor_read_u16le(cursor);
     cursor_drop(cursor, 2);
     uint32_t user_offset = cursor_read_u32le(cursor);
+
     uint16_t workstation_length = cursor_read_u16le(cursor);
     cursor_drop(cursor, 2);
     uint32_t workstation_offset = cursor_read_u32le(cursor);
@@ -1792,6 +1785,7 @@ static enum proto_parse_status parse_krb5_blob(struct cursor *cursor, struct cif
     PARSE_DER_OID();
     if (!memcmp(oid, krb5_oid, sizeof(krb5_oid))) return PROTO_PARSE_ERR;
     // 2 bytes token id
+    CHECK(2);
     uint16_t tok_id = cursor_read_u16le(cursor);
     SLOG(LOG_DEBUG, "Found tok id %"PRIu16, tok_id);
     if (tok_id == 1) {
@@ -1967,11 +1961,13 @@ static enum proto_parse_status parse_security_buffer(struct cursor *cursor, stru
     info->set_values |= CIFS_PATH;
 
 #define PARSE_SMB2_PATH(info, length) \
+    CHECK(length);\
     if (cursor_read_fixed_utf16(cursor, get_iconv(), info->u.path, sizeof(info->u.path), length) < 0) \
         return PROTO_PARSE_ERR; \
     info->set_values |= CIFS_PATH;
 
 #define PARSE_SMB2_TREE(info, length) \
+    CHECK(length);\
     if (cursor_read_fixed_utf16(cursor, get_iconv(), info->u.path, sizeof(info->u.path), length) < 0) \
         return PROTO_PARSE_ERR; \
     info->set_values |= CIFS_TREE;
@@ -2144,7 +2140,7 @@ static enum proto_parse_status parse_session_setup_andx_response_normal(struct c
 static enum proto_parse_status parse_session_setup_andx_response_security_blob(struct cifs_parser *cifs_parser,
         struct cursor *cursor, struct cifs_proto_info *info)
 {
-    CHECK(6);
+    CHECK(6 + 2);
 
     cursor_drop(cursor, 6);
     uint16_t blob_length = cursor_read_u16le(cursor);
@@ -2994,7 +2990,9 @@ static enum proto_parse_status parse_nt_transact_request(struct cifs_parser *cif
                     return status;
 
                 // skip until the SecurityDescriptorLength
-                CHECK_AND_DROP(4 + 4 + 4 + 8 + 4 + 4 + 4 + 4);
+                static unsigned to_drop = 4 * 3 + 8 + 4 * 4;
+                CHECK(to_drop + 4 * 2);
+                cursor_drop(cursor, to_drop);
                 uint32_t security_desc_length = cursor_read_u32le(cursor);
                 uint32_t ea_info_length = cursor_read_u32le(cursor);
                 info->meta_write_bytes = security_desc_length + ea_info_length;
@@ -3112,7 +3110,7 @@ static enum proto_parse_status parse_nt_transact_response(struct cifs_parser *ci
              * | USHORT       | SMB_NMPIPE_STATUS | UCHAR     |
              * | ResourceType | NMPipeStatus      | Directory |
              */
-            CHECK(12);
+            CHECK(16);
             cursor_drop(cursor, 2); // skip OpLockLevel, Reserved
             cifs_set_fid(info, cursor_read_u16le(cursor));
             cursor_drop(cursor, 8); // skip CreateAction
@@ -3200,6 +3198,7 @@ static enum proto_parse_status parse_transaction_request(struct cifs_parser *cif
     cursor_drop(cursor, 1); // reserved3
 
     // read subcommand
+    CHECK(2);
     info->subcommand.transaction_subcmd = cursor_read_u16le(cursor);
     multiplex_state_new(cifs_parser, info->ids.multiplex_id, 0, info->subcommand, now);
     info->set_values |= CIFS_TRANSACTION_SUBCMD;
@@ -3220,6 +3219,7 @@ static enum proto_parse_status parse_transaction_request(struct cifs_parser *cif
              * | PipeState |
              **/
             // retrieve fid
+            CHECK(2);
             cifs_set_fid(info, cursor_read_u16le(cursor));
             info->meta_write_bytes = parameter_count;
             break;
@@ -3240,6 +3240,7 @@ static enum proto_parse_status parse_transaction_request(struct cifs_parser *cif
              * The Name always contains "/PIPE/" for these commands.
              **/
             // retrieve fid
+            CHECK(2);
             cifs_set_fid(info, cursor_read_u16le(cursor));
             break;
 
@@ -3261,6 +3262,7 @@ static enum proto_parse_status parse_transaction_request(struct cifs_parser *cif
              * | WriteData[]     |
              **/
             // retrieve fid
+            CHECK(2);
             cifs_set_fid(info, cursor_read_u16le(cursor));
             info->query_write_bytes = data_count;
             break;
@@ -4232,8 +4234,8 @@ static enum proto_parse_status parse_search_response(struct cifs_parser unused_ 
 
     if(-1 == parse_and_check_byte_count_superior_or_equal(cursor, 0x3)) return PROTO_PARSE_ERR;
     // drop BufferFormat
-    CHECK_AND_DROP(1);
-
+    CHECK(3);
+    cursor_drop(cursor, 1);
     info->meta_read_bytes = cursor_read_u16le(cursor);
     return PROTO_OK;
 }
@@ -4264,7 +4266,6 @@ static enum proto_parse_status parse_find_request(struct cifs_parser *cifs_parse
     cursor_drop(cursor, 0x02 * 2);
 
     if(-1 == parse_and_check_byte_count_superior_or_equal(cursor, 0x5)) return PROTO_PARSE_ERR;
-
     // skip to FileName
     CHECK_AND_DROP(1);
     // the filename immediately follows the bufferformat
@@ -4297,8 +4298,8 @@ static enum proto_parse_status parse_find_response(struct cifs_parser unused_ *c
 
     if(-1 == parse_and_check_byte_count_superior_or_equal(cursor, 0x3)) return PROTO_PARSE_ERR;
     // drop BufferFormat
-    CHECK_AND_DROP(1);
-
+    CHECK(3);
+    cursor_drop(cursor, 1);
     info->meta_read_bytes = cursor_read_u16le(cursor);
     return PROTO_OK;
 }
@@ -4362,8 +4363,8 @@ static enum proto_parse_status parse_find_unique_response(struct cifs_parser unu
 
     if(-1 == parse_and_check_byte_count_superior_or_equal(cursor, 0x3)) return PROTO_PARSE_ERR;
     // drop BufferFormat
-    CHECK_AND_DROP(1);
-
+    CHECK(3);
+    cursor_drop(cursor, 1);
     info->meta_read_bytes = cursor_read_u16le(cursor);
     return PROTO_OK;
 }
@@ -4394,7 +4395,6 @@ static enum proto_parse_status parse_find_close_request(struct cifs_parser *cifs
     cursor_drop(cursor, 0x02 * 2);
 
     if(-1 == parse_and_check_byte_count_superior_or_equal(cursor, 0x1a)) return PROTO_PARSE_ERR;
-
     // skip to FileName
     CHECK_AND_DROP(1);
     // the filename immediately follows the bufferformat
@@ -4421,7 +4421,6 @@ static enum proto_parse_status parse_nt_rename_request(struct cifs_parser *cifs_
     cursor_drop(cursor, 0x04 * 2);
 
     if(-1 == parse_and_check_byte_count_superior_or_equal(cursor, 0x04)) return PROTO_PARSE_ERR;
-
     // skip to OldFileName
     CHECK_AND_DROP_WITH_PADDING(1);
     PARSE_SMB_PATH(info);
@@ -4620,7 +4619,7 @@ static enum proto_parse_status parse_smb2_query_directory_request(struct cifs_pa
         struct cifs_proto_info *info, struct timeval unused_ const *now)
 {
     READ_AND_CHECK_STRUCTURE_SIZE(33);
-    CHECK(6 + 16 + 2 + 2 + 2 + 4);
+    CHECK(6 + 16 + 2 + 2 + 4);
     cursor_drop(cursor, 6); // File information + flags + file index
     parse_smb2_fid(cursor, info);
     cursor_drop(cursor, 2); // offset
@@ -4873,8 +4872,7 @@ static enum proto_parse_status parse_smb2_ioctl_request(struct cifs_parser *cifs
                 if (PROTO_OK != (status = drop_parameter_padding(cursor, SMB2_HEADER_SIZE, start_cursor, input_offset)))
                     return status;
                 // skip MaxReferralLevel
-                CHECK(2);
-                cursor_drop(cursor, 2);
+                CHECK_AND_DROP(2);
                 PARSE_SMB_PATH(info);
             }
             break;
@@ -4898,13 +4896,11 @@ static enum proto_parse_status parse_smb2_ioctl_request(struct cifs_parser *cifs
                 cursor_drop(cursor, 8);
                 uint32_t name_length = cursor_read_u32le(cursor);
                 // drop TimeoutSpecified, Padding
-                cursor_drop(cursor, 2 + compute_padding(cifs_parser, cursor, 2, 2));
+                CHECK_AND_DROP(2 + compute_padding(cifs_parser, cursor, 2, 2));
                 PARSE_SMB2_PATH(info, name_length);
             }
             break;
         case FSCTL_QUERY_NETWORK_INTERFACE_INFO:
-            /* nothing to retrieve */
-            break;
         case FSCTL_CREATE_OR_GET_OBJECT_ID:
             /* nothing to retrieve */
             break;
@@ -4942,9 +4938,6 @@ static enum proto_parse_status parse_smb2_ioctl_response(struct cifs_parser unus
     cursor_drop(cursor, 8); // Flags, Reserved2
 
     switch(ctl_code) {
-        case FSCTL_DFS_GET_REFERRALS:
-            /* nothing to retrieve */
-            break;
         case FSCTL_PIPE_TRANSCEIVE:
             info->response_read_bytes = output_count;
             break;
@@ -4960,6 +4953,7 @@ static enum proto_parse_status parse_smb2_ioctl_response(struct cifs_parser unus
         case FSCTL_CREATE_OR_GET_OBJECT_ID:
             info->meta_read_bytes = output_count;
             break;
+        case FSCTL_DFS_GET_REFERRALS:
         case FSCTL_VALIDATE_NEGOTIATE_INFO:
             /* nothing to retrieve */
             break;
