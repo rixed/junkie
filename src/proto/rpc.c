@@ -28,6 +28,13 @@
 
 LOG_CATEGORY_DEF(proto_rpc);
 
+static void const *rpc_info_addr(struct proto_info const *info_, size_t *size)
+{
+    struct rpc_proto_info const *info = DOWNCAST(info_, info, rpc_proto_info);
+    if (size) *size = sizeof(*info);
+    return info;
+}
+
 static char const *msg_type_2_str(enum msg_type msg_type)
 {
     switch (msg_type) {
@@ -164,7 +171,7 @@ void rpc_init(void)
         .parser_new = uniq_parser_new,
         .parser_del = uniq_parser_del,
         .info_2_str = rpc_info_2_str,
-        .info_addr  = proto_info_addr,
+        .info_addr  = rpc_info_addr,
     };
     uniq_proto_ctor(&uniq_proto_rpc, &ops, "RPC", PROTO_CODE_RPC);
     port_muxer_ctor(&nfs_tcp_port_muxer, &tcp_port_muxers, 2049, 2049, proto_rpc);
