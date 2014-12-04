@@ -65,6 +65,7 @@ char const *rpc_info_2_str(struct proto_info const *info_)
 }
 
 #define RPC_CHECK_AUTH(VAR) \
+    CHECK(8); \
     enum auth_flavor VAR = cursor_read_u32n(cursor); \
     if (VAR > RPC_AUTH_DES) { \
         SLOG(LOG_DEBUG, "Invalid VAR auth flavor (got %"PRIu32")", VAR); \
@@ -76,6 +77,7 @@ char const *rpc_info_2_str(struct proto_info const *info_)
 
 static enum proto_parse_status parse_rpc_call(struct cursor *cursor, struct rpc_proto_info *info)
 {
+    CHECK(28);
     info->u.call_msg.rpc_version = cursor_read_u32n(cursor);
     if (info->u.call_msg.rpc_version != 2) {
         SLOG(LOG_DEBUG, "Rpc version should be 2, got %"PRIu32, info->u.call_msg.rpc_version);
@@ -84,17 +86,14 @@ static enum proto_parse_status parse_rpc_call(struct cursor *cursor, struct rpc_
     info->u.call_msg.program = cursor_read_u32n(cursor);
     info->u.call_msg.program_version = cursor_read_u32n(cursor);
     info->u.call_msg.procedure = cursor_read_u32n(cursor);
-
     RPC_CHECK_AUTH(credential);
-
-    CHECK(2);
     RPC_CHECK_AUTH(auth);
-
     return PROTO_OK;
 }
 
 static enum proto_parse_status parse_rpc_reply(struct cursor *cursor, struct rpc_proto_info *info)
 {
+    CHECK(4);
     info->u.reply_msg.reply_status = cursor_read_u32(cursor);
     switch (info->u.reply_msg.reply_status) {
         case RPC_MSG_ACCEPTED:
@@ -104,6 +103,7 @@ static enum proto_parse_status parse_rpc_reply(struct cursor *cursor, struct rpc
             }
         case RPC_MSG_DENIED:
             {
+                CHECK(4);
                 enum rejected_status rejected_status = cursor_read_u32(cursor);
                 if (rejected_status > RPC_AUTH_ERROR) return PROTO_PARSE_ERR;
                 break;
@@ -112,7 +112,9 @@ static enum proto_parse_status parse_rpc_reply(struct cursor *cursor, struct rpc
     return PROTO_OK;
 }
 
-static enum proto_parse_status rpc_parse(struct parser *parser, struct proto_info *parent, unsigned unused_ way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const unused_ *now, size_t unused_ tot_cap_len, uint8_t const unused_ *tot_packet)
+static enum proto_parse_status rpc_parse(struct parser *parser, struct proto_info *parent, unsigned unused_ way,
+        uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const unused_ *now,
+        size_t unused_ tot_cap_len, uint8_t const unused_ *tot_packet)
 {
     struct cursor cursor;
     cursor_ctor(&cursor, packet, cap_len);
@@ -131,7 +133,6 @@ static enum proto_parse_status rpc_parse(struct parser *parser, struct proto_inf
     switch (info.msg_type) {
         case RPC_CALL:
             if (wire_len < 40) return PROTO_PARSE_ERR;
-            if (cap_len < 40) return PROTO_TOO_SHORT;
             status = parse_rpc_call(&cursor, &info);
             break;
         case RPC_REPLY:
