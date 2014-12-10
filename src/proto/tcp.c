@@ -281,6 +281,7 @@ static int tcp_subparser_ctor(struct tcp_subparser *tcp_sub, struct mux_parser *
     if (0 != mux_subparser_ctor(&tcp_sub->mux_subparser, mux_parser, child, requestor, key, now)) {
         pkt_wait_list_dtor(tcp_sub->wl+0);
         pkt_wait_list_dtor(tcp_sub->wl+1);
+        mutex_unlock(&tcp_sub->mutex);
         return -1;
     }
 

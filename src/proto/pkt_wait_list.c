@@ -120,6 +120,7 @@ void pkt_wait_del(struct pkt_wait *pkt, struct pkt_wait_list *pkt_wl)
 }
 
 // Same as proto_parse, but unref the parser if it fails and it builds the parser from proto if necessary
+// caller must own list->mutex
 static enum proto_parse_status proto_parse_or_die(struct pkt_wait_list *pkt_wl,
         struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len,
         struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)

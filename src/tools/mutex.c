@@ -70,7 +70,8 @@ void mutex_lock(struct mutex *mutex)
         SLOG(LOG_DEBUG, "Locked %s", mutex_name(mutex));
     } else {
         SLOG(LOG_ERR, "Cannot lock %s: %s", mutex_name(mutex), strerror(err));
-        // so be it
+        // better crash than getting a possible deadlock
+        assert(!err);
     }
 }
 
