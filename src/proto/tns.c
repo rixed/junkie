@@ -694,21 +694,21 @@ static uint8_t parse_query_header(struct cursor *cursor)
 
 struct query_candidate {
     unsigned num_candidate_size;
-    unsigned candidate_sizes[10];
+    uint64_t candidate_sizes[10];
     bool is_chunked;
     unsigned query_size;
 };
 
 #define MIN_QUERY_SIZE 10
 #define QUERY_WITH_SIZE 12
-static bool is_query_valid(struct cursor *cursor, uint8_t potential_size, uint8_t offset)
+static bool is_query_valid(struct cursor *cursor, uint64_t potential_size, uint8_t offset)
 {
-    SLOG(LOG_DEBUG, "  Check query valid of potential size %"PRIu8" and offset %"PRIu8, potential_size, offset);
+    SLOG(LOG_DEBUG, "  Check query valid of potential size %"PRIu64" and offset %"PRIu8, potential_size, offset);
     // We check if last character is printable
-    uint8_t last_char_pos = MIN(cursor->cap_len, potential_size) - 1;
+    uint64_t last_char_pos = MIN(cursor->cap_len, potential_size) - 1;
     uint8_t last_char = cursor_peek_u8(cursor, last_char_pos);
     if (!is_print(last_char)) {
-        SLOG(LOG_DEBUG, "  Last char 0x%02x at pos %u is not printable", last_char, last_char_pos);
+        SLOG(LOG_DEBUG, "  Last char 0x%02x at pos %"PRIu64" is not printable", last_char, last_char_pos);
         return false;
     }
     // We check if last character + 1 is not printable. If it is printable, size might be incorrect
@@ -759,7 +759,7 @@ static bool check_fixed_query(struct cursor *cursor, uint8_t current,
 {
     if (is_print(current) && is_print(next)) {
         for (unsigned i = 0; i < candidate->num_candidate_size; ++i) {
-            unsigned size = candidate->candidate_sizes[i];
+            uint64_t size = candidate->candidate_sizes[i];
             if (is_query_valid(cursor, size, 0)) {
                 candidate->query_size = candidate->candidate_sizes[i];
                 SLOG(LOG_DEBUG, " Found a fixed query string of size %u", candidate->query_size);
@@ -792,7 +792,7 @@ static bool lookup_query(struct cursor *cursor, struct query_candidate *candidat
         }
         if (current > 0 && current < 3 && next > MIN_QUERY_SIZE
                 && candidate->num_candidate_size < NB_ELEMS(candidate->candidate_sizes)) {
-            uint_least64_t buf = 0;
+            uint64_t buf = 0;
             // Copy cursor since we might have pattern like 0x01 Size Query
             struct cursor cursor_copy = *cursor;
             if (PROTO_OK == cursor_read_variable_int(&cursor_copy, &buf)) {
