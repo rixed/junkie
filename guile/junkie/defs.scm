@@ -209,36 +209,47 @@
     (lambda (ifname) (open-iface ifname #t capfilter caplen bufsize))
     (closed-ifaces-matching pattern)))
 
+(define (unpartitionable-filter capfilter partition-type)
+  (letrec ((main-filter (if (eq? partition-type 'port)
+                          "(tcp or udp)"
+                          "ip"))
+           (with-user   (if (string-null? capfilter)
+                          main-filter
+                          (format #f "((~a) and (~a))" capfilter main-filter))))
+    ; **BEWARE**: Due to a bug in libpcap 'test or (vlan and test)' works as expected
+    ;             while '(vlan and test) or test' DO NOT!
+    ;             Also, 'not vlan' does not work as expected.
+    (format #f "not ~a and not (vlan and ~a)" with-user with-user)))
+
+(define (partitionable-filter mask i capfilter partition-type)
+  (let* ((main-filter  (if (eq? 'port partition-type)
+                         (format #f "((tcp[0:2] + tcp[2:2]) & 0x~x = ~d) or ((udp[0:2] + udp[2:2]) & 0x~x = ~d)" mask i mask i)
+                         (format #f "((ip[14:2] + ip[18:2]) & 0x~x = ~d)" mask i)))
+         (with-user   (if (string-null? capfilter)
+                        main-filter
+                        (format #f "((~a) and (~a))" capfilter main-filter))))
+    (format #f "(~a) or (vlan and (~a))" with-user with-user)))
+
 ; build a list of pcap filter suitable to split traffic through 2^n+1 processes
 ; n must be >= 1
-(define* (pcap-filters-for-split n #:key (capfilter ""))
+; partition-type must be 'port or 'ip
+(define* (pcap-filters-for-split n #:key (capfilter "") (partition-type 'port))
   (letrec ((mask        (- (ash 1 n) 1))
            (next-filter (lambda (prevs i)
                           (if (> i mask)
                             prevs
-                            (let* ((partition   (format #f "((tcp[0:2] + tcp[2:2]) & 0x~x = ~d) or ((udp[0:2] + udp[2:2]) & 0x~x = ~d)" mask i mask i))
-                                   (with-user   (if (string-null? capfilter)
-                                                    partition
-                                                    (format #f "((~a) and (~a))" capfilter partition)))
-                                   ; **BEWARE**: Due to a bug in libpcap 'test or (vlan and test)' works as expected
-                                   ;             while '(vlan and test) or test' DO NOT!
-                                   ;             Also, 'not vlan' does not work as expected.
-                                   (vlan-aware  (format #f "(~a) or (vlan and (~a))" with-user with-user)))
-                              (next-filter (cons vlan-aware prevs) (1+ i))))))
-           (unpartionable (if (string-null? capfilter)
-                              "not (tcp or udp) and not (vlan and (tcp or udp))"
-                              ; You'd better not mess with this one, this is not your ordinary logic!
-                              (format #f "not (tcp or udp) and (~a) and not (vlan and (tcp or udp)) and (~a)" capfilter capfilter))))
-    (next-filter (list unpartionable) 0)))
+                            (next-filter (cons (partitionable-filter mask i capfilter partition-type) prevs) (1+ i)))))
+           (unpartitionable (unpartitionable-filter capfilter partition-type)))
+    (next-filter (list unpartitionable) 0)))
 
 ; Equivalent of set-ifaces for multiple CPUs
-(define*-public (open-iface-multiple n ifname #:key (capfilter "") (bufsize 0) (caplen 0) (promisc #t))
-  (let* ((filters     (pcap-filters-for-split n #:capfilter capfilter))
+(define*-public (open-iface-multiple n ifname #:key (capfilter "") (bufsize 0) (caplen 0) (promisc #t) (partition-type 'port))
+  (let* ((filters     (pcap-filters-for-split n #:capfilter capfilter #:partition-type partition-type))
          (open-single (lambda (flt) (open-iface ifname promisc flt caplen bufsize))))
     (for-each open-single filters)))
 
-(define*-public (open-pcap-multiple n fname #:key (capfilter "") (realtime #f) (localtime #f) (loop #f))
-  (let* ((filters     (pcap-filters-for-split n #:capfilter capfilter))
+(define*-public (open-pcap-multiple n fname #:key (capfilter "") (realtime #f) (localtime #f) (loop #f) (partition-type 'port))
+  (let* ((filters     (pcap-filters-for-split n #:capfilter capfilter #:partition-type partition-type))
          (open-single (lambda (flt) (open-pcap fname realtime flt localtime loop))))
     (for-each open-single filters)))
 
