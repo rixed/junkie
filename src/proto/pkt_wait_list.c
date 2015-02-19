@@ -371,6 +371,7 @@ void pkt_wait_list_dtor(struct pkt_wait_list *pkt_wl)
 
     // Avoid parsing anything
     parser_unref(pkt_wl->parser);
+    *pkt_wl->proto = NULL;
 
     enum proto_parse_status status;
     (void)pkt_wait_list_try_both(pkt_wl, &status, &timeval_unset, true);  // force parse of everything that can be
