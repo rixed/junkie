@@ -935,7 +935,9 @@ void uniq_proto_dtor(struct uniq_proto *uniq_proto)
 
 struct parser *uniq_parser_new(struct proto *proto)
 {
+    if (!proto->enabled) return NULL;
     struct uniq_proto *uniq_proto = DOWNCAST(proto, proto, uniq_proto);
+
     mutex_lock(&proto->lock);
     if (! uniq_proto->parser) {
         uniq_proto->parser = parser_new(proto);
