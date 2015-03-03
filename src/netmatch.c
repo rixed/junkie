@@ -22,6 +22,7 @@
 #include "junkie/tools/objalloc.h"
 #include "junkie/tools/files.h"
 #include "junkie/netmatch.h"
+#include <dlfcn.h>
 
 int netmatch_filter_ctor(struct netmatch_filter *netmatch, char const *libname)
 {
@@ -30,20 +31,20 @@ int netmatch_filter_ctor(struct netmatch_filter *netmatch, char const *libname)
         goto err0;
     }
 
-    netmatch->handle = lt_dlopen(libname);
+    netmatch->handle = dlopen(libname, RTLD_NOW);
     (void)file_unlink(libname);
     if (! netmatch->handle) {
-        SLOG(LOG_CRIT, "Cannot load netmatch shared object %s: %s", libname, lt_dlerror());
+        SLOG(LOG_CRIT, "Cannot load netmatch shared object %s: %s", libname, dlerror());
         goto err1;
     }
 
-    netmatch->match_fun = lt_dlsym(netmatch->handle, "match");
+    netmatch->match_fun = dlsym(netmatch->handle, "match");
     if (! netmatch->match_fun) {
         SLOG(LOG_CRIT, "Cannot find match function in netmatch shared object %s", libname);
         goto err2;
     }
 
-    unsigned const *nb_regs_ptr = lt_dlsym(netmatch->handle, "nb_registers");
+    unsigned const *nb_regs_ptr = dlsym(netmatch->handle, "nb_registers");
     if (! nb_regs_ptr) {
         SLOG(LOG_CRIT, "Cannot find nb_registers symbol in netmatch shared object %s", libname);
         goto err2;
@@ -66,7 +67,7 @@ err3:
     }
 err2:
     if (netmatch->handle) {
-        (void)lt_dlclose(netmatch->handle);
+        (void)dlclose(netmatch->handle);
         netmatch->handle = NULL;
     }
 err1:
@@ -91,7 +92,7 @@ void netmatch_filter_dtor(struct netmatch_filter *netmatch)
     }
 
     if (netmatch->handle) {
-        (void)lt_dlclose(netmatch->handle);
+        (void)dlclose(netmatch->handle);
         netmatch->handle = NULL;
     }
 }

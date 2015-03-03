@@ -30,7 +30,7 @@ struct netmatch_filter {
     char *libname;
     unsigned nb_registers;
     struct npc_register *regfile;
-    lt_dlhandle handle;
+    void *handle;
     npc_match_fn *match_fun;
 };
 
