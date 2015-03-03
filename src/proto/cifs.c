@@ -1694,12 +1694,9 @@ static enum proto_parse_status parse_ntlm_request_message(struct cursor *cursor,
 
     uint16_t workstation_length = cursor_read_u16le(cursor);
     cursor_drop(cursor, 2);
-    uint32_t workstation_offset = cursor_read_u32le(cursor);
-
-    assert(workstation_offset == (user_offset + user_length));
 
     size_t current_position = cursor->head - start;
-    CHECK(workstation_offset + workstation_length - current_position);
+    CHECK(user_offset + user_length + workstation_length - current_position);
     cursor_drop(cursor, domain_offset - current_position);
     if (-1 == cursor_read_fixed_utf16(cursor, get_iconv(), info->u.connection.domain,
                 sizeof(info->u.connection.domain), domain_length))
