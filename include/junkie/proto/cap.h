@@ -24,7 +24,7 @@ struct cap_proto_info {
     struct timeval tv;      ///< Date of arrival
 };
 
-bool collapse_ifaces;
+extern bool collapse_ifaces;
 
 void cap_init(void);
 void cap_fini(void);

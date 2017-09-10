@@ -65,7 +65,7 @@ char const *eth_proto_2_str(unsigned protocol);
 bool eth_addr_is_broadcast(unsigned char const addr[ETH_ADDR_LEN]);
 
 /// Wether or not vlans must be ignored
-bool collapse_vlans;
+extern bool collapse_vlans;
 
 void eth_init(void);
 void eth_fini(void);

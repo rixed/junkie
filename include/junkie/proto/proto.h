@@ -148,7 +148,7 @@ void full_pkt_subscribers_call(struct proto_info *, size_t tot_cap_len, uint8_t 
  * subscribers have already been called (which is not perfect since the cap proto_info
  * is deep in the stack.
  * Again, notice the callback must be thread safe. */
-struct hook pkt_hook;
+extern struct hook pkt_hook;
 
 /// A protocol implementation.
 /** Only one instance for each protocol ever exist (located in the protocol compilation unit).
@@ -643,7 +643,7 @@ struct parser *uniq_parser_new(struct proto *);
 void uniq_parser_del(struct parser *);
 
 /// The log category used for all log messages related to packet inspection
-LOG_CATEGORY_DEC(proto);
+extern LOG_CATEGORY_DEC(proto);
 
 void proto_init(void);
 void proto_fini(void);

@@ -72,6 +72,6 @@ static inline void liner_skip(struct liner *liner, size_t len)
 unsigned long long liner_strtoull(struct liner *, char const **end, int base);
 
 // Some widely used delimiters
-struct liner_delimiter_set const delim_lines, delim_blanks, delim_spaces, delim_colons, delim_semicolons;
+extern struct liner_delimiter_set const delim_lines, delim_blanks, delim_spaces, delim_colons, delim_semicolons;
 
 #endif

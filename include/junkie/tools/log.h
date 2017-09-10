@@ -89,7 +89,7 @@ static void log_category_##cat_name##_fini(void) \
 }
 
 // We have a "global" log category, used by default by SLOG if LOG_CAT is not redefined
-LOG_CATEGORY_DEC(global);
+extern LOG_CATEGORY_DEC(global);
 
 /** Set log_level of some category.
  * @param level the new log level

@@ -237,7 +237,7 @@ typedef _Bool bool;
  */
 
 /// List of all exported functions
-SLIST_HEAD(ext_functions, ext_function) ext_functions;
+extern SLIST_HEAD(ext_functions, ext_function) ext_functions;
 
 /// Describes an extension function, implemented in C and callable from guile
 struct ext_function {

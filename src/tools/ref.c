@@ -54,8 +54,8 @@ void leave_protected_region(void)
 
 static pthread_t doomer_pth;
 
-extern struct refs death_row;
-extern struct mutex death_row_mutex;
+struct refs death_row;
+struct mutex death_row_mutex;
 
 static struct bench_event dooming;
 

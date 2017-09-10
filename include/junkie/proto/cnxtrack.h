@@ -32,7 +32,7 @@
  * apply for other protocols as well.
  */
 
-struct ip_addr cnxtrack_ip_addr_unknown;
+extern struct ip_addr cnxtrack_ip_addr_unknown;
 #define ADDR_UNKNOWN (&cnxtrack_ip_addr_unknown)
 #define PORT_UNKNOWN 0U
 

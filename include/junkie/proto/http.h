@@ -11,7 +11,7 @@
  */
 
 /// We use a dedicated log category (@see log.h) for everything related to this proto
-LOG_CATEGORY_DEC(proto_http);
+extern LOG_CATEGORY_DEC(proto_http);
 
 extern struct proto *proto_http;
 
@@ -60,11 +60,11 @@ struct http_proto_info {
 /// To subscribe to HTTP "completed header" event
 /** You will receive the same http_proto_info than you'd receive for each packet,
  * but in the future it may be simpler to have distinct messages. */
-struct hook http_head_hook;    // at end of header
+extern struct hook http_head_hook;    // at end of header
 
 /// To subscribe to HTTP "body chunk" event
 /** Same remark apply */
-struct hook http_body_hook;    // at every piece of body
+extern struct hook http_body_hook;    // at every piece of body
 
 /// @return the name of an HTTP method
 char const *http_method_2_str(enum http_method);

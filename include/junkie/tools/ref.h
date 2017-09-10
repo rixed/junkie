@@ -81,8 +81,8 @@ static inline void *ref(struct ref *ref)
     return ref;
 }
 
-SLIST_HEAD(refs, ref) death_row;
-struct mutex death_row_mutex;
+extern SLIST_HEAD(refs, ref) death_row;
+extern struct mutex death_row_mutex;
 
 static inline void unref(struct ref *ref)
 {
