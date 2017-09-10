@@ -26,7 +26,7 @@
                        (primitive-log lvl file func msg)))))
 (export-syntax slog)
 
-; This one might be usefull to display all help available
+; This one might be useful to display all help available
 (define-public (help . args)
   (for-each (lambda (l)
               (display l)(newline)

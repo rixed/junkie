@@ -144,7 +144,7 @@ static void all_fini(void)
     }
 
 #   ifdef DELETE_ALL_AT_EXIT
-    /* This is sometime usefull to clean all allocated ressources
+    /* This is sometime useful to clean all allocated ressources
      * at exit to help valgrind help us find memory leaks. */
     ERR_free_strings();
 #   endif

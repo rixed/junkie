@@ -120,7 +120,7 @@ static char const *report_name(struct report *report)
     assert(!"Invalid report");
 }
 
-// Same as below but do not report it (usefull for bench_event and report itself)
+// Same as below but do not report it (useful for bench_event and report itself)
 static void bench_atomic_event_dtor_(struct bench_atomic_event *e)
 {
 #   ifdef WITH_BENCH

@@ -49,7 +49,7 @@ void eth_subproto_ctor(struct eth_subproto *eth_subproto, unsigned protocol, str
 /// Destruct an eth_subproto (deregistering the protocol implementation)
 void eth_subproto_dtor(struct eth_subproto *eth_subproto);
 
-/// Lookup into Eth subproto table (usefull for GRE)
+/// Lookup into Eth subproto table (useful for GRE)
 struct proto *eth_subproto_lookup(unsigned protocol);
 
 /// Spawn a new eth parser for given vlan_id

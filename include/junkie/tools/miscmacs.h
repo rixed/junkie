@@ -6,7 +6,7 @@
 #include <junkie/config.h>
 
 /** @file
- * @brief Various usefull MACROs
+ * @brief Various useful MACROs
  */
 
 /// Compile time assertion
@@ -28,7 +28,7 @@
 #define _STRIZE(arg) #arg
 #define STRIZE(x)  _STRIZE(x)
 
-/// NIPQUAD/PRINIPQUAD macro pair is usefull to print IP addresses
+/// NIPQUAD/PRINIPQUAD macro pair is useful to print IP addresses
 #define PRINIPQUAD "u.%u.%u.%u"
 #define QUAD(ip, q) (((uint8_t *)(ip))[q])
 #define NIPQUAD(ip) QUAD(ip, 0), QUAD(ip, 1), QUAD(ip, 2), QUAD(ip, 3)

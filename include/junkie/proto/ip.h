@@ -38,7 +38,7 @@ struct ip_proto_info {
         IP_FRAGMENT,            ///< If this is a fragment
         IP_REASSEMBLED,         ///< If this was reassembled
     } fragmentation;            ///< Only set if v4
-    unsigned id;                ///< Identification field (usefull for OS detection) (only set if v4)
+    unsigned id;                ///< Identification field (useful for OS detection) (only set if v4)
     uint8_t traffic_class;      ///< aka. TOS for IPv4
 };
 
@@ -50,7 +50,7 @@ struct ip_proto_info {
  * @return NULL if not found and not asked to create a new one. */
 struct mux_subparser *ip_subparser_lookup(struct parser *parser, struct proto *proto, struct proto *requestor, unsigned protocol, struct ip_addr const *src, struct ip_addr const *dst, unsigned *way, struct timeval const *now);
 
-/// Only usefull for proto/ip6
+/// Only useful for proto/ip6
 void const *ip_info_addr(struct proto_info const *, size_t *);
 char const *ip_info_2_str(struct proto_info const *);
 char const *ip_proto_2_str(unsigned protocol);

@@ -28,7 +28,7 @@ struct hash_base {
     unsigned size;                  ///< number of entries in this hash
     unsigned max_size;              ///< max size since last rehash
     unsigned nb_rehash;             ///< number of rehash performed
-    char const *name;               ///< usefull to retrieve this hash from guile
+    char const *name;               ///< useful to retrieve this hash from guile
 };
 
 #define HASH_TABLE(name_, type) \

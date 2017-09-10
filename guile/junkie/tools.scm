@@ -111,7 +111,7 @@
 
 (export timestamp->string)
 
-; Some tools mainly usefull for tests
+; Some tools mainly useful for tests
 
 (define-syntax assert
   (syntax-rules ()
