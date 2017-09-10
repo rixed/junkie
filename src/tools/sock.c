@@ -894,7 +894,7 @@ static int sock_unix_server_ctor(struct sock_unix *s, char const *file)
         return -1;
     }
 
-    if (0 != bind(s->fd, &local, sizeof(local))) {
+    if (0 != bind(s->fd, (const struct sockaddr*)&local, sizeof(local))) {
         SLOG(LOG_ERR, "Cannot bind(): %s", strerror(errno));
         file_close(s->fd);
         s->fd = -1;

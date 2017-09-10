@@ -120,9 +120,9 @@ char *icmp_err_2_str(struct icmp_err const *err, unsigned set_values)
     snprintf(str, TEMPSTR_SIZE, "protocol=%"PRIu8", src=%s:%"PRIu16", dst=%s:%"PRIu16,
         err->protocol,
         ip_addr_2_str(err->addr+0),
-        set_values & ICMP_ERR_PORT_SET ? err->port[0] : 0,
+        (uint16_t)(set_values & ICMP_ERR_PORT_SET ? err->port[0] : 0),
         ip_addr_2_str(err->addr+1),
-        set_values & ICMP_ERR_PORT_SET ? err->port[1] : 0);
+        (uint16_t)(set_values & ICMP_ERR_PORT_SET ? err->port[1] : 0));
     return str;
 }
 
