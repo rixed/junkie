@@ -21,6 +21,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <ctype.h>
+#include <inttypes.h>
 #include "junkie/cpp.h"
 #include "junkie/tools/log.h"
 #include "junkie/tools/string.h"
@@ -525,7 +526,7 @@ static enum proto_parse_status tns_parse_end(struct sql_proto_info *info, struct
     uint_least64_t error_code;
     status = cursor_read_variable_int(cursor, &error_code);
     if (status != PROTO_OK) return status;
-    SLOG(LOG_DEBUG, "Error code is %zu", error_code);
+    SLOG(LOG_DEBUG, "Error code is %"PRIuLEAST64, error_code);
 
     DROP_VARS(cursor, 4);
     DROP_FIX(cursor, 2);
@@ -615,7 +616,7 @@ static enum proto_parse_status tns_parse_sql_query_jdbc(struct sql_proto_info *i
     uint_least64_t sql_len;
     status = cursor_read_variable_int(cursor, &sql_len);
     if (status != PROTO_OK) return status;
-    SLOG(LOG_DEBUG, "Size sql %zu", sql_len);
+    SLOG(LOG_DEBUG, "Size sql %"PRIuLEAST64, sql_len);
 
     DROP_FIX(cursor, 1);
     // We have a number of fields at the end of the query
@@ -642,7 +643,7 @@ static enum proto_parse_status tns_parse_sql_query_jdbc(struct sql_proto_info *i
     info->set_values |= SQL_SQL;
     copy_string(info->u.query.sql, sql, sizeof(info->u.query.sql));
 
-    SLOG(LOG_DEBUG, "Skipping %zu end variable fields", end_len);
+    SLOG(LOG_DEBUG, "Skipping %"PRIuLEAST64" end variable fields", end_len);
     DROP_VARS(cursor, end_len);
     return PROTO_OK;
 }

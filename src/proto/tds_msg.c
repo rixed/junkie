@@ -826,18 +826,18 @@ static enum proto_parse_status rpc_parameter_data(struct tds_msg_parser const *t
             append_string(dst, dst_size, dst_pos, "NULL");
             break;
         case FIXED_LENGTH_TOKEN:
-            append_string(dst, dst_size, dst_pos, tempstr_printf("%"PRIu64, type_info.size));
+            append_string(dst, dst_size, dst_pos, tempstr_printf("%zu", type_info.size));
             break;
         case VARIABLE_LENGTH_TOKEN:
             {
                 // Read actual size
-                size_t length;
+                uint_least64_t length;
                 CHECK(type_info.size);
                 cursor_read_fix_int_le(cursor, &length, type_info.size);
                 if (0xFFFFULL == length) length = 0;   // NULL
                 else if (0xFFFFFFFFULL == length) length = 0;   // NULL
 
-                SLOG(LOG_DEBUG, "Actual value length %zu (%zu remaining)", length, cursor->cap_len);
+                SLOG(LOG_DEBUG, "Actual value length %"PRIuLEAST64" (%zu remaining)", length, cursor->cap_len);
                 CHECK(length);
                 // TODO: specific printer for more complex types
                 if (0 == length) {
@@ -896,7 +896,7 @@ static enum proto_parse_status rpc_parameter_data(struct tds_msg_parser const *t
                         length = cursor_read_u32le(cursor);
                         SLOG(LOG_DEBUG, "Chunk is %zu bytes long", length);
                         if (0 == length) {
-                            SLOG(LOG_DEBUG, "Hit a terminator while still waiting for %zu bytes of total length, stopping there", tot_len);
+                            SLOG(LOG_DEBUG, "Hit a terminator while still waiting for %"PRIuLEAST64" bytes of total length, stopping there", tot_len);
                             break;
                         }
                         if (length > tot_len) {
