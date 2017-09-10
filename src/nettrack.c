@@ -478,7 +478,11 @@ static void nt_graph_stop(struct nt_graph *graph)
     LIST_REMOVE(graph, entry);
     graph->started = false;
 
-    struct timeval end_of_time = END_OF_TIME;
+    static struct timeval end_of_time;
+    if (end_of_time.tv_sec == 0) {
+        gettimeofday(&end_of_time, NULL);
+        end_of_time.tv_sec += 315705600; // 10 years
+    }
 
     // age out all states capable of aging
     struct nt_edge *edge;
