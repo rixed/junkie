@@ -18,11 +18,11 @@
  * along with Junkie.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <string.h>
 #include "junkie/tools/string.h"
 #include <junkie/tools/miscmacs.h>
 
 #ifndef HAVE_STRNSTR
-#include <string.h>
 #define BUF_MAXSZ 4096
 
 char const *strnstr(char const *haystack, char const *needle, size_t len)

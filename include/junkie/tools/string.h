@@ -1,5 +1,6 @@
 #ifndef STRING_140127
 #define STRING_140127
+#include <junkie/config.h>
 #include <junkie/cpp.h>
 
 #ifndef HAVE_STRNSTR
