@@ -45,6 +45,10 @@ extern struct port_muxer_list tcp_port_muxers;
 
 int tcp_seqnum_cmp(uint32_t, uint32_t);
 
+// For testing:
+enum proto_parse_status tcp_parse(struct parser *, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet);
+bool seqnum_gt(uint32_t, uint32_t);
+
 void tcp_init(void);
 void tcp_fini(void);
 

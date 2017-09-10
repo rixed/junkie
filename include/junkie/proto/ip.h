@@ -69,6 +69,14 @@ void ip_subproto_ctor(struct ip_subproto *ip_subproto, unsigned protocol, struct
 /// Destruct an ip_subproto (and unregister this protos)
 void ip_subproto_dtor(struct ip_subproto *ip_subproto);
 
+/// Parsing functions (available for tests)
+enum proto_parse_status ip_parse(struct parser *, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *);
+
+enum proto_parse_status ip6_parse(struct parser *, struct proto_info *parent, unsigned unused_ way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet);
+
+// Also for tests:
+extern struct mux_proto mux_proto_ip;
+
 /// Construct an ip_subproto (and register this proto as subproto for the given protocol of IPv6)
 void ip6_subproto_ctor(struct ip_subproto *ip_subproto, unsigned protocol, struct proto *proto);
 

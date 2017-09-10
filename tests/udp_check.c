@@ -12,8 +12,8 @@
 #include <junkie/proto/cap.h>
 #include <junkie/proto/eth.h>
 #include <junkie/proto/ip.h>
+#include "junkie/proto/udp.h"
 #include "lib.h"
-#include "proto/udp.c"
 
 /*
  * Parse check

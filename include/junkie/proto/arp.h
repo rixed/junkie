@@ -23,6 +23,9 @@ struct arp_proto_info {
     unsigned char hw_target[ETH_ADDR_LEN];  ///< Set iff opcode == 2
 };
 
+// For testing:
+enum proto_parse_status arp_parse(struct parser *, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet);
+
 void arp_init(void);
 void arp_fini(void);
 

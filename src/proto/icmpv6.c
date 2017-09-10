@@ -153,7 +153,7 @@ static bool icmpv6_has_id(uint8_t type)
     return false;
 }
 
-static enum proto_parse_status icmpv6_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
+enum proto_parse_status icmpv6_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct icmp_hdr *icmphdr = (struct icmp_hdr *)packet;
 

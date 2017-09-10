@@ -80,6 +80,10 @@ char const *http_build_url(struct ip_addr const *server, char const *host, char 
  * @note IP address are written in v6 format. */
 char const *http_build_domain(struct ip_addr const *server, char const *host, char const *url, uint16_t const *port, int version);
 
+// For testing:
+void http_parser_reset(struct parser *);
+enum proto_parse_status http_parse(struct parser *, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet);
+
 void http_init(void);
 void http_fini(void);
 

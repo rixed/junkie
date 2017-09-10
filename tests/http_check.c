@@ -8,11 +8,12 @@
 #include <junkie/proto/eth.h>
 #include <junkie/proto/ip.h>
 #include <junkie/proto/tcp.h>
+#include <junkie/proto/http.h>
+#include <junkie/proto/streambuf.h>
 #include <junkie/tools/ext.h>
 #include <junkie/tools/objalloc.h>
 #include <junkie/proto/pkt_wait_list.h>
 #include "lib.h"
-#include "proto/http.c"
 
 /*
  * Parse check
@@ -297,13 +298,6 @@ static void http_info_check(struct proto_subscriber unused_ *s, struct proto_inf
     if (info->set_values & HTTP_SERVER_SET)     assert(0 == strcmp(info->strs+info->server,     expected->strs+expected->server));
     if (info->set_values & HTTP_URL_SET)        assert(0 == strcmp(info->strs+info->url,        expected->strs+expected->url));
     assert(info->free_strs == expected->free_strs);
-}
-
-static void http_parser_reset(struct parser *parser)
-{
-    struct http_parser *http_parser = DOWNCAST(parser, parser, http_parser);
-    http_parser->state[0].phase = http_parser->state[1].phase = HEAD;
-    http_parser->state[0].last_method = http_parser->state[1].last_method = ~0U;
 }
 
 static void parse_check(void)

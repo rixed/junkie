@@ -90,10 +90,10 @@ static void simple_check(void)
 {
     wl_check_setup();
     char *packets[] = {
-        "0. Deux mulets cheminaient, l'un d'avoine chargé,",
+        "0. Deux mulets cheminaient, l'un d'avoine charg\351,",
         "1. L'autre portant l'argent de la gabelle",
         "2. Celui-ci, glorieux d'une charge si belle,",
-        "3. N'eût voulu pour beaucoup en être soulagé."
+        "3. N'e\373t voulu pour beaucoup en \352tre soulag\351."
     };
     unsigned offset = 0;
     for (unsigned p = 0; p < NB_ELEMS(packets); p++) {
@@ -116,9 +116,9 @@ static void reorder_check(void)
     wl_check_setup();
     char *packets[] = {
         "0. Un astrologue un jour se laissa choir",
-        "1. Au fond d'un puits. On lui dit : \" Pauvre bête,",
-        "2. Tandis qu'à peine à tes pieds tu peux voir,",
-        "3. Penses-tu lire au-dessus de ta tête ? \""
+        "1. Au fond d'un puits. On lui dit : \" Pauvre b\352te,",
+        "2. Tandis qu'\340 peine \340 tes pieds tu peux voir,",
+        "3. Penses-tu lire au-dessus de ta t\352te ? \""
     };
     unsigned order[NB_ELEMS(packets)] = { 2, 1, 3, 0 };
     for (unsigned o = 0; o < NB_ELEMS(order); o++) {
@@ -158,14 +158,14 @@ static void gap_check(void)
 
 static char msg[] =
     "Pendant qu'un philosophe assure\n"
-    "Que toujours par leurs sens les hommes sont dupés,\n"
+    "Que toujours par leurs sens les hommes sont dup\351s,\n"
     "       Un autre philosophe jure\n"
-    "       Qu'ils ne nous ont jamais trompés.\n"
+    "       Qu'ils ne nous ont jamais tromp\351s.\n"
     "Tous les deux ont raison; et la philosophie\n"
     "Dit vrai, quand elle dit que les sens tromperont,\n"
     "Mais que sur leur rapport les hommes jugeront;\n"
     "       Mais aussi, si l'on rectifie\n"
-    "L'image de l'objet sur son éloignement,\n"
+    "L'image de l'objet sur son \351loignement,\n"
     "       Sur le milieu qui l'environne,\n"
     "       Sur l'organe et sur l'instrument,\n"
     "       Les sens ne tromperont personne.\n";

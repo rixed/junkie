@@ -14,8 +14,8 @@
 #include <junkie/proto/ip.h>
 #include <junkie/proto/eth.h>
 #include <junkie/proto/cap.h>
+#include <junkie/proto/dns.h>
 #include "lib.h"
-#include "proto/dns.c"
 
 /*
  * Parse Check

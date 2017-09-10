@@ -7,13 +7,14 @@
 #include <junkie/cpp.h>
 #include <junkie/tools/ext.h>
 #include <junkie/tools/objalloc.h>
+#include <junkie/tools/hash.h>
+#include <junkie/proto/streambuf.h>
 #include <junkie/proto/pkt_wait_list.h>
 #include <junkie/proto/cap.h>
 #include <junkie/proto/eth.h>
 #include <junkie/proto/ip.h>
+#include <junkie/proto/tcp.h>
 #include "lib.h"
-#include "proto/tcp.c"
-#include "proto/mysql.c"
 
 /*
  * Some unit tests
@@ -119,7 +120,6 @@ int main(void)
     ip_init();
     ip6_init();
     tcp_init();
-    mysql_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("tcp_check.log");
 
@@ -128,7 +128,6 @@ int main(void)
     stress_check(proto_tcp);
 
     doomer_stop();
-    mysql_fini();
     tcp_fini();
     ip6_fini();
     ip_fini();

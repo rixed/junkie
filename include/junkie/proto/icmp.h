@@ -35,6 +35,10 @@ struct icmp_proto_info {
 char *icmp_err_2_str(struct icmp_err const *, unsigned set_values);
 int icmp_extract_err_ports(struct icmp_err *, uint8_t const *packet);
 
+// For testing
+enum proto_parse_status icmp_parse(struct parser *, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet);
+enum proto_parse_status icmpv6_parse(struct parser *, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet);
+
 void icmp_init(void);
 void icmp_fini(void);
 

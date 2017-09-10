@@ -237,7 +237,7 @@ int tcp_seqnum_cmp(uint32_t sa, uint32_t sb)
 }
 
 // Tells if a seqnum is after another
-static bool seqnum_gt(uint32_t sa, uint32_t sb)
+bool seqnum_gt(uint32_t sa, uint32_t sb)
 {
     return tcp_seqnum_cmp(sa, sb) > 0;
 }
@@ -331,7 +331,7 @@ struct mux_subparser *tcp_subparser_lookup(struct parser *parser, struct proto *
     return mux_subparser_lookup(mux_parser, proto, requestor, &key, now);
 }
 
-static enum proto_parse_status tcp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
+enum proto_parse_status tcp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct tcp_hdr const *tcphdr = (struct tcp_hdr *)packet;

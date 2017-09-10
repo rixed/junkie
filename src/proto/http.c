@@ -183,6 +183,13 @@ struct http_parser {
     } state[2];    // One per direction (depending on "way", ie. 0 will be smaller IP)
 };
 
+void http_parser_reset(struct parser *parser)
+{
+    struct http_parser *http_parser = DOWNCAST(parser, parser, http_parser);
+    http_parser->state[0].phase = http_parser->state[1].phase = HEAD;
+    http_parser->state[0].last_method = http_parser->state[1].last_method = ~0U;
+}
+
 static char const *http_parser_phase_2_str(enum http_phase phase)
 {
     switch (phase) {
@@ -846,7 +853,7 @@ static enum proto_parse_status http_sbuf_parse(struct parser *parser, struct pro
     return -1;
 }
 
-static enum proto_parse_status http_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
+enum proto_parse_status http_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct http_parser *http_parser = DOWNCAST(parser, parser, http_parser);
     return streambuf_add(&http_parser->sbuf, parser, parent, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);

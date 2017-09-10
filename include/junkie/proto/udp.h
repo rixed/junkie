@@ -23,6 +23,9 @@ struct mux_subparser *udp_subparser_lookup(struct parser *parser, struct proto *
 
 extern struct port_muxer_list udp_port_muxers;
 
+// For testing:
+enum proto_parse_status udp_parse(struct parser *, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet);
+
 void udp_init(void);
 void udp_fini(void);
 

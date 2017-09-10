@@ -49,6 +49,11 @@ struct dns_proto_info {
     char name[255+1];               ///< Resolved name
 };
 
+// For testing:
+enum proto_parse_status dns_parse(struct parser *, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet);
+ssize_t extract_qname(char *name, size_t name_len, uint8_t const *buf, size_t buf_len, bool prepend_dot);
+bool looks_like_netbios(char const *name);
+
 void dns_init(void);
 void dns_fini(void);
 

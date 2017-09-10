@@ -97,7 +97,7 @@ static void fetch_hw(unsigned char *mac, unsigned hard_addr_fmt, uint8_t const *
     }
 }
 
-static enum proto_parse_status arp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
+enum proto_parse_status arp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct arp_hdr const *arp = (struct arp_hdr *)payload;
 

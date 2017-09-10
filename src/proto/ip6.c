@@ -81,7 +81,7 @@ void ip6_subproto_dtor(struct ip_subproto *ip_subproto)
  * Parse
  */
 
-static enum proto_parse_status ip6_parse(struct parser *parser, struct proto_info *parent, unsigned unused_ way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
+enum proto_parse_status ip6_parse(struct parser *parser, struct proto_info *parent, unsigned unused_ way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct ipv6_hdr const *iphdr = (struct ipv6_hdr *)packet;

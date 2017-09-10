@@ -10,9 +10,8 @@
 #include <junkie/proto/cap.h>
 #include <junkie/proto/eth.h>
 #include <junkie/proto/ip.h>
+#include <junkie/proto/icmp.h>
 #include "lib.h"
-#include "proto/icmp.c"
-#include "proto/icmpv6.c"
 
 /*
  * Parse check

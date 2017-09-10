@@ -403,7 +403,7 @@ static enum proto_parse_status reassemble(struct ip_reassembly *reassembly)
     return status;
 }
 
-static enum proto_parse_status ip_parse(struct parser *parser, struct proto_info *parent, unsigned unused_ way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
+enum proto_parse_status ip_parse(struct parser *parser, struct proto_info *parent, unsigned unused_ way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
     struct ip_hdr const *iphdr = (struct ip_hdr *)packet;
@@ -511,7 +511,7 @@ fallback:
  * Construction/Destruction
  */
 
-static struct mux_proto mux_proto_ip;
+struct mux_proto mux_proto_ip;
 struct proto *proto_ip = &mux_proto_ip.proto;
 static struct eth_subproto ip_eth_subproto;
 

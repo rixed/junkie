@@ -12,9 +12,8 @@
 #include <junkie/proto/cap.h>
 #include <junkie/proto/eth.h>
 #include <junkie/proto/ip.h>
+#include <junkie/proto/udp.h>
 #include "lib.h"
-#include "proto/ip.c"
-#include "proto/udp.c"
 
 static void flood_check(unsigned nb)
 {

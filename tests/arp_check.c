@@ -7,8 +7,8 @@
 #include <junkie/cpp.h>
 #include <junkie/tools/ext.h>
 #include <junkie/tools/objalloc.h>
+#include <junkie/proto/arp.h>
 #include "lib.h"
-#include "proto/arp.c"
 
 /*
  * Parse check

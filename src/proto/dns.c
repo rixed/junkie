@@ -137,7 +137,7 @@ static void dns_proto_info_ctor(struct dns_proto_info *info, struct parser *pars
  * Parse
  */
 
-static ssize_t extract_qname(char *name, size_t name_len, uint8_t const *buf, size_t buf_len, bool prepend_dot)
+ssize_t extract_qname(char *name, size_t name_len, uint8_t const *buf, size_t buf_len, bool prepend_dot)
 {
     if (buf_len == 0) return -1;
 
@@ -172,7 +172,7 @@ static void strmove(char *d, char *s)
     *d = '\0';
 }
 
-static bool looks_like_netbios(char const *name)
+bool looks_like_netbios(char const *name)
 {
     unsigned len = 0;
     while (*name != '\0' && *name != '.') {
@@ -183,7 +183,7 @@ static bool looks_like_netbios(char const *name)
     return len >= 32;
 }
 
-static enum proto_parse_status dns_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
+enum proto_parse_status dns_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct dns_hdr *dnshdr = (struct dns_hdr *)packet;
 
