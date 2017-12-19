@@ -25,6 +25,7 @@
 #include <openssl/x509v3.h>
 #include <openssl/err.h>
 #include <openssl/hmac.h>
+#include <openssl/opensslv.h>
 #include "junkie/tools/objalloc.h"
 #include "junkie/tools/miscmacs.h"
 #include "junkie/tools/ip_addr.h"
@@ -36,6 +37,11 @@
 #include "junkie/proto/ip.h"
 #include "junkie/proto/ber.h"
 #include "junkie/proto/tls.h"
+
+// Some adaptation to openssl version are required:
+#if OPENSSL_VERSION_NUMBER > 0x10100000L
+#   define HAVE_OPAQUE_STRUCTS
+#endif
 
 // We use directly session_id digest as a hash key
 #undef HASH_FUNC
@@ -562,7 +568,11 @@ struct tls_parser {
             uint32_t session_ticket_hash;   // The hash of the session ticket
             // pointers into key_block
             uint8_t *mac_key, *write_key, *init_vector; // points into key_block
+#           ifdef HAVE_OPAQUE_STRUCTS
+            EVP_CIPHER_CTX *evp;
+#           else
             EVP_CIPHER_CTX evp;
+#           endif
         } decoder[2];   // one for each direction
     } spec[2];   // current or next
     // If we manage to decrypt, then we handle content to this parser
@@ -578,12 +588,15 @@ static int tls_parser_ctor(struct tls_parser *tls_parser, struct proto *proto)
     if (0 != parser_ctor(&tls_parser->parser, proto)) return -1;
     tls_parser->c2s_way = UNSET;
     tls_parser->keyfile = NULL;
-    for (unsigned c = 0; c <=1 ; c++) {
+    for (unsigned c = 0; c <= 1 ; c++) {
         tls_parser->current[c] = 0;
         for (unsigned d = 0; d <= 1; d++) {
             tls_parser->spec[c].decoder[d].decoder_ready = false;
             tls_parser->spec[c].decoder[d].write_key = NULL;
             // Clear bit 31 of session_id/ticket_hash
+#           ifdef HAVE_OPAQUE_STRUCTS
+            tls_parser->spec[c].decoder[d].evp = NULL;
+#           endif
             tls_parser->spec[c].decoder[d].session_id_hash = tls_parser->spec[c].decoder[d].session_ticket_hash = 0;
         }
     }
@@ -621,7 +634,12 @@ static void tls_parser_dtor(struct tls_parser *tls_parser)
     for (unsigned current = 0; current < 2; current ++) {
         for (unsigned way = 0; way < 2; way++) {
             if (tls_parser->spec[current].decoder[way].decoder_ready)
+#               ifdef HAVE_OPAQUE_STRUCTS
+                if (tls_parser->spec[current].decoder[way].evp)
+                    EVP_CIPHER_CTX_free(tls_parser->spec[current].decoder[way].evp);
+#               else
                 EVP_CIPHER_CTX_cleanup(&tls_parser->spec[current].decoder[way].evp);
+#               endif
         }
     }
 }
@@ -763,7 +781,12 @@ static enum proto_parse_status skip_version(struct cursor *cur)
 
 static int tls_P_hash(SSL unused_ *ssl, uint8_t const *restrict secret, size_t seed_len, uint8_t const *restrict seed, const EVP_MD *md, size_t out_len, uint8_t *restrict out)
 {
-    HMAC_CTX hm;
+#   ifdef HAVE_OPAQUE_STRUCTS
+    HMAC_CTX *hm = HMAC_CTX_new();
+#   else
+    HMAC_CTX hm_;
+    HMAC_CTX *hm = &hm_;
+#   endif
 
 #   define SEED_MAX_LEN 128
     assert(seed_len <= SEED_MAX_LEN);
@@ -774,17 +797,17 @@ static int tls_P_hash(SSL unused_ *ssl, uint8_t const *restrict secret, size_t s
 
     while (out_len) {
         // Compute A(n)
-        HMAC_Init(&hm, secret, SECRET_LEN/2, md);
-        HMAC_Update(&hm, A, A_len);
-        HMAC_Final(&hm, A, &A_len);
+        HMAC_Init_ex(hm, secret, SECRET_LEN/2, md, NULL);
+        HMAC_Update(hm, A, A_len);
+        HMAC_Final(hm, A, &A_len);
 
         // Compute P_hash = HMAC(secret, A(n) + seed)
-        HMAC_Init(&hm, secret, SECRET_LEN/2, md);
-        HMAC_Update(&hm, A, A_len);
-        HMAC_Update(&hm, seed, seed_len);
+        HMAC_Init_ex(hm, secret, SECRET_LEN/2, md, NULL);
+        HMAC_Update(hm, A, A_len);
+        HMAC_Update(hm, seed, seed_len);
         unsigned char tmp[EVP_MAX_MD_SIZE]; // FIXME: apart for the last run we could write in out directly
         unsigned tmp_len = sizeof(tmp);
-        HMAC_Final(&hm, tmp, &tmp_len);
+        HMAC_Final(hm, tmp, &tmp_len);
 
         size_t const to_copy = MIN(out_len, tmp_len);
         memcpy(out, tmp, to_copy);
@@ -792,7 +815,11 @@ static int tls_P_hash(SSL unused_ *ssl, uint8_t const *restrict secret, size_t s
         out_len -= to_copy;
     }
 
-    HMAC_cleanup(&hm);
+#   ifdef HAVE_OPAQUE_STRUCTS
+    HMAC_CTX_free(hm);
+#   else
+    HMAC_cleanup(hm);
+#   endif
 
     return 0;
 }
@@ -860,7 +887,13 @@ static int decrypt_master_secret_with_keyfile(struct tls_keyfile *keyfile, struc
         SLOG(LOG_ERR, "Cannot get private key from SSL object: %s", openssl_errors_2_str());
         goto quit1;
     }
-    if (pk->type != EVP_PKEY_RSA) {
+    if (
+#   ifdef HAVE_OPAQUE_STRUCTS
+        EVP_PKEY_id(pk) != EVP_PKEY_RSA
+#   elif
+        pk->type != EVP_PKEY_RSA
+#   endif
+    ) {
         SLOG(LOG_ERR, "Private key is not a RSA key.");
         // oh, well
     }
@@ -872,7 +905,7 @@ static int decrypt_master_secret_with_keyfile(struct tls_keyfile *keyfile, struc
     uint8_t *master_secret = NULL; // decrypt it from encrypted_master_secret or retrieve it from saved session
     if (encrypted_pms) {
         uint8_t pre_master_secret[SECRET_LEN];  //RSA_size(pk->pkey.rsa)];
-        int const pms_len = RSA_private_decrypt(enc_pms_len, encrypted_pms, pre_master_secret, pk->pkey.rsa, RSA_PKCS1_PADDING);
+        int const pms_len = RSA_private_decrypt(enc_pms_len, encrypted_pms, pre_master_secret, EVP_PKEY_get0_RSA(pk), RSA_PKCS1_PADDING);
         if (pms_len != sizeof(pre_master_secret)) {
             SLOG(LOG_ERR, "Cannot decode pre_master_secret!");
             goto quit1;
@@ -960,14 +993,29 @@ unknown_cipher:
     // prepare a cipher for both directions
     for (unsigned dir = 0; dir < 2; dir ++) {
         if (clt_next_spec->decoder[dir].decoder_ready) {
+#           ifdef HAVE_OPAQUE_STRUCTS
+            if (clt_next_spec->decoder[dir].evp)
+                EVP_CIPHER_CTX_free(clt_next_spec->decoder[dir].evp);
+            clt_next_spec->decoder[dir].evp = EVP_CIPHER_CTX_new();
+            if (! clt_next_spec->decoder[dir].evp) {
+                SLOG(LOG_ERR, "Cannot EVP_CIPHER_CTX_new: %s", openssl_errors_2_str());
+                continue;
+            }
+#           else
             EVP_CIPHER_CTX_cleanup(&clt_next_spec->decoder[dir].evp);
+#           endif
             clt_next_spec->decoder[dir].decoder_ready = false;
         }
         if (!clt_next_spec->decoder[dir].write_key)
             continue;
 
-        EVP_CIPHER_CTX_init(&clt_next_spec->decoder[dir].evp);
-        if (1 != EVP_CipherInit(&clt_next_spec->decoder[dir].evp, cipher_info->ciph, clt_next_spec->decoder[dir].write_key, clt_next_spec->decoder[dir].init_vector, 0)) {
+#       ifdef HAVE_OPAQUE_STRUCTS
+        EVP_CIPHER_CTX *evp = clt_next_spec->decoder[dir].evp;
+#       else
+        EVP_CIPHER_CTX *evp = &clt_next_spec->decoder[dir].evp;
+        EVP_CIPHER_CTX_init(evp);
+#       endif
+        if (1 != EVP_CipherInit(evp, cipher_info->ciph, clt_next_spec->decoder[dir].write_key, clt_next_spec->decoder[dir].init_vector, 0)) {
             // Error
             SLOG(LOG_INFO, "Cannot initialize cipher suite 0x%x: %s", clt_next_spec->cipher, openssl_errors_2_str());
             goto quit1;
@@ -1370,7 +1418,12 @@ static int tls_decrypt(struct tls_cipher_spec *spec, unsigned way, size_t cap_le
         return -1;
     }
 
-    if (1 != EVP_Cipher(&spec->decoder[way].evp, out, payload, cap_len)) {
+#   ifdef HAVE_OPAQUE_STRUCTS
+    EVP_CIPHER_CTX *evp = spec->decoder[way].evp;
+#   else
+    EVP_CIPHER_CTX *evp = &spec->decoder[way].evp;
+#   endif
+    if (1 != EVP_Cipher(evp, out, payload, cap_len)) {
         if (cap_len == wire_len) {
             SLOG(LOG_INFO, "Cannot decrypt record: %s", openssl_errors_2_str());
             return -1;
