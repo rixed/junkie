@@ -13,6 +13,7 @@ Makefile.in
 *.go
 .deps
 .libs
+ar-lib
 config.guess
 config.sub
 compile

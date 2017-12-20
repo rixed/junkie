@@ -8,7 +8,8 @@ AC_INIT([junkie],
 		github@securactive.net, , http://github.com/securactive/junkie)
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_MACRO_DIR([m4])
-AM_INIT_AUTOMAKE([-Wall foreign])
+AM_INIT_AUTOMAKE([-Wall foreign subdir-objects])
+AM_PROG_AR
 AC_CONFIG_SRCDIR([src/main.c])
 AC_CONFIG_HEADERS([include/junkie/config.h])
 LT_INIT()

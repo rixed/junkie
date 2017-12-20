@@ -4,7 +4,10 @@
 set -e
 
 mkdir -p build-aux &&
-libtoolize --force &&
+case `uname` in
+  (Darwin*) glibtoolize --force ;;
+  (*) libtoolize --force ;;
+esac &&
 aclocal &&
 autoheader &&
 automake --add-missing --foreign &&
