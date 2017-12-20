@@ -21,6 +21,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <libguile.h>
+#include <assert.h>
 #include "junkie/tools/miscmacs.h"
 #include "junkie/tools/log.h"
 #include "junkie/tools/mutex.h"
@@ -95,35 +96,25 @@ void timebound_ctor(struct timebound *t, struct timebound_pool *pool, struct tim
 
 void timebound_dtor(struct timebound *t)
 {
-    SLOG(LOG_DEBUG, "Destruct timebound object@%p", t);
-    SLOG(LOG_DEBUG, "...bucket=%p", t->bucket);
+    SLOG(LOG_DEBUG, "Destruct timebound object@%p, bucket=%p", t, t->bucket);
 
-    t->monitored = false;
-#   ifdef __GNUC__
-    __sync_synchronize();   // flush this *before* unlisting
-#   else
-    // ?
-#   endif
     struct mutex *mutex = &t->bucket->mutex;
     WITH_LOCK(mutex) {
+        assert(t->monitored);
+        t->monitored = false;
         TAILQ_REMOVE(&t->bucket->list, t, entry);
-        t->bucket = NULL;   // will catch double destruction
     }
 }
 
 void timebound_touch(struct timebound *t, struct timeval const *now)
 {
-#   ifdef __GNUC__
-    __sync_synchronize();   // read actual t->monitored
-#   else
-    // ?
-#   endif
-    if (! t->monitored) return;
-
     SLOG(LOG_DEBUG, "Touching timebound object @%p", t);
+
     WITH_LOCK(&t->bucket->mutex) {
-        TAILQ_REMOVE(&t->bucket->list, t, entry);
-        TAILQ_INSERT_HEAD(&t->bucket->list, t, entry);
+        if (t->monitored) {
+            TAILQ_REMOVE(&t->bucket->list, t, entry);
+            TAILQ_INSERT_HEAD(&t->bucket->list, t, entry);
+        }
     }
     last_used = t->last_used = now->tv_sec;
 }
