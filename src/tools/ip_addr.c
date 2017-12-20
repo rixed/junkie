@@ -37,11 +37,11 @@ void ip_addr_ctor_from_ip4(struct ip_addr *ip_addr, uint32_t ip4)
     ip_addr->u.v4.s_addr = ip4;
 }
 
-void ip_addr_ctor_from_ip6(struct ip_addr *ip_addr, struct in6_addr const *ip6)
+void ip_addr_ctor_from_ip6(struct ip_addr *ip_addr, struct in6_addr ip6)
 {
     memset(ip_addr, 0, sizeof(*ip_addr));
     ip_addr->family = AF_INET6;
-    ip_addr->u.v6 = *ip6;
+    ip_addr->u.v6 = ip6;
 }
 
 // Note: if version is 0 then try both v4 and v6
@@ -129,7 +129,7 @@ int ip_addr_ctor_from_sockaddr(struct ip_addr *ip, struct sockaddr const *addr, 
                     SLOG(LOG_NOTICE, "Invalid AF_INET6 sockaddr of size %zu", (size_t)addrlen);
                     return -1;
                 }
-                ip_addr_ctor_from_ip6(ip, &ip_addr->sin6_addr);
+                ip_addr_ctor_from_ip6(ip, ip_addr->sin6_addr);
                 return 0;
             }
     }

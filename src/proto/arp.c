@@ -83,7 +83,7 @@ static void fetch_ip(struct ip_addr *ip, unsigned prot_addr_fmt, uint8_t const *
             ip_addr_ctor_from_ip4(ip, addr);
             break;
         case ETH_PROTO_IPv6:
-            ip_addr_ctor_from_ip6(ip, (struct in6_addr *)ptr);
+            ip_addr_ctor_from_ip6(ip, *(struct in6_addr *)ptr);
             break;
     }
 }

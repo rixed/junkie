@@ -43,8 +43,8 @@ static void ip6_proto_info_ctor(struct ip_proto_info *info, struct parser *parse
     proto_info_ctor(&info->info, parser, parent, head_len, payload);
 
     info->version = version;
-    ip_addr_ctor_from_ip6(&info->key.addr[0], &iphdr->src);
-    ip_addr_ctor_from_ip6(&info->key.addr[1], &iphdr->dst);
+    ip_addr_ctor_from_ip6(&info->key.addr[0], iphdr->src);
+    ip_addr_ctor_from_ip6(&info->key.addr[1], iphdr->dst);
     info->key.protocol = READ_U8(&iphdr->next);
     info->ttl = READ_U8(&iphdr->hop_limit);
     info->way = 0;  // will be set later

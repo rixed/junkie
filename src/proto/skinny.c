@@ -335,7 +335,7 @@ static enum proto_parse_status read_channel(struct skinny_parser *parser, unsign
         uint32_t ip = cursor_read_u32(curs);
         ip_addr_ctor_from_ip4(&parser->peer[from], ip);
     } else if (ip_version == 1) {    // v6
-        ip_addr_ctor_from_ip6(&parser->peer[from], (struct in6_addr const *)curs->head);
+        ip_addr_ctor_from_ip6(&parser->peer[from], *(struct in6_addr const *)curs->head);
     } else {
         SLOG(LOG_DEBUG, "Invalid IP version (%d)", ip_version);
         return PROTO_PARSE_ERR;

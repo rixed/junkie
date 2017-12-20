@@ -119,8 +119,8 @@ static int icmpv6_extract_err_infos(struct icmp_proto_info *info, uint8_t const 
     }
 
     err->protocol = READ_U8(&iphdr->next);
-    ip_addr_ctor_from_ip6(err->addr+0, &iphdr->src);
-    ip_addr_ctor_from_ip6(err->addr+1, &iphdr->dst);
+    ip_addr_ctor_from_ip6(err->addr+0, iphdr->src);
+    ip_addr_ctor_from_ip6(err->addr+1, iphdr->dst);
 
     switch (iphdr->next) {
         case IPPROTO_TCP:
