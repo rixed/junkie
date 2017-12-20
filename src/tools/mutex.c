@@ -454,8 +454,11 @@ void rwlock_release_(void *lock)
 
 void mutex_pool_ctor(struct mutex_pool *p, char const *name)
 {
+    /* Many times we will hold a lock while recursing (for instance with
+     * streambuf locks, tcp_locks and ip_locks). This would lead to
+     * occasional deadlock if those pools were not recursive. */
     for (unsigned i = 0; i < NB_ELEMS(p->locks); i++) {
-        mutex_ctor(p->locks+i, name);
+        mutex_ctor_recursive(p->locks+i, name);
     }
 }
 
