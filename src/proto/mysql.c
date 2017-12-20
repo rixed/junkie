@@ -230,7 +230,7 @@ static enum proto_parse_status mysql_parse_init(struct mysql_parser *mysql_parse
 // Variable  Error message
 static enum proto_parse_status mysql_parse_error(struct sql_proto_info *info, struct cursor *cursor, size_t packet_len)
 {
-    #define MYSQL_ERROR_HEADER (2 + 1 + SQL_ERROR_SQL_STATUS_SIZE)
+#   define MYSQL_ERROR_HEADER (2 + 1 + SQL_ERROR_SQL_STATUS_SIZE)
     enum proto_parse_status status;
     if (packet_len <= MYSQL_ERROR_HEADER) return PROTO_PARSE_ERR;
     info->set_values |= SQL_REQUEST_STATUS;

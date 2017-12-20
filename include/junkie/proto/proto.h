@@ -335,7 +335,7 @@ struct proto_info const *proto_info_get_any(
 struct parser {
     struct ref ref;
     struct proto *proto;    ///< The proto owning this parser
-    /// @note obvisouly, owner of the lock does not need a ref
+    /// @note obviously, owner of the lock does not need a ref
 };
 
 /// Construct a new parser
@@ -491,7 +491,7 @@ struct mux_subparser {
     TAILQ_ENTRY(mux_subparser) to_entry;    ///< Its entry in its timeout queue (sorted in least recently used first)
     STAILQ_ENTRY(mux_subparser) h_entry;    ///< Its entry in the hash (sorted in more recently used first - so that lookups are faster)
     struct parser *parser;                  ///< The actual parser
-    struct timeval last_used;               ///< Last time we call it's parse method
+    struct timeval last_used;               ///< Last time we called its parse method
     struct proto *requestor;                ///< The proto that requested its creation
     struct mux_parser *mux_parser;          ///< Backlink to our mux_parser
     struct mux_proto *mux_proto;            ///< Backlink to our mux_proto, for when mux_parser cannot be used (see mux_subparser_del_as_ref())
