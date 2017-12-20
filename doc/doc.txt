@@ -535,7 +535,7 @@ Example:
 
 To detect OS junkie uses only the TCP fingerprints taken from p0f. If you need
 only this information you'd rather be using p0f directly, which provides more
-accurate results vsince it uses other sources of informations.
+accurate results since it uses other sources of informations.
 
 ==== ARP graph
 
