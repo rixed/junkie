@@ -107,12 +107,13 @@ static void scm_conv_check(void)
         int version;
         char const *str;
         char const *num;
+        sa_family_t exp_family;
     } tests[] = {
-        { 4, "1.0.0.0", "(2 . 16777216)" },
-        { 4, "127.0.0.1", "(2 . 2130706433)" },
-        { 4, "128.10.5.255", "(2 . 2148140543)" },
-        { 6, "ff02::1", "(10 . 338963523518870617245727861364146307073)" },
-        { 6, "1:2:3:4::", "(10 . 5192455318486707403025865779445760)" },
+        { 4, "1.0.0.0", "(%d . 16777216)", AF_INET },
+        { 4, "127.0.0.1", "(%d . 2130706433)", AF_INET },
+        { 4, "128.10.5.255", "(%d . 2148140543)", AF_INET },
+        { 6, "ff02::1", "(%d . 338963523518870617245727861364146307073)", AF_INET6 },
+        { 6, "1:2:3:4::", "(%d . 5192455318486707403025865779445760)", AF_INET6 },
     };
 
     for (unsigned t = 0; t < NB_ELEMS(tests); t++) {
@@ -124,8 +125,11 @@ static void scm_conv_check(void)
         size_t len = scm_to_locale_stringbuf(str, buf, sizeof(buf));
         assert(len < sizeof(buf));
         buf[len] = '\0';
-        printf("%s -> '%s' (expected '%s')\n", tests[t].str, buf, tests[t].num);
-        assert(0 == strcmp(tests[t].num, buf));
+        char expected[256];
+        snprintf(expected, sizeof(expected), tests[t].num, tests[t].exp_family);
+
+        printf("%s -> '%s' (expected '%s')\n", tests[t].str, buf, expected);
+        assert(0 == strcmp(expected, buf));
     }
 }
 
