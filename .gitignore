@@ -91,3 +91,4 @@ module-deps.dot
 *.log
 *.out2
 *.trs
+.dirstamp
