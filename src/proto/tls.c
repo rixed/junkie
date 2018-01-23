@@ -890,7 +890,7 @@ static int decrypt_master_secret_with_keyfile(struct tls_keyfile *keyfile, struc
     if (
 #   ifdef HAVE_OPAQUE_STRUCTS
         EVP_PKEY_id(pk) != EVP_PKEY_RSA
-#   elif
+#   else
         pk->type != EVP_PKEY_RSA
 #   endif
     ) {
@@ -905,7 +905,12 @@ static int decrypt_master_secret_with_keyfile(struct tls_keyfile *keyfile, struc
     uint8_t *master_secret = NULL; // decrypt it from encrypted_master_secret or retrieve it from saved session
     if (encrypted_pms) {
         uint8_t pre_master_secret[SECRET_LEN];  //RSA_size(pk->pkey.rsa)];
-        int const pms_len = RSA_private_decrypt(enc_pms_len, encrypted_pms, pre_master_secret, EVP_PKEY_get0_RSA(pk), RSA_PKCS1_PADDING);
+#       ifdef HAVE_OPAQUE_STRUCTS
+        RSA *rsa = EVP_PKEY_get0_RSA(pk);
+#       else
+        RSA *rsa = pk->pkey.rsa;
+#       endif
+        int const pms_len = RSA_private_decrypt(enc_pms_len, encrypted_pms, pre_master_secret, rsa, RSA_PKCS1_PADDING);
         if (pms_len != sizeof(pre_master_secret)) {
             SLOG(LOG_ERR, "Cannot decode pre_master_secret!");
             goto quit1;
