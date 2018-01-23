@@ -5,7 +5,8 @@
 
 (use-modules (srfi srfi-1)
              (ice-9 regex)
-             (ice-9 format))
+             (ice-9 format)
+             (system repl server))
 
 ; A pretty printer
 (define pp (@ (ice-9 pretty-print) pretty-print))
@@ -33,22 +34,11 @@
 (export ensure-directories-exist)
 
 ; Run a server on given port
-(define (start-server ip-addr port serve-client)
-  (let* ((sock-fd (socket PF_INET SOCK_STREAM 0))
-         (serve-socket (lambda (client-cnx)
-                         (let* ((client-fd   (car client-cnx))
-                                (client-addr (cdr client-cnx))
-                                #;(client-name (hostent:name (gethostbyaddr (sockaddr:addr client-addr)))))
-                           (set-current-input-port client-fd)
-                           (set-current-output-port client-fd)
-                           ; Now spawn a thread for serving client-fd
-                           (call-with-new-thread serve-client (lambda (key . args) (close client-fd)))))))
+(define (start-server ip-addr port)
+  (let* ((sock-fd (socket PF_INET SOCK_STREAM 0)))
     (setsockopt sock-fd SOL_SOCKET SO_REUSEADDR 1)
     (bind sock-fd AF_INET ip-addr port)
-    (listen sock-fd 5)
-    (while #t
-           (let ((client-cnx (accept sock-fd)))
-             (serve-socket client-cnx)))))
+    (spawn-server sock-fd)))
 
 (export start-server)
 
