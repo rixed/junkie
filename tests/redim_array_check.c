@@ -125,7 +125,7 @@ static void check_stress(unsigned nb_entries, unsigned alloc_size)
     // reinsert with intermediate deletions
     unsigned nb_pop = 0, nb_push = 0;
     for (unsigned e=0; e < nb_entries*3; e++) {
-        if ((rand() & 0x30) == 0) {
+        if (nb_push > nb_pop && (rand() & 0x30) == 0) {
             free_random_obj(&ra);
             nb_pop++;
         } else {
