@@ -90,3 +90,4 @@ module-deps.dot
 .gdb_history
 *.log
 *.out2
+*.trs
