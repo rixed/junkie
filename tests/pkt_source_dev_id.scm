@@ -1,4 +1,4 @@
-#!../src/junkie -c
+#!/usr/bin/env ../src/junkie -c
 ; vim:syntax=scheme filetype=scheme expandtab
 !#
 
