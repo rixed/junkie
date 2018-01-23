@@ -117,7 +117,6 @@ tls_check_SOURCES = tls_check.c lib.c lib.h
 tls_check_LDADD = ../src/tools/libjunkietools.la ../src/proto/libproto.la -lm
 mysql_check_SOURCES = mysql_check.c lib.c lib.h sql_test.c sql_test.h
 mysql_check_LDADD = ../src/tools/libjunkietools.la ../src/proto/libproto.la -lm
-tds_check_SOURCES = tds_check.c lib.c lib.h
 tds_check_SOURCES = tds_check.c lib.c lib.h sql_test.c sql_test.h
 tds_check_LDADD = ../src/tools/libjunkietools.la ../src/proto/libproto.la -lm
 tns_check_SOURCES = tns_check.c lib.c lib.h sql_test.c sql_test.h

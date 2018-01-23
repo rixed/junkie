@@ -8,7 +8,7 @@ AC_INIT([junkie],
 		github@securactive.net, , http://github.com/securactive/junkie)
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_MACRO_DIR([m4])
-AM_INIT_AUTOMAKE([-Wall foreign subdir-objects])
+AM_INIT_AUTOMAKE([-Wno-gnu -Wno-portability foreign subdir-objects])
 AM_PROG_AR
 AC_CONFIG_SRCDIR([src/main.c])
 AC_CONFIG_HEADERS([include/junkie/config.h])
@@ -35,7 +35,7 @@ LDFLAGS="$GUILE_LIBS $OPENSSL_LIBS $LDFLAGS"
 AC_CHECK_LIB(pcap, pcap_activate, , [exit 1])
 AC_CHECK_LIB(pthread, pthread_mutex_init, , [exit 1])
 AC_CHECK_LIB(ltdl, lt_dlopen, , [exit 1])
-AC_CHECK_LIB(iconv, iconv_open, , [exit 1])
+AM_ICONV
 
 # Checks for header files.
 AC_CHECK_HEADERS([fcntl.h grp.h libgen.h inttypes.h limits.h malloc.h netinet/in.h arpa/inet.h sys/param.h sys/socket.h sys/time.h syslog.h sys/prctl.h pcap.h sys/uio.h])
