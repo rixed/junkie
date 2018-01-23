@@ -31,7 +31,8 @@ libproto_la_SOURCES = \
 	skinny.c \
 	dhcp.c \
 	fcoe.c \
-	tds.c tds_msg.c
+	tds.c tds_msg.c \
+	gtp.c
 
 libproto_la_LIBADD = ../tools/libjunkietools.la
 libproto_la_LDFLAGS = -export-dynamic
