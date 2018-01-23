@@ -7,7 +7,7 @@ filter() {
 	grep -v '^Capture' |
 	sed -e 's/^\([^@]\+\)@[0-9a-fx]\+\(.*\)$/\1\2/' |
 	# Some inet_ntop behave differently, some favoring ":0:" others "::"
-	sed -e 's/fd11:62b:ce70:1:0:5efe:a64:/fd11:62b:ce70:1::5efe:a64:/'
+	sed -e 's/fd11:62b:ce70:1:0:5efe:a64:/fd11:62b:ce70:1::5efe:a64:/g'
 }
 OUTPUT="ip.out"
 
