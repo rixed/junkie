@@ -725,7 +725,9 @@ int main(void)
     log_set_file("tds_check.log");
 
     struct tds_msg_parser tds_msg_parser;
-    tds_msg_parser_ctor(&tds_msg_parser, proto_tds_msg);
+    if (0 != tds_msg_parser_ctor(&tds_msg_parser, proto_tds_msg)) {
+        assert(false);
+    }
     append_unicode_check(&tds_msg_parser);
     append_us_varchar_check(&tds_msg_parser);
     append_unicode_check_with_special_chars(&tds_msg_parser);

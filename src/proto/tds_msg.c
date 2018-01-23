@@ -271,6 +271,7 @@ struct tds_msg_parser {
     struct streambuf sbuf;  // yep, one more level of buffering
     unsigned column_count;
     struct type_info type_info[16]; // Type info extracted from COLMETADATA
+    // FIXME: a single iconv_t per thread
     iconv_t iconv_cd;               // Conversion descriptor for reading unicode
 };
 
@@ -287,7 +288,7 @@ static int tds_msg_parser_ctor(struct tds_msg_parser *tds_msg_parser, struct pro
     tds_msg_parser->pre_7_2 = false;    // assume recent protocol version
     if (0 != streambuf_ctor(&tds_msg_parser->sbuf, tds_msg_sbuf_parse, 30000)) return -1;
 
-    tds_msg_parser->iconv_cd = iconv_open("UTF8//IGNORE", "UCS2");
+    tds_msg_parser->iconv_cd = iconv_open("UTF8//IGNORE", "UCS-2LE");
     if (tds_msg_parser->iconv_cd == ((iconv_t) - 1)) {
         SLOG(LOG_NOTICE, "Could not open iconv: %s", strerror(errno));
         return -1;
