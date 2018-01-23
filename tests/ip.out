@@ -14,6 +14,6 @@ ICMP: head_len=4104, payload=0, type=EchoReply, err=NONE, id=512
 -- pcap/ip6/v6inv4.pcap --
 Ethernet: head_len=14, payload=284, vlan_id=unset, source=00:50:56:89:40:31, dest=00:50:56:89:38:7a, proto=IPv4
 IPv4: head_len=20, payload=264, version=4, addr=10.100.176.236->10.100.176.71 (hashed the other way), proto=IPv6, ttl=128, frag=NoFrag, id=0x423b, Class=0:NonECT
-IPv6: head_len=40, payload=224, version=6, addr=fd11:62b:ce70:1:0:5efe:a64:b0ec->fd11:62b:ce70:1:0:5efe:a64:b047 (hashed the other way), proto=TCP, ttl=128, frag=na, id=0x0000, Class=0:NonECT
+IPv6: head_len=40, payload=224, version=6, addr=fd11:62b:ce70:1::5efe:a64:b0ec->fd11:62b:ce70:1::5efe:a64:b047 (hashed the other way), proto=TCP, ttl=128, frag=na, id=0x0000, Class=0:NonECT
 TCP: head_len=20, payload=204, ports=4014(srv)->51705, flags=AckPsh, win=255, ack=3625047501, seq=967099941 (0), urg=0, opts=none
 
