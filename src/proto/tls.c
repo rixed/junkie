@@ -595,7 +595,11 @@ static int tls_parser_ctor(struct tls_parser *tls_parser, struct proto *proto)
             tls_parser->spec[c].decoder[d].write_key = NULL;
             // Clear bit 31 of session_id/ticket_hash
 #           ifdef HAVE_OPAQUE_STRUCTS
-            tls_parser->spec[c].decoder[d].evp = NULL;
+            tls_parser->spec[c].decoder[d].evp = EVP_CIPHER_CTX_new();
+            if (! tls_parser->spec[c].decoder[d].evp) {
+                SLOG(LOG_ERR, "Cannot EVP_CIPHER_CTX_new: %s", openssl_errors_2_str());
+                return -1;
+            }
 #           endif
             tls_parser->spec[c].decoder[d].session_id_hash = tls_parser->spec[c].decoder[d].session_ticket_hash = 0;
         }
@@ -999,13 +1003,7 @@ unknown_cipher:
     for (unsigned dir = 0; dir < 2; dir ++) {
         if (clt_next_spec->decoder[dir].decoder_ready) {
 #           ifdef HAVE_OPAQUE_STRUCTS
-            if (clt_next_spec->decoder[dir].evp)
-                EVP_CIPHER_CTX_free(clt_next_spec->decoder[dir].evp);
-            clt_next_spec->decoder[dir].evp = EVP_CIPHER_CTX_new();
-            if (! clt_next_spec->decoder[dir].evp) {
-                SLOG(LOG_ERR, "Cannot EVP_CIPHER_CTX_new: %s", openssl_errors_2_str());
-                continue;
-            }
+            EVP_CIPHER_CTX_reset(clt_next_spec->decoder[dir].evp);
 #           else
             EVP_CIPHER_CTX_cleanup(&clt_next_spec->decoder[dir].evp);
 #           endif
