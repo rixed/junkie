@@ -42,9 +42,8 @@ doc: Doxyfile
 module-deps.dot:
 	@(echo "digraph deps {" ;\
 	 find $(top_srcdir)/src -type f -name '*.c' |\
-	 while read f ; do grep '_init()' $$f |\
-	   sed -e 's|^[ \t]*\(\<.*\)_init();.*$$|\1|g' |\
-	   grep -v _ |\
+	 while read f ; do cat $$f |\
+	   sed -ne 's|^[ \t]*\(\<.*\)_init();.*$$|\1|pg' |\
 	   while read g ; do \
 	     ff=$$(basename $$f .c) ;\
 	     echo "$$ff -> $$g" ;\
