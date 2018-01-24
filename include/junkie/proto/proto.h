@@ -38,7 +38,7 @@
  *
  * Having independent parsers implies that every parser is committed to a given
  * behavior. For instance, every protocol parser must have a single parse
- * function receiving the relevant data from it's parent and its parent's
+ * function receiving the relevant data from its parent and its parent's
  * proto_info (which can be used to inspect upper layers). This common behavior
  * is inherited from the struct proto that defines the behavior of all parsers
  * of this proto.
@@ -368,7 +368,7 @@ struct mux_subparser;
 /// If your proto parsers are multiplexer, inherit from mux_proto instead of a mere proto
 /** Multiplexers are the most complicated parsers.
  *
- * A parser is called a \e multiplexer if it have several children of various
+ * A parser is called a \e multiplexer if it has several children of various
  * types (ie. of various struct proto) and pass some payload to them according
  * to a given key. For instance, IP is a multiplexer that use the ip addresses
  * and protocol field as a key to choose amongst its children which is
@@ -376,7 +376,7 @@ struct mux_subparser;
  * ports pair to choose amongst its children the one in charge for a payload.
  *
  * Multiplexers can not be stateless, since each instance of a multiplexer must
- * carry a list of it's children; for performance reason actually not a list
+ * carry a list of its children; for performance reason actually not a list
  * but a hash. But many multiplexers share a common behavior : from the header
  * of their data, build a key that identifies a children, then lookup in the
  * children list (hash) the one in charge for this key, or create a new one if
@@ -603,7 +603,7 @@ struct mux_subparser *mux_subparser_ref(struct mux_subparser *);
 /// Declare that a ref to a mux_subparser is no more used
 void mux_subparser_unref(struct mux_subparser **);
 
-/// Remove a mux_subparser from it's mux_proto hash, thus probably killing the only left ref apart yours.
+/// Remove a mux_subparser from its mux_proto hash, thus probably killing the only left ref apart yours.
 void mux_subparser_deindex(struct mux_subparser *);
 
 /// Construct a mux_parser

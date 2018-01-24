@@ -1137,7 +1137,7 @@ static enum proto_parse_status copy_session(uint32_t *key_hash, size_t len, stru
     return PROTO_OK;
 }
 
-// Rather than copying it we only save it's digest
+// Rather than copying it we only save its digest
 static enum proto_parse_status copy_session_id(uint32_t *key_hash, struct cursor *cur)
 {
     if (cur->cap_len < 1) return PROTO_TOO_SHORT;

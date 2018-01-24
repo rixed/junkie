@@ -203,7 +203,7 @@ Remember that to load a plugin you must run:
 
     junkie -p pluginname
 
-Also, each plugin adds it's own command line options that you can read help
+Also, each plugin adds its own command line options that you can read help
 for with:
 
     junkie -p pluginname --help

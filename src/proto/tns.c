@@ -267,7 +267,7 @@ static enum proto_parse_status cursor_read_variable_int(struct cursor *cursor, u
 }
 
 /* Read a splitted string prefixed by a global variable size
- * Each chunk of string is prefixed by it's size
+ * Each chunk of string is prefixed by its size
  * Size of Size  Size  Size  String---  Size  String---
  *         0x01  0x04  0x02  0x40 0x41  0x02  0x50 0x51
  */

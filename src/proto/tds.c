@@ -34,7 +34,7 @@
 
 /* TDS has both notions of messages and packets.
  * Surely, the specifiers though that TDS will conquer TCP, UDP, Wap and the whole world,
- * so this whole packet thing, with it's length, negotiated MTU and sequence numbers,
+ * so this whole packet thing, with its length, negotiated MTU and sequence numbers,
  * was absolutely necessary.
  * Of course tody TDS runs only on top of TCP and these packet headers, according to the
  * spec itself, are unused. As a result we now have a mostly useless header possibly in the

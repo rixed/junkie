@@ -25,7 +25,7 @@
  * We use a mere round robin to keep entries evenly loaded.
  *
  * Also, instead of a thread per pool we'd rather have a single thread running
- * every seconds and scanning all pools according to it's own timeout value.
+ * every seconds and scanning all pools according to its own timeout value.
  */
 
 struct timebound;

@@ -32,7 +32,7 @@
  * We use only two data types :
  *
  * - struct ext_function, which describes an extension function (available
- *   from guile but implemented in C) with it's documentation;
+ *   from guile but implemented in C) with its documentation;
  * - struct ext_param, which describes a C global variable that can be
  *   set or get from guile.
  */

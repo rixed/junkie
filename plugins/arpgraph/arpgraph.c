@@ -31,7 +31,7 @@
 static unsigned opt_monitoring_period = DEFAULT_MONITORING_PERIOD;
 static bool opt_loop = false;
 
-// A Host is identified by it's IP address, and we store it's MAC as well.
+// A Host is identified by its IP address, and we store its MAC as well.
 
 struct host {
     struct ip_addr ip;

@@ -692,7 +692,7 @@ static enum proto_parse_status http_parse_body(struct http_parser *http_parser, 
     /* FIXME: if remaining_content == CONTENT_UP_TO_END, we won't be able to advertize
      * the end of body. We could either:
      * - subscribe also to some tcp_close event and use that instead
-     * - have TCP call it's parser with 0 payload to signal the end of stream */
+     * - have TCP call its parser with 0 payload to signal the end of stream */
 
     if (http_parser->state[way].remaining_content == 0) {
         if (http_parser->state[way].phase == BODY) {
