@@ -790,6 +790,7 @@ static int tls_P_hash(SSL unused_ *ssl, uint8_t const *restrict secret, size_t s
 #   else
     HMAC_CTX hm_;
     HMAC_CTX *hm = &hm_;
+    HMAC_Init(hm, secret, SECRET_LEN/2, md);
 #   endif
 
 #   define SEED_MAX_LEN 128
