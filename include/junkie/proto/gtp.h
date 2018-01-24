@@ -13,6 +13,15 @@ extern struct proto *proto_gtp;
 /// GTP message
 struct gtp_proto_info {
     struct proto_info info;
+    unsigned version:3;
+    unsigned msg_type:8;
+#   define GTP_HAS_TEID        0x0001  // GTPv2 might have no TEID
+#   define GTP_HAS_SEQNUM      0x0002
+#   define GTP_HAS_NPDU_NUMBER 0x0004
+    unsigned set_values;
+    uint32_t teid;
+    uint16_t seqnum;
+    uint8_t npdu_number;
 };
 
 void gtp_init(void);
