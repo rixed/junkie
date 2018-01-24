@@ -109,16 +109,13 @@ static void const *dns_info_addr(struct proto_info const *info_, size_t *size)
 static char const *dns_info_2_str(struct proto_info const *info_)
 {
     struct dns_proto_info const *info = DOWNCAST(info_, info, dns_proto_info);
-    char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, %s, tx_id=%"PRIu16", err_code=%"PRIu16", request_type=%s, dns_class=%s, name=%s",
+    return tempstr_printf("%s, %s, tx_id=%"PRIu16", err_code=%"PRIu16", request_type=%s, dns_class=%s, name=%s",
         proto_info_2_str(info_),
         info->query ? "QUERY":"ANSWER",
         info->transaction_id, info->error_code,
         dns_req_type_2_str(info->request_type),
         dns_class_2_str(info->dns_class),
         info->name);
-
-    return str;
 }
 
 static void dns_proto_info_ctor(struct dns_proto_info *info, struct parser *parser, struct proto_info *parent, size_t packet_len, uint16_t transaction_id, uint16_t flags)
