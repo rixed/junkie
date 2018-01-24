@@ -41,6 +41,8 @@ instvars.scm: Makefile
 	@echo '(define-public build-cppflags "$(CPPFLAGS)")' >> $@
 	@echo '(define-public build-cflags "$(CFLAGS)")' >> $@
 	@echo '(define-public build-ldflags "$(LDFLAGS)")' >> $@
+	@echo '(define-public build-ldflags-plugin "$(LDFLAGS_PLUGIN)")' >> $@
+	@echo '(define-public plugin-ext "$(PLUGIN_EXT)")' >> $@
 
 clean-local:
 	@rm -f instvars.scm

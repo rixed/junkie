@@ -73,6 +73,19 @@ AS_IF([test "x$VARDIR" = x], [VARDIR='$(localstatedir)/junkie'])
 AC_ARG_VAR([CONFDIR], [Where to store configuration files [SYSCONFDIR/junkie]])
 AS_IF([test "x$CONFDIR" = x], [CONFDIR="$sysconfdir/junkie"])
 
+case `uname` in
+	(Darwin*)
+		DEFAULT_LDFLAGS_PLUGIN="-flat_namespace -bundle -undefined suppress"
+		DEFAULT_PLUGIN_EXT="bundle" ;;
+	(*)
+		DEFAULT_LDFLAGS_PLUGIN="-fPIC -shared"
+		DEFAULT_PLUGIN_EXT="so" ;;
+esac
+AC_ARG_VAR([LDFLAGS_PLUGIN], How to link shared libraries)
+AS_IF([test "x$LDFLAGS_PLUGIN" = x], [LDFLAGS_PLUGIN="$DEFAULT_LDFLAGS_PLUGIN"])
+AC_ARG_VAR([PLUGIN_EXT], Extension of plugins)
+AS_IF([test "x$PLUGIN_EXT" = x], [PLUGIN_EXT="$DEFAULT_PLUGIN_EXT"])
+
 AC_ARG_ENABLE(bench, AC_HELP_STRING([--enable-bench], [Include benchmarking code]), [AC_DEFINE([WITH_BENCH], [], [Include benchmarking code])], [])
 
 AC_CONFIG_FILES([
