@@ -17,7 +17,9 @@ struct cursor {
 
 void cursor_ctor(struct cursor *, uint8_t const *head, size_t cap_len);
 
+/// Go backward n bytes
 void cursor_rollback(struct cursor *, size_t n);
+
 uint_least8_t cursor_read_u8(struct cursor *);
 uint_least16_t cursor_read_u16n(struct cursor *);
 uint_least16_t cursor_read_u16le(struct cursor *);
@@ -47,13 +49,15 @@ uint_least64_t cursor_read_u64le(struct cursor *);
  * @param str will be set to the tempstr.  */
 enum proto_parse_status cursor_read_string(struct cursor *, char **str, size_t max_len);
 
+/// Read an integer len bytes width
 enum proto_parse_status cursor_read_fix_int_n(struct cursor *cursor, uint_least64_t *res, unsigned len);
 enum proto_parse_status cursor_read_fix_int_le(struct cursor *cursor, uint_least64_t *res, unsigned len);
 
 /// Copy from cursor into a buffer
 void cursor_copy(void *, struct cursor *, size_t n);
 
-void cursor_drop(struct cursor *, size_t);
+/// Go forward by n bytes
+void cursor_drop(struct cursor *, size_t n);
 
 bool cursor_is_empty(struct cursor const *);
 
