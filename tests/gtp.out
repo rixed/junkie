@@ -1,0 +1,33 @@
+-- pcap/gtp/tunnel_ftp.pcap --
+Capture: head_len=48, payload=1450, dev_id=unset, tv=1276540036s 360319us
+Ethernet: head_len=14, payload=1436, vlan_id=unset, source=00:23:3e:66:3b:91, dest=00:e0:b1:bc:ad:66, proto=IPv4
+IPv4: head_len=20, payload=1416, version=4, addr=10.152.10.89->10.152.12.101, proto=UDP, ttl=254, frag=NoFrag, id=0xe456, Class=0:NonECT
+UDP: head_len=8, payload=1408, ports=64515->2152
+GTP: head_len=0, payload=1408, Version:1, MsgType:G-PDU, TEID:1633
+IPv4: head_len=20, payload=1380, version=4, addr=10.145.254.1->102.0.5.0, proto=TCP, ttl=61, frag=DontFrag, id=0xcbf3, Class=0:NonECT
+TCP: head_len=20, payload=1360, ports=36216(srv)->49186, flags=Ack, win=170, ack=2796803023, seq=428825787 (0), urg=0, opts=none
+
+Capture: head_len=48, payload=90, dev_id=unset, tv=1276540036s 373252us
+Ethernet: head_len=14, payload=76, vlan_id=unset, source=00:23:3e:66:3b:91, dest=00:e0:b1:bc:ad:66, proto=IPv4
+IPv4: head_len=20, payload=56, version=4, addr=10.145.255.11->10.145.255.22, proto=UDP, ttl=254, frag=NoFrag, id=0xa041, Class=0:NonECT
+UDP: head_len=8, payload=48, ports=64514->2152
+GTP: head_len=0, payload=48, Version:1, MsgType:G-PDU, TEID:16976933
+IPv4: head_len=20, payload=20, version=4, addr=102.0.5.0->10.145.254.1 (hashed the other way), proto=TCP, ttl=128, frag=DontFrag, id=0x3f1d, Class=0:NonECT
+TCP: head_len=20, payload=0, ports=49186->36216(srv), flags=Ack, win=1859, ack=428748267, seq=2796803023 (0), urg=0, opts=none
+
+Capture: head_len=48, payload=1450, dev_id=unset, tv=1276540036s 373667us
+Ethernet: head_len=14, payload=1436, vlan_id=unset, source=00:23:3e:66:3b:91, dest=00:e0:b1:bc:ad:66, proto=IPv4
+IPv4: head_len=20, payload=1416, version=4, addr=10.152.10.89->10.152.12.101, proto=UDP, ttl=254, frag=NoFrag, id=0x416e, Class=0:NonECT
+UDP: head_len=8, payload=1408, ports=64515->2152
+GTP: head_len=0, payload=1408, Version:1, MsgType:G-PDU, TEID:1633
+IPv4: head_len=20, payload=1380, version=4, addr=10.145.254.1->102.0.5.0, proto=TCP, ttl=61, frag=DontFrag, id=0xcbf8, Class=0:NonECT
+TCP: head_len=20, payload=1360, ports=36216(srv)->49186, flags=Ack, win=170, ack=2796803023, seq=428832587 (0), urg=0, opts=none
+
+Capture: head_len=48, payload=94, dev_id=unset, tv=1276540036s 380206us
+Ethernet: head_len=18, payload=76, vlan_id=unset, source=00:e0:b1:bc:ad:66, dest=00:23:3e:66:3b:91, proto=IPv4
+IPv4: head_len=20, payload=56, version=4, addr=10.152.12.101->10.152.10.89 (hashed the other way), proto=UDP, ttl=124, frag=NoFrag, id=0xdfff, Class=0:NonECT
+UDP: head_len=8, payload=48, ports=2152->2152
+GTP: head_len=0, payload=48, Version:1, MsgType:G-PDU, TEID:9638949
+IPv4: head_len=20, payload=20, version=4, addr=102.0.5.0->10.145.254.1 (hashed the other way), proto=TCP, ttl=128, frag=DontFrag, id=0x3f1e, Class=0:NonECT
+TCP: head_len=20, payload=0, ports=49186->36216(srv), flags=Ack, win=1848, ack=428750987, seq=2796803023 (0), urg=0, opts=none
+

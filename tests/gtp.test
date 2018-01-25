@@ -1,0 +1,10 @@
+#!/bin/sh
+
+NAME="GTP"
+PCAPS="pcap/gtp/tunnel_ftp.pcap"
+filter() {
+  cat -
+}
+OUTPUT="gtp.out"
+
+. "$srcdir/dump_test"
