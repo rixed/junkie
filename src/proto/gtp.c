@@ -20,6 +20,7 @@
 #include <assert.h>
 #include "junkie/tools/objalloc.h"
 #include "junkie/proto/cursor.h"
+#include "junkie/proto/ip.h"
 #include "junkie/proto/udp.h"
 #include "junkie/proto/gtp.h"
 
@@ -28,43 +29,7 @@
 
 LOG_CATEGORY_DEF(proto_gtp);
 
-struct gtp_parser {
-    struct parser parser;
-};
-
-static int gtp_parser_ctor(struct gtp_parser *gtp_parser, struct proto unused_ *proto)
-{
-    assert(proto == proto_gtp);
-    if (0 != parser_ctor(&gtp_parser->parser, proto_gtp)) {
-        return -1;
-    }
-    return 0;
-}
-
-static struct parser *gtp_parser_new(struct proto *proto)
-{
-    struct gtp_parser *gtp_parser = objalloc_nice(sizeof(*gtp_parser), "GTP parsers");
-    if (! gtp_parser) return NULL;
-
-    if (-1 == gtp_parser_ctor(gtp_parser, proto)) {
-        objfree(gtp_parser);
-        return NULL;
-    }
-
-    return &gtp_parser->parser;
-}
-
-static void gtp_parser_dtor(struct gtp_parser *gtp_parser)
-{
-    parser_dtor(&gtp_parser->parser);
-}
-
-static void gtp_parser_del(struct parser *parser)
-{
-    struct gtp_parser *gtp_parser = DOWNCAST(parser, parser, gtp_parser);
-    gtp_parser_dtor(gtp_parser);
-    objfree(gtp_parser);
-}
+#define GTP_HASH_SIZE 67
 
 /*
  * proto_info
@@ -175,7 +140,27 @@ static void gtp_proto_info_ctor(struct gtp_proto_info *info, struct parser *pars
  * Parse
  */
 
-static enum proto_parse_status gtp_parse_version1(struct gtp_proto_info *info, uint8_t const *packet, size_t cap_len, size_t unused_ wire_len)
+static enum proto_parse_status parse_gpdu(struct mux_parser *mux_parser, struct gtp_proto_info *info, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
+{
+    /* We will ignore the seqnum and not reorder the packets, regardless
+     * of the Reordering Required flag of the PDP context; PDP context
+     * that we ignore as well.
+     *
+     * Nothing tells us what protocol is being transported.
+     * Let's assume IPv4. */
+
+    // Search our IP subparser for this TEID
+    struct mux_subparser *subparser = mux_subparser_lookup(mux_parser, proto_ip, proto_gtp, &info->teid, now);
+
+    enum proto_parse_status status = proto_parse(subparser->parser, &info->info, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
+
+    if (subparser) mux_subparser_unref(&subparser);
+    if (status == PROTO_OK) return status;
+
+    return proto_parse(NULL, &info->info, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
+}
+
+static enum proto_parse_status parse_version1(struct mux_parser *mux_parser, struct gtp_proto_info *info, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct cursor cur;
     cursor_ctor(&cur, packet, cap_len);
@@ -195,7 +180,7 @@ static enum proto_parse_status gtp_parse_version1(struct gtp_proto_info *info, u
                         (flags & 0x02 ? GTP_HAS_SEQNUM : 0) |
                         (flags & 0x01 ? GTP_HAS_NPDU_NUMBER : 0);
     info->msg_type = cursor_read_u8(&cur);
-    unsigned msg_length = cursor_read_u16n(&cur);
+    size_t msg_length = cursor_read_u16n(&cur);
     info->teid = cursor_read_u32n(&cur);
     // After that starts the message which length is msg_length
     uint8_t const *msg_start = cur.head;
@@ -230,54 +215,54 @@ static enum proto_parse_status gtp_parse_version1(struct gtp_proto_info *info, u
 
     msg_length -= cur.head - msg_start;
 
-
-    return PROTO_OK;
+    switch (info->msg_type) {
+        case GTP_GPDU:
+            wire_len -= cur.head - packet;
+            if (msg_length != wire_len) {
+                SLOG(LOG_DEBUG, "GPDU msg length (%zu) != wire length (%zu)",
+                        msg_length, wire_len);
+            }
+            return parse_gpdu(mux_parser, info, way, cur.head, cur.cap_len, wire_len, now, tot_cap_len, tot_packet);
+        default:
+            return proto_parse(NULL, &info->info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
+    }
 }
 
-static enum proto_parse_status gtp_parse_version2(struct gtp_proto_info unused_ *info, uint8_t const unused_ *packet, size_t unused_ cap_len, size_t unused_ wire_len)
+static enum proto_parse_status parse_version2(struct mux_parser unused_ *mux_parser, struct gtp_proto_info *info, unsigned way, uint8_t const unused_ *packet, size_t unused_ cap_len, size_t unused_ wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
-    return PROTO_OK;
+    return proto_parse(NULL, &info->info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
 
 static enum proto_parse_status gtp_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
-    struct gtp_parser unused_ *gtp_parser = DOWNCAST(parser, parser, gtp_parser);
-    struct gtp_proto_info info;
-
-    gtp_proto_info_ctor(&info, parser, parent, 0, wire_len);
+    struct mux_parser *mux_parser = DOWNCAST(parser, parser, mux_parser);
 
     SLOG(LOG_DEBUG, "GTP with wire_len = %zu and cap_len = %zu", wire_len, cap_len);
     // GTP v1 or v2 are at least 64bits:
     if (wire_len < 8) return PROTO_PARSE_ERR;
     if (cap_len < 8) return PROTO_TOO_SHORT;
 
+    struct gtp_proto_info info;
+    gtp_proto_info_ctor(&info, parser, parent, 0, wire_len);
     info.version = packet[0] >> 5;
 
-    enum proto_parse_status err;
     switch (info.version) {
         case 1:
-            err = gtp_parse_version1(&info, packet, cap_len, wire_len);
-            break;
+            return parse_version1(mux_parser, &info, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
         case 2:
-            err = gtp_parse_version2(&info, packet, cap_len, wire_len);
-            break;
+            return parse_version2(mux_parser, &info, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
         default:
             SLOG(LOG_DEBUG, "Unknown version %d", info.version);
-            err = PROTO_PARSE_ERR;
-            break;
+            return PROTO_PARSE_ERR;
     }
-    if (err != PROTO_OK) return err;
-
-    // No subparser for now:
-    return proto_parse(NULL, &info.info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
 
 /*
  * Init
  */
 
-static struct proto proto_gtp_;
-struct proto *proto_gtp = &proto_gtp_;
+static struct mux_proto mux_proto_gtp;
+struct proto *proto_gtp = &mux_proto_gtp.proto;
 static struct port_muxer udp_port_muxer_userdata;  // GTP-u
 static struct port_muxer udp_port_muxer_control;   // GTP-c
 
@@ -287,14 +272,14 @@ void gtp_init(void)
 
     static struct proto_ops const ops = {
         .parse       = gtp_parse,
-        .parser_new  = gtp_parser_new,
-        .parser_del  = gtp_parser_del,
+        .parser_new  = mux_parser_new,
+        .parser_del  = mux_parser_del,
         .info_2_str  = gtp_info_2_str,
         .info_addr   = gtp_info_addr
     };
-    proto_ctor(&proto_gtp_, &ops, "GTP", PROTO_CODE_GTP);
-    port_muxer_ctor(&udp_port_muxer_userdata, &udp_port_muxers, 2152, 2152, proto_gtp);
-    port_muxer_ctor(&udp_port_muxer_control, &udp_port_muxers, 2123, 2123, proto_gtp);
+    mux_proto_ctor(&mux_proto_gtp, &ops, &mux_proto_ops, "GTP", PROTO_CODE_GTP, sizeof(uint32_t), GTP_HASH_SIZE);
+    port_muxer_ctor(&udp_port_muxer_userdata, &udp_port_muxers, 2152, 2152, proto_gtp); // GTP-U
+    port_muxer_ctor(&udp_port_muxer_control, &udp_port_muxers, 2123, 2123, proto_gtp);  // GTP-C
 }
 
 void gtp_fini(void)
@@ -302,7 +287,7 @@ void gtp_fini(void)
 #   ifdef DELETE_ALL_AT_EXIT
     port_muxer_dtor(&udp_port_muxer_userdata, &udp_port_muxers);
     port_muxer_dtor(&udp_port_muxer_control, &udp_port_muxers);
-    proto_dtor(&proto_gtp_);
+    mux_proto_dtor(&mux_proto_gtp);
 #   endif
     log_category_proto_gtp_fini();
 }
