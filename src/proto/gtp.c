@@ -160,6 +160,16 @@ static enum proto_parse_status parse_gpdu(struct mux_parser *mux_parser, struct 
     return proto_parse(NULL, &info->info, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
 }
 
+static void del_subparser(struct mux_parser *mux_parser, uint32_t teid, struct timeval const *now)
+{
+
+    struct mux_subparser *subparser = mux_subparser_lookup(mux_parser, NULL, NULL, &teid, now);
+    if (! subparser) return;
+
+    mux_subparser_deindex(subparser);
+    mux_subparser_unref(&subparser);
+}
+
 static enum proto_parse_status parse_version1(struct mux_parser *mux_parser, struct gtp_proto_info *info, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct cursor cur;
@@ -223,9 +233,13 @@ static enum proto_parse_status parse_version1(struct mux_parser *mux_parser, str
                         msg_length, wire_len);
             }
             return parse_gpdu(mux_parser, info, way, cur.head, cur.cap_len, wire_len, now, tot_cap_len, tot_packet);
+        case GTP_END_MARKER:
+            del_subparser(mux_parser, info->teid, now);
+            break; // pass
         default:
-            return proto_parse(NULL, &info->info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
+            break;
     }
+    return proto_parse(NULL, &info->info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
 
 static enum proto_parse_status parse_version2(struct mux_parser unused_ *mux_parser, struct gtp_proto_info *info, unsigned way, uint8_t const unused_ *packet, size_t unused_ cap_len, size_t unused_ wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
