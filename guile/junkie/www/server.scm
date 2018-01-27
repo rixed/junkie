@@ -126,11 +126,13 @@
       (else   'text/plain))))
 
 (define (respond-file file)
-  (let ((input-port (open-file-input-port file)))
+  (let ((input-port (open-file-input-port file))
+        (quoted     (lambda (str)
+                      (string-append "\"" str "\""))))
     (respond-raw (get-bytevector-all input-port)
                  #:content-type (content-type-of-filename file)
                  #:content-type-params '()
-                 #:extra-headers `((content-disposition  . ,(string-append "attachment; filename=" (basename file)))))))
+                 #:extra-headers `((content-disposition  . (attachment (filename . ,(quoted (basename file)))))))))
 
 (export respond-file)
 
