@@ -88,6 +88,19 @@ AS_IF([test "x$PLUGIN_EXT" = x], [PLUGIN_EXT="$DEFAULT_PLUGIN_EXT"])
 
 AC_ARG_ENABLE(bench, AC_HELP_STRING([--enable-bench], [Include benchmarking code]), [AC_DEFINE([WITH_BENCH], [], [Include benchmarking code])], [])
 
+# Check for PTHREAD_MUTEX_ADAPTIVE_NP
+AC_MSG_CHECKING([for PTHREAD_MUTEX_ADAPTIVE_NP])
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#include <pthread.h>
+]], [[
+  return (PTHREAD_MUTEX_ADAPTIVE_NP);
+]])], [
+AC_MSG_RESULT([yes])
+AC_DEFINE([HAVE_PTHREAD_MUTEX_ADAPTIVE_NP], [], [PTHREAD_MUTEX_ADAPTIVE_NP exists])
+], [
+AC_MSG_RESULT([no])
+])
+
 AC_CONFIG_FILES([
 	Makefile
 	include/Makefile
