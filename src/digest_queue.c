@@ -38,7 +38,7 @@
 #include "junkie/proto/deduplication.h"
 #include "junkie/cpp.h"
 
-// We use directly the MD4 as a hash key
+// We use directly (the first 32bits of) the MD4 as a hash key
 #undef HASH_FUNC
 #define HASH_FUNC(key) ((key)->hash_key)
 
@@ -320,7 +320,7 @@ bool digest_queue_find(struct digest_queue *dq, size_t cap_len, uint8_t *packet,
     unsigned count = 0;
     // now look all qcells for a dup
     HASH_FOREACH_SAME_KEY_SAFE(qc, &q->qcells, &qc_new->u, u, entry, qc_tmp) {
-        // timeout first (so that retransmissions are elimiated)
+        // timeout first (so that retransmissions are eliminated)
         if (timeval_cmp(&qc->tv, &min_tv) < 0) {
             digest_qcell_del(qc, q);
         } else if (0 == memcmp(qc->u.digest, qc_new->u.digest, DIGEST_SIZE)) {

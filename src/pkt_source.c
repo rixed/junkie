@@ -130,7 +130,7 @@ static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, 
 
     if (pkt_source->patch_ts) timeval_set_now(&frame.tv);
 
-    // drop the frame if we previously saw it in the last 5ms.
+    // drop the frame if we previously saw it in the last max-dedup-delay us.
     if (
         // Per iface dedup
         (pkt_source->digests && digest_queue_find(pkt_source->digests, caplen, (uint8_t *)packet, &header->ts)) ||
