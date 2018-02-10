@@ -38,6 +38,7 @@ void get_window_size(unsigned *cols, unsigned *rows)
     struct winsize ws;
     if (-1 == ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws)) {
         SLOG(LOG_WARNING, "Cannot get terminal size: %s", strerror(errno));
+        // TODO: try getenv COLUMNS and LINES?
         ws.ws_row = 25;
         ws.ws_col = 80;
     }

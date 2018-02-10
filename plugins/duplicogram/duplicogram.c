@@ -89,7 +89,16 @@ static void init(void)
     if (bucket_width == 0) {
         unsigned columns;
         get_window_size(&columns, NULL);
+        if (0 == columns) {
+            columns = 80;  // good old defaults never fail us
+        }
         bucket_width = CEIL_DIV(max_dup_delay, columns);
+        if (0 == bucket_width) {
+            // It's ok to use the console as at this point we are likely
+            // in the debugger already
+            fprintf(stderr, "Cannot compute bucket width");
+            bucket_width = 1;
+        }
     }
     nb_buckets = CEIL_DIV(max_dup_delay, bucket_width);
     if (dups) free(dups);
