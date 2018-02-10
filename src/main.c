@@ -19,10 +19,13 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
 #include <string.h>
+#include <strings.h>
 #include <stdbool.h>
 #include <unistd.h>
 #include <signal.h>
+#include <libgen.h>
 #include <sys/types.h>
 #include "junkie/config.h"
 #include <openssl/ssl.h>
@@ -278,6 +281,38 @@ int main(int nb_args, char **args)
     };
 
     cli_register(NULL, main_opts, NB_ELEMS(main_opts));
+
+    /* If args[0] is not "junkie" then assume it's a plugin name: */
+    assert(nb_args >= 1);
+    char basename_buf[PATH_MAX];
+    char *alt_args[nb_args+2];
+    char *plugin_name = basename_r(args[0], basename_buf);
+    char *junkie_exec_name = "junkie";
+    if (! plugin_name) {
+        fprintf(stderr, "Cannot get basename of '%s': %s", args[0], strerror(errno));
+    } else if (0 != strcasecmp(plugin_name, junkie_exec_name)) {
+        // Assume it's a plugin name and fake another command line:
+        for (unsigned i = 0; i < NB_ELEMS(alt_args); i++) {
+            char *src;
+            switch (i) {
+                case 0:  // restore the command name
+                    src = junkie_exec_name;
+                    break;
+                case 1:  // Insert "-p"
+                    src = "-p";
+                    break;
+                case 2:  // Insert plugin name
+                    src = plugin_name;
+                    break;
+                default:  // Beyond that just copy from actual args
+                    src = args[i - 2];
+                    break;
+            }
+            alt_args[i] = src;
+        }
+        args = alt_args;
+        nb_args = NB_ELEMS(alt_args);
+    }
 
     if (0 != cli_parse(nb_args-1, args+1)) return EXIT_FAILURE;
 

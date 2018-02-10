@@ -6,3 +6,5 @@ pkglib_LTLIBRARIES = os-detect.la
 os_detect_la_SOURCES = os-detect.c
 os_detect_la_LDFLAGS = -module -avoid-version
 
+install-exec-local:
+	-ln -s $(bindir)/junkie $(bindir)/os-detect

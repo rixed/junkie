@@ -6,3 +6,5 @@ pkglib_LTLIBRARIES = rater.la
 rater_la_SOURCES = rater.c
 rater_la_LDFLAGS = -module -avoid-version
 
+install-exec-local:
+	-ln -s $(bindir)/junkie $(bindir)/rater

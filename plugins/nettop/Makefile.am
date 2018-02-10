@@ -6,3 +6,5 @@ pkglib_LTLIBRARIES = nettop.la
 nettop_la_SOURCES = nettop.c
 nettop_la_LDFLAGS = -module -avoid-version
 
+install-exec-local:
+	-ln -s $(bindir)/junkie $(bindir)/nettop

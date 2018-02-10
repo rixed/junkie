@@ -6,3 +6,5 @@ pkglib_LTLIBRARIES = writer.la
 writer_la_SOURCES = writer.c
 writer_la_LDFLAGS = -module -avoid-version
 
+install-exec-local:
+	-ln -s $(bindir)/junkie $(bindir)/writer

@@ -6,3 +6,5 @@ pkglib_LTLIBRARIES = delayogram.la
 delayogram_la_SOURCES = delayogram.c
 delayogram_la_LDFLAGS = -module -avoid-version
 
+install-exec-local:
+	-ln -s $(bindir)/junkie $(bindir)/delayogram

@@ -6,3 +6,5 @@ pkglib_LTLIBRARIES = arpgraph.la
 arpgraph_la_SOURCES = arpgraph.c
 arpgraph_la_LDFLAGS = -module -avoid-version
 
+install-exec-local:
+	-ln -s $(bindir)/junkie $(bindir)/arpgraph

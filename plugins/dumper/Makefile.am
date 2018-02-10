@@ -6,3 +6,5 @@ pkglib_LTLIBRARIES = dumper.la
 dumper_la_SOURCES = dumper.c
 dumper_la_LDFLAGS = -module -avoid-version
 
+install-exec-local:
+	-ln -s $(bindir)/junkie $(bindir)/dumper
