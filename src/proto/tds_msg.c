@@ -705,7 +705,7 @@ static void append_from_unicode(struct tds_msg_parser const *tds_msg_parser, cha
     size_t outbytesleft = dst_size - *dst_pos;
     unsigned char const *inbuf = (unsigned const char *)cursor->head;
 
-    size_t ret = iconv(tds_msg_parser->iconv_cd, (char **)&inbuf, &bytes_len, &outbuf, &outbytesleft);
+    size_t ret = iconv(tds_msg_parser->iconv_cd, (char ICONV_CONST **)&inbuf, &bytes_len, &outbuf, &outbytesleft);
     if (ret == (size_t) -1) {
         SLOG(LOG_NOTICE, "Iconv error: %s", strerror(errno));
     }

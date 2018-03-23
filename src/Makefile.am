@@ -15,6 +15,6 @@ junkie_SOURCES = \
 	plugins.c plugins.h \
 	netmatch.c nettrack.c nettrack.h
 
-junkie_LDADD = proto/libproto.la tools/libjunkietools.la -lm
+junkie_LDADD = proto/libproto.la tools/libjunkietools.la -lm $(LTLIBICONV)
 junkie_LDFLAGS = -export-dynamic
 
