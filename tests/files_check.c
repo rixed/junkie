@@ -4,6 +4,8 @@
 #undef NDEBUG
 #include <assert.h>
 #include <stdio.h>
+#include <unistd.h>
+#include <sys/types.h>
 #include <junkie/tools/miscmacs.h>
 #include <junkie/tools/files.h>
 #include <junkie/tools/tempstr.h>
@@ -12,7 +14,7 @@
 static void mkdir_all_check(void)
 {
     // Check errors are reported
-    assert(-1 == mkdir_all("/no/permission", false));
+    assert(0 == getuid() || -1 == mkdir_all("/no/permission", false));
 
     // Checks multiple / are coallesced
     char *tmp = tempnam(P_tmpdir, "files_check"); // mkstemp
