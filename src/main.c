@@ -284,9 +284,13 @@ int main(int nb_args, char **args)
 
     /* If args[0] is not "junkie" then assume it's a plugin name: */
     assert(nb_args >= 1);
-    char basename_buf[PATH_MAX];
     char *alt_args[nb_args+2];
+#   if HAVE_BASENAME_R
+    char basename_buf[PATH_MAX];
     char *plugin_name = basename_r(args[0], basename_buf);
+#   else
+    char *plugin_name = strdup(basename(args[0]));
+#   endif
     char *junkie_exec_name = "junkie";
     if (! plugin_name) {
         fprintf(stderr, "Cannot get basename of '%s': %s", args[0], strerror(errno));

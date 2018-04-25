@@ -48,7 +48,7 @@ AC_C_BIGENDIAN()
 
 # Checks for library functions.
 AC_FUNC_CHOWN
-AC_CHECK_FUNCS([clock_gettime localtime_r mkdir regcomp rmdir sqrt strcasecmp strncasecmp strtoull prctl strnstr malloc_stats mallinfo])
+AC_CHECK_FUNCS([clock_gettime localtime_r mkdir regcomp rmdir sqrt strcasecmp strncasecmp strtoull prctl strnstr malloc_stats mallinfo basename_r])
 
 # Some build parameters
 AC_ARG_WITH([giant_lock],
