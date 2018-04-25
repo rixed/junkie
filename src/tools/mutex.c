@@ -142,14 +142,14 @@ void mutex_ctor_recursive(struct mutex *mutex, char const *name)
 void mutex_ctor(struct mutex *mutex, char const *name)
 {
     mutex_ctor_with_type(mutex, name,
-#       ifdef HAVE_PTHREAD_MUTEX_ADAPTIVE_NP
-            PTHREAD_MUTEX_ADAPTIVE_NP
-#       else
-#           ifndef NDEBUG
-                PTHREAD_MUTEX_ERRORCHECK
+#       ifdef NDEBUG
+#           ifdef HAVE_PTHREAD_MUTEX_ADAPTIVE_NP
+                PTHREAD_MUTEX_ADAPTIVE_NP
 #           else
                 PTHREAD_MUTEX_DEFAULT
 #           endif
+#       else
+            PTHREAD_MUTEX_ERRORCHECK
 #       endif
     );
 }
