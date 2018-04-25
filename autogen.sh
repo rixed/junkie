@@ -8,7 +8,12 @@ case `uname` in
   (Darwin*) glibtoolize --force ;;
   (*) libtoolize --force ;;
 esac &&
-aclocal &&
+
+if test -d /usr/local/share/aclocal; then
+  aclocal -I /usr/local/share/aclocal
+else
+  aclocal
+fi &&
 autoheader &&
 automake --add-missing --foreign &&
 autoconf &&
