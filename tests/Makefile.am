@@ -37,12 +37,12 @@ dist_check_SCRIPTS = \
 TESTS = $(check_PROGRAMS) $(dist_check_SCRIPTS)
 
 AM_TESTS_ENVIRONMENT = \
-	EF_ALLOW_MALLOC_0=1 \
-	GUILE_LOAD_PATH=$(top_srcdir)/guile \
-	GUILE_LOAD_COMPILED_PATH=$(top_srcdir)/guile \
-	GUILE_AUTO_COMPILE=0 \
-	GUILE_WARN_DEPRECATED=no \
-	NETMATCH_CPPFLAGS="$(AM_CPPFLAGS) @GUILE_CFLAGS@ -I$(top_srcdir)/include";
+	export EF_ALLOW_MALLOC_0=1; \
+	export GUILE_LOAD_PATH=$(top_srcdir)/guile; \
+	export GUILE_LOAD_COMPILED_PATH=$(top_srcdir)/guile; \
+	export GUILE_AUTO_COMPILE=0; \
+	export GUILE_WARN_DEPRECATED=no; \
+	export NETMATCH_CPPFLAGS="$(AM_CPPFLAGS) @GUILE_CFLAGS@ -I$(top_srcdir)/include";
 
 TEST_EXTENSIONS = .test .scm
 
