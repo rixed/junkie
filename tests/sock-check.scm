@@ -1,4 +1,4 @@
-#!/usr/bin/env ../src/junkie -c
+#!../src/junkie -c
 ; vim:syntax=scheme expandtab filetype=scheme
 ; coding: iso-8859-1
 !#
