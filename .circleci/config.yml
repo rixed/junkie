@@ -1,0 +1,28 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: debian:testing
+    steps:
+      - run:
+          name: Do not install recommends
+          command: >
+            echo 'APT::Install-Recommends "0";' >
+            /etc/apt/apt.conf.d/no_recommends
+      - run:
+          name: Update packages
+          command: apt-get -qq --yes update
+      - run:
+          name: Install dependencies
+          command: >
+            DEBIAN_FRONTEND=noninteractive
+            apt-get -qq --yes install
+            git libc6-dev make gcc libssl-dev libpcap-dev guile-2.2-dev
+            libltdl-dev autoconf automake m4 gettext libtool python-minimal
+      - checkout
+      - run:
+          name: Build
+          command: ./autogen.sh && ./configure && make -j3
+      - run:
+          name: Test
+          command: make check
