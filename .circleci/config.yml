@@ -17,8 +17,9 @@ jobs:
           command: >
             DEBIAN_FRONTEND=noninteractive
             apt-get -qq --yes install
-            git libc6-dev make gcc libssl-dev libpcap-dev guile-2.2-dev
-            libltdl-dev autoconf automake m4 gettext libtool python-minimal
+            git ca-certificates libc6-dev make gcc libssl-dev libpcap-dev
+            guile-2.2-dev libltdl-dev autoconf automake m4 gettext libtool
+            python-minimal
       - checkout
       - run:
           name: Build
