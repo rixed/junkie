@@ -1,0 +1,95 @@
+-- vim: ft=sql expandtab
+-- This file is a source file for Ramen (https://github.com/rixed/ramen).
+-- It contains the operations to load the CSV files produced by
+-- dump-transactions.
+
+DEFINE web csv_dir="/tmp" AS
+  READ AND DELETE FILE "${param.csv_dir}/web-*.csv" SEPARATOR "\t" NULL "<NULL>" (
+    time float not null,
+    device u32 not null,
+    vlan u16 null,
+    clt_mac eth not null,
+    clt_ip ip4 not null, -- waiting for https://github.com/rixed/ramen/issues/261
+    srv_mac eth not null,
+    srv_ip ip4 not null,
+    srv_port u16 not null,
+    method u8 not null,
+    status u16 not null,
+    resp_time float not null,
+    host string not null,
+    url string not null)
+  FACTORS device, vlan, method AND status
+  EVENT STARTING AT time WITH DURATION resp_time;
+
+DEFINE dns csv_dir="/tmp" AS
+  READ AND DELETE FILE "${param.csv_dir}/dns-*.csv" SEPARATOR "\t" NULL "<NULL>" (
+    time float not null,
+    device u32 not null,
+    vlan u16 null,
+    clt_mac eth not null,
+    clt_ip ip4 not null, -- waiting for https://github.com/rixed/ramen/issues/261
+    srv_mac eth not null,
+    srv_ip ip4 not null,
+    srv_port u16 not null,
+    status u16 not null,
+    resp_time float not null,
+    query string not null)
+  FACTORS device, vlan AND status
+  EVENT STARTING AT time WITH DURATION resp_time;
+
+DEFINE traffic csv_dir="/tmp" AS
+  READ AND DELETE FILE "${param.csv_dir}/traffic-*.csv" SEPARATOR "\t" NULL "<NULL>" (
+    start float not null,
+    stop float not null,
+    device u32 not null,
+    packets u32 not null,
+    vlan u16 null,
+    clt_mac eth not null,
+    srv_mac eth not null,
+    eth_proto u16 not null,
+    eth_payload u32 not null,
+    eth_mtu u32 not null,
+    src_ip ip4 null,
+    dst_ip ip4 null,
+    ip_proto u8 null,
+    ip_payload u32 null,
+    src_port u16 null,
+    dst_port u16 null)
+  FACTORS device, vlan, eth_proto AND ip_proto
+  EVENT STARTING AT start AND STOPPING AT stop;
+
+-- list the TCP connection establishment only, not the full socket
+-- (for this, see traffic and flow).
+DEFINE tcp csv_dir="/tmp" AS
+  READ AND DELETE FILE "${param.csv_dir}/tcp-*.csv" SEPARATOR "\t" NULL "<NULL>" (
+    time float not null,
+    device u32 not null,
+    vlan u16 null,
+    clt_mac eth not null,
+    clt_ip ip4 not null, -- waiting for https://github.com/rixed/ramen/issues/261
+    clt_port u16 not null,
+    srv_mac eth not null,
+    srv_ip ip4 not null,
+    srv_port u16 not null,
+    nb_syns u32 not null,
+    resp_time float not null)
+  FACTORS device AND vlan
+  EVENT STARTING AT time WITH DURATION resp_time;
+
+DEFINE flow csv_dir="/tmp" AS
+  READ AND DELETE FILE "${param.csv_dir}/flow-*.csv" SEPARATOR "\t" NULL "<NULL>" (
+    start float not null,
+    stop float not null,
+    device u32 not null,
+    vlan u16 null,
+    clt_mac eth not null,
+    clt_ip ip4 not null,
+    srv_mac eth not null,
+    srv_ip ip4 not null,
+    ip_proto u8 not null,
+    src_port u16 not null,
+    dst_port u16 not null,
+    packets u32 not null,
+    payload u32 not null)
+  FACTORS device, vlan AND ip_proto
+  EVENT STARTING AT start AND STOPPING AT stop;

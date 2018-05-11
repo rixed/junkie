@@ -93,3 +93,4 @@ module-deps.dot
 *.trs
 .dirstamp
 configure.lineno
+*.x

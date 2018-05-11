@@ -2,12 +2,10 @@
 ; vim:syntax=scheme filetype=scheme expandtab
 Or just run: junkie -c this_file
 
-This small example will dump all transactions that can be seen as CSV in
-different files. Those files are named tcp.fifo, dns.fifo, flow.fifo, web.fifo
-and traffic.fifo because I'd recommand to create them as fifo (mkfifo) before
-running this program, although you could also let this script create them (as
-regular files) and truncate them from time to time...
-
+This small example will dump all transactions that can be seen in a set of CSV
+files named tcp-XYZ.csv, dns-XYZ.csv, flow-XYZ.csv, web-XYZ.csv and
+traffic-XYZ.csv, where XYZ are timestamp of the first entry in the file.  A new
+file will be created every $CSV_DURATION seconds (60 by default).
 !#
 
 (define-module (dump-transactions))
@@ -15,98 +13,171 @@ regular files) and truncate them from time to time...
              (junkie defs)
              (junkie tools)
              (junkie runtime)
-             (ice-9 threads))
+             (ice-9 threads)
+             (rnrs records syntactic))
 
 (define (getenv-default def s) (or (getenv s) def))
 
 (set-log-file (string-append (getenv-default "." "LOG_DIR") "/junkie.log"))
-;(set-log-level log-debug "guile")
+(set-log-level log-debug "guile")
 ;(set-log-level log-err "mutex")
 ;(set-log-level log-err "proto")
 
-; find all the FIFOs in which we are supposed to write
-(define fifodir (getenv-default "." "FIFO_BASE_DIR"))
-(define (get-fifo name)
-  (let ((fname (string-append fifodir "/" name ".fifo")))
-    (open-file fname "alb"))) ; append, line buffered, binary
+(define csv-dir (getenv-default "." "CSV_DIR"))
+(define csv-duration (string->number (getenv-default "60" "CSV_DURATION")))
 
-(define tcp-fifo (get-fifo "tcp"))
-(define dns-fifo (get-fifo "dns"))
-(define flow-fifo (get-fifo "flow"))
-(define web-fifo (get-fifo "web"))
-(define traffic-fifo (get-fifo "traffic"))
+; TODO: instead of FIfO, CSV files created with a timestamp, one per
+; CSV_DURATION seconds. Therefore each dump-line must reopen the fd (with
+; a cache).
+(define-record-type (timed-filedes make-timed-filedes-ll timed-filedes?)
+  (fields prefix (mutable name) (mutable fd) (mutable start-ts)))
 
-(define (ll-dump out next . rest)
+; redefine make-timed-filedes for default arguments:
+(define (make-timed-filedes prefix)
+  (make-timed-filedes-ll prefix "" #f 0))
+
+(define (reopen-timed-filedes tfd new-ts)
+  (slog log-debug "Reopening dump fd ~a" (timed-filedes-prefix tfd))
+  (let* ((cur-fd (timed-filedes-fd tfd))
+         (new-name (string-append csv-dir "/"
+                                  (timed-filedes-prefix tfd) "-"
+                                  (number->string new-ts) ".csv.tmp"))
+         (new-fd (open-file new-name "alb"))) ; append, line buffered, binary
+    (if (port? cur-fd)
+      (let* ((old-name (timed-filedes-name tfd))
+             (fin-name (string-drop-right old-name 4))) ; drop ".tmp"
+        (rename-file old-name fin-name)
+        (close-port cur-fd)))
+    (timed-filedes-fd-set! tfd new-fd)
+    (timed-filedes-start-ts-set! tfd new-ts)
+    (timed-filedes-name-set! tfd new-name)))
+
+(define (maybe-reopen-timed-filedes tfd new-ts)
+  (if (>= new-ts (+ (timed-filedes-start-ts tfd) csv-duration))
+    (reopen-timed-filedes tfd new-ts)))
+
+(define tcp-tfd (make-timed-filedes "tcp"))
+(define dns-tfd (make-timed-filedes "dns"))
+(define flow-tfd (make-timed-filedes "flow"))
+(define web-tfd (make-timed-filedes "web"))
+(define traffic-tfd (make-timed-filedes "traffic"))
+
+(define (dump-next-value out next . rest)
   (display next out)
   (if (null? rest) (write-char #\newline out)
       (begin (write-char #\tab out)
-             (apply ll-dump out rest))))
+             (apply dump-next-value out rest))))
 
-; damn ports still not thread safe
+; Ports are not thread safe:
 (define dump-lock (make-mutex))
-(define (dump . args)
+(define (dump tfd ts . args)
   (with-mutex dump-lock
-              (apply ll-dump args)))
+    (maybe-reopen-timed-filedes tfd ts)
+    (apply dump-next-value (timed-filedes-fd tfd)
+           (cons ts args)))) ; also dump the TS as the first field
 
-(define (iface device)
-  (string-append "iface " (number->string device)))
+(define null "<NULL>")
+(define (or-null v)
+  (if (eqv? v 0) null v))
+
 (define (vlan vlan-id)
-  (if (> vlan-id 4095)
-      "None"
-      (string-append "Some " (number->string vlan-id))))
+  (if (or (< vlan-id 0) (> vlan-id 4095))
+      null
+      vlan-id))
 
-(define-public (print-web device vlan-id client-mac client-ip server-mac server-ip server-port qry-method err-code qry-start dt qry-host url)
+(define-public (print-web device vlan-id client-mac client-ip server-mac
+                          server-ip server-port qry-method err-code
+                          qry-start dt qry-host url)
   (let ((dt (/ dt 1000000.))) ; convert microsecs to secs
-    (dump web-fifo
-          (iface device)
+    (dump web-tfd
+          (timestamp->float qry-start)
+          device
           (vlan vlan-id)
-          (eth->string client-mac) (ip->string client-ip)
-          (eth->string server-mac) (ip->string server-ip) server-port
-          qry-method err-code
-          (timestamp->string qry-start) 1 dt dt dt 0
-          qry-host url)))
-
-(define-public (print-dns device vlan-id client-mac client-ip server-mac server-ip err-code qry-start dt qry-name)
-  (let ((dt (/ dt 1000000.))) ; convert microsecs to secs
-    (dump dns-fifo
-          (iface device)
-          (vlan vlan-id)
-          (eth->string client-mac) (ip->string client-ip)
-          (eth->string server-mac) (ip->string server-ip)
+          (eth->string client-mac)
+          (ip->string client-ip)
+          (eth->string server-mac)
+          (ip->string server-ip)
+          server-port
+          qry-method
           err-code
-          (timestamp->string qry-start) 1 dt dt dt 0
+          dt
+          qry-host
+          url)))
+
+(define-public (print-dns device vlan-id client-mac client-ip server-mac
+                          server-ip server-port err-code qry-start dt
+                          qry-name)
+  (let ((dt (/ dt 1000000.))) ; convert microsecs to secs
+    (dump dns-tfd
+          (timestamp->float qry-start)
+          device
+          (vlan vlan-id)
+          (eth->string client-mac)
+          (ip->string client-ip)
+          (eth->string server-mac)
+          (ip->string server-ip)
+          server-port
+          err-code
+          dt
           qry-name)))
 
-(define-public (print-traffic device vlan-id ts-start ts-stop count eth-src eth-dst eth-proto eth-pld eth-mtu ip-src ip-dst ip-proto ip-pld port-src port-dst l4-pld)
-  (dump traffic-fifo
-        (iface device)
-        (timestamp->string ts-start) (timestamp->string ts-stop) count
+(define-public (print-traffic device vlan-id ts-start ts-stop count eth-src
+                              eth-dst eth-proto eth-pld eth-mtu ip-src
+                              ip-dst ip-proto ip-pld port-src port-dst
+                              l4-pld)
+  (dump traffic-tfd
+        (timestamp->float ts-start)
+        (timestamp->float ts-stop)
+        device
+        count
         (vlan vlan-id)
-        (eth->string eth-src) (eth->string eth-dst) eth-proto eth-pld eth-mtu
-        (if ip-src (ip->string ip-src) "0.0.0.0")
-        (if ip-dst (ip->string ip-dst) "0.0.0.0")
-        ip-proto ip-pld
-        port-src port-dst l4-pld))
+        (eth->string eth-src)
+        (eth->string eth-dst)
+        eth-proto
+        eth-pld
+        eth-mtu
+        (if ip-src (ip->string ip-src) null)
+        (if ip-dst (ip->string ip-dst) null)
+        (or-null ip-proto)
+        (or-null ip-pld)
+        (or-null port-src)
+        (or-null port-dst)
+        l4-pld))
 
-(define-public (print-tcp device vlan-id client-mac client-ip server-mac server-ip client-port server-port sock-syn nb-syns dt)
+(define-public (print-tcp device vlan-id client-mac client-ip server-mac
+                          server-ip client-port server-port sock-syn nb-syns
+                          dt)
   (let ((dt (/ dt 1000000.))) ; convert microsecs to secs
-    (dump tcp-fifo
-          (iface device)
+    (dump tcp-tfd
+          (timestamp->float sock-syn)
+          device
           (vlan vlan-id)
-          (eth->string client-mac) (ip->string client-ip)
-          (eth->string server-mac) (ip->string server-ip)
-          client-port server-port
-          (timestamp->string sock-syn) nb-syns 1 dt dt dt 0)))
+          (eth->string client-mac)
+          (ip->string client-ip)
+          client-port
+          (eth->string server-mac)
+          (ip->string server-ip)
+          server-port
+          nb-syns
+          dt))) ; dt measure the connection time
 
-(define-public (print-flow device vlan-id eth-src ip-src eth-dst ip-dst ip-proto port-src port-dst ts-start ts-stop count pld)
-  (dump flow-fifo
-        (iface device)
+(define-public (print-flow device vlan-id eth-src ip-src eth-dst ip-dst
+                           ip-proto port-src port-dst ts-start ts-stop
+                           count pld)
+  (dump flow-tfd
+        (timestamp->float ts-start)
+        (timestamp->float ts-stop)
+        device
         (vlan vlan-id)
-        (eth->string eth-src) (ip->string ip-src)
-        (eth->string eth-dst) (ip->string ip-dst)
-        ip-proto port-src port-dst
-        (timestamp->string ts-start) (timestamp->string ts-stop)
-        count pld))
+        (eth->string eth-src)
+        (ip->string ip-src)
+        (eth->string eth-dst)
+        (ip->string ip-dst)
+        ip-proto
+        port-src
+        port-dst
+        count
+        pld))
 
 (define nt-http (nt:compile "http-response-time"
   '([(err-code uint)
@@ -172,25 +243,27 @@ regular files) and truncate them from time to time...
      (server-ip ip)
      (client-mac mac)
      (server-mac mac)
+     (server-port uint)
      (device uint)
      (vlan uint)
      (qry-start timestamp)
      (qry-stop timestamp)
      (qry-name str)]
     [(dns-answer
-       (on-entry (apply (dump-transactions) print-dns device vlan client-mac client-ip server-mac server-ip err-code qry-start (- qry-stop qry-start) qry-name)))
+       (on-entry (apply (dump-transactions) print-dns device vlan client-mac client-ip server-mac server-ip server-port err-code qry-start (- qry-stop qry-start) qry-name)))
      (dns-query
        (index-size 5024)
        (timeout 10000000))]
     ; edges
     [(root dns-query
-        (match (cap eth ip dns) (if
+        (match (cap eth ip udp dns) (if
                                   dns.query
                                   (do
                                     (client-ip := ip.src)
                                     (client-mac := eth.src)
                                     (server-ip := ip.dst)
                                     (server-mac := eth.dst)
+                                    (server-port := udp.src-port)
                                     (device := cap.dev)
                                     (vlan := eth.vlan)
                                     (txid := dns.txid)
@@ -649,8 +722,3 @@ regular files) and truncate them from time to time...
   (set-ifaces ifaces #:capfilter capfilter)
   (if (null? (iface-names))
       (slog log-crit "It seams SNIFF_IFACES (~a) matches no ifaces" ifaces)))
-
-; debug:
-(tcp-add-port "http" 29380)
-
-;(open-pcap "/usr/local/share/pcap/lille.pcap")

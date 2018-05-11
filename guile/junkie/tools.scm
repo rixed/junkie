@@ -101,6 +101,11 @@
 
 (export timestamp->string)
 
+(define (timestamp->float t)
+  (+ (car t) (/ (cdr t) 1000000.)))
+
+(export timestamp->float)
+
 ; Some tools mainly useful for tests
 
 (define-syntax assert
