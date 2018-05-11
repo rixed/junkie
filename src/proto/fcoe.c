@@ -1,6 +1,6 @@
 // -*- c-basic-offset: 4; c-backslash-column: 79; indent-tabs-mode: nil -*-
 // vim:sw=4 ts=4 sts=4 expandtab
-/* Copyright 2013, SecurActive.
+/* Copyright 2018, SecurActive.
  *
  * This file is part of Junkie.
  *

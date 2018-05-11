@@ -24,7 +24,7 @@
 ;;;
 ;;; All the operators are typed (by type-assertions that will fail when generating the code)
 
-; we take the type rather than the type name because one day we might want to try implicit convertion?
+; we take the type rather than the type name because one day we might want to try implicit conversion?
 (define (check t1 t2)
   (assert (type? t1))
   (assert (type? t2))
@@ -64,7 +64,7 @@
 (export make-op op-name op-otype op-itypes op-function)
 
 ;;; Tools
-;;; By convention, and to aleviate the code from unnecessary closures, we will assume that:
+;;; By convention, and to alleviate the code from unnecessary closures, we will assume that:
 ;;; - the current regfile is pointed to by a pointer named regfile;
 ;;; - the current proto is pointed by proto;
 ;;; - the current info is pointed by info.

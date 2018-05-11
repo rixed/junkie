@@ -1347,6 +1347,3 @@ Some ideas of what can be done with this:
 - or to open some ports after some complex port-knocking scheme was detected
 - save all packets between such and such events
 - ...!
-
-
-

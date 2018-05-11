@@ -1,6 +1,20 @@
 For a detailed Changelog, see git logs.
 Here are only reported the most visible changes.
 
+NEW in 2.8.0 (since 2.7.0)
+--------------------------
+
+* Upgrade for newer openssl libs
+
+* Autoload plugins (./plugin is equivalent to ./junkie -p plugin)
+
+* Simple GTP parser
+
+* Non-trivial example of a dumper
+
+* Various minor fixes
+
+
 NEW in 2.7.0 (since 2.6.0)
 --------------------------
 
@@ -160,4 +174,3 @@ New in 1.1.0 (since 1.0.0)
 * Can replay pcap file at capture speed, can write pcap files (from C not Guile)
 
 * Few sample plugins and many fixes!
-

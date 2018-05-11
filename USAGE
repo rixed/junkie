@@ -73,4 +73,3 @@ We use the standard tcpdump-style filter:
 	junkie> (set-iface-filter "wlan0" "tcp and not host 192.168.10.1")
 	#t
 	junkie>
-

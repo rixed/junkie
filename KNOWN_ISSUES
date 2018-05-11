@@ -1,16 +1,7 @@
-* Howto compile on Debian Lenny
+* Compilation on Debian Stretch
 
-To compile the master branch of Junkie from a fresh git clone on Debian Lenny,
-you must install from backports-lenny the packages autoconf, libtool and
-libltdl-dev.
+The only dependency that needs to be installed from outside the Debian stable
+repo is Guile. You must aim at v2.2 or later.
+Refer to Guile website for instructions [0].
 
-A more recent version than 0.9 of Libpcap should probably be installed from
-sources ; or the packages libpcap0.8 and libpcap0.8-dev can also be taken from
-the squeeze distribution, as by chance they install fine on a lenny.
-
-For guile, the guile available in lenny has been compiled without thread
-support, which may or not be a problem depending on what you are planning to
-use Junkie for.
-
-Then proceed with autogen.sh.
-
+0: https://www.gnu.org/software/guile/manual/html_node/Obtaining-and-Installing-Guile.html
