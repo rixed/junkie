@@ -19,7 +19,7 @@ file will be created every $CSV_DURATION seconds (60 by default).
 (define (getenv-default def s) (or (getenv s) def))
 
 (set-log-file (string-append (getenv-default "." "LOG_DIR") "/junkie.log"))
-(set-log-level log-debug "guile")
+;(set-log-level log-debug "guile")
 ;(set-log-level log-err "mutex")
 ;(set-log-level log-err "proto")
 
