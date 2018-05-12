@@ -98,7 +98,7 @@ file will be created every $CSV_DURATION seconds (60 by default).
           (eth->string server-mac)
           (ip->string server-ip)
           server-port
-          qry-method
+          (http-method->string qry-method)
           err-code
           dt
           qry-host
@@ -133,12 +133,12 @@ file will be created every $CSV_DURATION seconds (60 by default).
         (vlan vlan-id)
         (eth->string eth-src)
         (eth->string eth-dst)
-        eth-proto
+        (eth-proto->string eth-proto)
         eth-pld
         eth-mtu
         (if ip-src (ip->string ip-src) null)
         (if ip-dst (ip->string ip-dst) null)
-        (or-null ip-proto)
+        (if (eqv? 0 ip-proto) null (ip-proto->string ip-proto))
         (or-null ip-pld)
         (or-null port-src)
         (or-null port-dst)
@@ -173,7 +173,7 @@ file will be created every $CSV_DURATION seconds (60 by default).
         (ip->string ip-src)
         (eth->string eth-dst)
         (ip->string ip-dst)
-        ip-proto
+        (ip-proto->string ip-proto)
         port-src
         port-dst
         count
