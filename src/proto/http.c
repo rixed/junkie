@@ -26,6 +26,7 @@
 #include "junkie/tools/tempstr.h"
 #include "junkie/tools/objalloc.h"
 #include "junkie/tools/miscmacs.h"
+#include "junkie/tools/ext.h"
 #include "junkie/proto/tcp.h"
 #include "junkie/proto/http.h"
 #include "junkie/proto/streambuf.h"
@@ -283,6 +284,12 @@ char const *http_method_2_str(enum http_method method)
     return "INVALID";
 }
 
+static struct ext_function sg_http_method_2_str;
+static SCM g_http_method_2_str(SCM http_method_)
+{
+    char const *str = http_method_2_str(scm_to_int(http_method_));
+    return scm_from_latin1_string(str);
+}
 
 /*
  * Proto Infos
@@ -873,6 +880,10 @@ void http_init(void)
 
     hook_ctor(&http_head_hook, "HTTP head");
     hook_ctor(&http_body_hook, "HTTP body");
+
+    ext_function_ctor(&sg_http_method_2_str,
+        "http-method->string", 1, 0, 0, g_http_method_2_str,
+        "(http-method->string meth): returns the name of that HTTP method.\n");
 
     static struct proto_ops const ops = {
         .parse       = http_parse,

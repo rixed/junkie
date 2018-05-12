@@ -34,7 +34,6 @@
 #include "junkie/proto/ip.h"
 #include "junkie/proto/arp.h"
 #include "junkie/proto/eth.h"
-#include "junkie/tools/ext.h"
 
 #undef LOG_CAT
 #define LOG_CAT proto_eth_log_category
@@ -92,6 +91,13 @@ char const *eth_proto_2_str(unsigned protocol)
         default:
             return tempstr_printf("0x%x", protocol);
     }
+}
+
+static struct ext_function sg_eth_proto_2_str;
+static SCM g_eth_proto_2_str(SCM eth_proto_)
+{
+    char const *str = eth_proto_2_str(scm_to_int(eth_proto_));
+    return scm_from_latin1_string(str);
 }
 
 static void const *eth_info_addr(struct proto_info const *info_, size_t *size)
@@ -269,6 +275,9 @@ void eth_init(void)
 {
     log_category_proto_eth_init();
     ext_param_collapse_vlans_init();
+    ext_function_ctor(&sg_eth_proto_2_str,
+        "eth-proto->string", 1, 0, 0, g_eth_proto_2_str,
+        "(eth-proto->string proto): returns the name of that Ethernet protocol.\n");
     mutex_ctor(&eth_subprotos_mutex, "Eth subprotocols");
 
     static struct proto_ops const ops = {

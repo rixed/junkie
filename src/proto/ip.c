@@ -134,6 +134,13 @@ char const *ip_proto_2_str(unsigned protocol)
     return tempstr_printf("%u", protocol);
 }
 
+static struct ext_function sg_ip_proto_2_str;
+static SCM g_ip_proto_2_str(SCM ip_proto_)
+{
+    char const *str = ip_proto_2_str(scm_to_int(ip_proto_));
+    return scm_from_latin1_string(str);
+}
+
 char const *ip_fragmentation_2_str(enum ip_fragmentation frag)
 {
     switch (frag) {
@@ -520,6 +527,9 @@ void ip_init(void)
     mutex_pool_ctor(&ip_locks, "IP subparsers");
     log_category_proto_ip_init();
     ext_param_reassembly_enabled_init();
+    ext_function_ctor(&sg_ip_proto_2_str,
+        "ip-proto->string", 1, 0, 0, g_ip_proto_2_str,
+        "(ip-proto->string proto): returns the name of that IP protocol.\n");
     mutex_ctor(&ip_subprotos_mutex, "IPv4 subprotocols");
     LIST_INIT(&ip_subprotos);
     pkt_wl_config_ctor(&ip_reassembly_config, "IP-reassembly", 65536, 100, 65536, 5 /* FRAGMENTATION TIMEOUT (second) */, false);
