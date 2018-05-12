@@ -72,7 +72,7 @@ file will be created every $CSV_DURATION seconds (60 by default).
 (define dump-lock (make-mutex))
 (define (dump tfd ts . args)
   (with-mutex dump-lock
-    (maybe-reopen-timed-filedes tfd ts)
+    (maybe-reopen-timed-filedes tfd (inexact->exact (round ts)))
     (apply dump-next-value (timed-filedes-fd tfd)
            (cons ts args)))) ; also dump the TS as the first field
 
