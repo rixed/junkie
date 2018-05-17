@@ -26,9 +26,6 @@ file will be created every $CSV_DURATION seconds (60 by default).
 (define csv-dir (getenv-default "." "CSV_DIR"))
 (define csv-duration (string->number (getenv-default "60" "CSV_DURATION")))
 
-; TODO: instead of FIfO, CSV files created with a timestamp, one per
-; CSV_DURATION seconds. Therefore each dump-line must reopen the fd (with
-; a cache).
 (define-record-type (timed-filedes make-timed-filedes-ll timed-filedes?)
   (fields prefix (mutable name) (mutable fd) (mutable start-ts)))
 

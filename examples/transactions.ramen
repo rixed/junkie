@@ -9,9 +9,9 @@ DEFINE web csv_dir="/tmp" AS
     device u32 not null,
     vlan u16 null,
     clt_mac eth not null,
-    clt_ip ip4 not null, -- waiting for https://github.com/rixed/ramen/issues/261
+    clt_ip ip not null,
     srv_mac eth not null,
-    srv_ip ip4 not null,
+    srv_ip ip not null,
     srv_port u16 not null,
     method string not null,
     status u16 not null,
@@ -27,9 +27,9 @@ DEFINE dns csv_dir="/tmp" AS
     device u32 not null,
     vlan u16 null,
     clt_mac eth not null,
-    clt_ip ip4 not null, -- waiting for https://github.com/rixed/ramen/issues/261
+    clt_ip ip not null,
     srv_mac eth not null,
-    srv_ip ip4 not null,
+    srv_ip ip not null,
     srv_port u16 not null,
     status u16 not null,
     resp_time float not null,
@@ -44,13 +44,13 @@ DEFINE traffic csv_dir="/tmp" AS
     device u32 not null,
     packets u32 not null,
     vlan u16 null,
-    clt_mac eth not null,
-    srv_mac eth not null,
+    src_mac eth not null,
+    dst_mac eth not null,
     eth_proto string not null,
     eth_payload u32 not null,
     eth_mtu u32 not null,
-    src_ip ip4 null,
-    dst_ip ip4 null,
+    src_ip ip null,
+    dst_ip ip null,
     ip_proto string null,
     ip_payload u32 null,
     src_port u16 null,
@@ -66,10 +66,10 @@ DEFINE tcp csv_dir="/tmp" AS
     device u32 not null,
     vlan u16 null,
     clt_mac eth not null,
-    clt_ip ip4 not null, -- waiting for https://github.com/rixed/ramen/issues/261
+    clt_ip ip not null,
     clt_port u16 not null,
     srv_mac eth not null,
-    srv_ip ip4 not null,
+    srv_ip ip not null,
     srv_port u16 not null,
     nb_syns u32 not null,
     resp_time float not null)
@@ -83,9 +83,9 @@ DEFINE flow csv_dir="/tmp" AS
     device u32 not null,
     vlan u16 null,
     clt_mac eth not null,
-    clt_ip ip4 not null,
+    clt_ip ip not null,
     srv_mac eth not null,
-    srv_ip ip4 not null,
+    srv_ip ip not null,
     ip_proto string not null,
     src_port u16 not null,
     dst_port u16 not null,
@@ -93,3 +93,47 @@ DEFINE flow csv_dir="/tmp" AS
     payload u32 not null)
   FACTORS device, vlan AND ip_proto
   EVENT STARTING AT start AND STOPPING AT stop;
+
+-- Now let's do something useful with this info
+
+-- Starting with some pre-aggregated minutely volumetry:
+
+DEFINE labelled_traffic AS
+  FROM traffic
+  SELECT
+    *,
+    "dev:" || string(device) || COALESCE(",vlan:" || string(vlan), "") || ",mac:" || string(src_mac) || "," ||
+      (IF eth_proto = "IPv4" OR eth_proto = "IPv6"
+         THEN COALESCE(ip_proto, "unk") || "/ip:" || COALESCE(string(src_ip), "unk")
+         ELSE string(eth_proto))
+      AS _src_label,
+    "dev:" || string(device) || COALESCE(",vlan:" || string(vlan), "") || ",mac:" || string(dst_mac) || "," ||
+      (IF eth_proto = "IPv4" OR eth_proto = "IPv6"
+         THEN COALESCE(ip_proto, "unk") || "/ip:" || COALESCE(string(dst_ip), "unk")
+         ELSE string(eth_proto))
+      AS _dst_label,
+    MIN(_src_label, _dst_label) || " - " || MAX(_src_label, _dst_label) AS _label,
+    -- Pretend the lowest numbered port is the service port:
+    MIN(src_port, dst_port) AS _min_port,
+    _label || COALESCE(", port:" || string(_min_port), "") AS _label_long,
+
+    IF IS _label_long IN TOP 20 THEN _label_long ELSE
+    IF IS _label IN TOP 20 THEN _label ELSE "other" AS label
+
+  FACTORS device, vlan, eth_proto, ip_proto AND label
+  EVENT STARTING AT start AND STOPPING AT stop;
+
+DEFINE volumetry AS
+  FROM labelled_traffic
+  GROUP BY label, start // 60
+  SELECT
+    (start // 60) * 60 AS start,
+    MIN start AS _min_start,
+    MAX stop AS _max_stop,
+    vlan, device, eth_proto, ip_proto, label,
+    SUM packets / 60 AS avg_packets_per_secs,
+    SUM eth_payload / 60 AS avg_payload_per_secs,
+    MAX eth_mtu AS eth_mtu
+  COMMIT BEFORE in.start > out.start + 60 + 30
+  FACTORS vlan, device, eth_proto, ip_proto AND label
+  EVENT STARTING AT start WITH DURATION 60 SECONDS;
