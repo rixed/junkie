@@ -51,6 +51,7 @@ enum ber_type {
     BER_VIDEOTEXT_STRING = 21,
     BER_IA5_STRING = 22,
     BER_UTC_TIME = 23,
+    BER_GENERALIZED_TIME = 24,
     BER_VISIBLE_STRING = 26,
     BER_UNIVERSAL_STRING = 28,
 };
@@ -141,6 +142,96 @@ enum proto_parse_status ber_skip(struct cursor *c)
     // Skip value
     if (c->cap_len < t.length) return PROTO_TOO_SHORT;
     cursor_drop(c, t.length);
+
+    return PROTO_OK;
+}
+
+enum proto_parse_status ber_copy(struct cursor *c, void *dest, size_t *nb_bytes, size_t max_sz)
+{
+    struct ber_tag t;
+    enum proto_parse_status status = ber_decode_tag(c, &t);
+    if (status != PROTO_OK) return status;
+
+    if (c->cap_len < t.length) return PROTO_TOO_SHORT;
+    if (max_sz < t.length) return PROTO_PARSE_ERR;
+    cursor_copy(dest, c, t.length);
+    *nb_bytes = t.length;
+
+    return PROTO_OK;
+}
+
+static enum proto_parse_status ber_read_digit(struct cursor *c, uint8_t *res)
+{
+    *res = cursor_read_u8(c);
+    if (*res < '0' || *res > '9') return PROTO_PARSE_ERR;
+    *res -= '0';
+    return PROTO_OK;
+}
+
+static enum proto_parse_status ber_read_2digits(struct cursor *c, uint8_t *res)
+{
+    enum proto_parse_status status;
+    uint8_t d;
+    if (PROTO_OK != (status = ber_read_digit(c, &d))) return status;
+    if (PROTO_OK != (status = ber_read_digit(c, res))) return status;
+    *res += d * 10U;
+    return PROTO_OK;
+}
+
+char const *ber_time_2_str(struct ber_time const *t)
+{
+    return tempstr_printf("%04"PRIu16"-%02"PRIu8"-%02"PRIu8" %02"PRIu8":%02"PRIu8":%02"PRIu8,
+            t->year, t->month, t->day, t->hour, t->min, t->sec);
+}
+
+static enum proto_parse_status ber_extract_utc_time(struct cursor *c, size_t len, struct ber_time *t)
+{
+    /* For the purposes of this profile, UTCTime values MUST be expressed in
+     * Greenwich Mean Time (Zulu) and MUST include seconds (i.e., times are
+     * YYMMDDHHMMSSZ), even where the number of seconds is zero. */
+    if (len != 13) return PROTO_PARSE_ERR;
+    enum proto_parse_status status;
+    uint8_t year;
+    if (PROTO_OK != (status = ber_read_2digits(c, &year))) return status;
+    if (PROTO_OK != (status = ber_read_2digits(c, &t->month))) return status;
+    if (PROTO_OK != (status = ber_read_2digits(c, &t->day))) return status;
+    if (PROTO_OK != (status = ber_read_2digits(c, &t->hour))) return status;
+    if (PROTO_OK != (status = ber_read_2digits(c, &t->min))) return status;
+    if (PROTO_OK != (status = ber_read_2digits(c, &t->sec))) return status;
+    char z = cursor_read_u8(c);
+    if (z != 'z' && z != 'Z') return PROTO_PARSE_ERR;
+
+    /* Conforming systems MUST interpret the year field (YY) as follows:
+     * Where YY is greater than or equal to 50, the year SHALL be
+     * interpreted as 19YY; and
+     * Where YY is less than 50, the year SHALL be interpreted as 20YY. */
+    t->year = year + (year >= 50 ? 1900 : 2000);
+
+    return PROTO_OK;
+}
+
+static enum proto_parse_status ber_extract_generalized_time(struct cursor *c, size_t len, struct ber_time *t)
+{
+    (void)c;
+    (void)len;
+    (void)t;
+    // TODO
+    return PROTO_PARSE_ERR;
+}
+
+enum proto_parse_status ber_extract_time(struct cursor *c, struct ber_time *time)
+{
+    struct ber_tag t;
+    enum proto_parse_status status = ber_decode_tag(c, &t);
+    if (status != PROTO_OK) return status;
+
+    if (c->cap_len < t.length) return PROTO_TOO_SHORT;
+    if (t.class != BER_UNIVERSAL) return PROTO_PARSE_ERR;
+    if (t.tag == BER_UTC_TIME) {
+        return ber_extract_utc_time(c, t.length, time);
+    } else if (t.tag == BER_GENERALIZED_TIME) {
+        return ber_extract_generalized_time(c, t.length, time);
+    } else return PROTO_PARSE_ERR;
 
     return PROTO_OK;
 }

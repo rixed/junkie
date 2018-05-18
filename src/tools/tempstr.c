@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <assert.h>
 #include <pthread.h>
 #include "junkie/config.h"
 #include "junkie/tools/tempstr.h"
@@ -46,3 +47,22 @@ char *tempstr_printf(char const *fmt, ...)
     return str;
 }
 
+char *tempstr_hex(uint8_t const *buf, size_t size)
+{
+    char *str = tempstr();
+    int len = snprintf(str, TEMPSTR_SIZE, "0x");
+    for (unsigned o = 0; o < size && len < TEMPSTR_SIZE; o++) {
+        len += snprintf(str+len, TEMPSTR_SIZE-len, "%02x", buf[o]);
+    }
+
+    return str;
+}
+
+char const *tempstr_smallint(unsigned n)
+{
+    static char const *const ret[] = {
+        "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+        "10", "11", "12", "13", "14", "15", "16", "17", "18", "19" };
+    assert(n < NB_ELEMS(ret));
+    return ret[n];
+}

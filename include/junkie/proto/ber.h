@@ -11,14 +11,28 @@
  * You can decode encoded primitive values, enter or skip constructed values.
  */
 
+struct ber_time {
+    uint16_t year;
+    uint8_t month, day, hour, min, sec;
+};
+
+char const *ber_time_2_str(struct ber_time const *);
+
 /// Skip next value
 enum proto_parse_status ber_skip(struct cursor *);
 
-/// Skip an explicitely tagged value if present at cursor
+/// Copy the next value
+enum proto_parse_status ber_copy(struct cursor *, void *dest, size_t *nb_bytes, size_t max_sz);
+
+/// Fill in a struct utc_time with the value pointed that must be either
+/// an UTCTime or a GeneralizedTime
+enum proto_parse_status ber_extract_time(struct cursor *, struct ber_time *);
+
+/// Skip an explicitly tagged value if present at cursor
 enum proto_parse_status ber_skip_optional(struct cursor *, unsigned tag);
 
 /// Enter a sequence or set
-/** @note that you mut then parse is fully or pop out by restoring your previous cursor and then ber_skip it.
+/** @note that you must then parse is fully or pop out by restoring your previous cursor and then ber_skip it.
  */
 enum proto_parse_status ber_enter(struct cursor *);
 

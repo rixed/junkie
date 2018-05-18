@@ -4,6 +4,7 @@
 #define TLS_H_130325
 #include <stdint.h>
 #include <junkie/proto/proto.h>
+#include <junkie/proto/ber.h>
 
 /** @file
  * @brief TLS informations
@@ -120,6 +121,16 @@ struct tls_proto_info {
             } compress_algorithm;    // set whenever CIPHER_SUITE_SET is set
 #           define SERVER_COMMON_NAME_SET  0x2
             char server_common_name[256];      // From the server certificate's subject field
+            /* Certificate users MUST be able to handle serialNumber values
+             * up to 20 octets.  Conforming CAs MUST NOT use serialNumber
+             * values longer than 20 octets. -- RFC 5280 */
+#           define SERIAL_NUMBER_SET 0x4
+            uint8_t serial_number_len;
+            uint8_t serial_number[20];
+#           define VALIDITY_SET 0x8
+            struct ber_time not_before, not_after;
+#           define NB_CERTS_SET  0x10
+            uint8_t nb_certs;
         } handshake;
     } u;
 };

@@ -17,5 +17,7 @@
 
 char *tempstr(void);
 char *tempstr_printf(char const *fmt, ...) a_la_printf_(1, 2);
+char *tempstr_hex(uint8_t const *, size_t);
+char const *tempstr_smallint(unsigned);
 
 #endif

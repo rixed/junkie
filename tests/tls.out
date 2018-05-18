@@ -11,7 +11,7 @@ TLS: head_len=37, payload=0, version=3.1, content-type=alert
 -- pcap/https/certificate.pcap --
 TLS: head_len=163, payload=0, version=3.1, content-type=handshake
 TLS: head_len=58, payload=0, version=3.1, content-type=handshake, cipher_suite=RSA_WITH_RC4_128_SHA, compression_algo=none
-TLS: head_len=3623, payload=0, version=3.1, content-type=handshake, CN=github.com
+TLS: head_len=3623, payload=0, version=3.1, content-type=handshake, CN=github.com, serial_number=0x08bbb02547134bc9b110d7c1a21259c5, not_before=2006-11-10 00:00:00, not_after=2021-11-10 00:00:00, nb_certs=2
 TLS: head_len=267, payload=0, version=3.1, content-type=handshake
 TLS: head_len=191, payload=0, version=3.1, content-type=handshake
 TLS: head_len=1251, payload=0, version=3.1, content-type=data
@@ -19,7 +19,7 @@ TLS: head_len=11270, payload=0, version=3.1, content-type=data
 -- pcap/https/tlsv1.pcap --
 TLS: head_len=167, payload=0, version=3.1, content-type=handshake
 TLS: head_len=70, payload=0, version=3.1, content-type=handshake, cipher_suite=Unknown cipher suite 0xc011, compression_algo=none
-TLS: head_len=1630, payload=0, version=3.1, content-type=handshake, CN=www.google.com
+TLS: head_len=1630, payload=0, version=3.1, content-type=handshake, CN=www.google.com, serial_number=0x30000002, not_before=2004-05-13 00:00:00, not_after=2014-05-12 23:59:59, nb_certs=2
 TLS: head_len=75, payload=0, version=3.1, content-type=handshake
 TLS: head_len=179, payload=0, version=3.1, content-type=handshake
 TLS: head_len=1138, payload=0, version=3.1, content-type=data
