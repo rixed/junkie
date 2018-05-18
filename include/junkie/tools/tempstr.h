@@ -1,5 +1,6 @@
 #ifndef TEMPSTR_100407
 #define TEMPSTR_100407
+#include <stdint.h>
 #include <junkie/cpp.h>
 #include <junkie/config.h>
 
