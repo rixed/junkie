@@ -112,10 +112,11 @@ struct tls_cert_info {
     /* Certificate users MUST be able to handle serialNumber values
      * up to 20 octets.  Conforming CAs MUST NOT use serialNumber
      * values longer than 20 octets. -- RFC 5280 */
-#   define SERIAL_NUMBER_SET 0x4
     uint8_t serial_number_len;
     uint8_t serial_number[20];
-#   define VALIDITY_SET 0x8
+#   define SIZEOF_SUBJECT 150
+    char subject[SIZEOF_SUBJECT];
+    char issuer[SIZEOF_SUBJECT];
     struct ber_time not_before, not_after;
 };
 
@@ -134,8 +135,6 @@ struct tls_proto_info {
 #           define CIPHER_SUITE_SET  0x1
             enum tls_cipher_suite  cipher_suite;
             enum tls_compress_algo  compress_algorithm;    // set whenever CIPHER_SUITE_SET is set
-#           define SERVER_COMMON_NAME_SET  0x2
-            char server_common_name[256];      // From the server certificate's subject field
 #           define NB_CERTS_SET  0x4
             uint8_t nb_certs;       // BEWARE: can be more than NB_ELEMS(cert);
             struct tls_cert_info certs[4];

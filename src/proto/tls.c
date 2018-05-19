@@ -743,8 +743,10 @@ static char const *tls_compress_algo_2_str(enum tls_compress_algo c)
 
 static char const *tls_cert_info_2_str(struct tls_cert_info const *info, unsigned c)
 {
-    return tempstr_printf("serial_number_%u=%s, not_before_%u=%s, not_after_%u=%s",
+    return tempstr_printf("serial_number_%u=%s, issuer_%u=%s, subject_%u=%s, not_before_%u=%s, not_after_%u=%s",
         c, tempstr_hex(info->serial_number, info->serial_number_len),
+        c, info->issuer,
+        c, info->subject,
         c, ber_time_2_str(&info->not_before),
         c, ber_time_2_str(&info->not_after));
 }
@@ -752,13 +754,11 @@ static char const *tls_cert_info_2_str(struct tls_cert_info const *info, unsigne
 static char const *tls_handshake_2_str(unsigned set_values, struct tls_info_handshake const *info)
 {
     char *s =
-        tempstr_printf("%s%s%s%s%s%s%s%s",
+        tempstr_printf("%s%s%s%s%s%s",
             set_values & CIPHER_SUITE_SET ? ", cipher_suite=":"",
             set_values & CIPHER_SUITE_SET ? tls_cipher_suite_2_str(info->cipher_suite) : "",
             set_values & CIPHER_SUITE_SET ? ", compression_algo=":"",
             set_values & CIPHER_SUITE_SET ? tls_compress_algo_2_str(info->compress_algorithm) : "",
-            set_values & SERVER_COMMON_NAME_SET ? ", CN=":"",
-            set_values & SERVER_COMMON_NAME_SET ? info->server_common_name:"",
             set_values & NB_CERTS_SET ? ", nb_certs=":"",
             set_values & NB_CERTS_SET ? tempstr_smallint(info->nb_certs):"");
 
@@ -1097,9 +1097,8 @@ static int decrypt_master_secret(struct tls_parser *parser, unsigned way, struct
     return 0;
 }
 
-static enum proto_parse_status look_for_cname(struct cursor *cur, void *info_)
+static enum proto_parse_status look_for_cname(struct cursor *cur, void *subject)
 {
-    struct tls_proto_info *info = info_;
     enum proto_parse_status status;
     SLOG(LOG_DEBUG, "Enter the RelativeDistinguishedName");
     if (PROTO_OK != (status = ber_enter(cur))) return status;
@@ -1114,9 +1113,8 @@ static enum proto_parse_status look_for_cname(struct cursor *cur, void *info_)
     ) {
         SLOG(LOG_DEBUG, "Found commonName!!");
         cursor_drop(cur, 5);
-        if (PROTO_OK != (status = ber_decode_string(cur, sizeof(info->u.handshake.server_common_name), info->u.handshake.server_common_name))) return status;
-        SLOG(LOG_DEBUG, "CN: %s", info->u.handshake.server_common_name);
-        info->set_values |= SERVER_COMMON_NAME_SET;
+        if (PROTO_OK != (status = ber_decode_string(cur, SIZEOF_SUBJECT, subject))) return status;
+        SLOG(LOG_DEBUG, "CN: %s", subject);
     } else {
         SLOG(LOG_DEBUG, "Not the commonName...");
         if (PROTO_OK != (status = ber_skip(cur))) return status;
@@ -1143,6 +1141,7 @@ static enum proto_parse_status tls_parse_certificate(struct tls_proto_info *info
 {
     if (info->u.handshake.nb_certs < NB_ELEMS(info->u.handshake.certs)) {
         struct tls_cert_info *cert = info->u.handshake.certs + info->u.handshake.nb_certs;
+        cert->subject[0] = cert->issuer[0] = '\0';
 
         SLOG(LOG_DEBUG, "Parsing TLS certificate");
         enum proto_parse_status status;
@@ -1160,16 +1159,15 @@ static enum proto_parse_status tls_parse_certificate(struct tls_proto_info *info
 
         SLOG(LOG_DEBUG, "Skip the signature");
         if (PROTO_OK != (status = ber_skip(cur))) return status;
-        SLOG(LOG_DEBUG, "Skip the issuer");
-        if (PROTO_OK != (status = ber_skip(cur))) return status;
+
+        SLOG(LOG_DEBUG, "Extract the issuer");
+        if (PROTO_OK != (status = ber_foreach(cur, look_for_cname, &cert->issuer))) return status;
 
         SLOG(LOG_DEBUG, "Extract the validity");
         if (PROTO_OK != (status = tls_parse_validity(cert, cur))) return status;
 
-        if (info->u.handshake.nb_certs == 0) {
-            SLOG(LOG_DEBUG, "Iter over all RelativeDistinguishedName");
-            if (PROTO_OK != (status = ber_foreach(cur, look_for_cname, info))) return status;
-        }
+        SLOG(LOG_DEBUG, "Iter over all RelativeDistinguishedName");
+        if (PROTO_OK != (status = ber_foreach(cur, look_for_cname, &cert->subject))) return status;
     }
 
     SLOG(LOG_DEBUG, "Successively parsed certificate");
