@@ -184,13 +184,25 @@ char const *ber_time_2_str(struct ber_time const *t)
             t->year, t->month, t->day, t->hour, t->min, t->sec);
 }
 
-static enum proto_parse_status ber_extract_utc_time(struct cursor *c, size_t len, struct ber_time *t)
+static enum proto_parse_status ber_extract_utc_time(struct cursor *c, size_t len, struct ber_time *t, bool generalized)
 {
-    /* For the purposes of this profile, UTCTime values MUST be expressed in
-     * Greenwich Mean Time (Zulu) and MUST include seconds (i.e., times are
-     * YYMMDDHHMMSSZ), even where the number of seconds is zero. */
-    if (len != 13) return PROTO_PARSE_ERR;
     enum proto_parse_status status;
+
+    uint8_t century = 0;
+    if (generalized) {
+        if (len != 15) return PROTO_PARSE_ERR;
+        /* For the purposes of this profile, GeneralizedTime values MUST be
+         * expressed in Greenwich Mean Time (Zulu) and MUST include seconds
+         * (i.e., times are YYYYMMDDHHMMSSZ), even where the number of seconds
+         * is zero.  GeneralizedTime values MUST NOT include fractional seconds. */
+        if (PROTO_OK != (status = ber_read_2digits(c, &century))) return status;
+    } else {
+        if (len != 13) return PROTO_PARSE_ERR;
+        /* For the purposes of this profile, UTCTime values MUST be expressed in
+         * Greenwich Mean Time (Zulu) and MUST include seconds (i.e., times are
+         * YYMMDDHHMMSSZ), even where the number of seconds is zero. -- RFC 5280 */
+    }
+
     uint8_t year;
     if (PROTO_OK != (status = ber_read_2digits(c, &year))) return status;
     if (PROTO_OK != (status = ber_read_2digits(c, &t->month))) return status;
@@ -201,22 +213,17 @@ static enum proto_parse_status ber_extract_utc_time(struct cursor *c, size_t len
     char z = cursor_read_u8(c);
     if (z != 'z' && z != 'Z') return PROTO_PARSE_ERR;
 
-    /* Conforming systems MUST interpret the year field (YY) as follows:
-     * Where YY is greater than or equal to 50, the year SHALL be
-     * interpreted as 19YY; and
-     * Where YY is less than 50, the year SHALL be interpreted as 20YY. */
-    t->year = year + (year >= 50 ? 1900 : 2000);
+    if (generalized) {
+        t->year = century * 100U + year;
+    } else {
+        /* Conforming systems MUST interpret the year field (YY) as follows:
+         * Where YY is greater than or equal to 50, the year SHALL be
+         * interpreted as 19YY; and
+         * Where YY is less than 50, the year SHALL be interpreted as 20YY. */
+        t->year = year + (year >= 50 ? 1900 : 2000);
+    }
 
     return PROTO_OK;
-}
-
-static enum proto_parse_status ber_extract_generalized_time(struct cursor *c, size_t len, struct ber_time *t)
-{
-    (void)c;
-    (void)len;
-    (void)t;
-    // TODO
-    return PROTO_PARSE_ERR;
 }
 
 enum proto_parse_status ber_extract_time(struct cursor *c, struct ber_time *time)
@@ -228,9 +235,9 @@ enum proto_parse_status ber_extract_time(struct cursor *c, struct ber_time *time
     if (c->cap_len < t.length) return PROTO_TOO_SHORT;
     if (t.class != BER_UNIVERSAL) return PROTO_PARSE_ERR;
     if (t.tag == BER_UTC_TIME) {
-        return ber_extract_utc_time(c, t.length, time);
+        return ber_extract_utc_time(c, t.length, time, false);
     } else if (t.tag == BER_GENERALIZED_TIME) {
-        return ber_extract_generalized_time(c, t.length, time);
+        return ber_extract_utc_time(c, t.length, time, true);
     } else return PROTO_PARSE_ERR;
 
     return PROTO_OK;
