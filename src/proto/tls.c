@@ -741,25 +741,42 @@ static char const *tls_compress_algo_2_str(enum tls_compress_algo c)
     return tempstr_printf("Unknown compression algorithm 0x%x", c);
 }
 
+static char const *tls_cert_info_2_str(struct tls_cert_info const *info, unsigned c)
+{
+    return tempstr_printf("serial_number_%u=%s, not_before_%u=%s, not_after_%u=%s",
+        c, tempstr_hex(info->serial_number, info->serial_number_len),
+        c, ber_time_2_str(&info->not_before),
+        c, ber_time_2_str(&info->not_after));
+}
+
+static char const *tls_handshake_2_str(unsigned set_values, struct tls_info_handshake const *info)
+{
+    char *s =
+        tempstr_printf("%s%s%s%s%s%s%s%s",
+            set_values & CIPHER_SUITE_SET ? ", cipher_suite=":"",
+            set_values & CIPHER_SUITE_SET ? tls_cipher_suite_2_str(info->cipher_suite) : "",
+            set_values & CIPHER_SUITE_SET ? ", compression_algo=":"",
+            set_values & CIPHER_SUITE_SET ? tls_compress_algo_2_str(info->compress_algorithm) : "",
+            set_values & SERVER_COMMON_NAME_SET ? ", CN=":"",
+            set_values & SERVER_COMMON_NAME_SET ? info->server_common_name:"",
+            set_values & NB_CERTS_SET ? ", nb_certs=":"",
+            set_values & NB_CERTS_SET ? tempstr_smallint(info->nb_certs):"");
+
+    if (set_values & NB_CERTS_SET) {
+        size_t len = strlen(s);
+        for (unsigned c = 0; c < info->nb_certs && c < NB_ELEMS(info->certs); c++) {
+            len += snprintf(s+len, TEMPSTR_SIZE, ", %s", tls_cert_info_2_str(info->certs+c, c));
+        }
+    }
+
+    return s;
+}
+
 static char const *tls_info_spec_2_str(struct tls_proto_info const *info)
 {
     switch (info->content_type) {
         case tls_handshake:
-            return tempstr_printf("%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
-                info->set_values & CIPHER_SUITE_SET ? ", cipher_suite=":"",
-                info->set_values & CIPHER_SUITE_SET ? tls_cipher_suite_2_str(info->u.handshake.cipher_suite) : "",
-                info->set_values & CIPHER_SUITE_SET ? ", compression_algo=":"",
-                info->set_values & CIPHER_SUITE_SET ? tls_compress_algo_2_str(info->u.handshake.compress_algorithm) : "",
-                info->set_values & SERVER_COMMON_NAME_SET ? ", CN=":"",
-                info->set_values & SERVER_COMMON_NAME_SET ? info->u.handshake.server_common_name:"",
-                info->set_values & SERIAL_NUMBER_SET ? ", serial_number=":"",
-                info->set_values & SERIAL_NUMBER_SET ? tempstr_hex(info->u.handshake.serial_number, info->u.handshake.serial_number_len) :"",
-                info->set_values & VALIDITY_SET ? ", not_before=":"",
-                info->set_values & VALIDITY_SET ? ber_time_2_str(&info->u.handshake.not_before) :"",
-                info->set_values & VALIDITY_SET ? ", not_after=":"",
-                info->set_values & VALIDITY_SET ? ber_time_2_str(&info->u.handshake.not_after) :"",
-                info->set_values & NB_CERTS_SET ? ", nb_certs=":"",
-                info->set_values & NB_CERTS_SET ? tempstr_smallint(info->u.handshake.nb_certs):"");
+            return tls_handshake_2_str(info->set_values, &info->u.handshake);
         default:
             return "";
     }
@@ -1096,12 +1113,10 @@ static enum proto_parse_status look_for_cname(struct cursor *cur, void *info_)
         cur->head[3] == 0x4 && cur->head[4] == 0x3
     ) {
         SLOG(LOG_DEBUG, "Found commonName!!");
-        if (info->u.handshake.nb_certs == 0) {
-            cursor_drop(cur, 5);
-            if (PROTO_OK != (status = ber_decode_string(cur, sizeof(info->u.handshake.server_common_name), info->u.handshake.server_common_name))) return status;
-            SLOG(LOG_DEBUG, "CN: %s", info->u.handshake.server_common_name);
-            info->set_values |= SERVER_COMMON_NAME_SET;
-        }
+        cursor_drop(cur, 5);
+        if (PROTO_OK != (status = ber_decode_string(cur, sizeof(info->u.handshake.server_common_name), info->u.handshake.server_common_name))) return status;
+        SLOG(LOG_DEBUG, "CN: %s", info->u.handshake.server_common_name);
+        info->set_values |= SERVER_COMMON_NAME_SET;
     } else {
         SLOG(LOG_DEBUG, "Not the commonName...");
         if (PROTO_OK != (status = ber_skip(cur))) return status;
@@ -1111,55 +1126,62 @@ static enum proto_parse_status look_for_cname(struct cursor *cur, void *info_)
     return PROTO_OK;
 }
 
-static enum proto_parse_status tls_parse_validity(struct tls_proto_info *info, struct cursor *cur)
+static enum proto_parse_status tls_parse_validity(struct tls_cert_info *cert, struct cursor *cur)
 {
     SLOG(LOG_DEBUG, "Extract certificate validity");
     enum proto_parse_status status;
     if (PROTO_OK != (status = ber_enter(cur))) return status;
     SLOG(LOG_DEBUG, "Extracting NotBefore");
-    if (PROTO_OK != (status = ber_extract_time(cur, &info->u.handshake.not_before))) return status;
+    if (PROTO_OK != (status = ber_extract_time(cur, &cert->not_before))) return status;
     SLOG(LOG_DEBUG, "Extracting NotAfter");
-    if (PROTO_OK != (status = ber_extract_time(cur, &info->u.handshake.not_after))) return status;
-    info->set_values |= VALIDITY_SET;
+    if (PROTO_OK != (status = ber_extract_time(cur, &cert->not_after))) return status;
 
     return PROTO_OK;
 }
 
 static enum proto_parse_status tls_parse_certificate(struct tls_proto_info *info, struct cursor *cur)
 {
-    SLOG(LOG_DEBUG, "Parsing TLS certificate");
-    enum proto_parse_status status;
-    SLOG(LOG_DEBUG, "Enter the Certificate");
-    if (PROTO_OK != (status = ber_enter(cur))) return status;
-    SLOG(LOG_DEBUG, "Enter the TBSCertificate");
-    if (PROTO_OK != (status = ber_enter(cur))) return status;
-    SLOG(LOG_DEBUG, "Skip optional Version");
-    if (PROTO_OK != (status = ber_skip_optional(cur, 0))) return status;
+    if (info->u.handshake.nb_certs < NB_ELEMS(info->u.handshake.certs)) {
+        struct tls_cert_info *cert = info->u.handshake.certs + info->u.handshake.nb_certs;
 
-    SLOG(LOG_DEBUG, "Extract the serial number");
-    size_t sernum_sz;
-    if (PROTO_OK != (status = ber_copy(cur, &info->u.handshake.serial_number, &sernum_sz, sizeof(info->u.handshake.serial_number)))) return status;
-    info->u.handshake.serial_number_len = sernum_sz;
-    info->set_values |= SERIAL_NUMBER_SET;
+        SLOG(LOG_DEBUG, "Parsing TLS certificate");
+        enum proto_parse_status status;
+        SLOG(LOG_DEBUG, "Enter the Certificate");
+        if (PROTO_OK != (status = ber_enter(cur))) return status;
+        SLOG(LOG_DEBUG, "Enter the TBSCertificate");
+        if (PROTO_OK != (status = ber_enter(cur))) return status;
+        SLOG(LOG_DEBUG, "Skip optional Version");
+        if (PROTO_OK != (status = ber_skip_optional(cur, 0))) return status;
 
-    SLOG(LOG_DEBUG, "Skip the signature");
-    if (PROTO_OK != (status = ber_skip(cur))) return status;
-    SLOG(LOG_DEBUG, "Skip the issuer");
-    if (PROTO_OK != (status = ber_skip(cur))) return status;
+        SLOG(LOG_DEBUG, "Extract the serial number");
+        size_t sernum_sz;
+        if (PROTO_OK != (status = ber_copy(cur, &cert->serial_number, &sernum_sz, sizeof(cert->serial_number)))) return status;
+        cert->serial_number_len = sernum_sz;
 
-    SLOG(LOG_DEBUG, "Extract the validity");
-    if (PROTO_OK != (status = tls_parse_validity(info, cur))) return status;
+        SLOG(LOG_DEBUG, "Skip the signature");
+        if (PROTO_OK != (status = ber_skip(cur))) return status;
+        SLOG(LOG_DEBUG, "Skip the issuer");
+        if (PROTO_OK != (status = ber_skip(cur))) return status;
 
-    SLOG(LOG_DEBUG, "iter over all RelativeDistinguishedName");
-    if (PROTO_OK != (status = ber_foreach(cur, look_for_cname, info))) return status;
+        SLOG(LOG_DEBUG, "Extract the validity");
+        if (PROTO_OK != (status = tls_parse_validity(cert, cur))) return status;
+
+        if (info->u.handshake.nb_certs == 0) {
+            SLOG(LOG_DEBUG, "Iter over all RelativeDistinguishedName");
+            if (PROTO_OK != (status = ber_foreach(cur, look_for_cname, info))) return status;
+        }
+    }
+
     SLOG(LOG_DEBUG, "Successively parsed certificate");
+    info->u.handshake.nb_certs ++;
     return PROTO_OK;
 }
 
 static enum proto_parse_status tls_parse_all_certificates(struct tls_proto_info *info, struct cursor *cur, size_t wire_len)
 {
-    info->set_values |= NB_CERTS_SET;
     info->u.handshake.nb_certs = 0;
+    info->set_values |= NB_CERTS_SET;
+
     for (unsigned n = 0; ; n++) {
         // We do not report any error past the first certificate
         if (cur->cap_len < 3) return (!n ? PROTO_TOO_SHORT : PROTO_OK);
@@ -1169,7 +1191,6 @@ static enum proto_parse_status tls_parse_all_certificates(struct tls_proto_info 
         struct cursor cert = *cur;
         cert.cap_len = MIN(cert.cap_len, cert_len);
         (void)tls_parse_certificate(info, &cert);    // best effort only, as our BER decoder is not perfect
-        info->u.handshake.nb_certs ++;
 
         if (cur->cap_len <= cert_len) break;
         cursor_drop(cur, cert_len);
@@ -1667,9 +1688,9 @@ void tls_init(void)
     port_muxer_ctor(&tcp_port_muxer_skinny, &tcp_port_muxers, 2443, 2443, proto_tls);
     port_muxer_ctor(&tcp_port_muxer_ftps, &tcp_port_muxers, 989, 990, proto_tls);
 
-	tls_ok = scm_permanent_object(scm_from_latin1_symbol("tls-ok"));
-	tls_error = scm_permanent_object(scm_from_latin1_symbol("tls-error"));
-	tls_missing_passphrase = scm_permanent_object(scm_from_latin1_symbol("tls-missing-passphrase"));
+    tls_ok = scm_permanent_object(scm_from_latin1_symbol("tls-ok"));
+    tls_error = scm_permanent_object(scm_from_latin1_symbol("tls-error"));
+    tls_missing_passphrase = scm_permanent_object(scm_from_latin1_symbol("tls-missing-passphrase"));
 
     // Extension functions to add keyfiles
     ext_function_ctor(&sg_tls_keys,
