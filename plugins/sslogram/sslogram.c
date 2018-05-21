@@ -254,6 +254,7 @@ static void tls_callback(struct proto_subscriber unused_ *subscription, struct p
             cert->count= 1;
             cert->nb_servers = 0; // TODO
             SLOG(LOG_INFO, "New cert: %s\n", tls_cert_info_2_str(tls->u.handshake.certs+c, c));
+            HASH_INSERT(&certs, cert, &cert->key, entry);
             if (top_len < top_n) {
                 top_insert(cert, cmp_cert);
                 top_len ++;
