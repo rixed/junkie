@@ -17,6 +17,7 @@ struct ber_time {
 };
 
 char const *ber_time_2_str(struct ber_time const *);
+int cmp_ber_time(struct ber_time const *t1, struct ber_time const *t2);
 
 /// Skip next value
 enum proto_parse_status ber_skip(struct cursor *);

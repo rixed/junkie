@@ -741,10 +741,15 @@ static char const *tls_compress_algo_2_str(enum tls_compress_algo c)
     return tempstr_printf("Unknown compression algorithm 0x%x", c);
 }
 
-static char const *tls_cert_info_2_str(struct tls_cert_info const *info, unsigned c)
+char const *tls_serial_number_2_str(uint8_t const sernum[], unsigned sernum_len)
+{
+    return tempstr_hex(sernum, sernum_len);
+}
+
+char const *tls_cert_info_2_str(struct tls_cert_info const *info, unsigned c)
 {
     return tempstr_printf("serial_number_%u=%s, issuer_%u=%s, subject_%u=%s, not_before_%u=%s, not_after_%u=%s",
-        c, tempstr_hex(info->serial_number, info->serial_number_len),
+        c, tls_serial_number_2_str(info->serial_number, info->serial_number_len),
         c, info->issuer,
         c, info->subject,
         c, ber_time_2_str(&info->not_before),

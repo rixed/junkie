@@ -16,6 +16,7 @@ SUBDIRS = \
 	plugins/duplicogram \
 	plugins/nettop \
 	plugins/delayogram \
+	plugins/sslogram \
 	guile \
 	tests \
 	doc

@@ -184,6 +184,17 @@ char const *ber_time_2_str(struct ber_time const *t)
             t->year, t->month, t->day, t->hour, t->min, t->sec);
 }
 
+int cmp_ber_time(struct ber_time const *t1, struct ber_time const *t2)
+{
+#   define CMP(field) \
+    if (t1->field < t2->field) return -1; \
+    else if (t1->field > t2->field) return 1;
+
+    CMP(year) else CMP(month) else CMP(day)
+    else CMP(hour) else CMP(min) else CMP(sec)
+    else return 0;
+}
+
 static enum proto_parse_status ber_extract_utc_time(struct cursor *c, size_t len, struct ber_time *t, bool generalized)
 {
     enum proto_parse_status status;

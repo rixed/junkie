@@ -120,6 +120,9 @@ struct tls_cert_info {
     struct ber_time not_before, not_after;
 };
 
+char const *tls_serial_number_2_str(uint8_t const sernum[], unsigned);
+char const *tls_cert_info_2_str(struct tls_cert_info const *, unsigned);
+
 struct tls_proto_info {
     struct proto_info info;
     struct tls_version {

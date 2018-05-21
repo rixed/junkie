@@ -119,6 +119,7 @@ AC_CONFIG_FILES([
 	plugins/duplicogram/Makefile
 	plugins/nettop/Makefile
 	plugins/delayogram/Makefile
+	plugins/sslogram/Makefile
 	config/Makefile
 	config/cacti/Makefile
 	guile/Makefile
