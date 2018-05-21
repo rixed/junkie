@@ -68,13 +68,43 @@ static void key_ctor(char *key, struct tls_cert_info const *info)
 
 // We then order the first N cert according to some ordering function.
 
-// Such as this one:
+// Such as these ones:
 static int cmp_not_after(struct cert const *c1, struct cert const *c2)
 {
     return cmp_ber_time(&c1->info.not_after, &c2->info.not_after);
 }
+static int cmp_not_before(struct cert const *c1, struct cert const *c2)
+{
+    return cmp_ber_time(&c1->info.not_before, &c2->info.not_before);
+}
+static int cmp_issuer(struct cert const *c1, struct cert const *c2)
+{
+    return strcmp(c1->info.issuer, c2->info.issuer);
+}
+static int cmp_subject(struct cert const *c1, struct cert const *c2)
+{
+    return strcmp(c1->info.subject, c2->info.subject);
+}
+static int cmp_count(struct cert const *c1, struct cert const *c2)
+{
+    if (c1->count < c2->count) return -1;
+    else if (c1->count == c2->count) return 0;
+    else return 1;
+}
 
-static int (*cmp_cert)(struct cert const *, struct cert const *) = cmp_not_after;
+static struct sort_key {
+    char key;
+    char const *title;
+    int (*cmp)(struct cert const *, struct cert const *);
+} sort_keys[] = {
+    { .key = 'a', .title = "not-after (default)", .cmp = cmp_not_after },
+    { .key = 'b', .title = "not-before", .cmp = cmp_not_before },
+    { .key = 'i', .title = "issuer", .cmp = cmp_issuer },
+    { .key = 's', .title = "subject", .cmp = cmp_subject },
+    { .key = 'c', .title = "count", .cmp = cmp_count }
+};
+
+static struct sort_key const *sort_key = sort_keys + 0;
 
 #define MAX_TOP 1000
 static unsigned top_n = MAX_TOP;    // how many entries we want (ie. NB_LINES)
@@ -87,11 +117,48 @@ static void top_insert(struct cert *new, int (*cmp)(struct cert const *, struct 
     TAILQ_FOREACH(cert, &top, top_entry) {
         if (cmp(new, cert) <= 0) break;
     }
-    if (cert == NULL) { // insert at end
+    if (cert == NULL) { // insert at the end
         TAILQ_INSERT_TAIL(&top, new, top_entry);
     } else {
         TAILQ_INSERT_BEFORE(cert, new, top_entry);
     }
+}
+
+static void top_maybe_insert(struct cert *new, int (*cmp)(struct cert const *, struct cert const *))
+{
+    if (top_len < top_n) {
+        top_insert(new, cmp);
+        top_len ++;
+    } else {
+        struct cert const *last_cert = TAILQ_LAST(&top, certs_tailq);
+        if (cmp(new, last_cert) < 0) {
+            TAILQ_REMOVE(&top, last_cert, top_entry);
+            top_insert(new, sort_key->cmp);
+        }
+    }
+}
+
+static void top_empty(void)
+{
+    while (!TAILQ_EMPTY(&top))
+        TAILQ_REMOVE(&top, TAILQ_FIRST(&top), top_entry);
+    top_len = 0;
+}
+
+static void top_insert_all(int (*cmp)(struct cert const *, struct cert const *))
+{
+    struct cert *cert;
+    HASH_FOREACH(cert, &certs, entry) {
+        top_maybe_insert(cert, cmp);
+    }
+}
+
+static void top_rebuild(int (*cmp)(struct cert const *, struct cert const *))
+{
+    mutex_lock(&certs_lock);
+    top_empty();
+    top_insert_all(cmp);
+    mutex_unlock(&certs_lock);
 }
 
 struct column {
@@ -255,16 +322,7 @@ static void tls_callback(struct proto_subscriber unused_ *subscription, struct p
             cert->nb_servers = 0; // TODO
             SLOG(LOG_INFO, "New cert: %s\n", tls_cert_info_2_str(tls->u.handshake.certs+c, c));
             HASH_INSERT(&certs, cert, &cert->key, entry);
-            if (top_len < top_n) {
-                top_insert(cert, cmp_cert);
-                top_len ++;
-            } else {
-                struct cert const *last_cert = TAILQ_LAST(&top, certs_tailq);
-                if (cmp_cert(cert, last_cert) < 0) {
-                    TAILQ_REMOVE(&top, last_cert, top_entry);
-                    top_insert(cert, cmp_cert);
-                }
-            }
+            top_maybe_insert(cert, sort_key->cmp);
         }
         mutex_unlock(&certs_lock);
     }
@@ -286,8 +344,12 @@ static void do_display_help(void)
         "  " BRIGHT "h,H,?" NORMAL " this help screen\n"
         "  " BRIGHT "q" NORMAL "     return to main screen\n"
         "  " BRIGHT "q,^C" NORMAL "  quit\n",
-        "NotAfter",
+        sort_key->title,
         refresh_rate/1000000.);
+    for (unsigned u = 0; u < NB_ELEMS(sort_keys); u++) {
+        printf("  " BRIGHT "%c" NORMAL "     sort by %s\n",
+               sort_keys[u].key, sort_keys[u].title);
+    }
 }
 
 // Key handling function
@@ -309,6 +371,17 @@ static void handle_key(char c)
         case '\n':
             if (display_help) {
                 display_help = false;
+            }
+            break;
+        default:
+            for (unsigned u = 0; u < NB_ELEMS(sort_keys); u++) {
+                if (sort_keys[u].key == c) {
+                    if (sort_key != sort_keys + u) {
+                        sort_key = sort_keys + u;
+                        top_rebuild(sort_key->cmp);
+                    }
+                    break;
+                }
             }
             break;
     }
