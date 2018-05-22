@@ -127,15 +127,21 @@
 
 (export gensymC)
 
-; FIXME: should not substiture digits with _ except if first char
 (define string->C-ident
-  (let ((ident-charset (char-set-intersection char-set:ascii char-set:letter)))
+  (let* ((ident-1st-charset (char-set-intersection char-set:ascii char-set:letter))
+         (ident-charset (char-set-union
+                          ident-1st-charset
+                          (char-set-intersection char-set:ascii char-set:digit))))
     (lambda (str)
-      (list->string (map (lambda (c)
-                           (if (char-set-contains? ident-charset c)
-                               c
-                               #\_))
-                         (string->list str))))))
+      (let ((s
+              (list->string (map (lambda (c)
+                                   (if (char-set-contains? ident-charset c)
+                                     c
+                                     #\_))
+                                 (string->list str)))))
+        (if (not (char-set-contains? ident-1st-charset (string-ref s 0)))
+          (string-set! s 0 #\_))
+        s))))
 
 (export string->C-ident)
 
@@ -219,7 +225,7 @@
 ;
 ;(export ignored)
 
-;;; The any type that can be used in some cases for bypass typecheck. Cannot be used.
+;;; The any type that can be used in some cases to bypass typecheck. Cannot be used.
 
 (define any
   (make-type

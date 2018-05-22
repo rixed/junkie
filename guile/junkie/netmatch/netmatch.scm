@@ -213,7 +213,7 @@
       res
       '())))
 
-; Returns the new expression replacing a well-known constant, of #f
+; Returns the new expression replacing a well-known constant, or #f
 (define (well-known-cst? x)
   (match x
          ('arp-request 1) ('arp-reply 2)
@@ -247,7 +247,8 @@
 (define (with-expected-type t thung)
   ; BEWARE: not your usual with-this -> if currently expected type is type:any, then its value is not restored!
   (slog log-debug "now expecting ~a instead of ~a" (type:type-name t) (type:type-name (fluid-ref expected-type)))
-  (let ((result (if (eq? (fluid-ref expected-type) type:any)
+  (let ((result (if (and (eq? (fluid-ref expected-type) type:any)
+                         (not (eq? t type:any))) ; when we expect any, we do not want discovered type to percolate up
                     (begin
                       (fluid-set! expected-type t)
                       (thung))
@@ -263,6 +264,7 @@
           (fluid-set! expected-type t))
         (type:check t et))))
 
+; Turn '(op a b c d) into '(op (op (op a b) c) d) (for s = 2, max actual number of arguments accepted by op)
 (define (explode-op op s params)
   (slog log-debug "explode operation ~a with params ~s" op params)
   (if (eqv? s (length params))
@@ -299,7 +301,7 @@
 ;;; We want to support only one kind of "function" taking and destructuring a proto stack and returning anything (the regfiles are implicit)
 ;;; (function_name (proto1 in proto2 in proto3...) expr)
 ;;; Note that when the destructuration of protos fails, 0 is returned (Ok when function result is interpreted as a bool)
-;;; where expr can be either a constants, proto.field, %register, (expression ...) or (special-form ...) (a la lisp).
+;;; where expr can be either a constant, proto.field, %register, (expression ...) or (special-form ...) (a la lisp).
 ;;; some of these special form are for binding (set!), some for testing field set value (set?), some for if, etc...
 ;;; This gets compiled into a C function taking the last proto info (and the prev/new regfiles), and returning an intptr_t.
 
@@ -316,7 +318,7 @@
       "    (void)new_regfile;\n")
     "" '()))
 
-(define (proto->C sym) ; placeholder for more elavorate translation
+(define (proto->C sym) ; placeholder for more elaborate translation
   (symbol->string sym))
 
 (define (deconstruct-protos protos)
@@ -340,7 +342,6 @@
                                (type:op-name op) (map type:type-name itypes) (type:type-name otype))
                          ; If we were expecting any type, we now expect an otype
                          (type-check-or-set otype)
-                         (type:check otype (fluid-ref expected-type))
                          (if (eqv? (length params) (length itypes))
                              (apply
                                (type:op-function op)
@@ -357,7 +358,7 @@
                                  (throw 'you-must-be-joking
                                         (simple-format #f "bad number of parameters for ~a: ~a instead of ~a"
                                                        (type:op-name op) (length params) (length itypes))))))))
-         ; takes an op name and try each binding for this op until one works (aka. generic buildins)
+         ; takes an op name and try each binding for this op until one works (aka. generic builtins)
          (perform-op (lambda (op-name params)
                        (let* ((ops (or (type:symbol->ops op-name)
                                        (throw 'you-must-be-joking 'unknown-operator op-name))))
@@ -384,7 +385,7 @@
                                                #f))))
                                   ops)
                              (throw 'type-error (simple-format #f "Cannot find a suitable type for (~s ~s)" op-name params))))))
-         (is-infix   (let ((prefix-chars (string->char-set "!@#$%^&*-+=|~/:><")))
+         (infix?     (let ((prefix-chars (string->char-set "!@#$%^&*-+=|~/:><")))
                        (lambda (op)
                          (slog log-debug "is ~s an infix op?" op)
                          (and (symbol? op)
@@ -406,7 +407,7 @@
               (()
                (throw 'you-must-be-joking "what's the empty list for?"))
               ;; Try first to handle some few special forms
-              ; set? tells if a field is set or not in a proto into
+              ; set? tells if a field is set or not in a proto info
               (('set? fname) ; special operator
                (match (fieldname? fname)
                       ((proto . f)
@@ -427,13 +428,13 @@
                (slog log-debug " compiling special form 'bind' for expr ~a to register ~a" x name)
                (or (symbol? name)
                    (throw 'you-must-be-joking (simple-format #f "register name must be a symbol not ~s" name)))
-               (let* ((x-stub  (expr->stub x)) ; should set expected-type if unset yet
+               (let* ((x-stub  (expr->stub x)) ; should set expected-type if still unset
                       (regname (type:symbol->C-ident name))
                       (e-type  (fluid-ref expected-type)))
                  (slog log-debug " compiling actual bind of ~s, of type ~s" x (type:type-name e-type))
                  (set-register-type regname e-type)
                  ((type:type-bind e-type) regname x-stub)))
-              ; Sequencing operator (special typing, returns the last evaluated expression)
+              ; Sequencing operator; type and value of the last evaluated expression.
               (('do v1) ; easy one
                (expr->stub v1))
               (('do v1 . v2) ; general case
@@ -468,7 +469,7 @@
                                             type:any
                                             (lambda ()
                                               ; we go from any to any type -> the type set by (expr->stub p) will be kept.
-                                              (let ((s (with-expected-type type:any (lambda () (expr->stub p))))) ; set expected-type to actual type
+                                              (let ((s (expr->stub p))) ; set expected-type to actual type
                                                 (slog log-debug "  param ~s is of type ~a" p (type:type-name (fluid-ref expected-type)))
                                                 ((type:type-to-scm (fluid-ref expected-type)) s))))) ; so whatever the returned type we use the proper to-scm method (TODO: type the stubs?))
                                    params))
@@ -506,13 +507,11 @@
                                    (lambda () (expr->stub condition))))
                       (then-stub (expr->stub then))
                       (else-stub (if (null? elses)
-                                     ; By default we assume #f if the expected type is bool, nothing if the expected type is any,
-                                     ; and throw an error otherwise.
-                                     (if (eq? (fluid-ref expected-type) type:bool)
+                                     ; We assume #f if the expected type is bool or any and throw an error otherwise.
+                                     (if (or (eq? (fluid-ref expected-type) type:bool)
+                                             (eq? (fluid-ref expected-type) type:any))
                                          (expr->stub #f)
-                                         (if (eq? (fluid-ref expected-type) type:any)
-                                             (type:empty-stub)
-                                             (throw 'you-must-be-joking (simple-format #f "you must provide an alternative of type ~a" (type:type-name (fluid-ref expected-type))))))
+                                         (throw 'you-must-be-joking (simple-format #f "you must provide an alternative of type ~a" (type:type-name (fluid-ref expected-type)))))
                                      (if (eqv? 1 (length elses))
                                          (expr->stub (car elses))
                                          (throw 'you-must-be-joking (simple-format #f "'if' forms can have only one consequent and one alternative")))))
@@ -520,13 +519,14 @@
                  (type:make-stub
                    (string-append
                      (type:stub-code cond-stub)
-                     "    uintptr_t unused_ " tmp ";\n" ; unused since we are not always going to use the if expression value (if we use the if for choosing between two side effects
+                     "    uintptr_t " tmp ";\n"
+                     "    (void)" tmp ";\n" ; in case we do not use the if result
                      "    if (" (type:stub-result cond-stub) ") {\n"
                      (type:indent-more (type:stub-code then-stub))
-                     "        " tmp " = " (type:stub-result then-stub) ";\n"
+                     "        " tmp " = (uintptr_t)" (type:stub-result then-stub) ";\n"
                      "    } else {\n"
                      (type:indent-more (type:stub-code else-stub))
-                     "        " tmp " = " (type:stub-result else-stub) ";\n"
+                     "        " tmp " = (uintptr_t)" (type:stub-result else-stub) ";\n"
                      "    }\n")
                    tmp
                    (append (type:stub-regnames cond-stub)
@@ -536,7 +536,7 @@
               ((or (a '!= b) (a '<> b))
                (expr->stub `(not (,a == ,b))))
               ; Now that we have ruled out the empty list and special forms we must face an operator, which can be infix or prefix
-              ((and (v1 op-name . rest) (? (lambda (expr) (is-infix (cadr expr)))))
+              ((and (v1 op-name . rest) (? (lambda (expr) (infix? (cadr expr)))))
                (perform-op op-name (cons v1 rest)))
               ((op-name . params)
                (perform-op op-name params))))
@@ -637,7 +637,7 @@
                       "\n"
                       "uintptr_t " funname "(struct proto_info const *info, struct npc_register rest, struct npc_register const *prev_regfile, struct npc_register *new_regfile)\n"
                       "{\n"
-                      "    return " (type:stub-result stub) "(info, rest, prev_regfile, new_regfile);\n"
+                      "    return (uintptr_t)" (type:stub-result stub) "(info, rest, prev_regfile, new_regfile);\n"
                       "}\n")
                     funname
                     (type:stub-regnames stub))))
