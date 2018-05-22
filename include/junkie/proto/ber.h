@@ -19,15 +19,24 @@ struct ber_time {
 char const *ber_time_2_str(struct ber_time const *);
 int cmp_ber_time(struct ber_time const *t1, struct ber_time const *t2);
 
+/// Fill in a struct utc_time with the value pointed that must be either
+/// an UTCTime or a GeneralizedTime
+enum proto_parse_status ber_extract_time(struct cursor *, struct ber_time *);
+
+struct ber_uint {
+    uint8_t num[20];
+    uint8_t len;
+};
+
+enum proto_parse_status ber_extract_uint(struct cursor *, struct ber_uint *);
+
+char const *ber_uint_2_str(struct ber_uint const *);
+
 /// Skip next value
 enum proto_parse_status ber_skip(struct cursor *);
 
 /// Copy the next value
 enum proto_parse_status ber_copy(struct cursor *, void *dest, size_t *nb_bytes, size_t max_sz);
-
-/// Fill in a struct utc_time with the value pointed that must be either
-/// an UTCTime or a GeneralizedTime
-enum proto_parse_status ber_extract_time(struct cursor *, struct ber_time *);
 
 /// Skip an explicitly tagged value if present at cursor
 enum proto_parse_status ber_skip_optional(struct cursor *, unsigned tag);

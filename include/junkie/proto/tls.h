@@ -112,15 +112,13 @@ struct tls_cert_info {
     /* Certificate users MUST be able to handle serialNumber values
      * up to 20 octets.  Conforming CAs MUST NOT use serialNumber
      * values longer than 20 octets. -- RFC 5280 */
-    uint8_t serial_number_len;
-    uint8_t serial_number[20];
+    struct ber_uint serial_number;
 #   define SIZEOF_SUBJECT 150
     char subject[SIZEOF_SUBJECT];
     char issuer[SIZEOF_SUBJECT];
     struct ber_time not_before, not_after;
 };
 
-char const *tls_serial_number_2_str(uint8_t const sernum[], unsigned);
 char const *tls_cert_info_2_str(struct tls_cert_info const *, unsigned);
 
 struct tls_proto_info {

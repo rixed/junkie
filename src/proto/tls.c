@@ -741,15 +741,10 @@ static char const *tls_compress_algo_2_str(enum tls_compress_algo c)
     return tempstr_printf("Unknown compression algorithm 0x%x", c);
 }
 
-char const *tls_serial_number_2_str(uint8_t const sernum[], unsigned sernum_len)
-{
-    return tempstr_hex(sernum, sernum_len);
-}
-
 char const *tls_cert_info_2_str(struct tls_cert_info const *info, unsigned c)
 {
     return tempstr_printf("serial_number_%u=%s, issuer_%u=%s, subject_%u=%s, not_before_%u=%s, not_after_%u=%s",
-        c, tls_serial_number_2_str(info->serial_number, info->serial_number_len),
+        c, ber_uint_2_str(&info->serial_number),
         c, info->issuer,
         c, info->subject,
         c, ber_time_2_str(&info->not_before),
@@ -1158,9 +1153,7 @@ static enum proto_parse_status tls_parse_certificate(struct tls_proto_info *info
         if (PROTO_OK != (status = ber_skip_optional(cur, 0))) return status;
 
         SLOG(LOG_DEBUG, "Extract the serial number");
-        size_t sernum_sz;
-        if (PROTO_OK != (status = ber_copy(cur, &cert->serial_number, &sernum_sz, sizeof(cert->serial_number)))) return status;
-        cert->serial_number_len = sernum_sz;
+        if (PROTO_OK != (status = ber_extract_uint(cur, &cert->serial_number))) return status;
 
         SLOG(LOG_DEBUG, "Skip the signature");
         if (PROTO_OK != (status = ber_skip(cur))) return status;

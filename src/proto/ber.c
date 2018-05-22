@@ -195,6 +195,11 @@ int cmp_ber_time(struct ber_time const *t1, struct ber_time const *t2)
     else return 0;
 }
 
+char const *ber_uint_2_str(struct ber_uint const *n)
+{
+    return tempstr_hex(n->num, n->len);
+}
+
 static enum proto_parse_status ber_extract_utc_time(struct cursor *c, size_t len, struct ber_time *t, bool generalized)
 {
     enum proto_parse_status status;
@@ -251,6 +256,15 @@ enum proto_parse_status ber_extract_time(struct cursor *c, struct ber_time *time
         return ber_extract_utc_time(c, t.length, time, true);
     } else return PROTO_PARSE_ERR;
 
+    return PROTO_OK;
+}
+
+enum proto_parse_status ber_extract_uint(struct cursor *c, struct ber_uint *n)
+{
+    enum proto_parse_status status;
+    size_t sernum_sz;
+    if (PROTO_OK != (status = ber_copy(c, &n->num, &sernum_sz, sizeof(n->num)))) return status;
+    n->len = sernum_sz;
     return PROTO_OK;
 }
 

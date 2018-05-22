@@ -56,10 +56,10 @@ static HASH_TABLE(certs, cert) certs;
 static void key_ctor(char *key, struct tls_cert_info const *info)
 {
     for (unsigned d = 0; d < MAX_KEY_SIZE; d ++) {
-        if (d/2 >= info->serial_number_len) {
+        if (d/2 >= info->serial_number.len) {
             key[d] = '\0';
         } else {
-            uint8_t byte = info->serial_number[d/2];
+            uint8_t byte = info->serial_number.num[d/2];
             uint8_t digit = (d & 1 ? byte : (byte >> 4)) & 0xf;
             key[d] = digit < 10 ? '0' + digit : 'A' + (digit - 10);
         }
@@ -268,7 +268,7 @@ static void do_display_top(struct timeval const unused_ *now)
     struct cert *cert;
     unsigned lineno = 0;
     TAILQ_FOREACH(cert, &top, top_entry) {
-        column_set_data(columns+0, lineno, tls_serial_number_2_str(cert->info.serial_number, cert->info.serial_number_len));
+        column_set_data(columns+0, lineno, ber_uint_2_str(&cert->info.serial_number));
         column_set_data(columns+1, lineno, cert->info.subject);
         column_set_data(columns+2, lineno, cert->info.issuer);
         column_set_data(columns+3, lineno, ber_time_2_str(&cert->info.not_before));
