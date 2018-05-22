@@ -33,18 +33,23 @@ file will be created every $CSV_DURATION seconds (60 by default).
 (define (make-timed-filedes prefix)
   (make-timed-filedes-ll prefix "" #f 0))
 
-(define (reopen-timed-filedes tfd new-ts)
-  (slog log-debug "Reopening dump fd ~a" (timed-filedes-prefix tfd))
-  (let* ((cur-fd (timed-filedes-fd tfd))
-         (new-name (string-append csv-dir "/"
-                                  (timed-filedes-prefix tfd) "-"
-                                  (number->string new-ts) ".csv.tmp"))
-         (new-fd (open-file new-name "alb"))) ; append, line buffered, binary
+(define (close-timed-filedes tfd)
+  (slog log-debug "Closing dump fd ~a" (timed-filedes-prefix tfd))
+  (let* ((cur-fd (timed-filedes-fd tfd)))
     (if (port? cur-fd)
       (let* ((old-name (timed-filedes-name tfd))
              (fin-name (string-drop-right old-name 4))) ; drop ".tmp"
         (rename-file old-name fin-name)
         (close-port cur-fd)))
+    (timed-filedes-fd-set! tfd #f)))
+
+(define (reopen-timed-filedes tfd new-ts)
+  (slog log-debug "Reopening dump fd ~a" (timed-filedes-prefix tfd))
+  (let* ((new-name (string-append csv-dir "/"
+                                  (timed-filedes-prefix tfd) "-"
+                                  (number->string new-ts) ".csv.tmp"))
+         (new-fd (open-file new-name "alb"))) ; append, line buffered, binary
+    (close-timed-filedes tfd)
     (timed-filedes-fd-set! tfd new-fd)
     (timed-filedes-start-ts-set! tfd new-ts)
     (timed-filedes-name-set! tfd new-name)))
@@ -58,6 +63,14 @@ file will be created every $CSV_DURATION seconds (60 by default).
 (define flow-tfd (make-timed-filedes "flow"))
 (define web-tfd (make-timed-filedes "web"))
 (define traffic-tfd (make-timed-filedes "traffic"))
+
+(define (close-all)
+  (close-timed-filedes tcp-tfd)
+  (close-timed-filedes dns-tfd)
+  (close-timed-filedes flow-tfd)
+  (close-timed-filedes web-tfd)
+  (close-timed-filedes traffic-tfd)
+  (close-timed-filedes tls-tfd))
 
 (define (dump-next-value out next . rest)
   (display next out)
@@ -716,6 +729,16 @@ file will be created every $CSV_DURATION seconds (60 by default).
 
 (let ((ifaces (getenv-default "eth0" "SNIFF_IFACES"))
       (capfilter (getenv-default "" "SNIFF_CAPTURE_FILTER")))
-  (set-ifaces ifaces #:capfilter capfilter)
-  (if (null? (iface-names))
-      (slog log-crit "It seams SNIFF_IFACES (~a) matches no ifaces" ifaces)))
+  (if (file-exists? ifaces)
+    (begin
+      (set-quit-when-done #f)
+      (open-pcap ifaces #f capfilter)
+      (while (not (null? (iface-names)))
+             (sleep 1))
+      (slog log-info "Finished playing pcap file")
+      (close-all)
+      (exit 0))
+    (begin
+      (set-ifaces ifaces #:capfilter capfilter)
+      (if (null? (iface-names))
+        (slog log-crit "It seams SNIFF_IFACES (~a) matches no ifaces" ifaces)))))
