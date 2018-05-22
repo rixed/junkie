@@ -63,6 +63,7 @@ file will be created every $CSV_DURATION seconds (60 by default).
 (define flow-tfd (make-timed-filedes "flow"))
 (define web-tfd (make-timed-filedes "web"))
 (define traffic-tfd (make-timed-filedes "traffic"))
+(define tls-tfd (make-timed-filedes "tls"))
 
 (define (close-all)
   (close-timed-filedes tcp-tfd)
@@ -188,6 +189,26 @@ file will be created every $CSV_DURATION seconds (60 by default).
         port-dst
         count
         pld))
+
+(define-public (print-tls ts device vlan-id client-mac client-ip server-mac
+                          server-ip server-port cert-num nb-certs
+                          serial-number not-before not-after subject issuer)
+  (dump tls-tfd
+        (timestamp->float ts)
+        device
+        (vlan vlan-id)
+        (eth->string client-mac)
+        (ip->string client-ip)
+        (eth->string server-mac)
+        (ip->string server-ip)
+        server-port
+        cert-num
+        nb-certs
+        serial-number
+        (ber-time->string not-before)
+        (ber-time->string not-after)
+        subject
+        issuer))
 
 (define nt-http (nt:compile "http-response-time"
   '([(err-code uint)
@@ -716,6 +737,104 @@ file will be created every $CSV_DURATION seconds (60 by default).
         ; no grab
         )])))
 
+(define nt-tls (nt:compile "tls-certificates"
+  '([(device uint)
+     (vlan uint)
+     (client-mac mac)
+     (server-mac mac)
+     (client-ip ip)
+     (server-ip ip)
+     (server-port uint)
+     (ts timestamp)
+     (nb-certs uint)
+     (serial-number-0 ber-uint)
+     (not-before-0 ber-time)
+     (not-after-0 ber-time)
+     (subject-0 str)
+     (issuer-0 str)
+     (serial-number-1 ber-uint)
+     (not-before-1 ber-time)
+     (not-after-1 ber-time)
+     (subject-1 str)
+     (issuer-1 str)
+     (serial-number-2 ber-uint)
+     (not-before-2 ber-time)
+     (not-after-2 ber-time)
+     (subject-2 str)
+     (issuer-2 str)
+     (serial-number-3 ber-uint)
+     (not-before-3 ber-time)
+     (not-after-3 ber-time)
+     (subject-3 str)
+     (issuer-3 str)]
+    [(tls-handshake
+       (on-entry
+         (do
+           (if (> nb-certs 0)
+             (apply (dump-transactions)
+                    print-tls ts device vlan client-mac client-ip server-mac server-ip server-port
+                    0 nb-certs serial-number-0 not-before-0 not-after-0 subject-0 issuer-0))
+           (if (> nb-certs 1)
+             (apply (dump-transactions)
+                    print-tls ts device vlan client-mac client-ip server-mac server-ip server-port
+                    1 nb-certs serial-number-1 not-before-1 not-after-1 subject-1 issuer-1))
+           (if (> nb-certs 2)
+             (apply (dump-transactions)
+                    print-tls ts device vlan client-mac client-ip server-mac server-ip server-port
+                    2 nb-certs serial-number-2 not-before-2 not-after-2 subject-2 issuer-2))
+           (if (> nb-certs 3)
+             (apply (dump-transactions)
+                    print-tls ts device vlan client-mac client-ip server-mac server-ip server-port
+                    3 nb-certs serial-number-3 not-before-3 not-after-3 subject-3 issuer-3)))))]
+    ; edges
+    [(root tls-handshake
+        (match (cap eth ip tcp tls) (if
+                                      (set? tls.nb-certs)
+                                      (do
+                                        (client-ip := ip.dst)
+                                        (client-mac := eth.dst)
+                                        (server-ip := ip.src)
+                                        (server-mac := eth.src)
+                                        (server-port := tcp.src-port)
+                                        (device := cap.dev)
+                                        (vlan := eth.vlan)
+                                        (ts := cap.ts)
+                                        (nb-certs := tls.nb-certs)
+                                        (if (> tls.nb-certs 0)
+                                          (do
+                                            (serial-number-0 := tls.serial-number-0)
+                                            (not-before-0 := tls.not-before-0)
+                                            (not-after-0 := tls.not-after-0)
+                                            (subject-0 := tls.subject-0)
+                                            (issuer-0 := tls.issuer-0)
+                                            #t))
+                                        (if (> tls.nb-certs 1)
+                                          (do
+                                            (serial-number-1 := tls.serial-number-1)
+                                            (not-before-1 := tls.not-before-1)
+                                            (not-after-1 := tls.not-after-1)
+                                            (subject-1 := tls.subject-1)
+                                            (issuer-1 := tls.issuer-1)
+                                            #t))
+                                        (if (> tls.nb-certs 2)
+                                          (do
+                                            (serial-number-2 := tls.serial-number-2)
+                                            (not-before-2 := tls.not-before-2)
+                                            (not-after-2 := tls.not-after-2)
+                                            (subject-2 := tls.subject-2)
+                                            (issuer-2 := tls.issuer-2)
+                                            #t))
+                                        (if (> tls.nb-certs 3)
+                                          (do
+                                            (serial-number-3 := tls.serial-number-3)
+                                            (not-before-3 := tls.not-before-3)
+                                            (not-after-3 := tls.not-after-3)
+                                            (subject-3 := tls.subject-3)
+                                            (issuer-3 := tls.issuer-3)
+                                            #t))
+                                        #t)))
+        spawn)])))
+
 (set-collapse-vlans #f)
 (set-collapse-ifaces #f)
 
@@ -724,6 +843,7 @@ file will be created every $CSV_DURATION seconds (60 by default).
 (nettrack-start nt-eth)
 (nettrack-start nt-tcp)
 (nettrack-start nt-flow)
+(nettrack-start nt-tls)
 
 (start-repl-server)
 
