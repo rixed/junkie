@@ -400,6 +400,65 @@
 
 (export timestamp)
 
+;;; Broken down time (used for TLS certificates)
+
+(define ber-time; the stub-result will be a pointer to a struct timeval
+  (make-type
+    'ber-time
+    (lambda (v) ; imm
+      #f)
+    (lambda (proto field) ; fetch
+      (let* ((res (gensymC (string-append (string->C-ident field) "_field"))))
+        (make-stub
+          (string-append
+            "    struct ber_time const *" res " = &" proto "->" field ";\n")
+          res
+          '())))
+    (boxed-ref "struct ber_time")
+    boxed-bind
+    (lambda (stub) ; to-scm
+      (let ((res (gensymC "to_scm_res")))
+        (make-stub
+          (string-append
+            "    SCM " res " = scm_list_n(\n"
+            "        scm_from_uint16(((struct ber_time const *)" (stub-result stub) ")->year),\n"
+            "        scm_from_uint8(((struct ber_time const *)" (stub-result stub) ")->month),\n"
+            "        scm_from_uint8(((struct ber_time const *)" (stub-result stub) ")->day),\n"
+            "        scm_from_uint8(((struct ber_time const *)" (stub-result stub) ")->hour),\n"
+            "        scm_from_uint8(((struct ber_time const *)" (stub-result stub) ")->min),\n"
+            "        scm_from_uint8(((struct ber_time const *)" (stub-result stub) ")->sec),\n"
+            "        SCM_UNDEFINED);\n")
+          res
+          (stub-regnames stub))))))
+
+(export ber-time)
+
+;;; Large integers (represented as strings of digits) (used for TLS serial numbers)
+
+(define ber-uint ; the stub-result will be a pointer to a struct timeval
+  (make-type
+    'ber-uint
+    (lambda (v) ; imm
+      #f)
+    (lambda (proto field) ; fetch
+      (let* ((res (gensymC (string-append (string->C-ident field) "_field"))))
+        (make-stub
+          (string-append
+            "    struct ber_uint const *" res " = &" proto "->" field ";\n")
+          res
+          '())))
+    (boxed-ref "struct ber_uint")
+    boxed-bind
+    (lambda (stub) ; to-scm
+      (let ((res (gensymC "to_scm_res")))
+        (make-stub
+          (string-append
+            "    SCM " res " = scm_from_latin1_string(ber_uint_2_str(" (stub-result stub) "));\n")
+          res
+          (stub-regnames stub))))))
+
+(export ber-uint)
+
 ;;; IP addresses
 
 (define ip ; the stub-result will be a pointer to a struct ip_addr

@@ -6,6 +6,7 @@
 (use-modules (srfi srfi-1)
              (ice-9 regex)
              (ice-9 format)
+             (ice-9 match)
              (system repl server))
 
 ; A pretty printer
@@ -105,6 +106,14 @@
   (+ (car t) (/ (cdr t) 1000000.)))
 
 (export timestamp->float)
+
+(define (ber-time->string t)
+  (match t
+         ((year month day hour min sec)
+          (format #f "~4,,,'0@s-~2,,,'0@s-~2,,,'0@s ~2,,,'0@s:~2,,,'0@s:~2,,,'0@s"
+                  year month day hour min sec))))
+
+(export ber-time->string)
 
 ; Some tools mainly useful for tests
 

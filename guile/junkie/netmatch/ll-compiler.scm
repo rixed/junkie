@@ -13,7 +13,7 @@
 
 ; FIXME: instead of this, an alist of protos (records) giving the header name, the fields, etc...
 (define *all-protos*
-  '(cap eth ip gre arp udp icmp tcp sip http rtp netbios dns rtcp ftp mgcp sdp cifs sql))
+  '(cap eth ip gre arp udp icmp tcp sip http rtp netbios dns rtcp ftp mgcp sdp cifs sql tls))
 
 (define (headers-for proto-list)
   ; TODO : uniquifies then map to include stenzas
