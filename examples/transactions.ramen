@@ -94,6 +94,41 @@ DEFINE flow csv_dir="/tmp" AS
   FACTORS device, vlan AND ip_proto
   EVENT STARTING AT start AND STOPPING AT stop;
 
+DEFINE x509 csv_dir="/tmp" AS
+  READ AND DELETE FILE "${param.csv_dir}/x509-*.csv" SEPARATOR "\t" NULL "<NULL>" (
+    time float not null,
+    device u32 not null,
+    vlan u16 null,
+    clt_mac eth not null,
+    clt_ip ip not null,
+    srv_mac eth not null,
+    srv_ip ip not null,
+    srv_port u16 not null,
+    cert_depth u16 not null,
+    nb_certs u16 not null,
+    serial_number string not null,
+    not_before string not null,
+    not_after string not null,
+    subject string not null,
+    issuer string not null)
+  FACTORS device, vlan AND issuer
+  EVENT STARTING AT time;
+
+DEFINE tls csv_dir="/tmp" AS
+  READ AND DELETE FILE "${param.csv_dir}/tls-*.csv" SEPARATOR "\t" NULL "<NULL>" (
+    time float not null,
+    device u32 not null,
+    vlan u16 null,
+    clt_mac eth not null,
+    clt_ip ip not null,
+    srv_mac eth not null,
+    srv_ip ip not null,
+    srv_port u16 not null,
+    cipher_suite string not null,
+    compress_algo string not null)
+  FACTORS device, vlan, cipher_suite AND compress_algo
+  EVENT STARTING AT time;
+
 -- Now let's do something useful with this info
 
 -- Starting with some pre-aggregated minutely volumetry:
