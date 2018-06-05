@@ -732,6 +732,13 @@ static char const *tls_cipher_suite_2_str(enum tls_cipher_suite c)
     return tempstr_printf("Unknown cipher suite 0x%x", c);
 }
 
+static struct ext_function sg_tls_cipher_suite_2_str;
+static SCM g_tls_cipher_suite_2_str(SCM cipher_suite_)
+{
+    char const *str = tls_cipher_suite_2_str(scm_to_int(cipher_suite_));
+    return scm_from_latin1_string(str);
+}
+
 static char const *tls_compress_algo_2_str(enum tls_compress_algo c)
 {
     switch (c) {
@@ -739,6 +746,13 @@ static char const *tls_compress_algo_2_str(enum tls_compress_algo c)
         case TLS_COMPRESS_DEFLATE: return "deflate";
     }
     return tempstr_printf("Unknown compression algorithm 0x%x", c);
+}
+
+static struct ext_function sg_tls_compress_algo_2_str;
+static SCM g_tls_compress_algo_2_str(SCM compress_algo_)
+{
+    char const *str = tls_compress_algo_2_str(scm_to_int(compress_algo_));
+    return scm_from_latin1_string(str);
 }
 
 char const *tls_cert_info_2_str(struct tls_cert_info const *info, unsigned c)
@@ -1703,6 +1717,14 @@ void tls_init(void)
         "tls-del-key", 1, 0, 0, g_tls_del_key,
         "(tls-del-key \"/var/keys/secret.pem\"): forget about this key.\n"
         "See also (? 'tls-add-key)\n");
+
+    ext_function_ctor(&sg_tls_cipher_suite_2_str,
+        "tls-cipher-suite->string", 1, 0, 0, g_tls_cipher_suite_2_str,
+        "(tls-cipher-suite->string num): returns the name of that TLS cipher suite.\n");
+
+    ext_function_ctor(&sg_tls_compress_algo_2_str,
+        "tls-compress-algo->string", 1, 0, 0, g_tls_compress_algo_2_str,
+        "(tls-compress-algo->string num): returns the name of that TLS compress algo.\n");
 }
 
 void tls_fini(void)
