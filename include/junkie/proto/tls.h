@@ -134,8 +134,8 @@ struct tls_proto_info {
     union {
         struct tls_info_handshake {
 #           define CIPHER_SUITE_SET  0x1
-            enum tls_cipher_suite  cipher_suite;
-            enum tls_compress_algo  compress_algorithm;    // set whenever CIPHER_SUITE_SET is set
+            enum tls_cipher_suite cipher_suite;
+            enum tls_compress_algo compress_algorithm;    // set whenever CIPHER_SUITE_SET is set
 #           define NB_CERTS_SET  0x4
             uint8_t nb_certs;       // BEWARE: can be more than NB_ELEMS(cert);
             struct tls_cert_info certs[4];

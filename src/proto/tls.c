@@ -1111,8 +1111,9 @@ static int decrypt_master_secret(struct tls_parser *parser, unsigned way, struct
     return 0;
 }
 
-static enum proto_parse_status look_for_cname(struct cursor *cur, void *subject)
+static enum proto_parse_status look_for_cname(struct cursor *cur, void *subject_)
 {
+    char *subject = subject_;
     enum proto_parse_status status;
     SLOG(LOG_DEBUG, "Enter the RelativeDistinguishedName");
     if (PROTO_OK != (status = ber_enter(cur))) return status;

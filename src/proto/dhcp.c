@@ -93,7 +93,7 @@ static char const *dhcp_info_2_str(struct proto_info const *info_)
         dhcp_opcode_2_str(info->opcode),
         dhcp_msg_type_2_str(info->msg_type),
         info->xid,
-        info->set_values & DHCP_CLIENT_SET     ? ip_addr_2_str(&info->client) : "unset",
+        info->set_values & DHCP_CLIENT_SET ? ip_addr_2_str(&info->client) : "unset",
         info->hw_addr_is_eth ? eth_addr_2_str(info->client_mac) : "not eth",
         info->server_name[0] != '\0' ? info->server_name : "unset");
 
