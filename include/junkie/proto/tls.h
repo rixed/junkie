@@ -136,9 +136,11 @@ struct tls_proto_info {
 #           define CIPHER_SUITE_SET  0x1
             enum tls_cipher_suite cipher_suite;
             enum tls_compress_algo compress_algorithm;    // set whenever CIPHER_SUITE_SET is set
-#           define NB_CERTS_SET  0x4
+#           define NB_CERTS_SET  0x2
             uint8_t nb_certs;       // BEWARE: can be more than NB_ELEMS(cert);
             struct tls_cert_info certs[4];
+#           define SERVER_NAME_INDICATION_SET 0x4
+            char sni[64];
         } handshake;
     } u;
 };

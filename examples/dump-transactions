@@ -194,7 +194,7 @@ file will be created every $CSV_DURATION seconds (60 by default).
 
 (define-public (print-tls ts device vlan-id client-mac client-ip server-mac
                           server-ip server-port cipher-suite
-                          compress-algorithm)
+                          compress-algorithm sni)
   (dump tls-tfd
         (timestamp->float ts)
         device
@@ -205,7 +205,8 @@ file will be created every $CSV_DURATION seconds (60 by default).
         (ip->string server-ip)
         server-port
         (tls-cipher-suite->string cipher-suite)
-        (tls-compress-algo->string compress-algorithm)))
+        (tls-compress-algo->string compress-algorithm)
+        sni))
 
 (define-public (print-x509 ts device vlan-id client-mac client-ip server-mac
                            server-ip server-port cert-num nb-certs
@@ -862,29 +863,35 @@ file will be created every $CSV_DURATION seconds (60 by default).
      (server-port uint)
      (ts timestamp)
      (cipher-suite uint)
-     (compress-algorithm uint)]
+     (compress-algorithm uint)
+     (sni str)]
     [(tls-handshake
        (on-entry
          (do
            (apply (dump-transactions)
                   print-tls ts device vlan client-mac client-ip server-mac server-ip server-port
-                  cipher-suite compress-algorithm))))]
+                  cipher-suite compress-algorithm sni))))]
     ; edges
     [(root tls-handshake
-        (match (cap eth ip tcp tls) (if
-                                      (set? tls.cipher-suite)
-                                      (do
-                                        (client-ip := ip.dst)
-                                        (client-mac := eth.dst)
-                                        (server-ip := ip.src)
-                                        (server-mac := eth.src)
-                                        (server-port := tcp.src-port)
-                                        (device := cap.dev)
-                                        (vlan := eth.vlan)
-                                        (ts := cap.ts)
-                                        (cipher-suite := tls.cipher-suite)
-                                        (compress-algorithm := tls.compress-algorithm)
-                                        #t)))
+        (match (cap eth ip tcp tls)
+               (do
+                 (if
+                   (set? tls.sni)
+                   (sni := tls.sni))
+                 (if
+                   (set? tls.cipher-suite)
+                   (do
+                     (client-ip := ip.dst)
+                     (client-mac := eth.dst)
+                     (server-ip := ip.src)
+                     (server-mac := eth.src)
+                     (server-port := tcp.src-port)
+                     (device := cap.dev)
+                     (vlan := eth.vlan)
+                     (ts := cap.ts)
+                     (cipher-suite := tls.cipher-suite)
+                     (compress-algorithm := tls.compress-algorithm)
+                     #t))))
         spawn)])))
 
 (set-collapse-vlans #f)

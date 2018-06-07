@@ -125,7 +125,8 @@ DEFINE tls csv_dir="/tmp" AS
     srv_ip ip not null,
     srv_port u16 not null,
     cipher_suite string not null,
-    compress_algo string not null)
+    compress_algo string not null,
+    server_name_indication string null)
   FACTORS device, vlan, cipher_suite AND compress_algo
   EVENT STARTING AT time;
 

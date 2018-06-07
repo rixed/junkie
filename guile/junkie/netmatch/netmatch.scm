@@ -100,6 +100,7 @@
            (('dhcp 'client) "DHCP_CLIENT_SET")
            (('tls (or 'cipher-suite 'compress-algorithm)) "CIPHER_SUITE_SET")
            (('tls 'nb-certs) "NB_CERTS_SET")
+           (('tls 'sni) "SERVER_NAME_INDICATION_SET")
            (_ #f))))
 
 ; project all fieldname aliases to the cannonical name
@@ -127,6 +128,7 @@
            (('tls 'serial-number) 'serial-number-0)
            (('tls 'issuer) 'issuer-0)
            (('tls 'subject) 'subject-0)
+           (('tls (or 'server-name 'server-name-indiction)) 'sni)
            ; then we have a few generic transformation regardless of the proto
            ((or (_ 'header-length) (_ 'header-len) (_ 'head-len)) 'header-size)
            ((or (_ 'payload-length) (_ 'payload-len) (_ 'payload)) 'payload-size)
@@ -202,6 +204,8 @@
            (('tls 'subject-1)                                                "u.handshake.certs[1].subject")
            (('tls 'subject-2)                                                "u.handshake.certs[2].subject")
            (('tls 'subject-3)                                                "u.handshake.certs[3].subject")
+           (('tls 'sni)                                                      "u.handshake.sni")
+           (('tls 'serial-number-0)                                          "u.handshake.certs[0].serial_number")
            ((_ 'header-size)                                                 "info.head_len")
            ((_ 'payload-size)                                                "info.payload")
            ; but in the general case field name is the same
@@ -236,7 +240,7 @@
            (('dhcp 'client) type:ip)
            (('dhcp 'client-mac) type:mac)
            (('dhcp 'server-name) type:str)
-           (('tls (or 'issuer 'issuer-0 'issuer-1 'issuer-2 'issuer-3)) type:str)
+           (('tls (or 'issuer 'issuer-0 'issuer-1 'issuer-2 'issuer-3 'sni)) type:str)
            (('tls (or 'subject 'subject-0 'subject-1 'subject-2 'subject-3)) type:str)
            (('tls (or 'serial-number 'serial-number-0 'serial-number-1 'serial-number-2 'serial-number-3)) type:ber-uint)
            (('tls (or 'not-before 'not-before-0 'not-before-1 'not-before-2 'not-before-3)) type:ber-time)

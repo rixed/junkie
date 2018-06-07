@@ -768,13 +768,15 @@ char const *tls_cert_info_2_str(struct tls_cert_info const *info, unsigned c)
 static char const *tls_handshake_2_str(unsigned set_values, struct tls_info_handshake const *info)
 {
     char *s =
-        tempstr_printf("%s%s%s%s%s%s",
+        tempstr_printf("%s%s%s%s%s%s%s%s",
             set_values & CIPHER_SUITE_SET ? ", cipher_suite=":"",
             set_values & CIPHER_SUITE_SET ? tls_cipher_suite_2_str(info->cipher_suite) : "",
             set_values & CIPHER_SUITE_SET ? ", compression_algo=":"",
             set_values & CIPHER_SUITE_SET ? tls_compress_algo_2_str(info->compress_algorithm) : "",
             set_values & NB_CERTS_SET ? ", nb_certs=":"",
-            set_values & NB_CERTS_SET ? tempstr_smallint(info->nb_certs):"");
+            set_values & NB_CERTS_SET ? tempstr_smallint(info->nb_certs):"",
+            set_values & SERVER_NAME_INDICATION_SET ? ", SNI=":"",
+            set_values & SERVER_NAME_INDICATION_SET ? info->sni:"");
 
     if (set_values & NB_CERTS_SET) {
         size_t len = strlen(s);
@@ -1221,6 +1223,38 @@ static enum proto_parse_status copy_session(uint32_t *key_hash, size_t len, stru
     return PROTO_OK;
 }
 
+static enum proto_parse_status extract_sni(struct tls_proto_info *info, struct cursor *cur, size_t ext_len)
+{
+    SLOG(LOG_DEBUG, "Extracting SNI");
+
+    if (cur->cap_len < ext_len) return PROTO_TOO_SHORT;
+    uint16_t list_len = cursor_read_u16n(cur);
+    if (list_len >= ext_len) return PROTO_PARSE_ERR;
+    struct cursor tcur = *cur;
+    tcur.cap_len = list_len;
+
+    while (tcur.cap_len >= 1) {
+        uint8_t type = cursor_read_u8(&tcur);
+        SLOG(LOG_DEBUG, "Server name type: %"PRIx8, type);
+        switch (type) {
+            case 0x0: // host name
+                if (tcur.cap_len < 2) return PROTO_PARSE_ERR;
+                size_t name_len = cursor_read_u16n(&tcur);
+                if (tcur.cap_len < name_len) return PROTO_PARSE_ERR;
+                size_t const copy_len = MIN(name_len, sizeof(info->u.handshake.sni) - 1);
+                cursor_copy(info->u.handshake.sni, &tcur, copy_len);
+                memset(info->u.handshake.sni+copy_len, 0, sizeof(info->u.handshake.sni)-copy_len);
+                info->set_values |= SERVER_NAME_INDICATION_SET;
+                SLOG(LOG_DEBUG, "Extracte SNI=%s", info->u.handshake.sni);
+                break;
+            default:
+                break;
+        }
+    }
+
+    return PROTO_OK;
+}
+
 // Rather than copying it we only save its digest
 static enum proto_parse_status copy_session_id(uint32_t *key_hash, struct cursor *cur)
 {
@@ -1247,26 +1281,42 @@ static enum proto_parse_status len2_skip(struct cursor *cur)
     return PROTO_OK;
 }
 
-static enum proto_parse_status tls_parse_extensions(struct tls_decoder *next_decoder, struct cursor *cur)
+static enum proto_parse_status tls_parse_extension(struct tls_decoder *next_decoder, struct cursor *cur, struct tls_proto_info *info)
+{
+    if (cur->cap_len < 4) return PROTO_TOO_SHORT;
+    uint16_t tag = cursor_read_u16n(cur);
+    uint16_t len = cursor_read_u16n(cur);
+    if (cur->cap_len < len) return PROTO_TOO_SHORT;
+    SLOG(LOG_DEBUG, "Extension type %"PRIx16" of length %"PRIu16" (%zu bytes left to parse)", tag, len, cur->cap_len);
+
+    enum proto_parse_status err;
+    switch (tag) {
+        case 0x0000:    // ServerName
+            if ((err = extract_sni(info, cur, len)) != PROTO_OK) return err;
+            break;
+        case 0x0023:    // SessionTicket
+            if ((err = copy_session(&next_decoder->session_ticket_hash, len, cur)) != PROTO_OK) return err;
+            break;
+        default:
+            cursor_drop(cur, len);
+            break;
+    }
+
+    return PROTO_OK;
+}
+
+static enum proto_parse_status tls_parse_extensions(struct tls_decoder *next_decoder, struct cursor *cur, struct tls_proto_info *info)
 {
     SLOG(LOG_DEBUG, "Parsing TLS extensions");
 
-    while (cur->cap_len > 0) {
-        if (cur->cap_len < 4) {
-            return PROTO_TOO_SHORT;
-        }
-        uint16_t tag = cursor_read_u16n(cur);
-        uint16_t len = cursor_read_u16n(cur);
-        if (cur->cap_len < len) return PROTO_TOO_SHORT;
+    if (cur->cap_len < 2) return PROTO_TOO_SHORT;
+    uint16_t len = cursor_read_u16n(cur); // of all extensions
+    struct cursor tcur = *cur;
+    if (tcur.cap_len > len) tcur.cap_len = len;
+
+    while (tcur.cap_len > 0) {
         enum proto_parse_status err;
-        switch (tag) {
-            case 0x0023:    // SessionTicket
-                if ((err = copy_session(&next_decoder->session_ticket_hash, len, cur)) != PROTO_OK) return err;
-                break;
-            default:
-                cursor_drop(cur, len);
-                break;
-        }
+        if ((err = tls_parse_extension(next_decoder, &tcur, info)) != PROTO_OK) return err;
     }
 
     return PROTO_OK;
@@ -1344,7 +1394,7 @@ quit_parse:
             // skip compression method
             if ((err = len1_skip(&tcur)) != PROTO_OK) goto quit_parse;
             // parse extensions
-            if ((err = tls_parse_extensions(next_decoder, &tcur)) != PROTO_OK) goto quit_parse;
+            if ((err = tls_parse_extensions(next_decoder, &tcur, info)) != PROTO_OK) goto quit_parse;
             break;    // done with this record
         case tls_server_hello:
             // fix c2s_way
