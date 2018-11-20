@@ -3,130 +3,132 @@
 -- It contains the operations to load the CSV files produced by
 -- dump-transactions.
 
-DEFINE web csv_dir="/tmp" AS
+PARAMETER csv_dir DEFAULTS TO "/tmp";
+
+DEFINE web AS
   READ AND DELETE FILE "${param.csv_dir}/web-*.csv" SEPARATOR "\t" NULL "<NULL>" (
-    time float not null,
-    device u32 not null,
-    vlan u16 null,
-    clt_mac eth not null,
-    clt_ip ip not null,
-    srv_mac eth not null,
-    srv_ip ip not null,
-    srv_port u16 not null,
-    method string not null,
-    status u16 not null,
-    resp_time float not null,
-    host string not null,
-    url string not null)
+    time float,
+    device u32,
+    vlan u16?,
+    clt_mac eth,
+    clt_ip ip,
+    srv_mac eth,
+    srv_ip ip,
+    srv_port u16,
+    method string,
+    status u16,
+    resp_time float,
+    host string,
+    url string)
   FACTORS device, vlan, method AND status
   EVENT STARTING AT time WITH DURATION resp_time;
 
-DEFINE dns csv_dir="/tmp" AS
+DEFINE dns AS
   READ AND DELETE FILE "${param.csv_dir}/dns-*.csv" SEPARATOR "\t" NULL "<NULL>" (
-    time float not null,
-    device u32 not null,
-    vlan u16 null,
-    clt_mac eth not null,
-    clt_ip ip not null,
-    srv_mac eth not null,
-    srv_ip ip not null,
-    srv_port u16 not null,
-    status u16 not null,
-    resp_time float not null,
-    query string not null)
+    time float,
+    device u32,
+    vlan u16?,
+    clt_mac eth,
+    clt_ip ip,
+    srv_mac eth,
+    srv_ip ip,
+    srv_port u16,
+    status u16,
+    resp_time float,
+    query string)
   FACTORS device, vlan AND status
   EVENT STARTING AT time WITH DURATION resp_time;
 
-DEFINE traffic csv_dir="/tmp" AS
+DEFINE traffic AS
   READ AND DELETE FILE "${param.csv_dir}/traffic-*.csv" SEPARATOR "\t" NULL "<NULL>" (
-    start float not null,
-    stop float not null,
-    device u32 not null,
-    packets u32 not null,
-    vlan u16 null,
-    src_mac eth not null,
-    dst_mac eth not null,
-    eth_proto string not null,
-    eth_payload u32 not null,
-    eth_mtu u32 not null,
-    src_ip ip null,
-    dst_ip ip null,
-    ip_proto string null,
-    ip_payload u32 null,
-    src_port u16 null,
-    dst_port u16 null)
+    start float,
+    stop float,
+    device u32,
+    packets u32,
+    vlan u16?,
+    src_mac eth,
+    dst_mac eth,
+    eth_proto string,
+    eth_payload u32,
+    eth_mtu u32,
+    src_ip ip?,
+    dst_ip ip?,
+    ip_proto string?,
+    ip_payload u32?,
+    src_port u16?,
+    dst_port u16?)
   FACTORS device, vlan, eth_proto AND ip_proto
   EVENT STARTING AT start AND STOPPING AT stop;
 
 -- list the TCP connection establishment only, not the full socket
 -- (for this, see traffic and flow).
-DEFINE tcp csv_dir="/tmp" AS
+DEFINE tcp AS
   READ AND DELETE FILE "${param.csv_dir}/tcp-*.csv" SEPARATOR "\t" NULL "<NULL>" (
-    time float not null,
-    device u32 not null,
-    vlan u16 null,
-    clt_mac eth not null,
-    clt_ip ip not null,
-    clt_port u16 not null,
-    srv_mac eth not null,
-    srv_ip ip not null,
-    srv_port u16 not null,
-    nb_syns u32 not null,
-    resp_time float not null)
+    time float,
+    device u32,
+    vlan u16?,
+    clt_mac eth,
+    clt_ip ip,
+    clt_port u16,
+    srv_mac eth,
+    srv_ip ip,
+    srv_port u16,
+    nb_syns u32,
+    cnx_time float)
   FACTORS device AND vlan
-  EVENT STARTING AT time WITH DURATION resp_time;
+  EVENT STARTING AT time WITH DURATION cnx_time;
 
-DEFINE flow csv_dir="/tmp" AS
+DEFINE flow AS
   READ AND DELETE FILE "${param.csv_dir}/flow-*.csv" SEPARATOR "\t" NULL "<NULL>" (
-    start float not null,
-    stop float not null,
-    device u32 not null,
-    vlan u16 null,
-    clt_mac eth not null,
-    clt_ip ip not null,
-    srv_mac eth not null,
-    srv_ip ip not null,
-    ip_proto string not null,
-    src_port u16 not null,
-    dst_port u16 not null,
-    packets u32 not null,
-    payload u32 not null)
+    start float,
+    stop float,
+    device u32,
+    vlan u16?,
+    clt_mac eth,
+    clt_ip ip,
+    srv_mac eth,
+    srv_ip ip,
+    ip_proto string,
+    src_port u16,
+    dst_port u16,
+    packets u32,
+    payload u32)
   FACTORS device, vlan AND ip_proto
   EVENT STARTING AT start AND STOPPING AT stop;
 
-DEFINE x509 csv_dir="/tmp" AS
+DEFINE x509 AS
   READ AND DELETE FILE "${param.csv_dir}/x509-*.csv" SEPARATOR "\t" NULL "<NULL>" (
-    time float not null,
-    device u32 not null,
-    vlan u16 null,
-    clt_mac eth not null,
-    clt_ip ip not null,
-    srv_mac eth not null,
-    srv_ip ip not null,
-    srv_port u16 not null,
-    cert_depth u16 not null,
-    nb_certs u16 not null,
-    serial_number string not null,
-    not_before string not null,
-    not_after string not null,
-    subject string not null,
-    issuer string not null)
+    time float,
+    device u32,
+    vlan u16?,
+    clt_mac eth,
+    clt_ip ip,
+    srv_mac eth,
+    srv_ip ip,
+    srv_port u16,
+    cert_depth u16,
+    nb_certs u16,
+    serial_number string,
+    not_before string,
+    not_after string,
+    subject string,
+    issuer string)
   FACTORS device, vlan AND issuer
   EVENT STARTING AT time;
 
-DEFINE tls csv_dir="/tmp" AS
+DEFINE tls AS
   READ AND DELETE FILE "${param.csv_dir}/tls-*.csv" SEPARATOR "\t" NULL "<NULL>" (
-    time float not null,
-    device u32 not null,
-    vlan u16 null,
-    clt_mac eth not null,
-    clt_ip ip not null,
-    srv_mac eth not null,
-    srv_ip ip not null,
-    srv_port u16 not null,
-    cipher_suite string not null,
-    compress_algo string not null,
-    server_name_indication string null)
+    time float,
+    device u32,
+    vlan u16?,
+    clt_mac eth,
+    clt_ip ip,
+    srv_mac eth,
+    srv_ip ip,
+    srv_port u16,
+    cipher_suite string,
+    compress_algo string,
+    server_name_indication string?)
   FACTORS device, vlan, cipher_suite AND compress_algo
   EVENT STARTING AT time;
 
@@ -170,6 +172,7 @@ DEFINE volumetry AS
     SUM packets / 60 AS avg_packets_per_secs,
     SUM eth_payload / 60 AS avg_payload_per_secs,
     MAX eth_mtu AS eth_mtu
-  COMMIT BEFORE in.start > out.start + 60 + 30
+  --COMMIT BEFORE in.start > out.start + 60 + 30
+  COMMIT AFTER in.start > out.start + 60 + 30
   FACTORS vlan, device, eth_proto, ip_proto AND label
   EVENT STARTING AT start WITH DURATION 60 SECONDS;

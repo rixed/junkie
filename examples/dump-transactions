@@ -172,7 +172,7 @@ file will be created every $CSV_DURATION seconds (60 by default).
           (ip->string server-ip)
           server-port
           nb-syns
-          dt))) ; dt measure the connection time
+          dt))) ; dt measures the connection time
 
 (define-public (print-flow device vlan-id eth-src ip-src eth-dst ip-dst
                            ip-proto port-src port-dst ts-start ts-stop
@@ -877,7 +877,8 @@ file will be created every $CSV_DURATION seconds (60 by default).
                (do
                  (if
                    (set? tls.sni)
-                   (sni := tls.sni))
+                   (sni := tls.sni)
+                   (sni := ""))
                  (if
                    (set? tls.cipher-suite)
                    (do
