@@ -7,7 +7,7 @@
 #include <junkie/proto/proto.h>
 
 /** @file
- * @brief helper for serialized data streram
+ * @brief helper for serialized data stream
  */
 
 struct cursor {
