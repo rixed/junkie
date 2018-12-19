@@ -1212,26 +1212,28 @@ static enum proto_parse_status tls_parse_all_certificates(struct tls_proto_info 
     return PROTO_OK;
 }
 
-static enum proto_parse_status copy_session(uint32_t *key_hash, size_t len, struct cursor *cur)
+static enum proto_parse_status copy_session(uint32_t *key_hash, size_t ext_len, struct cursor *cur)
 {
-    if (cur->cap_len < len) return PROTO_TOO_SHORT;
-    if (len > 0) {
-        *key_hash = tls_session_key_hash(len, cur->head) | KEY_HASH_SET;
+    if (cur->cap_len < ext_len) return PROTO_TOO_SHORT;
+    if (ext_len > 0) {
+        *key_hash = tls_session_key_hash(ext_len, cur->head) | KEY_HASH_SET;
         SLOG(LOG_DEBUG, "Saving session ticket which hash is %"PRIu32, *key_hash);
-        cursor_drop(cur, len);
+        cursor_drop(cur, ext_len);
     }
     return PROTO_OK;
 }
 
-static enum proto_parse_status extract_sni(struct tls_proto_info *info, struct cursor *cur, size_t ext_len)
+static enum proto_parse_status extract_sni(struct tls_proto_info *info, size_t ext_len, struct cursor *cur)
 {
     SLOG(LOG_DEBUG, "Extracting SNI");
 
     if (cur->cap_len < ext_len) return PROTO_TOO_SHORT;
+    if (ext_len < 2) return PROTO_PARSE_ERR;
     uint16_t list_len = cursor_read_u16n(cur);
     if (list_len >= ext_len) return PROTO_PARSE_ERR;
     struct cursor tcur = *cur;
     tcur.cap_len = list_len;
+    cursor_drop(cur, list_len);
 
     while (tcur.cap_len >= 1) {
         uint8_t type = cursor_read_u8(&tcur);
@@ -1245,7 +1247,7 @@ static enum proto_parse_status extract_sni(struct tls_proto_info *info, struct c
                 cursor_copy(info->u.handshake.sni, &tcur, copy_len);
                 memset(info->u.handshake.sni+copy_len, 0, sizeof(info->u.handshake.sni)-copy_len);
                 info->set_values |= SERVER_NAME_INDICATION_SET;
-                SLOG(LOG_DEBUG, "Extracte SNI=%s", info->u.handshake.sni);
+                SLOG(LOG_DEBUG, "Extract SNI=%s", info->u.handshake.sni);
                 break;
             default:
                 break;
@@ -1292,7 +1294,7 @@ static enum proto_parse_status tls_parse_extension(struct tls_decoder *next_deco
     enum proto_parse_status err;
     switch (tag) {
         case 0x0000:    // ServerName
-            if ((err = extract_sni(info, cur, len)) != PROTO_OK) return err;
+            if ((err = extract_sni(info, len, cur)) != PROTO_OK) return err;
             break;
         case 0x0023:    // SessionTicket
             if ((err = copy_session(&next_decoder->session_ticket_hash, len, cur)) != PROTO_OK) return err;
@@ -1313,6 +1315,7 @@ static enum proto_parse_status tls_parse_extensions(struct tls_decoder *next_dec
     uint16_t len = cursor_read_u16n(cur); // of all extensions
     struct cursor tcur = *cur;
     if (tcur.cap_len > len) tcur.cap_len = len;
+    cursor_drop(cur, len);
 
     while (tcur.cap_len > 0) {
         enum proto_parse_status err;
