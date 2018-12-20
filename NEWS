@@ -6,13 +6,17 @@ NEW in 2.8.0 (since 2.7.0)
 
 * Upgrade for newer openssl libs
 
+* SSLogram, a plugin to display info about TLS certificates
+
 * Autoload plugins (./plugin is equivalent to ./junkie -p plugin)
 
-* Simple GTP parser
+* Support for GTP (GSM tunnelling protocol)
 
-* Non-trivial example of a dumper
+* Simple integration with Ramen (https://github.com/rixed/ramen/)
 
-* Various minor fixes
+* Various minor fixes / scrapping bit-rot
+
+* Better support for MacOS and NixOS.
 
 
 NEW in 2.7.0 (since 2.6.0)
