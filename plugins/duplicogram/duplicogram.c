@@ -291,6 +291,7 @@ static void handle_key(char c)
                 term_fini();
                 _exit(0);
             }
+            break;
         case '\n':
             if (display_help) {
                 display_help = false;
