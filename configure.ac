@@ -4,8 +4,8 @@ AC_PREREQ([2.61])
 
 # These git commands will disapear from the generated configure script
 AC_INIT([junkie],
-		m4_esyscmd([build-aux/git-version-gen .tarball-version | tr -d '\n']),
-		github@securactive.net, , http://github.com/securactive/junkie)
+    m4_esyscmd([build-aux/git-version-gen .tarball-version | tr -d '\n']),
+    github@securactive.net, , http://github.com/securactive/junkie)
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_MACRO_DIR([m4])
 AM_INIT_AUTOMAKE([-Wno-gnu -Wno-portability foreign subdir-objects])
@@ -52,7 +52,7 @@ AC_CHECK_FUNCS([clock_gettime localtime_r mkdir regcomp rmdir sqrt strcasecmp st
 
 # Some build parameters
 AC_ARG_WITH([giant_lock],
-			AS_HELP_STRING([--with-giant-lock], [Disable support for multithreaded parsing (which require functionnal timed locks)]))
+      AS_HELP_STRING([--with-giant-lock], [Disable support for multithreaded parsing (which require functionnal timed locks)]))
 AS_IF([test "x$with_giant_lock" = "xyes"], [AC_DEFINE([WITH_GIANT_LOCK], [], [Use a giant lock to forbid simultaneous parsing of packets])])
 
 AC_ARG_VAR([CPU_MAX], [Approx of max number of available CPU])
@@ -63,7 +63,7 @@ AC_DEFINE_UNQUOTED([CPU_MAX], [$CPU_MAX], [Approx of max number of available CPU
 DEFAULT_GUILELIBDIR="$(guile-config info sitedir)"
 AC_ARG_VAR([GUILELIBDIR], [Where to install guile modules [wherever guile-config says]])
 AS_IF([test "x$GUILELIBDIR" = x], [if test -n "$DEFAULT_GUILELIBDIR"; then GUILELIBDIR="$DEFAULT_GUILELIBDIR"; else exit 1; fi])
-DEFAULT_GUILECACHEDIR="$(guile -c '(display (car (last-pair %load-compiled-path)))')"
+DEFAULT_GUILECACHEDIR="$($GUILE -c '(display (car (last-pair %load-compiled-path)))')"
 AC_ARG_VAR([GUILECACHEDIR], [Where to install guile compiled files])
 AS_IF([test "x$GUILECACHEDIR" = x], [if test -n "$DEFAULT_GUILECACHEDIR"; then GUILECACHEDIR="$DEFAULT_GUILECACHEDIR"; else exit 1; fi])
 AC_ARG_VAR([VARDIR], [Where to store junkie variable state [$(localstatedir)/junkie]])
@@ -74,12 +74,12 @@ AC_ARG_VAR([CONFDIR], [Where to store configuration files [SYSCONFDIR/junkie]])
 AS_IF([test "x$CONFDIR" = x], [CONFDIR="$sysconfdir/junkie"])
 
 case `uname` in
-	(Darwin*)
-		DEFAULT_LDFLAGS_PLUGIN="-flat_namespace -bundle -undefined suppress"
-		DEFAULT_PLUGIN_EXT="bundle" ;;
-	(*)
-		DEFAULT_LDFLAGS_PLUGIN="-fPIC -shared"
-		DEFAULT_PLUGIN_EXT="so" ;;
+  (Darwin*)
+    DEFAULT_LDFLAGS_PLUGIN="-flat_namespace -bundle -undefined suppress"
+    DEFAULT_PLUGIN_EXT="bundle" ;;
+  (*)
+    DEFAULT_LDFLAGS_PLUGIN="-fPIC -shared"
+    DEFAULT_PLUGIN_EXT="so" ;;
 esac
 AC_ARG_VAR([LDFLAGS_PLUGIN], How to link shared libraries)
 AS_IF([test "x$LDFLAGS_PLUGIN" = x], [LDFLAGS_PLUGIN="$DEFAULT_LDFLAGS_PLUGIN"])
@@ -102,33 +102,33 @@ AC_MSG_RESULT([no])
 ])
 
 AC_CONFIG_FILES([
-	Makefile
-	include/Makefile
-	include/junkie/Makefile
-	include/junkie/tools/Makefile
-	include/junkie/proto/Makefile
-	src/Makefile
-	src/tools/Makefile
-	src/proto/Makefile
-	plugins/dumper/Makefile
-	plugins/writer/Makefile
-	plugins/rater/Makefile
-	plugins/arpgraph/Makefile
-	plugins/os-detect/Makefile
-	plugins/packetogram/Makefile
-	plugins/duplicogram/Makefile
-	plugins/nettop/Makefile
-	plugins/delayogram/Makefile
-	plugins/sslogram/Makefile
-	config/Makefile
-	config/cacti/Makefile
-	guile/Makefile
-	guile/srfi/Makefile
-	guile/junkie/Makefile
-	guile/junkie/www/Makefile
-	guile/junkie/www/static_files/Makefile
-	guile/junkie/netmatch/Makefile
-	tests/Makefile
-	doc/Makefile
+  Makefile
+  include/Makefile
+  include/junkie/Makefile
+  include/junkie/tools/Makefile
+  include/junkie/proto/Makefile
+  src/Makefile
+  src/tools/Makefile
+  src/proto/Makefile
+  plugins/dumper/Makefile
+  plugins/writer/Makefile
+  plugins/rater/Makefile
+  plugins/arpgraph/Makefile
+  plugins/os-detect/Makefile
+  plugins/packetogram/Makefile
+  plugins/duplicogram/Makefile
+  plugins/nettop/Makefile
+  plugins/delayogram/Makefile
+  plugins/sslogram/Makefile
+  config/Makefile
+  config/cacti/Makefile
+  guile/Makefile
+  guile/srfi/Makefile
+  guile/junkie/Makefile
+  guile/junkie/www/Makefile
+  guile/junkie/www/static_files/Makefile
+  guile/junkie/netmatch/Makefile
+  tests/Makefile
+  doc/Makefile
 ])
 AC_OUTPUT
