@@ -1,7 +1,7 @@
 // vim:filetype=asciidoc expandtab spell spelllang=en
 = Junkie The Network Sniffer
 :toc:
-:website: http://github.com/securactive/junkie
+:website: http://github.com/rixed/junkie
 
 == Overview
 
@@ -118,7 +118,7 @@ Running configure might tell you that you need:
 - libssl
 - libpcap
 - libltdl (aka libtool runtime lib)
-- guile-agentx (https://github.com/securactive/guile-agentx.git)
+- guile-agentx (https://github.com/rixed/guile-agentx.git)
 
 Compiling with GCC is recommended.
 

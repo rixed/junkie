@@ -1,0 +1,163 @@
+// vim:filetype=asciidoc expandtab spell spelllang=en
+= What can Junkie do for me?
+:website: http://github.com/rixed/junkie
+
+== What's using the network?
+
+  # docker run --network host -ti --rm rixed/junkie nettop -i eth0
+  NetTop - Every 2.00s - Fri Dec 21 12:41:22 2018
+  Packets: 61, Bytes: 7016 (3508 bytes/sec)
+
+     Packets   Volume             Protocol                   Source    Destination
+          25     3706    Ethernet/IPv4/TCP           46.4.125.38:22 -> 185.52.247.41:59676
+          26     2412    Ethernet/IPv4/TCP      185.52.247.41:59676 -> 46.4.125.38:22
+           3      322    Ethernet/IPv4/TCP           46.4.125.38:22 -> 193.201.224.216:48141
+           2      242    Ethernet/IPv4/TCP    193.201.224.216:48141 -> 46.4.125.38:22
+           1       90    Ethernet/IPv4/GRE              46.4.125.38 -> 91.121.168.104
+
+This is interactive, press +h+ for help on the available commands.
+
+== That TLS certificates are passed around?
+
+  # docker run --network host -ti --rm rixed/junkie sslogram -i eth0
+                             Serial Number|                            Subject|                             Issuer|         Not Before|          Not After|Count
+        0x03e0a897bdee2258d6f06834f7bcf720|                       *.docker.com|                             Amazon|2018-04-27 00:00:00|2019-05-27 12:00:00|    2
+        0x048c04bba79161a3a3b1e53e39c35a7b|                   *.nodesource.com|                             Amazon|2018-08-28 00:00:00|2019-09-28 12:00:00|    1
+  0x067f94578587e8ac77deb253325bbc998b560d|                             Amazon|                   Amazon Root CA 1|2015-10-22 00:00:00|2025-10-19 00:00:00|    3
+                      0x00a70e4a4c3482b77f|Starfield Services Root Certificate|                                   |2009-09-02 00:00:00|2034-06-28 17:39:16|    3
+  0x067f944a2a27cdf3fac2ae2b01f908eeb9c4c6|                   Amazon Root CA 1|Starfield Services Root Certificate|2015-05-25 12:00:00|2037-12-31 01:00:00|    3
+
+
+== What are the various MTU present on my network?
+
+  # docker run --network host -ti --rm rixed/junkie packetogram -i eth0
+
+      IPv4:  21982/540880  (101.8%)     0-   49:     0,   0.0%
+  Ethernet:  21338/531290  (100.0%)    50-   99:  7659,  35.9% -------------------                                                           |
+       TCP:  17121/443755  ( 83.5%)   100-  149:   492,   2.3% -   |
+      HTTP:   3507/73140   ( 13.8%)   150-  199:   351,   1.6%   |
+       UDP:   2618/52396   (  9.9%)   200-  249:   149,   0.7% |
+       GRE:    644/9596    (  1.8%)   250-  299:   120,   0.6% |
+       TLS:    386/8706    (  1.6%)   300-  349:    68,   0.3%
+       FTP:    299/6308    (  1.2%)   350-  399:    49,   0.2%
+       DNS:    137/5093    (  1.0%)   400-  449:    61,   0.3%
+      ICMP:     36/797     (  0.2%)   450-  499:    92,   0.4%
+      ICMP:     36/797     (  0.2%)   500-  549:    66,   0.3%
+      IPv6:     35/346     (  0.1%)   550-  599:    99,   0.5% |
+     MySQL:      0/47      (  0.0%)   600-  649:    53,   0.2%
+       SIP:      0/1       (  0.0%)   650-  699:    36,   0.2%
+                                      700-  749:    66,   0.3%
+                                      750-  799:  2291,  10.7% -----           |
+                                      800-  849:    53,   0.2%
+                                      850-  899:    55,   0.3%
+                                      900-  949:    46,   0.2%
+                                      950-  999:    33,   0.2%
+                                     1000- 1049:    33,   0.2%
+                                     1050- 1099:    29,   0.1%
+                                     1100- 1149:    55,   0.3%
+                                     1150- 1199:   132,   0.6% |
+                                     1200- 1249:    31,   0.1%
+                                     1250- 1299:   215,   1.0%
+                                     1300- 1349:   208,   1.0%  |
+                                     1350- 1399:    81,   0.4%
+                                     1400- 1449:   695,   3.3% -          |
+                                     1450- 1499:  1029,   4.8% --    |
+                                     1500- 1549:  6992,  32.8% -----------------                                                                 |
+                                         count: 21339/531292, min size:    64/   64, max size:  1518/ 1518
+
+
+== What are the typical Nagle delays and other timeouts?
+
+  # docker run --network host -ti --rm rixed/junkie delayogram -i eth0
+
+  Delayogram - Every 1.00s (logaritmic) - Tue Dec 13 09:47:31 2011
+  packets displayed/displayable/total: 28921/31273/32251
+        |
+        |
+        |
+        |*
+        |*
+   11182|*...............................................................................................................
+        |*
+        |*
+        |*
+        |*
+        |*
+    2566|*...............................................................................................................
+        |*
+        |*
+        |*
+        |*
+        |**
+     589|**..............................................................................................................
+        |**
+        |**
+        |***
+        |***
+        |***      *
+     135|*****...***.....................................................................................................
+        |***** * ****   *  *
+        |************ * ****   *
+        |************ ****** * ****     *  *
+        |************************** *  *** ***
+        |********************************* *** *     ***
+      31|***************************************.**..***.*..**..............*..................*.................*.......
+        |******************************************  *****  ** *            *                  **       *        *
+        |****************************************** ******* ****            *****           ** **  * *  *        *
+        |********************************************************     *    ******         **** *** * *****       **
+        |********************************************************  *  * *  *******   ***  ****************  **  ***
+        |********************************************************* * **************  ********************** *******     *
+       7|***********************************************************.***********************************************....*
+        |*********************************************************************************************************** * **
+        |*********************************************************************************************************** * **
+        |****************************************************************************************************************
+        |****************************************************************************************************************
+        |****************************************************************************************************************
+       2|****************************************************************************************************************
+        |****************************************************************************************************************
+        +---------------+---------------+---------------+---------------+---------------+---------------+--------------->
+        0               9200            18400           27600           36800           46000           55200          us
+
+== What are the operating systems that are networking?
+
+  # docker run --network host -ti --rm rixed/junkie os-detect -i eth0
+  195.167.253.19: g:unix:Linux:2.2.x-3.x
+  194.49.224.10: g:unix:Linux:2.2.x-3.x
+  135.206.159.186: g:win:Windows:NT kernel
+  62.62.55.124: g:win:Windows:NT kernel
+  194.49.226.10: g:unix:Linux:2.2.x-3.x
+  173.19.138.182: g:win:Windows:NT kernel
+  190.22.107.82: g:win:Windows:NT kernel
+  194.49.226.10: g:unix:Linux:2.2.x-3.x
+  ...
+
+== What's the traffic going through an interface?
+
+  # docker run --network host -ti --rm rixed/junkie dumper -i eth0
+  Capture: head_len=48, payload=84, dev_id=0, tv=1343079318s 591221us
+  Ethernet: head_len=14, payload=70, vlan_id=-1, source=00:26:5e:0a:d2:b9, dest=00:24:d4:51:59:2c, proto=2048
+  IPv4: head_len=20, payload=50, version=4, addr=192.168.0.18->192.168.0.254, proto=UDP, ttl=64, frag=DontFrag, id=0x4a1b, Class=0:NonECT
+  UDP: head_len=8, payload=42, ports=57312->53
+  DNS: head_len=42, payload=0, QUERY, tx_id=659, err_code=0, request_type=A, dns_class=IN, name=ssl.google-analytics.com
+  
+  Capture: head_len=48, payload=84, dev_id=0, tv=1343079318s 591614us
+  Ethernet: head_len=14, payload=70, vlan_id=-1, source=00:26:5e:0a:d2:b9, dest=00:24:d4:51:59:2c, proto=2048
+  IPv4: head_len=20, payload=50, version=4, addr=192.168.0.18->192.168.0.254, proto=UDP, ttl=64, frag=DontFrag, id=0x4a1c, Class=0:NonECT
+  UDP: head_len=8, payload=42, ports=57312->53
+  DNS: head_len=42, payload=0, QUERY, tx_id=30270, err_code=0, request_type=AAAA, dns_class=IN, name=ssl.google-analytics.com
+  
+  ...
+
+== How is this better than Tcpdump?
+
+Tcpdump stops inspection at the packet level. Junkie accurately tracks the protocol it knows and untangle the actual content of messages, regardless of duplication, IP fragmentation, TCP segmentation. It will even decrypt TLS content if given the key. It will go as far as trying to parse despite gaps in the data (useful in case of limited capsize or imperfect mirroring).
+
+== How is this better than Wireshark then?
+
+It is not. In one hand, Wireshark knows way more protocols than Junkie, and decode every little bit of them. On the other, Junkie is much faster and is designed to be extensible (in C or in Scheme or in it's custom network events matching language).
+
+== I'm sold! Where can I learn more?
+
+- https://github.com/rixed/junkie/blob/master/doc/doc.txt[A longer documentation]
+- https://github.com/rixed/junkie[junkie homepage]
+

@@ -1,4 +1,4 @@
-doc: doc.html
+doc: doc.html demo.html
 
 SUFFIXES = .html .txt
 

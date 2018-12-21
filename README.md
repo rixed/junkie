@@ -1,20 +1,16 @@
 Meet Junkie the network sniffer!
 ================================
 
-As the heart of [SecurActive](http://www.securactive.net) network performance
-monitoring application lies a real-time packet sniffer and analyzer. Modular
-enough to accomplish many different tasks, we believe this tool can be a
-helpful companion to the modern network administrator and analyst, and so we
-decided to offer it to the public under a liberal license so that the Open
-Source community can use it, play with it, and extend it with whatever feature
-is deemed appropriate.
+Junkie is a real-time packet sniffer and analyzer designed to monitor
+application performance.  It is modular enough to accomplish many different
+tasks.
 
-Compared to previously available tools junkie lies in between tcpdump and
-wireshark. Unlike tcpdump, its purpose is to parse protocols of any depth;
-unlike wireshark, through, junkie is designed to analyze traffic in real-time
-and so cannot parse traffic as exhaustively as wireshark does.
+Compared to previously available tools Junkie lies in between Tcpdump and
+Wireshark. Unlike Tcpdump, its purpose is to parse protocols at any depth;
+unlike Wireshark, through, Junkie is designed to analyze traffic in real-time
+and so cannot parse traffic as exhaustively as Wireshark does.
 
-In addition, junkie's design encompasses extendability and speed:
+In addition, Junkie design encompasses extendability and speed:
 
 - plug-in system + high-level extension language that eases the development and
   combination of new functionalities;
@@ -23,93 +19,39 @@ In addition, junkie's design encompasses extendability and speed:
 
 - modular architecture to ease the addition of any protocol layer;
 
-- based on libpcap for portability;
+- based on libpcap for portability.
 
-- well tested on professional settings.
+[What can it do](https://github.com/rixed/junkie/blob/master/doc/demo.txt)?
 
-
-Junkie is still being maintained and extended by SecurActive dedicated team
-but we believe it can be further extended to fulfill many unforeseen purposes.
+[Is there a longer doc](https://github.com/rixed/junkie/blob/master/doc/doc.txt)?
 
 
-Todo
-====
+Supported Protocols
+===================
 
-Protocol discovery
-------------------
-
-- Automatically convert from bro/l7-filter/snort filters to junkie protocol
-  discovery
-
-- When we found out a proto for TCP (that we know how to parse), register it
-  both ways (using connection tracking hash?)
-
-
-Netmatch language
------------------
-
-- a type for signed integers (in a way or another - maybe the few operators
-  that really care should exist in two variants?);
-
-- another special form for converting a name to an `ip_addr` (or a regular
-  function if we optimize constant away from runtime exec - see below about
-  purity);
-
-- pure functions taking only constants (and thus returning a constant) should
-  be precomputed;
-
-- a slice operator to extract a string from another string;
-
-- it should be correct to match with: `(eth) ((ip) (...) or (arp) (...))`.
-  in other words, the proto list should be a special form (binding current
-  protos) rather than a fixed preamble.
-
-- a list of every valid fields (with a docstrings) for better error messages;
-
-- a higher level language resembling wireshark's, with automatic insertion of
-  `set?` predicates;
-
-Nettrack language
------------------
-
-- A www plugin to display each netgraph state;
-
-* rehashable states (once the global hash will be refactored into an
-  incrementaly resized hash)
-
-Reports
--------
-
-A plugin to use the aforementioned FSM executable rules to build report to
-help classify traffic;
-
-Netflow
--------
-
-Using the above report facility, produce netflow statistics (and stream it).
-
-Minor
------
-
-- writer www plugin must mergecap fractionned pcap files for download;
-
-- automatic resolution of inter-modules dependancies during init;
-
-Plugins
--------
-
-* Delayogram should propose to show ack delay
-
-* A host monitoring tool (monitoring number of established cnx, number of cnx
-  establishment rate, number of peers, address associations)
-
-Parsers for:
-------------
-
-- H323
-
-- SMB
-
-- MSSQL
-
-* Accounting protocols (such as RADIUS & DIAMETER)
+- Ethernet
+- ERSPAN
+- FCoE
+- ARP
+- GRE
+- GTP
+- DHCP
+- IPv4, IPv6
+- ICMP
+- UDP
+- TCP
+- TLS
+- DNS
+- HTTP
+- CIFS
+- FTP
+- Mysql
+- Netbios
+- Postgresql
+- TDS, TNS (Oracle)
+- RTCP
+- RTP
+- SDP
+- SIP
+- Skinny
+- MGCP
