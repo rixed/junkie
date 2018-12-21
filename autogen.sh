@@ -15,6 +15,6 @@ else
   aclocal
 fi &&
 autoheader &&
-automake --add-missing --foreign &&
+automake --add-missing --copy --foreign &&
 autoconf &&
 echo "Now run configure and make."

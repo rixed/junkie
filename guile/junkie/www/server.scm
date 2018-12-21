@@ -254,7 +254,7 @@
       (respond
         `((h1 "It works! (or so, it seams)")
           (p "To learn more about junkie, see "
-             (a (@ (href . "http://github.com/securactive/junkie")) here))))
+             (a (@ (href . "http://github.com/rixed/junkie")) here))))
       #f))
 
 

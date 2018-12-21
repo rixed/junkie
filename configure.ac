@@ -5,7 +5,7 @@ AC_PREREQ([2.61])
 # These git commands will disapear from the generated configure script
 AC_INIT([junkie],
     m4_esyscmd([build-aux/git-version-gen .tarball-version | tr -d '\n']),
-    github@securactive.net, , http://github.com/securactive/junkie)
+    rixed-github@happyleptic.org, , http://github.com/rixed/junkie)
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_MACRO_DIR([m4])
 AM_INIT_AUTOMAKE([-Wno-gnu -Wno-portability foreign subdir-objects])
@@ -130,5 +130,6 @@ AC_CONFIG_FILES([
   guile/junkie/netmatch/Makefile
   tests/Makefile
   doc/Makefile
+  examples/Makefile
 ])
 AC_OUTPUT

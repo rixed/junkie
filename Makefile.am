@@ -19,7 +19,8 @@ SUBDIRS = \
 	plugins/sslogram \
 	guile \
 	tests \
-	doc
+	doc \
+	examples
 
 .PHONY: cscope doc clear module-deps
 

@@ -4,4 +4,3 @@ SUFFIXES = .html .txt
 
 .txt.html:
 	asciidoc $<
-

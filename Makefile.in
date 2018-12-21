@@ -401,7 +401,8 @@ SUBDIRS = \
 	plugins/sslogram \
 	guile \
 	tests \
-	doc
+	doc \
+	examples
 
 EXTRA_DIST = .tarball-version
 all: all-recursive

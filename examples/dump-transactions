@@ -1,4 +1,4 @@
-#!/usr/local/bin/junkie -c
+#!/usr/bin/env -S junkie -c
 ; vim:syntax=scheme filetype=scheme expandtab
 Or just run: junkie -c this_file
 
