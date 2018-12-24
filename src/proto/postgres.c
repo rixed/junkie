@@ -311,7 +311,7 @@ static enum proto_parse_status pg_parse_parameter_value(struct cursor *cursor, c
 {
     enum proto_parse_status status = cursor_read_string(cursor, name, len);
     if (status != PROTO_OK) return status;
-    if (name[0] == '\0') return PROTO_OK;
+    if (*name[0] == '\0') return PROTO_OK;
     return cursor_read_string(cursor, value, len );
 }
 
