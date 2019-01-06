@@ -7,15 +7,15 @@
 #include <junkie/tools/mutex.h>
 
 /** @file
- * @brief Redimentionable arrays
+ * @brief Resizeable arrays
  *
  * In order to make good object allocator, each chunk of array comes
  * with its internal freelist, and empty chunks are deleted when empty.
  */
 
-/** A redim_array is a redimentionable array.
- * Each time you hit its lenght you can resize it, without much time penalty.
- * Performences are similar than a mere array if your initial size guess is valid
+/** A redim_array is a resizeable array.
+ * Each time you hit its length you can resize it, without much time penalty.
+ * Performances are similar than a mere array if your initial size guess is valid
  * or similar to a mere list if your initial guess is too small.
  */
 struct redim_array {

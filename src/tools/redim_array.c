@@ -113,6 +113,8 @@ void redim_array_dtor(struct redim_array *ra)
 {
     SLOG(LOG_DEBUG, "Destruct redim_array %s@%p", ra->name, ra);
     redim_array_clear(ra);
+    /* We can assume no other thread has a pointer to this redim_array, so
+     * there is no way another chunk is going to be added. */
     mutex_lock(&redim_arrays_mutex);
     LIST_REMOVE(ra, entry);
     mutex_unlock(&redim_arrays_mutex);
