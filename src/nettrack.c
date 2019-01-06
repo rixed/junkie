@@ -721,58 +721,61 @@ static void edge_aging(struct nt_edge *edge, struct timeval const *now)
     if (! edge->min_age) return;
 
     struct nt_state *state, *tmp;
-    TAILQ_FOREACH_REVERSE_SAFE(state, &edge->from->age_list, nt_states_tq, same_vertex, tmp) {   // Beware that this state may move
-        if (timeval_sub(now, &state->last_enter) < edge->min_age) break;
 
-        // Prevent multiple update of the same state in a single update run
-        if (state->last_moved_run == edge->graph->run_id) continue;
+    WITH_LOCK(&edge->from->mutex) {
+        TAILQ_FOREACH_REVERSE_SAFE(state, &edge->from->age_list, nt_states_tq, same_vertex, tmp) {   // Beware that this state may move
+            if (timeval_sub(now, &state->last_enter) < edge->min_age) break;
 
-        SLOG(LOG_DEBUG, "Ageing!");
-        edge->nb_matches ++;
+            // Prevent multiple update of the same state in a single update run
+            if (state->last_moved_run == edge->graph->run_id) continue;
 
-        if (edge->to->entry_fn) {
-            SLOG(LOG_DEBUG, "Calling entry function for vertex '%s'", edge->to->name);
-            // Entry function is not supposed to bind anything... for now (FIXME).
-            // Additionally, since we are aging, then it's not allowed to use
-            // packet data as well (logical,although not enforced).
-            edge->to->entry_fn(NULL, empty_rest, state->regfile, NULL);
-        }
-        // Now move/spawn/dispose of the state
-        // first we need to know the location in the index
-        unsigned new_h_value = 0;
-        if (edge->to->index_size > 1) { // we'd better have a hashing function then!
-            if (edge->to_index_fn) {
-                // Notice this hashing function can use the regfile but can still perform no bindings
-                // Also, it better not use the incoming packet (NULL) when aging out states!
-                new_h_value = edge->to_index_fn(NULL, empty_rest, state->regfile, NULL);
-                SLOG(LOG_DEBUG, "Will store at index location %u", new_h_value % edge->to->index_size);
-            } else if (edge->from == edge->to) {
-                new_h_value = state->h_value;
-            } else {
-                SLOG(LOG_WARNING, "Don't know how to store spawned state in vertex %s, missing hashing function when coming from %s", edge->to->name, edge->from->name);
-                goto hell;
+            SLOG(LOG_DEBUG, "Ageing!");
+            edge->nb_matches ++;
+
+            if (edge->to->entry_fn) {
+                SLOG(LOG_DEBUG, "Calling entry function for vertex '%s'", edge->to->name);
+                // Entry function is not supposed to bind anything... for now (FIXME).
+                // Additionally, since we are aging, then it's not allowed to use
+                // packet data as well (logical, although not enforced).
+                edge->to->entry_fn(NULL, empty_rest, state->regfile, NULL);
             }
-        }
-        // whatever we clone or move it, we must tag it
-        state->last_moved_run = edge->graph->run_id;
-        if (edge->spawn) {
-            if (!LIST_EMPTY(&edge->to->outgoing_edges)) { // or we do not need to spawn anything
-                struct npc_register *copy = npc_regfile_copy(state->regfile, edge->graph->nb_registers);
-                if (! copy) goto hell;
-                if (! nt_state_new(state, edge->to, copy, now, new_h_value, edge->graph->run_id)) {
-                    npc_regfile_del(copy, edge->graph->nb_registers);
+            // Now move/spawn/dispose of the state
+            // first we need to know the location in the index
+            unsigned new_h_value = 0;
+            if (edge->to->index_size > 1) { // we'd better have a hashing function then!
+                if (edge->to_index_fn) {
+                    // Notice this hashing function can use the regfile but can still perform no bindings
+                    // Also, it better not use the incoming packet (NULL) when aging out states!
+                    new_h_value = edge->to_index_fn(NULL, empty_rest, state->regfile, NULL);
+                    SLOG(LOG_DEBUG, "Will store at index location %u", new_h_value % edge->to->index_size);
+                } else if (edge->from == edge->to) {
+                    new_h_value = state->h_value;
+                } else {
+                    SLOG(LOG_WARNING, "Don't know how to store spawned state in vertex %s, missing hashing function when coming from %s", edge->to->name, edge->from->name);
+                    goto hell;
                 }
-                // reset the age of this state
-                nt_state_promote_age_list(state, now);
             }
-        } else {    // move the whole state
-            if (LIST_EMPTY(&edge->to->outgoing_edges)) {  // rather dispose of former state
-                nt_state_del(state, edge->graph);
-            } else {
-                nt_state_move(state, edge->to, new_h_value, now);
+            // whatever we clone or move it, we must tag it
+            state->last_moved_run = edge->graph->run_id;
+            if (edge->spawn) {
+                if (!LIST_EMPTY(&edge->to->outgoing_edges)) { // or we do not need to spawn anything
+                    struct npc_register *copy = npc_regfile_copy(state->regfile, edge->graph->nb_registers);
+                    if (! copy) goto hell;
+                    if (! nt_state_new(state, edge->to, copy, now, new_h_value, edge->graph->run_id)) {
+                        npc_regfile_del(copy, edge->graph->nb_registers);
+                    }
+                    // reset the age of this state
+                    nt_state_promote_age_list(state, now);
+                }
+            } else {    // move the whole state
+                if (LIST_EMPTY(&edge->to->outgoing_edges)) {  // rather dispose of former state
+                    nt_state_del(state, edge->graph);
+                } else {
+                    nt_state_move(state, edge->to, new_h_value, now);
+                }
             }
+    hell:;
         }
-hell:;
     }
 }
 
