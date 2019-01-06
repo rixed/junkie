@@ -183,6 +183,7 @@ void *objalloc(size_t entry_size, char const *requestor)
     struct preset_obj *p_obj = redim_array_get(ra);
     if (! p_obj) return NULL;
     p_obj->spec_size = spec_size;
+    assert(! ((intptr_t)ra & 1));  // so we can use this bit as a flag
     p_obj->obj.ra = (void *)(((intptr_t)ra) | 1); // so that we will recognize it as such when freeing
     if (spec_size < NB_ELEMS(spec_objallocs)) {
 #       ifdef __GNUC__
