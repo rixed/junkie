@@ -7,7 +7,7 @@ PARAMETER csv_dir DEFAULTS TO "/tmp";
 
 DEFINE web AS
   READ AND DELETE FILE "${param.csv_dir}/web-*.csv" SEPARATOR "\t" NULL "<NULL>" (
-    time float,
+    start float,
     device u32,
     vlan u16?,
     clt_mac eth,
@@ -21,11 +21,11 @@ DEFINE web AS
     host string,
     url string)
   FACTORS device, vlan, method AND status
-  EVENT STARTING AT time WITH DURATION resp_time;
+  EVENT STARTING AT start WITH DURATION resp_time;
 
 DEFINE dns AS
   READ AND DELETE FILE "${param.csv_dir}/dns-*.csv" SEPARATOR "\t" NULL "<NULL>" (
-    time float,
+    start float,
     device u32,
     vlan u16?,
     clt_mac eth,
@@ -37,7 +37,7 @@ DEFINE dns AS
     resp_time float,
     query string)
   FACTORS device, vlan AND status
-  EVENT STARTING AT time WITH DURATION resp_time;
+  EVENT STARTING AT start WITH DURATION resp_time;
 
 DEFINE traffic AS
   READ AND DELETE FILE "${param.csv_dir}/traffic-*.csv" SEPARATOR "\t" NULL "<NULL>" (
@@ -64,7 +64,7 @@ DEFINE traffic AS
 -- (for this, see traffic and flow).
 DEFINE tcp AS
   READ AND DELETE FILE "${param.csv_dir}/tcp-*.csv" SEPARATOR "\t" NULL "<NULL>" (
-    time float,
+    start float,
     device u32,
     vlan u16?,
     clt_mac eth,
@@ -76,7 +76,7 @@ DEFINE tcp AS
     nb_syns u32,
     cnx_time float)
   FACTORS device AND vlan
-  EVENT STARTING AT time WITH DURATION cnx_time;
+  EVENT STARTING AT start WITH DURATION cnx_time;
 
 DEFINE flow AS
   READ AND DELETE FILE "${param.csv_dir}/flow-*.csv" SEPARATOR "\t" NULL "<NULL>" (
@@ -98,7 +98,7 @@ DEFINE flow AS
 
 DEFINE x509 AS
   READ AND DELETE FILE "${param.csv_dir}/x509-*.csv" SEPARATOR "\t" NULL "<NULL>" (
-    time float,
+    start float,
     device u32,
     vlan u16?,
     clt_mac eth,
@@ -114,11 +114,11 @@ DEFINE x509 AS
     subject string,
     issuer string)
   FACTORS device, vlan AND issuer
-  EVENT STARTING AT time;
+  EVENT STARTING AT start;
 
 DEFINE tls AS
   READ AND DELETE FILE "${param.csv_dir}/tls-*.csv" SEPARATOR "\t" NULL "<NULL>" (
-    time float,
+    start float,
     device u32,
     vlan u16?,
     clt_mac eth,
@@ -130,7 +130,7 @@ DEFINE tls AS
     compress_algo string,
     server_name_indication string?)
   FACTORS device, vlan, cipher_suite AND compress_algo
-  EVENT STARTING AT time;
+  EVENT STARTING AT start;
 
 -- Now let's do something useful with this info
 
