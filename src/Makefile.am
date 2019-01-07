@@ -6,7 +6,6 @@ AM_CPPFLAGS = -I $(top_srcdir)/include -D_GNU_SOURCE \
               -DSYSCONFDIR=$(sysconfdir) -DPKGLIBDIR=$(pkglibdir)
 
 bin_PROGRAMS = junkie
-dist_bin_SCRIPTS = juncli
 
 junkie_SOURCES = \
 	digest_queue.c \

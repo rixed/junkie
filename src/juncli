@@ -1,5 +1,0 @@
-#!/bin/sh
-# Small too to connect to junkie REPL (if started with '-c path-to-conf/start-repl.scm')
-
-rlwrap --command-name junkie --ansi-colour-aware --complete-filenames telnet localhost 29000
-

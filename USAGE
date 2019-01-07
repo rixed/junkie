@@ -55,9 +55,9 @@ As you can see, there is some traffic both on lo (MAC=00:00:00:00:00:00, dev_id=
 2. Stop listening to lo
 =======================
 
-Let's use the script (juncli) provided in the official distribution:
+Let's connect to junkie:
 
-	$ juncli
+	$ telnet localhost 29000
 	Trying 127.0.0.1...
 	Connected to localhost.
 	Escape character is '^]'.
