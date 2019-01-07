@@ -1,60 +1,72 @@
 {
    Guile's own business
    Memcheck:Cond
-   obj:/usr/local/lib/libguile.so*
+   obj:/usr/*lib*/libguile.so*
    ...
-   obj:/usr/local/lib/libguile.so*
+   obj:/usr/*lib*/libguile.so*
 }
 
 {
    Guile's own mess of size 8
    Memcheck:Value8
-   obj:/usr/local/lib/libguile.so*
+   obj:/usr/*lib*/libguile.so*
    ...
-   obj:/usr/local/lib/libguile.so*
+   obj:/usr/*lib*/libguile.so*
 }
 
 {
    Guile's own mess of size 4
    Memcheck:Value4
-   obj:/usr/local/lib/libguile.so*
+   obj:/usr/*lib*/libguile.so*
    ...
-   obj:/usr/local/lib/libguile.so*
+   obj:/usr/*lib*/libguile.so*
 }
 
 {
    Guile's own lock issues
    Helgrind:LockOrder
    fun:pthread_mutex_lock
-   obj:/usr/local/lib/libguile.so*
+   obj:/usr/*lib*/libguile.so*
    ...
-   obj:/usr/local/lib/libguile.so*
+   obj:/usr/*lib*/libguile.so*
 }
 
 {
    Guile's own races
    Helgrind:Race
-   obj:/usr/local/lib/libguile.so*
+   obj:/usr/*lib*/libguile.so*
    ...
-   obj:/usr/local/lib/libguile.so*
+   obj:/usr/*lib*/libguile.so*
 }
 
 {
    bdwgc being a conservative GC it scans and use many undef words
    Memcheck:Value8
-   obj:/usr/local/lib/libgc.so*
+   obj:/usr/*lib*/libgc.so*
 }
 
 {
    bdwgc being a conservative GC it scans and use many undef words (32 bits addresses)
    Memcheck:Value4
-   obj:/usr/local/lib/libgc.so*
+   obj:/usr/*lib*/libgc.so*
 }
 
 {
-   bdwgc being a conservative GC it scans and use many undef words
+   bdwgc being a conservative GC it scans and use many undef words (cond expr)
    Memcheck:Cond
-   obj:/usr/local/lib/libgc.so*
+   obj:/usr/*lib*/libgc.so*
+}
+
+{
+  bdwgc again, trying to math all cases
+  Memcheck:Cond
+  fun:thread_mark
+}
+
+{
+  bdwgc again, trying to math all cases
+  Memcheck:Value8
+  fun:thread_mark
 }
 
 {

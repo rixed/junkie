@@ -80,3 +80,4 @@ module-deps.dot
 .dirstamp
 configure.lineno
 *.x
+result
