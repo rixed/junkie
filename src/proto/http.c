@@ -123,8 +123,12 @@ char const *http_build_domain(struct ip_addr const *server, char const *host, ch
     if (host) {
         src = host;
     } else {
-        src += selector_prefix_length(url, &expected_port);
-        if (! port) port = &expected_port;
+        unsigned prefix_length = selector_prefix_length(url, &expected_port);
+        if (prefix_length > 0) {
+            // If we recognized the schema then the hostname should follows:
+            src = url + prefix_length;
+            if (! port) port = &expected_port;
+        }
     }
 
     if (! src) src = (version == 6 ? ip_addr_2_strv6:ip_addr_2_str)(server);
