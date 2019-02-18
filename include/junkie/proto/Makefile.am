@@ -38,4 +38,5 @@ thisinclude_HEADERS = \
 	dhcp.h \
 	fcoe.h \
 	tds.h \
-	gtp.h
+	gtp.h \
+	vxlan.h

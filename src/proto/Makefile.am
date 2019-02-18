@@ -32,7 +32,8 @@ libproto_la_SOURCES = \
 	dhcp.c \
 	fcoe.c \
 	tds.c tds_msg.c \
-	gtp.c
+	gtp.c \
+	vxlan.c
 
 libproto_la_LIBADD = ../tools/libjunkietools.la
 libproto_la_LDFLAGS = -export-dynamic

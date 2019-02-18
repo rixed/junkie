@@ -187,7 +187,7 @@ struct proto {
         PROTO_CODE_SKINNY, PROTO_CODE_DHCP,
         PROTO_CODE_DISCOVERY, PROTO_CODE_DUMMY, PROTO_CODE_FCOE,
         PROTO_CODE_TDS, PROTO_CODE_TDS_MSG,
-        PROTO_CODE_GTP,
+        PROTO_CODE_GTP, PROTO_CODE_VXLAN,
         PROTO_CODE_MAX
     } code;                 ///< Numeric code used for instance to serialize these events
     uint64_t nb_frames;     ///< How many times we called this parse (count frames only if this parser is never called more than once on a frame)
