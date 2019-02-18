@@ -46,9 +46,9 @@ static const int vlan_unset = VLAN_UNSET;
 
 // Description of an Ethernet header
 struct eth_hdr {
-	unsigned char dst[ETH_ADDR_LEN];
-	unsigned char src[ETH_ADDR_LEN];
-	uint16_t proto;
+    unsigned char dst[ETH_ADDR_LEN];
+    unsigned char src[ETH_ADDR_LEN];
+    uint16_t proto;
 } packed_;
 
 /*
@@ -198,7 +198,7 @@ static enum proto_parse_status eth_parse(struct parser *parser, struct proto_inf
         } packed_ *eth_lcc = (struct eth_lcc *)((char *)ethhdr + ethhdr_len);
         h_proto = READ_U16N(&eth_lcc->h_proto);
         ethhdr_len += 2;
-        // We dont care about the source MAC being funny
+        // We don't care about the source MAC being funny
     }
 
     if (h_proto == ETH_PROTO_8021MACinMAC) {

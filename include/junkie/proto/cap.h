@@ -9,7 +9,7 @@
 /** @file
  * @brief Capture protocol.
  *
- * Capture is not am actual protocol, but gives information about the data
+ * Capture is not an actual protocol, but gives information about the data
  * that was received from the packet capture engine (aka libpcap), such as
  * packet timestamp and incoming device.
  */
