@@ -1,0 +1,71 @@
+<html>
+  <head>
+    <meta charset="utf-8">
+    <base href="https://rixed.github.io/junkie/">
+    <link rel="stylesheet" href="style.css" type="text/css" media="screen">
+    <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
+    <title>Junkie the Network Sniffer</title>
+  </head>
+<body>
+
+<div id="header">
+  <p class="title">Junkie the Network Sniffer</p>
+  <p class="github">
+    <a class="github-cat" href="https://github.com/rixed/junkie">
+      <svg class="octicon" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path fill-rule="evenodd" d="M14.7 5.34c.13-.32.55-1.59-.13-3.31 0 0-1.05-.33-3.44 1.3-1-.28-2.07-.32-3.13-.32s-2.13.04-3.13.32c-2.39-1.64-3.44-1.3-3.44-1.3-.68 1.72-.26 2.99-.13 3.31C.49 6.21 0 7.33 0 8.69 0 13.84 3.33 15 7.98 15S16 13.84 16 8.69c0-1.36-.49-2.48-1.3-3.35zM8 14.02c-3.3 0-5.98-.15-5.98-3.35 0-.76.38-1.48 1.02-2.07 1.07-.98 2.9-.46 4.96-.46 2.07 0 3.88-.52 4.96.46.65.59 1.02 1.3 1.02 2.07 0 3.19-2.68 3.35-5.98 3.35zM5.49 9.01c-.66 0-1.2.8-1.2 1.78s.54 1.79 1.2 1.79c.66 0 1.2-.8 1.2-1.79s-.54-1.78-1.2-1.78zm5.02 0c-.66 0-1.2.79-1.2 1.78s.54 1.79 1.2 1.79c.66 0 1.2-.8 1.2-1.79s-.53-1.78-1.2-1.78z"></path></svg>
+    <span class="github-link">to source code</span></a>
+  </p>
+</div>
+
+<script type="application/json" class="js-hypothesis-config">{ "showHighlights": "whenSidebarOpen" }</script>
+<script src="https://hypothes.is/embed.js" async></script>
+
+<div id="menu">
+  <ul>
+            <li>
+      <a class="" href="index.html">Overview</a>
+        </li>
+          <li>
+      <a class="" href="download.html">Downloading</a>
+        </li>
+          <li>
+      <a class="is-current" href="build.html">Building</a>
+        </li>
+    </ul>
+</div>
+
+<div id="page">
+<h1>Building from sources</h1>
+
+<p>It is possible to build and run Junkie from a Linux or a MacOS machine.</p>
+
+<p>First, you need to get the sources:</p>
+
+<pre>
+$ git clone https://github.com/rixed/junkie.git
+$ cd junkie
+</pre>
+
+<p>Junkie depends on:</p>
+<ul>
+<li>The <a href="https://gcc.gnu.org">GNU C Compiler</a> (but clang also works);</li>
+<li>The <a href="https://www.gnu.org/software/guile/">GNU GUILE</a> Scheme compiler;</li>
+<li>The <a href="https://www.openssl.org">OpenSSL</a> library;</li>
+<li>The <a href="https://www.tcpdump.org">libpcap</a> library;</li>
+<li>The <a href="https://www.gnu.org/software/libiconv/">libiconv</a> library;</li>
+</ul>
+
+<p>All of which should be available in your distribution. Remember to install the <em>-dev</em> version on Debian (and derivatives).</p>
+
+<p>You can then compile "by hand", cranking the autotools like in the good old days:</p>
+
+<pre>
+$ ./configure
+$ make
+$ make install
+$ sudo make install
+</pre>
+
+</div>
+</body>
+</html>

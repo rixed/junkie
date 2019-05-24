@@ -1,0 +1,204 @@
+:root {
+  --bg: #F0F0E0;
+  --bg-head: #FFCC66;
+  --bg-grey: #E8E8C0;
+  --bg-greyer: #E0E0C0;
+  --pen: black;
+  --anti-pen: white;
+  --link: #362d9d;
+  --link-hover: #8a9ada;
+}
+
+body {
+  font-family: Georgia, serif;
+  margin: 0;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg);
+  color: var(--pen);
+}
+
+/* Menu */
+
+#header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  box-shadow: 0 0.1rem 0.2rem rgba(0,0,0,.5);
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--bg-head);
+  background-image: url("logo.png");
+  background-repeat: no-repeat;
+  background-position: 20px;
+  border-width: 0 0 3px 0;
+  border-style: solid;
+  border-color: var(--anti-pen);
+}
+
+#header p.title {
+  font-family: fantasy;
+  font-variant: small-caps;
+  font-size: 30px;
+  padding-left: 120px;
+  padding-top: 20px;
+}
+
+#header p.github {
+  padding-right: 60px;
+  padding-top: 20px;
+}
+
+#header a, #header a:link, #header a:visited, #header a:hover {
+  text-decoration: none;
+  color: inherit;
+}
+#header a svg {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 0.4em;
+}
+#heacer .github-link {
+  font-size: 80%;
+}
+
+#menu {
+  display: block;
+  position: fixed;
+  left: 0;
+  top: 6rem;
+  width: 20rem;
+}
+
+#menu a {
+  color: #000;
+  text-decoration: none;
+}
+
+#menu a:visited {
+  color: #000;
+  text-decoration: none;
+}
+
+#menu a:hover {
+  text-decoration: none;
+  color: var(--link-hover);
+}
+
+#menu ul {
+  list-style-type: none;
+  /* We want the <li> background to start at the very left: */
+  padding: 0;
+}
+#menu li {
+  line-height: 1.5;
+  font-family: "Avant Garde", sans-serif;
+}
+
+#menu li a {
+  display: block;
+  padding-right: 0;
+}
+
+#menu li a    { padding-left: 1em; }
+#menu li li a { padding-left: 2em; }
+
+#menu a.is-current {
+  background-color: var(--bg-greyer);
+}
+
+a:link, a:visited {
+  text-decoration: none;
+  color: var(--link);
+}
+
+a:hover {
+  color: var(--link-hover);
+}
+
+a[name]:hover { color: inherit; }
+
+#page {
+  margin: 4rem 3rem 6rem 22rem;
+  font-size: 1.1rem;
+  line-height: 1.3em;
+}
+
+#page ul {
+  line-height: 1.5em;
+}
+
+#page pre {
+  background-color: var(--bg-greyer);
+  line-height: 1.3em;
+  padding: 1em;
+  overflow: auto;
+}
+
+h1, h2, h3, h4 {
+  font-family: "Avant Garde", sans-serif;
+}
+
+/* Make sure anchored titles do not fall below the page header: */
+h1, h2 { padding-top: 4rem; }
+
+/* For long title that wraps to the next line: */
+h1 { line-height: 1.2em; }
+
+p.date {
+  font-style: italic;
+  font-size: 0.9em;
+  color: #333;
+}
+
+requirement {
+  display: block;
+  width: 100%;
+}
+h2 {
+  clear: both;
+}
+req {
+  display: block;
+  width: 80%;
+  float: left;
+}
+decision {
+  display: block;
+  width: 80%;
+  float: right;
+  clear: left;
+  background-color: var(--bg-greyer);
+  padding: 0 1em 0 1em;
+  border-radius: 0.2em;
+}
+decision::before {
+  content: "⇒";
+  display: block;
+  margin-bottom: -2.3em;
+  margin-top: 0.8em;
+}
+decision p, decision ul {
+  margin-left: 2em;
+}
+decision ul {
+  line-height: 1.4;
+}
+
+status {
+  display: block;
+  clear: both;
+  margin-left: 2em;
+  margin-right: 2em;
+  padding-top: 2em;
+}
+status::before {
+  content: "Are we there yet?";
+  font-style: italic;
+}

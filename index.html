@@ -1,0 +1,98 @@
+<html>
+  <head>
+    <meta charset="utf-8">
+    <base href="https://rixed.github.io/junkie/">
+    <link rel="stylesheet" href="style.css" type="text/css" media="screen">
+    <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
+    <title>Junkie the Network Sniffer</title>
+  </head>
+<body>
+
+<div id="header">
+  <p class="title">Junkie the Network Sniffer</p>
+  <p class="github">
+    <a class="github-cat" href="https://github.com/rixed/junkie">
+      <svg class="octicon" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path fill-rule="evenodd" d="M14.7 5.34c.13-.32.55-1.59-.13-3.31 0 0-1.05-.33-3.44 1.3-1-.28-2.07-.32-3.13-.32s-2.13.04-3.13.32c-2.39-1.64-3.44-1.3-3.44-1.3-.68 1.72-.26 2.99-.13 3.31C.49 6.21 0 7.33 0 8.69 0 13.84 3.33 15 7.98 15S16 13.84 16 8.69c0-1.36-.49-2.48-1.3-3.35zM8 14.02c-3.3 0-5.98-.15-5.98-3.35 0-.76.38-1.48 1.02-2.07 1.07-.98 2.9-.46 4.96-.46 2.07 0 3.88-.52 4.96.46.65.59 1.02 1.3 1.02 2.07 0 3.19-2.68 3.35-5.98 3.35zM5.49 9.01c-.66 0-1.2.8-1.2 1.78s.54 1.79 1.2 1.79c.66 0 1.2-.8 1.2-1.79s-.54-1.78-1.2-1.78zm5.02 0c-.66 0-1.2.79-1.2 1.78s.54 1.79 1.2 1.79c.66 0 1.2-.8 1.2-1.79s-.53-1.78-1.2-1.78z"></path></svg>
+    <span class="github-link">to source code</span></a>
+  </p>
+</div>
+
+<script type="application/json" class="js-hypothesis-config">{ "showHighlights": "whenSidebarOpen" }</script>
+<script src="https://hypothes.is/embed.js" async></script>
+
+<div id="menu">
+  <ul>
+            <li>
+      <a class="is-current" href="index.html">Overview</a>
+        </li>
+          <li>
+      <a class="" href="download.html">Downloading</a>
+        </li>
+          <li>
+      <a class="" href="build.html">Building</a>
+        </li>
+    </ul>
+</div>
+
+<div id="page">
+<h1>What?</h1>
+
+<p>Junkie is an <b>open source</b>, <b>fast</b>, <b>extensible</b>, <b>d</b>eep <b>p</b>acket <b>i</b>nspection tool (aka <b>DPI</b>).</p>
+
+<p>Other distinguishing features include:</p>
+<ul>
+<li>Can take advantage of <b>many threads</b> while still handling packet reassembly and connection tracking;</li>
+<li>Can handle <b>out-of-order</b> traffic, <b>missing</b> and even <b>truncated packets</b> (as in <code>tcpdump -s</code>) and keep on parsing, skipping the gaps;</li>
+<li>Can see through <b>TLS</b> if provided with private keys;</li>
+<li>Can be controlled via a <b>scripting language</b> although Junkie itself is <b>written in C;</b></li>
+<li>Does nothing but parsing by itself but comes with many <b>plugins</b> to perform various tasks.</li>
+</ul>
+
+<p>Examples of what's doable with Junkie default plugins from the command line:</p>
+<ul>
+<li>Dumping live traffic à la <em>tshark</em>;</li>
+<li>Protocol aware <em>net-top</em>;</li>
+<li>Monitor SSL certificate expiry dates;</li>
+<li>Dump response times for all known protocols;</li>
+<li>...</li>
+</ul>
+<p>See <a href="plugins.html">plugins</a> for a complete list and reference.</p>
+
+<h1>Why?</h1>
+
+<p>A DPI was needed to analyse mirrored traffic for application monitoring.</p>
+
+<p>At the time (around 2010) there were simply no open source tools that could do deep packet inspection in any capacity on live traffic.</p>
+
+<p>Today, other open source DPI have emerged. From a quick survey of those Junkie still looks very relevant, but a more thorough comparison has to be carried out and published.</p>
+
+<h1>How?</h1>
+
+<p>The key design principles are:</p>
+
+<ul>
+<li>Be prepared to receive packets out-of-order in a way they could not possibly have been emitted. This is particularly common when the sniffer is sent mirrored traffic instead of standing across the traffic path, even doubly so when the traffic is mirrored from several locations. Temporary buffering is the norm rather than the exception.</li>
+
+<li>Be prepared for a thread decisions to depend on data managed by another thread. There is no kernel trick clever enough to assist the sniffer in splitting the data amongst several threads in a way that connection tracking does not require interlocks. Better use many threads, many fine-grained locks and a deadlock detector than rely on tricks that prevent the sniffer to access data when it needs it.</li>
+
+<li>Assume every byte of traffic can be missing and be prepared to skip over gaps to keep parsing whenever possible (which is often, as the interesting bits are often located in the very beginning of the packets/frames/messages/etc).</li>
+
+<li>Avoid copying packets around when reassembling; rather, use some abstract pointers pretending data chunks are sequential when they are not. Also helps with skipping over missing parts: as long as the pointer is not dereferenced, who care if the data is missing?</li>
+
+<li>Do not assume any preconceived protocol stack. In particular, be prepared that the same protocol can appear several times in the stack (tunnelling...) When writing a parser lower and upper layers must be abstracted away.</li>
+
+<li>For maximum versatility, do not design Junkie to do anything beyond parsing as fast and deep as doable in live traffic, reporting findings to user defined callbacks at specific locations (hooks).</li>
+
+<li>Junkie being designed to monitor traffic without interruption, make it observable and extensible <em>live</em> via an extension language. Using this language, one can connect to Junkie and change its settings, load/unload plugins, etc... Junkie uses <a href="https://www.gnu.org/software/guile/">Guile</a> as it's the only extension language able to share memory and Posix threads with C.</li>
+</ul>
+
+<h1>More information</h1>
+
+<ul>
+  <li><a href="download.html">Downloading</a>;</li>
+  <li><a href="build.html">Building</a>;</li>
+</ul>
+
+</div>
+</body>
+</html>
