@@ -626,7 +626,7 @@ static enum proto_parse_status tds_login7(struct tds_msg_parser *tds_msg_parser,
     uint8_t const *msg_end = cursor->head + cursor->cap_len;    // at most
 
     /* Login requests starts with many several fixed size fields,
-     * first of which being the total length. Other interresting
+     * first of which being the total length. Other interesting
      * fields include:
      * - OptionFlag1, which tells if client speak BE or LE, ASCII or EBCDIC,
      * and so on,

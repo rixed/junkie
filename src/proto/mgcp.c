@@ -338,7 +338,7 @@ static enum proto_parse_status mgcp_parse(struct parser *parser, struct proto_in
             liner_expand(&tokenizer);
             SLOG(LOG_DEBUG, "parameter '%c'", p);
             switch (p) {
-                case 'O':   // ObservedEvents: we are looking for dialed numbers or other interresting events
+                case 'O':   // ObservedEvents: we are looking for dialed numbers or other interesting events
                     parse_observed_event(&info, &tokenizer);
                     break;
                 case 'S':

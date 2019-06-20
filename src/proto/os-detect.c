@@ -78,7 +78,7 @@ char const *os_name(unsigned id)
 
 unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *tcp)
 {
-  if (! tcp->syn) return 0; // we are only interrested in SYNs/SYNACKS
+  if (! tcp->syn) return 0; // we are only interested in SYNs/SYNACKS
 
   if (! tcp->ack) { /* client to server */
     if (ip->version == 4) {

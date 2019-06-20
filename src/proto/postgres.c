@@ -436,7 +436,7 @@ static enum proto_parse_status pg_parse_startup(struct pgsql_parser *pg_parser, 
             // We don't care about the auth method, we just want to know when auth is complete
             uint32_t auth_type = cursor_read_u32n(&cursor);
             if (auth_type == 0) {   // AuthenticationOK
-                pg_parser->phase = QUERY;   // we don't wait for the ReadyForQuery msg since we are not interrested in following messages
+                pg_parser->phase = QUERY;   // we don't wait for the ReadyForQuery msg since we are not interested in following messages
                 info->set_values |= SQL_REQUEST_STATUS;
                 info->request_status = SQL_REQUEST_COMPLETE;
             }

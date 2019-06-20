@@ -303,7 +303,7 @@ static enum proto_parse_status mysql_parse_startup(struct mysql_parser *mysql_pa
         info->set_values |= SQL_ENCODING;
         info->u.startup.encoding = mysql_charset_to_encoding(charset);
 
-        // jump to interresting bits
+        // jump to interesting bits
         cursor_drop(&cursor, 23);
         char *str;
         status = cursor_read_string(&cursor, &str, msg_end - cursor.head);
@@ -481,7 +481,7 @@ static enum proto_parse_status mysql_parse_query(struct mysql_parser *mysql_pars
                     mysql_parser->nb_eof = 0;
                 } else {
                     if (mysql_parser->nb_eof == 0) {    // Field packet
-                        // not interresting
+                        // not interesting
                     } else if (mysql_parser->nb_eof == 1) { // Row data packet
                         if (! (info->set_values & SQL_NB_ROWS)) {
                             info->set_values |= SQL_NB_ROWS;

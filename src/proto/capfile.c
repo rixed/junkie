@@ -39,7 +39,7 @@ LOG_CATEGORY_DEF(capfile);
 
 static unsigned capture_files = 0;
 static unsigned max_capture_files = 1000;
-EXT_PARAM_RW(max_capture_files, "max-capture-files", uint, "The max number of files opened for captures (0 for no limit)");
+EXT_PARAM_RW(max_capture_files, "max-capture-files", uint, "The max number of files opened for captures");
 
 /*
  * Capfile ctor/dtor

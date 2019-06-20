@@ -278,9 +278,9 @@ void discovery_init(void)
     port_muxer_ctor(&tcp_port_muxer, &tcp_port_muxers, 1024, 65535, proto_discovery);
     port_muxer_ctor(&udp_port_muxer, &udp_port_muxers, 1024, 65535, proto_discovery);
 
-	high_sym          = scm_permanent_object(scm_from_latin1_symbol("high"));
-	medium_sym        = scm_permanent_object(scm_from_latin1_symbol("medium"));
-	low_sym           = scm_permanent_object(scm_from_latin1_symbol("low"));
+    high_sym          = scm_permanent_object(scm_from_latin1_symbol("high"));
+    medium_sym        = scm_permanent_object(scm_from_latin1_symbol("medium"));
+    low_sym           = scm_permanent_object(scm_from_latin1_symbol("low"));
     proto_id_sym      = scm_permanent_object(scm_from_latin1_symbol("id"));
     proto_trust_sym   = scm_permanent_object(scm_from_latin1_symbol("trust"));
     proto_libname_sym = scm_permanent_object(scm_from_latin1_symbol("libname"));

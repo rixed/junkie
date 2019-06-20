@@ -28,6 +28,6 @@ svg.graph g.tick text {
 }
 
 svg.graph g.tick line.grid {
-	stroke: #888;
-	stroke-width: 1px;
+    stroke: #888;
+    stroke-width: 1px;
 }

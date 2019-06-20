@@ -6,11 +6,11 @@ import string
 def parse_p0f():
     """
     Parse the p0f.fp file (stdin).
-    We are only interrested in the [tcp:request] and [tcp:response] sections (ie.
+    We are only interested in the [tcp:request] and [tcp:response] sections (ie.
     signatures based on TCP syns).
     We return a list of (tests, label), where tests is a list of tests which first
     element is the direction of the packet (0 for the [tcp:request] section and
-    1 for the [tcp:response] section), ans other tests are merely constinuents of
+    1 for the [tcp:response] section), and other tests are merely constituents of
     the signature.
     label is the numerical value of the identified OS (0 meaning unknown).
     Beware that many different tests yield the same label, and that a label typically
@@ -254,7 +254,7 @@ if __name__ == "__main__":
     print
     print 'unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *tcp)'
     print '{'
-    print '  if (! tcp->syn) return 0; // we are only interrested in SYNs/SYNACKS'
+    print '  if (! tcp->syn) return 0; // we are only interested in SYNs/SYNACKS'
     print
     print code
     print

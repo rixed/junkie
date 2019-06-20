@@ -48,7 +48,7 @@ struct frame {
     uint8_t /*const*/ *data;    ///< the packet itself (FIXME: fix digest_frame then restore const)
 };
 
-// Call every interrested parties
+// Call every interested parties
 int parser_callbacks(struct proto_info const *last, size_t tot_cap_len, uint8_t const *tot_packet);
 
 unsigned pkt_count; // max number of packets to process

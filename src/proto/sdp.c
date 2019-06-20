@@ -128,8 +128,8 @@ static int sdp_extract_port(unsigned unused_ cmd, struct liner *liner, void *inf
 {
     struct sdp_proto_info *info = info_;
 
-    // In case several medias are advertised, we are interrested only in the first one.
-    // FIXME: parse all m= stenzas with their respective attributes (a=).
+    // In case several medias are advertised, we are interested only in the first one.
+    // FIXME: parse all m= stanzas with their respective attributes (a=).
     if (info->set_values & SDP_PORT_SET) return 0;
 
     // skip the media format ("audio", ...)

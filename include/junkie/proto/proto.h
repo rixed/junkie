@@ -112,7 +112,7 @@ typedef void proto_cb_t(struct proto_subscriber *, struct proto_info const *, si
 
 /// A subscriber is a plugin that want to be called for each proto_info of a given proto.
 /** Previous junkie 1.5 each plugin had a callback function that was called for every packet.
- * This is not the case anymore. Now if you are interrested in a particular proto_info then
+ * This is not the case anymore. Now if you are interested in a particular proto_info then
  * you are required to register a callback with hook_subscriber_ctor(&proto->hook, ...).
  * Notice that there are no lock in this structure, so the callback must be thread safe. */
 struct proto_subscriber {

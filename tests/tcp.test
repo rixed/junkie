@@ -3,7 +3,7 @@
 NAME="TCP"
 PCAPS="pcap/postgres/connect.pcap"
 filter() {
-	# We are only interrested in TCP header decoding (and especialy options)
+	# We are only interested in TCP header decoding (and especialy options)
 	grep '^TCP' | sed -e 's/^\([^@]\+\)@[0-9a-fx]\+\(.*\)$/\1\2/'
 }
 OUTPUT="tcp.out"

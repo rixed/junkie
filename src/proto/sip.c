@@ -269,7 +269,7 @@ static int sip_extract_via(unsigned unused_ field, struct liner *liner, void *in
 {
     struct sip_proto_info *info = info_;
 
-    // We are interrested only in the first Via stanza
+    // We are interested only in the first Via stanza
     if (info->set_values & SIP_VIA_SET) return 0;
 
     // We are parsing something like : SIP/2.0/UDP 123.456.789.123:12345;foo=bar etc
@@ -326,11 +326,11 @@ static int sip_extract_via(unsigned unused_ field, struct liner *liner, void *in
 // The Via header may inform us that the peer is expecting answers on a non-standard port. Let's conntrack it.
 static void conntrack_via(struct sip_proto_info const *info, struct timeval const *now)
 {
-    /* We conntrack the Via at every occurence, which will insert many conntrack
+    /* We conntrack the Via at every occurrence, which will insert many conntrack
      * that will never be used (because most of the time Via is toward default SIP
-     * port anyway.
+     * port anyway).
      * We can't but hope that timeouting tracked connection will compensate for our
-     * slopyness.
+     * sloppiness.
      * Notice that we conntrack from any peer to the Via address. SIP is so fun! */
     SLOG(LOG_DEBUG, "Conntracking SIP via %s %s:%"PRIu16,
         info->via.protocol == IPPROTO_UDP ? "UDP" :
