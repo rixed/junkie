@@ -4,6 +4,8 @@
 #define CURSOR_H_100107
 #include <inttypes.h>
 #include <stdbool.h>
+#include <assert.h>
+#include <string.h>
 #include <junkie/proto/proto.h>
 
 /** @file
@@ -15,20 +17,109 @@ struct cursor {
     size_t cap_len;     // remaining length that can be read
 };
 
-void cursor_ctor(struct cursor *, uint8_t const *head, size_t cap_len);
+inline void cursor_ctor(struct cursor *cursor, uint8_t const *head, size_t cap_len)
+{
+    cursor->head = head;
+    cursor->cap_len = cap_len;
+}
 
 /// Go backward n bytes
-void cursor_rollback(struct cursor *, size_t n);
+inline void cursor_rollback(struct cursor *cursor, size_t n)
+{
+    SLOG(LOG_DEBUG, "Rollback %zu bytes", n);
+    cursor->cap_len += n;
+    cursor->head -= n;
+}
 
-uint_least8_t cursor_read_u8(struct cursor *);
-uint_least16_t cursor_read_u16n(struct cursor *);
-uint_least16_t cursor_read_u16le(struct cursor *);
-uint_least32_t cursor_read_u24n(struct cursor *);
-uint_least32_t cursor_read_u24le(struct cursor *);
-uint_least32_t cursor_read_u32n(struct cursor *);
-uint_least32_t cursor_read_u32le(struct cursor *);
-uint_least64_t cursor_read_u64n(struct cursor *);
-uint_least64_t cursor_read_u64le(struct cursor *);
+inline uint_least8_t cursor_read_u8(struct cursor *cursor)
+{
+    assert(cursor->cap_len >= 1);
+    cursor->cap_len --;
+    SLOG(LOG_DEBUG, "Reading byte 0x%x, %zu left", *cursor->head, cursor->cap_len);
+    return *cursor->head++;
+}
+
+inline uint_least16_t cursor_read_u16n(struct cursor *cursor)
+{
+    uint_least32_t a = cursor_read_u8(cursor);
+    uint_least32_t b = cursor_read_u8(cursor);
+    return (a << 8) | b;
+}
+
+inline uint_least16_t cursor_read_u16le(struct cursor *cursor)
+{
+    uint_least32_t a = cursor_read_u8(cursor);
+    uint_least32_t b = cursor_read_u8(cursor);
+    return a | (b << 8);
+}
+
+inline uint_least32_t cursor_read_u24n(struct cursor *cursor)
+{
+    uint_least32_t a = cursor_read_u8(cursor);
+    uint_least32_t b = cursor_read_u8(cursor);
+    uint_least32_t c = cursor_read_u8(cursor);
+    return (a << 16) | (b << 8) | c;
+}
+
+inline uint_least32_t cursor_read_u24le(struct cursor *cursor)
+{
+    uint_least32_t a = cursor_read_u8(cursor);
+    uint_least32_t b = cursor_read_u8(cursor);
+    uint_least32_t c = cursor_read_u8(cursor);
+    return a | (b << 8) | (c << 16);
+}
+
+inline uint_least32_t cursor_read_u32n(struct cursor *cursor)
+{
+    uint_least32_t a = cursor_read_u16n(cursor);
+    uint_least32_t b = cursor_read_u16n(cursor);
+    return (a << 16) | b;
+}
+
+inline uint_least32_t cursor_read_u32le(struct cursor *cursor)
+{
+    uint_least32_t a = cursor_read_u16le(cursor);
+    uint_least32_t b = cursor_read_u16le(cursor);
+    return a | (b << 16);
+}
+
+inline uint_least64_t cursor_read_u64n(struct cursor *cursor)
+{
+    uint_least64_t a = cursor_read_u32le(cursor);
+    uint_least64_t b = cursor_read_u32le(cursor);
+    return (a << 32) | b;
+}
+
+inline uint_least64_t cursor_read_u64le(struct cursor *cursor)
+{
+    uint_least64_t a = cursor_read_u32le(cursor);
+    uint_least64_t b = cursor_read_u32le(cursor);
+    return a | (b << 32);
+}
+
+/// Copy from cursor into a buffer
+inline void cursor_copy(void *dst, struct cursor *cursor, size_t n)
+{
+    SLOG(LOG_DEBUG, "Copying %zu bytes", n);
+    assert(cursor->cap_len >= n);
+    memcpy(dst, cursor->head, n);
+    cursor->head += n;
+    cursor->cap_len -= n;
+}
+
+/// Go forward by n bytes
+inline void cursor_drop(struct cursor *cursor, size_t n)
+{
+    SLOG(LOG_DEBUG, "Skipping %zu bytes", n);
+    assert(cursor->cap_len >= n);
+    cursor->cap_len -= n;
+    cursor->head += n;
+}
+
+inline bool cursor_is_empty(struct cursor const *cursor)
+{
+    return cursor->cap_len == 0;
+}
 
 #ifdef WORDS_BIGENDIAN
 #   define cursor_read_u16 cursor_read_u16n
@@ -52,14 +143,6 @@ enum proto_parse_status cursor_read_string(struct cursor *, char **str, size_t m
 /// Read an integer len bytes width
 enum proto_parse_status cursor_read_fix_int_n(struct cursor *cursor, uint_least64_t *res, unsigned len);
 enum proto_parse_status cursor_read_fix_int_le(struct cursor *cursor, uint_least64_t *res, unsigned len);
-
-/// Copy from cursor into a buffer
-void cursor_copy(void *, struct cursor *, size_t n);
-
-/// Go forward by n bytes
-void cursor_drop(struct cursor *, size_t n);
-
-bool cursor_is_empty(struct cursor const *);
 
 #define CHECK_LEN(cursor, x, rollback) do { \
     if ((cursor)->cap_len  < (x)) { cursor_rollback(cursor, rollback); return PROTO_TOO_SHORT; } \

@@ -22,84 +22,20 @@
 #include "junkie/tools/log.h"
 #include "junkie/proto/cursor.h"
 
-void cursor_rollback(struct cursor *cursor, size_t n)
-{
-    SLOG(LOG_DEBUG, "Rollback %zu bytes", n);
-    cursor->cap_len += n;
-    cursor->head -= n;
-}
-
-void cursor_ctor(struct cursor *cursor, uint8_t const *head, size_t cap_len)
-{
-    cursor->head = head;
-    cursor->cap_len = cap_len;
-}
-
-uint_least8_t cursor_read_u8(struct cursor *cursor)
-{
-    assert(cursor->cap_len >= 1);
-    cursor->cap_len --;
-    SLOG(LOG_DEBUG, "Reading byte 0x%x, %zu left", *cursor->head, cursor->cap_len);
-    return *cursor->head++;
-}
-
-uint_least16_t cursor_read_u16n(struct cursor *cursor)
-{
-    uint_least32_t a = cursor_read_u8(cursor);
-    uint_least32_t b = cursor_read_u8(cursor);
-    return (a << 8) | b;
-}
-
-uint_least16_t cursor_read_u16le(struct cursor *cursor)
-{
-    uint_least32_t a = cursor_read_u8(cursor);
-    uint_least32_t b = cursor_read_u8(cursor);
-    return a | (b << 8);
-}
-
-uint_least32_t cursor_read_u24n(struct cursor *cursor)
-{
-    uint_least32_t a = cursor_read_u8(cursor);
-    uint_least32_t b = cursor_read_u8(cursor);
-    uint_least32_t c = cursor_read_u8(cursor);
-    return (a << 16) | (b << 8) | c;
-}
-
-uint_least32_t cursor_read_u24le(struct cursor *cursor)
-{
-    uint_least32_t a = cursor_read_u8(cursor);
-    uint_least32_t b = cursor_read_u8(cursor);
-    uint_least32_t c = cursor_read_u8(cursor);
-    return a | (b << 8) | (c << 16);
-}
-
-uint_least32_t cursor_read_u32n(struct cursor *cursor)
-{
-    uint_least32_t a = cursor_read_u16n(cursor);
-    uint_least32_t b = cursor_read_u16n(cursor);
-    return (a << 16) | b;
-}
-
-uint_least32_t cursor_read_u32le(struct cursor *cursor)
-{
-    uint_least32_t a = cursor_read_u16le(cursor);
-    uint_least32_t b = cursor_read_u16le(cursor);
-    return a | (b << 16);
-}
-
-uint_least64_t cursor_read_u64n(struct cursor *cursor)
-{
-    uint_least64_t a = cursor_read_u32le(cursor);
-    uint_least64_t b = cursor_read_u32le(cursor);
-    return (a << 32) | b;
-}
-
-uint_least64_t cursor_read_u64le(struct cursor *cursor)
-{
-    uint_least64_t a = cursor_read_u32le(cursor);
-    uint_least64_t b = cursor_read_u32le(cursor);
-    return a | (b << 32);
-}
+extern inline void cursor_rollback(struct cursor *, size_t);
+extern inline void cursor_ctor(struct cursor *, uint8_t const *, size_t);
+extern inline uint_least8_t cursor_read_u8(struct cursor *);
+extern inline uint_least16_t cursor_read_u16n(struct cursor *);
+extern inline uint_least16_t cursor_read_u16le(struct cursor *);
+extern inline uint_least32_t cursor_read_u24n(struct cursor *);
+extern inline uint_least32_t cursor_read_u24le(struct cursor *);
+extern inline uint_least32_t cursor_read_u32n(struct cursor *);
+extern inline uint_least32_t cursor_read_u32le(struct cursor *);
+extern inline uint_least64_t cursor_read_u64n(struct cursor *);
+extern inline uint_least64_t cursor_read_u64le(struct cursor *);
+extern inline void cursor_copy(void *, struct cursor *, size_t);
+extern inline void cursor_drop(struct cursor *, size_t);
+extern inline bool cursor_is_empty(struct cursor const *);
 
 enum proto_parse_status cursor_read_string(struct cursor *cursor, char **str_, size_t max_len)
 {
@@ -124,28 +60,6 @@ enum proto_parse_status cursor_read_string(struct cursor *cursor, char **str_, s
 
     if (str_) *str_ = str;
     return PROTO_OK;
-}
-
-void cursor_copy(void *dst, struct cursor *cursor, size_t n)
-{
-    SLOG(LOG_DEBUG, "Copying %zu bytes", n);
-    assert(cursor->cap_len >= n);
-    memcpy(dst, cursor->head, n);
-    cursor->head += n;
-    cursor->cap_len -= n;
-}
-
-void cursor_drop(struct cursor *cursor, size_t n)
-{
-    SLOG(LOG_DEBUG, "Skipping %zu bytes", n);
-    assert(cursor->cap_len >= n);
-    cursor->cap_len -= n;
-    cursor->head += n;
-}
-
-bool cursor_is_empty(struct cursor const *cursor)
-{
-    return cursor->cap_len == 0;
 }
 
 enum proto_parse_status cursor_read_fix_int_n(struct cursor *cursor, uint_least64_t *out_res, unsigned len)
@@ -209,4 +123,3 @@ enum proto_parse_status cursor_read_fix_int_le(struct cursor *cursor, uint_least
     if (out_res) *out_res = res;
     return PROTO_OK;
 }
-
