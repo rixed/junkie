@@ -110,7 +110,7 @@ am_libproto_la_OBJECTS = arp.lo cap.lo cifs.lo dns.lo dns_tcp.lo \
 	postgres.lo mysql.lo tns.lo gre.lo tls.lo pkt_wait_list.lo \
 	streambuf.lo cursor.lo cnxtrack.lo capfile.lo os-detect.lo \
 	discovery.lo hook.lo erspan.lo ber.lo skinny.lo dhcp.lo \
-	fcoe.lo tds.lo tds_msg.lo gtp.lo
+	fcoe.lo tds.lo tds_msg.lo gtp.lo vxlan.lo
 libproto_la_OBJECTS = $(am_libproto_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -354,7 +354,8 @@ libproto_la_SOURCES = \
 	dhcp.c \
 	fcoe.c \
 	tds.c tds_msg.c \
-	gtp.c
+	gtp.c \
+	vxlan.c
 
 libproto_la_LIBADD = ../tools/libjunkietools.la
 libproto_la_LDFLAGS = -export-dynamic
@@ -459,6 +460,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tls.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tns.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/udp.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vxlan.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.o$$||'`;\
