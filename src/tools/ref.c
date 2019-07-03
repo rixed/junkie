@@ -64,7 +64,7 @@ void doomer_run(void)
     enter_mono_region();
 
     SLOG(LOG_DEBUG, "Deleting doomed objects...");
-    unsigned nb_dels = 0, nb_rescued = 0;
+    unsigned num_dels = 0, num_rescued = 0;
 
     // Bench time spent scanning death_row
     uint64_t start = bench_event_start();
@@ -78,14 +78,14 @@ void doomer_run(void)
         SLIST_REMOVE_HEAD(&death_row, entry);
         if (r->count == 0) {
             SLIST_INSERT_HEAD(&to_kill, r, entry);
-            nb_dels ++;
+            num_dels ++;
         } else {
             r->entry.sle_next = NOT_IN_DEATH_ROW;
-            nb_rescued ++;
+            num_rescued ++;
         }
     }
 
-    SLOG(nb_dels + nb_rescued > 0 ? LOG_INFO:LOG_DEBUG, "Deleted %u objects, rescued %u", nb_dels, nb_rescued);
+    SLOG(num_dels + num_rescued > 0 ? LOG_INFO:LOG_DEBUG, "Deleted %u objects, rescued %u", num_dels, num_rescued);
 
     bench_event_stop(&dooming, start);
 

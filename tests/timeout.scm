@@ -11,10 +11,10 @@
 
 (set-quit-when-done #f)
 
-(define (nb-tot-muxers)
+(define (num-tot-muxers)
   (let* ((stats     (map proto-stats (mux-names)))
-         (nb-muxers (map (lambda (s) (assq-ref s 'nb-parsers)) stats)))
-    (apply + nb-muxers)))
+         (num-muxers (map (lambda (s) (assq-ref s 'num-parsers)) stats)))
+    (apply + num-muxers)))
 
 (let ((pcap-dir (string-append (getenv "srcdir") "/pcap/")))
   (for-each-file-in pcap-dir (lambda (dir)
@@ -25,9 +25,9 @@
 
 ; Check that we have only the uniq parsers (which are not deleted once created)
 (let loop ((time-elapsed 0))
-  (let* ((nb-muxers (nb-tot-muxers)))
-    (simple-format #t "~a multiplexers left after ~as~%" nb-muxers time-elapsed)
-    (if (> nb-muxers 3) ; should be 1 (Capture) but for some reason we have 1 or 2 IPv4 parsers left (FIXME)
+  (let* ((num-muxers (num-tot-muxers)))
+    (simple-format #t "~a multiplexers left after ~as~%" num-muxers time-elapsed)
+    (if (> num-muxers 3) ; should be 1 (Capture) but for some reason we have 1 or 2 IPv4 parsers left (FIXME)
         (begin
           (if (> time-elapsed 10)
               (begin

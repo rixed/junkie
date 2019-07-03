@@ -24,8 +24,8 @@ struct mallocer {
     LIST_HEAD(mallocer_blocks, mallocer_block) blocks;
     SLIST_ENTRY(mallocer) entry;
     size_t tot_size;
-    unsigned nb_blocks;
-    unsigned nb_allocs;
+    unsigned num_blocks;
+    unsigned num_allocs;
     char const *name;
     bool inited;
     struct mutex mutex;
@@ -36,8 +36,8 @@ struct mallocer {
     struct mallocer mallocer_##name_ = { \
         .blocks = LIST_HEAD_INITIALIZER(&mallocer_##name_.blocks), \
         .tot_size = 0, \
-        .nb_blocks = 0, \
-        .nb_allocs = 0, \
+        .num_blocks = 0, \
+        .num_allocs = 0, \
         .name = #name_, \
         .inited = false, \
     }

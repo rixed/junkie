@@ -58,17 +58,17 @@ static int cli_set_refresh(char const *v)
     return 0;
 }
 
-static uint64_t nb_nodups, nb_dups;
+static uint64_t num_nodups, num_dups;
 static uint64_t sz_nodups, sz_dups;
-static unsigned nb_buckets;
+static unsigned num_buckets;
 static unsigned *dups;
 static struct mutex dup_lock;   // protects dups (since it can be reallocated anytime)
 
 static void dup_reset_locked(void)
 {
-    nb_nodups = nb_dups = 0;
+    num_nodups = num_dups = 0;
     sz_nodups = sz_dups = 0;
-    memset(dups, 0, nb_buckets * sizeof(*dups));
+    memset(dups, 0, num_buckets * sizeof(*dups));
 }
 
 static void dup_reset(void)
@@ -100,9 +100,9 @@ static void init(void)
             bucket_width = 1;
         }
     }
-    nb_buckets = CEIL_DIV(max_dup_delay, bucket_width);
+    num_buckets = CEIL_DIV(max_dup_delay, bucket_width);
     if (dups) free(dups);
-    dups = malloc(nb_buckets * sizeof(*dups));
+    dups = malloc(num_buckets * sizeof(*dups));
     assert(dups);
     dup_reset_locked();
 }
@@ -136,7 +136,7 @@ static void do_display(struct timeval const *now)
 
     printf(TOPLEFT CLEAR);
     printf("Duplicogram - Every " BRIGHT "%.2fs" NORMAL " - " BRIGHT "%s" NORMAL, refresh_rate / 1000000., ctime(&now->tv_sec));
-    printf(BRIGHT "dups" NORMAL ":  %12"PRIu64"/%-12"PRIu64" (%6.2f%%)\n", nb_dups, nb_dups+nb_nodups, 100.*(double)nb_dups/(nb_dups+nb_nodups));
+    printf(BRIGHT "dups" NORMAL ":  %12"PRIu64"/%-12"PRIu64" (%6.2f%%)\n", num_dups, num_dups+num_nodups, 100.*(double)num_dups/(num_dups+num_nodups));
     printf(BRIGHT "bytes" NORMAL ": %12"PRIu64"/%-12"PRIu64" (%6.2f%%)\n", sz_dups, sz_dups+sz_nodups, 100.*(double)sz_dups/(sz_dups+sz_nodups));
 
     unsigned lines, columns;
@@ -154,7 +154,7 @@ static void do_display(struct timeval const *now)
     // look for max dups
     static unsigned dups_max = 0;
     unsigned cur_dups_max = 0;
-    for (unsigned b = 0; b < nb_buckets; b++) {
+    for (unsigned b = 0; b < num_buckets; b++) {
         if (dups[b] > cur_dups_max) cur_dups_max = dups[b];
     }
     if (dups_max == 0) {
@@ -220,7 +220,7 @@ static void cap_callback(struct proto_subscriber unused_ *s, struct proto_info c
 
     mutex_lock(&dup_lock);
     init();
-    nb_nodups ++;
+    num_nodups ++;
     sz_nodups += cap_len;
     mutex_unlock(&dup_lock);
 }
@@ -230,8 +230,8 @@ static void dup_callback(struct proto_subscriber unused_ *s, struct proto_info c
     struct dedup_proto_info *dedup = DOWNCAST(last, info, dedup_proto_info);
     mutex_lock(&dup_lock);
     init();
-    unsigned const b = MIN(nb_buckets-1, dedup->dt / bucket_width);
-    nb_dups ++;
+    unsigned const b = MIN(num_buckets-1, dedup->dt / bucket_width);
+    num_dups ++;
     sz_dups += cap_len;
     dups[b] ++;
     mutex_unlock(&dup_lock);
@@ -246,17 +246,17 @@ static struct ext_function sg_get_duplicogram;
 static SCM g_get_duplicogram(void)
 {
     SCM lst = SCM_EOL;
-    uint64_t const nb_pkts = nb_nodups + nb_dups;
+    uint64_t const num_pkts = num_nodups + num_dups;
 
     scm_dynwind_begin(0);
     mutex_lock(&dup_lock);
     scm_dynwind_unwind_handler(pthread_mutex_unlock_, &dup_lock.mutex, SCM_F_WIND_EXPLICITLY);
 
     unsigned dt = bucket_width/2;
-    for (unsigned x = 0; x < nb_buckets; x++, dt += bucket_width) {
+    for (unsigned x = 0; x < num_buckets; x++, dt += bucket_width) {
         lst = scm_cons(
                 scm_cons(scm_from_uint(dt),
-                         scm_from_double(nb_pkts > 0 ? (double)dups[x] / nb_pkts : 0.)),
+                         scm_from_double(num_pkts > 0 ? (double)dups[x] / num_pkts : 0.)),
                 lst);
     }
 

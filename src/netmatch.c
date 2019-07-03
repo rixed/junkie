@@ -44,17 +44,17 @@ int netmatch_filter_ctor(struct netmatch_filter *netmatch, char const *libname)
         goto err2;
     }
 
-    unsigned const *nb_regs_ptr = lt_dlsym(netmatch->handle, "nb_registers");
-    if (! nb_regs_ptr) {
-        SLOG(LOG_CRIT, "Cannot find nb_registers symbol in netmatch shared object %s", libname);
+    unsigned const *num_regs_ptr = lt_dlsym(netmatch->handle, "num_registers");
+    if (! num_regs_ptr) {
+        SLOG(LOG_CRIT, "Cannot find num_registers symbol in netmatch shared object %s", libname);
         goto err2;
     }
 
-    netmatch->nb_registers = *nb_regs_ptr;
-    if (netmatch->nb_registers > 0) {
-        netmatch->regfile = objalloc_nice(netmatch->nb_registers * sizeof(*netmatch->regfile), "netmatches");
+    netmatch->num_registers = *num_regs_ptr;
+    if (netmatch->num_registers > 0) {
+        netmatch->regfile = objalloc_nice(netmatch->num_registers * sizeof(*netmatch->regfile), "netmatches");
         if (! netmatch->regfile) goto err3;
-        memset(netmatch->regfile, 0, netmatch->nb_registers * sizeof(*netmatch->regfile));
+        memset(netmatch->regfile, 0, netmatch->num_registers * sizeof(*netmatch->regfile));
     } else {
         netmatch->regfile = NULL;
     }

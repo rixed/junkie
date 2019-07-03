@@ -44,7 +44,7 @@ struct nt_vertex {
     npc_match_fn *entry_fn, *timeout_fn;
     int64_t timeout;   // if >0, number of seconds to keep an inactive state in here
     unsigned index_size;   // the index size (>=1)
-    unsigned nb_states;
+    unsigned num_states;
     TAILQ_HEAD(nt_states_tq, nt_state) age_list;    // states are ordered here according to their date of entry
     struct nt_states_tq index[];  // the states currently waiting in this node (BEWARE: variable size!)
 };
@@ -63,7 +63,7 @@ struct nt_edge {
     bool grab;   // stop looking for other possible transitions
     unsigned death_range;  // terminate all descendants of my Nth parent (if 0, kill all my descendants). if ~0, no kill at all.
     // for statistics
-    uint64_t nb_matches, nb_tries;
+    uint64_t num_matches, num_tries;
 };
 
 struct nt_graph {
@@ -72,12 +72,12 @@ struct nt_graph {
     LIST_ENTRY(nt_graph) entry; // in the list of all started graphs
     bool started;
     struct nt_edges edges;
-    unsigned nb_registers;
+    unsigned num_registers;
     lt_dlhandle lib;
     unsigned default_index_size;    // index size if not specified in the vertex
     uint64_t run_id;                // to uniquely (hum) identifies the successive updating runs
     // for statistics
-    uint64_t nb_frames;
+    uint64_t num_frames;
     // The hooks
     // We need to register a callback for every parsers, then try all nodes whose last proto matches the called one.
     struct nt_parser_hook {

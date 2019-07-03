@@ -165,9 +165,9 @@ static char const *query_query_2_str(struct sql_proto_info const *info)
 
 static char const *query_reply_2_str(struct sql_proto_info const *info)
 {
-    return tempstr_printf(", nb_rows=%d, nb_fields=%d",
-        info->set_values & SQL_NB_ROWS   ? (int)info->u.query.nb_rows : -1,
-        info->set_values & SQL_NB_FIELDS ? (int)info->u.query.nb_fields : -1);
+    return tempstr_printf(", num_rows=%d, num_fields=%d",
+        info->set_values & SQL_NB_ROWS   ? (int)info->u.query.num_rows : -1,
+        info->set_values & SQL_NB_FIELDS ? (int)info->u.query.num_fields : -1);
 }
 
 static char const *exit_2_str(struct sql_proto_info const unused_ *info)
@@ -451,10 +451,10 @@ static enum proto_parse_status pg_parse_startup(struct pgsql_parser *pg_parser, 
     return proto_parse(NULL, &info->info, way, NULL, 0, 0, now, tot_cap_len, tot_packet);
 }
 
-// nb_rows is always the last word of result
-static enum proto_parse_status fetch_nb_rows(char const *result, unsigned *nb_rows)
+// num_rows is always the last word of result
+static enum proto_parse_status fetch_num_rows(char const *result, unsigned *num_rows)
 {
-    SLOG(LOG_DEBUG, "Looking for nb_rows in '%s'", result);
+    SLOG(LOG_DEBUG, "Looking for num_rows in '%s'", result);
 
     char const *last_space = NULL;
     for (char const *c = result; *c != '\0'; c++) {
@@ -464,10 +464,10 @@ static enum proto_parse_status fetch_nb_rows(char const *result, unsigned *nb_ro
     if (! last_space) return PROTO_PARSE_ERR;
 
     char *end;
-    *nb_rows = strtoul(last_space+1, &end, 10);
+    *num_rows = strtoul(last_space+1, &end, 10);
     if (*end != '\0') return PROTO_PARSE_ERR;
 
-    SLOG(LOG_DEBUG, "Fetching nb_rows = %u", *nb_rows);
+    SLOG(LOG_DEBUG, "Fetching num_rows = %u", *num_rows);
     return PROTO_OK;
 }
 
@@ -513,26 +513,26 @@ static enum proto_parse_status pg_parse_query(struct pgsql_parser *pg_parser, st
             }
 
             uint8_t const *const msg_end = cursor.head + len;
-            if (type == 'T') {  // row description (fetch nb_fields)
+            if (type == 'T') {  // row description (fetch num_fields)
                 if (len < 2) return PROTO_PARSE_ERR;
-                info->u.query.nb_fields = cursor_read_u16n(&cursor);
+                info->u.query.num_fields = cursor_read_u16n(&cursor);
                 info->set_values |= SQL_NB_FIELDS;
-                SLOG(LOG_DEBUG, "Setting nb_fields to %u", info->u.query.nb_fields);
+                SLOG(LOG_DEBUG, "Setting num_fields to %u", info->u.query.num_fields);
             } else if (type == 'D') {   // data row
                 if (len < 2) return PROTO_PARSE_ERR;
                 if (! (info->set_values & SQL_NB_ROWS)) {
                     info->set_values |= SQL_NB_ROWS;
-                    info->u.query.nb_rows = 0;
+                    info->u.query.num_rows = 0;
                 }
-                info->u.query.nb_rows ++;
-                SLOG(LOG_DEBUG, "Incrementing nb_rows (now %u)", info->u.query.nb_rows);
-            } else if (type == 'C') {   // command complete (fetch nb rows)
+                info->u.query.num_rows ++;
+                SLOG(LOG_DEBUG, "Incrementing num_rows (now %u)", info->u.query.num_rows);
+            } else if (type == 'C') {   // command complete (fetch number of rows)
                 char *result;
                 info->set_values |= SQL_REQUEST_STATUS;
                 info->request_status = SQL_REQUEST_COMPLETE;
                 status = cursor_read_string(&cursor, &result, len);
                 if (status != PROTO_OK) return status;
-                status = fetch_nb_rows(result, &info->u.query.nb_rows);
+                status = fetch_num_rows(result, &info->u.query.num_rows);
                 if (status == PROTO_OK) {
                     info->set_values |= SQL_NB_ROWS;
                 } else {

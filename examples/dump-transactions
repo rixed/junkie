@@ -158,7 +158,7 @@ file will be created every $CSV_DURATION seconds (60 by default).
         l4-pld))
 
 (define-public (print-tcp device vlan-id client-mac client-ip server-mac
-                          server-ip client-port server-port sock-syn nb-syns
+                          server-ip client-port server-port sock-syn num-syns
                           dt)
   (let ((dt (/ dt 1000000.))) ; convert microsecs to secs
     (dump tcp-tfd
@@ -171,7 +171,7 @@ file will be created every $CSV_DURATION seconds (60 by default).
           (eth->string server-mac)
           (ip->string server-ip)
           server-port
-          nb-syns
+          num-syns
           dt))) ; dt measures the connection time
 
 (define-public (print-flow device vlan-id eth-src ip-src eth-dst ip-dst
@@ -209,7 +209,7 @@ file will be created every $CSV_DURATION seconds (60 by default).
         sni))
 
 (define-public (print-x509 ts device vlan-id client-mac client-ip server-mac
-                           server-ip server-port cert-num nb-certs
+                           server-ip server-port cert-num num-certs
                            serial-number not-before not-after subject issuer)
   (dump x509-tfd
         (timestamp->float ts)
@@ -221,7 +221,7 @@ file will be created every $CSV_DURATION seconds (60 by default).
         (ip->string server-ip)
         server-port
         cert-num
-        nb-certs
+        num-certs
         serial-number
         (ber-time->string not-before)
         (ber-time->string not-after)
@@ -568,11 +568,11 @@ file will be created every $CSV_DURATION seconds (60 by default).
      (vlan uint)
      (sock-syn timestamp)
      (sock-ack timestamp)
-     (nb-syns uint)]
+     (num-syns uint)]
     [(tcp-opened
-       (on-entry (apply (dump-transactions) print-tcp device vlan client-mac client-ip server-mac server-ip client-port server-port sock-syn nb-syns (sock-ack - sock-syn))))
+       (on-entry (apply (dump-transactions) print-tcp device vlan client-mac client-ip server-mac server-ip client-port server-port sock-syn num-syns (sock-ack - sock-syn))))
      (tcp-connecting
-       (on-timeout (apply (dump-transactions) print-tcp device vlan client-mac client-ip server-mac server-ip client-port server-port sock-syn nb-syns (sock-ack - sock-syn)))
+       (on-timeout (apply (dump-transactions) print-tcp device vlan client-mac client-ip server-mac server-ip client-port server-port sock-syn num-syns (sock-ack - sock-syn)))
        (index-size 20000)
        ; timeout an outstanding SYN after 80s
        (timeout 80000000))]
@@ -591,7 +591,7 @@ file will be created every $CSV_DURATION seconds (60 by default).
                                     (vlan := eth.vlan)
                                     (sock-syn := cap.ts)
                                     (sock-ack := cap.ts) ; FIXME: 0 instead
-                                    (nb-syns := 1)
+                                    (num-syns := 1)
                                     #t)))
         (dst-index-on () (hash client-ip client-port server-ip server-port))
         spawn)
@@ -604,7 +604,7 @@ file will be created every $CSV_DURATION seconds (60 by default).
                             (tcp.src-port == client-port)
                             (tcp.dst-port == server-port))
                           (do
-                            (nb-syns := (nb-syns + 1))
+                            (num-syns := (num-syns + 1))
                             #t)))
         (src-index-on (ip tcp) (hash ip.src tcp.src-port ip.dst tcp.dst-port))
         grab)
@@ -617,7 +617,7 @@ file will be created every $CSV_DURATION seconds (60 by default).
                             (tcp.src-port == server-port)
                             (tcp.dst-port == client-port))
                           (do
-                            (nb-syns := (nb-syns + 1))
+                            (num-syns := (num-syns + 1))
                             #t)))
         (src-index-on (ip tcp) (hash ip.dst tcp.dst-port ip.src tcp.src-port))
         grab)
@@ -649,20 +649,20 @@ file will be created every $CSV_DURATION seconds (60 by default).
      (vlan uint)
      (start timestamp)
      (stop timestamp)
-     (nb-pkts uint)
+     (num-pkts uint)
      (pld uint)]
     [(tcp-tx
-       (on-timeout (apply (dump-transactions) print-flow device vlan src-mac src-ip dst-mac dst-ip ip-proto src-port dst-port start stop nb-pkts pld))
+       (on-timeout (apply (dump-transactions) print-flow device vlan src-mac src-ip dst-mac dst-ip ip-proto src-port dst-port start stop num-pkts pld))
        (index-size 20000)
        ; timeout an outstanding tcp tx after 500ms
        (timeout 500000))
      (udp-tx
-       (on-timeout (apply (dump-transactions) print-flow device vlan src-mac src-ip dst-mac dst-ip ip-proto src-port dst-port start stop nb-pkts pld))
+       (on-timeout (apply (dump-transactions) print-flow device vlan src-mac src-ip dst-mac dst-ip ip-proto src-port dst-port start stop num-pkts pld))
        (index-size 20000)
        ; timeout an outstanding udp tx after 500ms
        (timeout 500000))
      (dt-end
-       (on-entry (apply (dump-transactions) print-flow device vlan src-mac src-ip dst-mac dst-ip ip-proto src-port dst-port start stop nb-pkts pld)))]
+       (on-entry (apply (dump-transactions) print-flow device vlan src-mac src-ip dst-mac dst-ip ip-proto src-port dst-port start stop num-pkts pld)))]
     ; edges
     [(root tcp-tx
         (match (cap eth ip tcp) (if
@@ -679,7 +679,7 @@ file will be created every $CSV_DURATION seconds (60 by default).
                                     (ip-proto := ip.proto)
                                     (start := cap.ts)
                                     (stop := cap.ts)
-                                    (nb-pkts := 1)
+                                    (num-pkts := 1)
                                     (pld := tcp.payload)
                                     #t)))
         (dst-index-on () (hash src-ip src-port dst-ip dst-port))
@@ -694,7 +694,7 @@ file will be created every $CSV_DURATION seconds (60 by default).
                                 (tcp.dst-port == dst-port))
                               (do
                                 (stop := cap.ts)
-                                (nb-pkts := (nb-pkts + 1))
+                                (num-pkts := (num-pkts + 1))
                                 (pld := (pld + tcp.payload))
                                 #t)))
         (src-index-on (ip tcp) (hash ip.src tcp.src-port ip.dst tcp.dst-port))
@@ -724,7 +724,7 @@ file will be created every $CSV_DURATION seconds (60 by default).
                                     (ip-proto := ip.proto)
                                     (start := cap.ts)
                                     (stop := cap.ts)
-                                    (nb-pkts := 1)
+                                    (num-pkts := 1)
                                     (pld := udp.payload)
                                     #t)))
         (dst-index-on () (hash src-ip src-port dst-ip dst-port))
@@ -739,7 +739,7 @@ file will be created every $CSV_DURATION seconds (60 by default).
                                 (udp.dst-port == dst-port))
                               (do
                                 (stop := cap.ts)
-                                (nb-pkts := (nb-pkts + 1))
+                                (num-pkts := (num-pkts + 1))
                                 (pld := (pld + udp.payload))
                                 #t)))
         (src-index-on (ip udp) (hash ip.src udp.src-port ip.dst udp.dst-port))
@@ -764,7 +764,7 @@ file will be created every $CSV_DURATION seconds (60 by default).
      (server-ip ip)
      (server-port uint)
      (ts timestamp)
-     (nb-certs uint)
+     (num-certs uint)
      (serial-number-0 ber-uint)
      (not-before-0 ber-time)
      (not-after-0 ber-time)
@@ -788,26 +788,26 @@ file will be created every $CSV_DURATION seconds (60 by default).
     [(tls-handshake
        (on-entry
          (do
-           (if (> nb-certs 0)
+           (if (> num-certs 0)
              (apply (dump-transactions)
                     print-x509 ts device vlan client-mac client-ip server-mac server-ip server-port
-                    0 nb-certs serial-number-0 not-before-0 not-after-0 subject-0 issuer-0))
-           (if (> nb-certs 1)
+                    0 num-certs serial-number-0 not-before-0 not-after-0 subject-0 issuer-0))
+           (if (> num-certs 1)
              (apply (dump-transactions)
                     print-x509 ts device vlan client-mac client-ip server-mac server-ip server-port
-                    1 nb-certs serial-number-1 not-before-1 not-after-1 subject-1 issuer-1))
-           (if (> nb-certs 2)
+                    1 num-certs serial-number-1 not-before-1 not-after-1 subject-1 issuer-1))
+           (if (> num-certs 2)
              (apply (dump-transactions)
                     print-x509 ts device vlan client-mac client-ip server-mac server-ip server-port
-                    2 nb-certs serial-number-2 not-before-2 not-after-2 subject-2 issuer-2))
-           (if (> nb-certs 3)
+                    2 num-certs serial-number-2 not-before-2 not-after-2 subject-2 issuer-2))
+           (if (> num-certs 3)
              (apply (dump-transactions)
                     print-x509 ts device vlan client-mac client-ip server-mac server-ip server-port
-                    3 nb-certs serial-number-3 not-before-3 not-after-3 subject-3 issuer-3)))))]
+                    3 num-certs serial-number-3 not-before-3 not-after-3 subject-3 issuer-3)))))]
     ; edges
     [(root tls-handshake
         (match (cap eth ip tcp tls) (if
-                                      (set? tls.nb-certs)
+                                      (set? tls.num-certs)
                                       (do
                                         (client-ip := ip.dst)
                                         (client-mac := eth.dst)
@@ -817,8 +817,8 @@ file will be created every $CSV_DURATION seconds (60 by default).
                                         (device := cap.dev)
                                         (vlan := eth.vlan)
                                         (ts := cap.ts)
-                                        (nb-certs := tls.nb-certs)
-                                        (if (> tls.nb-certs 0)
+                                        (num-certs := tls.num-certs)
+                                        (if (> tls.num-certs 0)
                                           (do
                                             (serial-number-0 := tls.serial-number-0)
                                             (not-before-0 := tls.not-before-0)
@@ -826,7 +826,7 @@ file will be created every $CSV_DURATION seconds (60 by default).
                                             (subject-0 := tls.subject-0)
                                             (issuer-0 := tls.issuer-0)
                                             #t))
-                                        (if (> tls.nb-certs 1)
+                                        (if (> tls.num-certs 1)
                                           (do
                                             (serial-number-1 := tls.serial-number-1)
                                             (not-before-1 := tls.not-before-1)
@@ -834,7 +834,7 @@ file will be created every $CSV_DURATION seconds (60 by default).
                                             (subject-1 := tls.subject-1)
                                             (issuer-1 := tls.issuer-1)
                                             #t))
-                                        (if (> tls.nb-certs 2)
+                                        (if (> tls.num-certs 2)
                                           (do
                                             (serial-number-2 := tls.serial-number-2)
                                             (not-before-2 := tls.not-before-2)
@@ -842,7 +842,7 @@ file will be created every $CSV_DURATION seconds (60 by default).
                                             (subject-2 := tls.subject-2)
                                             (issuer-2 := tls.issuer-2)
                                             #t))
-                                        (if (> tls.nb-certs 3)
+                                        (if (> tls.num-certs 3)
                                           (do
                                             (serial-number-3 := tls.serial-number-3)
                                             (not-before-3 := tls.not-before-3)

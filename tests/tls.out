@@ -11,7 +11,7 @@ TLS: head_len=37, payload=0, version=3.1, content-type=alert
 -- pcap/https/certificate.pcap --
 TLS: head_len=163, payload=0, version=3.1, content-type=handshake, SNI=github.com
 TLS: head_len=58, payload=0, version=3.1, content-type=handshake, cipher_suite=RSA_WITH_RC4_128_SHA, compression_algo=none
-TLS: head_len=3623, payload=0, version=3.1, content-type=handshake, nb_certs=2, serial_number_0=0x0e77768a5d07f0e57959ca2a9d5082b5, issuer_0=DigiCert High Assurance EV CA-1, subject_0=github.com, not_before_0=2011-05-27 00:00:00, not_after_0=2013-07-29 12:00:00, serial_number_1=0x08bbb02547134bc9b110d7c1a21259c5, issuer_1=DigiCert High Assurance EV Root CA, subject_1=DigiCert High Assurance EV CA-1, not_before_1=2006-11-10 00:00:00, not_after_1=2021-11-10 00:00:00
+TLS: head_len=3623, payload=0, version=3.1, content-type=handshake, num_certs=2, serial_number_0=0x0e77768a5d07f0e57959ca2a9d5082b5, issuer_0=DigiCert High Assurance EV CA-1, subject_0=github.com, not_before_0=2011-05-27 00:00:00, not_after_0=2013-07-29 12:00:00, serial_number_1=0x08bbb02547134bc9b110d7c1a21259c5, issuer_1=DigiCert High Assurance EV Root CA, subject_1=DigiCert High Assurance EV CA-1, not_before_1=2006-11-10 00:00:00, not_after_1=2021-11-10 00:00:00
 TLS: head_len=267, payload=0, version=3.1, content-type=handshake
 TLS: head_len=191, payload=0, version=3.1, content-type=handshake
 TLS: head_len=1251, payload=0, version=3.1, content-type=data
@@ -19,7 +19,7 @@ TLS: head_len=11270, payload=0, version=3.1, content-type=data
 -- pcap/https/tlsv1.pcap --
 TLS: head_len=167, payload=0, version=3.1, content-type=handshake, SNI=www.google.com
 TLS: head_len=70, payload=0, version=3.1, content-type=handshake, cipher_suite=Unknown cipher suite 0xc011, compression_algo=none
-TLS: head_len=1630, payload=0, version=3.1, content-type=handshake, nb_certs=2, serial_number_0=0x4f9d96d966b0992b54c2957cb4157d4d, issuer_0=Thawte SGC CA, subject_0=www.google.com, not_before_0=2011-10-26 00:00:00, not_after_0=2013-09-30 23:59:59, serial_number_1=0x30000002, issuer_1=, subject_1=Thawte SGC CA, not_before_1=2004-05-13 00:00:00, not_after_1=2014-05-12 23:59:59
+TLS: head_len=1630, payload=0, version=3.1, content-type=handshake, num_certs=2, serial_number_0=0x4f9d96d966b0992b54c2957cb4157d4d, issuer_0=Thawte SGC CA, subject_0=www.google.com, not_before_0=2011-10-26 00:00:00, not_after_0=2013-09-30 23:59:59, serial_number_1=0x30000002, issuer_1=, subject_1=Thawte SGC CA, not_before_1=2004-05-13 00:00:00, not_after_1=2014-05-12 23:59:59
 TLS: head_len=75, payload=0, version=3.1, content-type=handshake
 TLS: head_len=179, payload=0, version=3.1, content-type=handshake
 TLS: head_len=1138, payload=0, version=3.1, content-type=data

@@ -196,8 +196,8 @@ enum proto_parse_status streambuf_add(struct streambuf *sbuf, struct parser *par
     struct streambuf_unidir *dir = sbuf->dir+way;
 
     size_t uncap_len = wire_len - cap_len;
-    unsigned nb_max_restart = 10;
-    while (nb_max_restart--) {
+    unsigned num_max_restart = 10;
+    while (num_max_restart--) {
         // We may want to restart in the middle of uncaptured bytes (either because we just added a gap or because or a previous set_restart.
         size_t offset = dir->restart_offset;
         dir->wait = false;

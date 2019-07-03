@@ -36,7 +36,7 @@ static void supermutex_check(void)
     supermutex_unlock(&super1);
     supermutex_unlock(&super1);
     supermutex_unlock(&super1);
-    assert(my_supermutex_user->nb_locks == 0);
+    assert(my_supermutex_user->num_locks == 0);
 
     // Now check deadlock
     assert(0 == supermutex_lock(&super1));  // take super1

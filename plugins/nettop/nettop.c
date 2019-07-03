@@ -43,7 +43,7 @@ static bool display_help;
  */
 
 static int64_t refresh_rate = 1000000;  // 1 sec
-static unsigned nb_entries = 0;         // from nb_lines
+static unsigned num_entries = 0;         // from num_lines
 static bool use_dev = false;            // key use device id
 static bool use_vlan = false;           // key use vlan id
 static bool use_mac_src = false;        // key use mac src addr
@@ -95,7 +95,7 @@ static int cli_set_refresh(char const *v)
 
 static struct cli_opt nettop_opts[] = {
     { { "interval",     "d" },  "seconds", "update interval (default: 1)", CLI_CALL,     { .call = &cli_set_refresh } },
-    { { "nb-entries",   "n" },  NEEDS_ARG, "number of entries to display (default: as many fit the screen)", CLI_SET_UINT, { .uint = &nb_entries } },
+    { { "num-entries",   "n" },  NEEDS_ARG, "number of entries to display (default: as many fit the screen)", CLI_SET_UINT, { .uint = &num_entries } },
     { { "use-dev",      NULL }, NEEDS_ARG, "use network device in the key", CLI_SET_BOOL, { .boolean = &use_dev } },
     { { "use-vlan",     NULL }, NEEDS_ARG, "use VLAN id in the key", CLI_SET_BOOL, { .boolean = &use_vlan } },
     { { "use-src-mac",  NULL }, NEEDS_ARG, "use source MAC in the key", CLI_SET_BOOL, { .boolean = &use_mac_src } },
@@ -338,13 +338,13 @@ static int cell_cmp(void const *c1_, void const *c2_)
 
 static void do_display_top(struct timeval const *now)
 {
-    unsigned nb_lines, nb_columns;
-    get_window_size(&nb_columns, &nb_lines);
-    if (nb_lines < 5) nb_lines = 25;    // probably get_window_size failed?
+    unsigned num_lines, num_columns;
+    get_window_size(&num_columns, &num_lines);
+    if (num_lines < 5) num_lines = 25;    // probably get_window_size failed?
 
-    unsigned nbe = nb_entries;
-    if (! nb_entries) { // from nb_lines
-        nbe = nb_lines - 5;
+    unsigned nbe = num_entries;
+    if (! num_entries) { // from num_lines
+        nbe = num_lines - 5;
     }
 
     // look for nbe top hitters
@@ -395,7 +395,7 @@ static void do_display_top(struct timeval const *now)
     start_counting = *now;
 
     unsigned const proto_len = 10 + (use_proto_stack && !shorten_proto_stack ? 30:0);
-    unsigned const addrs_len = nb_columns - 23 - proto_len - (use_vlan ? 5:0) - (use_dev ? 5:0) - (bidirectional ? 1:0);
+    unsigned const addrs_len = num_columns - 23 - proto_len - (use_vlan ? 5:0) - (use_dev ? 5:0) - (bidirectional ? 1:0);
     unsigned const addr_len = (addrs_len - 3) / 2;
     unsigned c = 0;
     printf(REVERSE);
@@ -406,7 +406,7 @@ static void do_display_top(struct timeval const *now)
     c += printf("%*s", addr_len+1, "Source");
     c += printf("   ");
     c += printf("%-*s", addr_len, " Destination");
-    for (; c < nb_columns; c++) printf(" ");
+    for (; c < num_columns; c++) printf(" ");
     printf(NORMAL "\n");
     for (unsigned e = 0; e < last_e; e++) {
         nettop_cell_print(&top[e], proto_len, addr_len);

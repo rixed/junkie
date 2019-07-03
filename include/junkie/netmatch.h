@@ -28,7 +28,7 @@ typedef uintptr_t npc_match_fn(struct proto_info const *info, struct npc_registe
 // handy structure to stores a netmatch in C
 struct netmatch_filter {
     char *libname;
-    unsigned nb_registers;
+    unsigned num_registers;
     struct npc_register *regfile;
     lt_dlhandle handle;
     npc_match_fn *match_fun;

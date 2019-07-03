@@ -10,7 +10,7 @@
 struct sdper {
 
     // For header fields
-    unsigned nb_fields;
+    unsigned num_fields;
 
     struct sdper_field {
         size_t length;

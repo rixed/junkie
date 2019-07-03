@@ -10,14 +10,14 @@
 
 (add-proto-signature "SSLv2" 1 'medium
                      (nm:compile
-                       type:bool '(tcp) '(and ((nb-bytes rest) >= 3)
+                       type:bool '(tcp) '(and ((num-bytes rest) >= 3)
                                               ((rest @ 2) == 4)
                                               (((rest @ 0) & #xc0) == #x40)
-                                              (((((rest @ 0) & #x3f) << 8) + (rest @ 1)) == (nb-bytes rest))))) ; FIXME: we'd rather compare with wire-length!
+                                              (((((rest @ 0) & #x3f) << 8) + (rest @ 1)) == (num-bytes rest))))) ; FIXME: we'd rather compare with wire-length!
 
 (add-proto-signature "TLS" 3 'medium
                      (nm:compile
-                       type:bool '(tcp) '(and ((nb-bytes rest) >= 3)
+                       type:bool '(tcp) '(and ((num-bytes rest) >= 3)
                                               (or
                                                 ((rest @ 0) == 22) ; handshake
                                                 ((rest @ 0) == 23)) ; application data
@@ -29,9 +29,9 @@
 (add-proto-signature "Bittorrent" 4 'medium
                      (nm:compile
                        type:bool '(tcp) '(or
-                                           (and ((nb-bytes rest) >= 6)
+                                           (and ((num-bytes rest) >= 6)
                                                 ((firsts 6 rest) == #(#x00 #x00 #x00 #x0d #x06 #x00)))
-                                           (and ((nb-bytes rest) >= 8)
+                                           (and ((num-bytes rest) >= 8)
                                                 ((firsts 8 rest) == #(#x00 #x00 #x40 #x09 #x07 #x00 #x00 #x00)))
                                            (str-in-bytes rest "BitTorrent Protocol")
                                            (str-in-bytes rest "/announce"))))
@@ -45,11 +45,11 @@
 (add-proto-signature "Gnutella" 5 'low ; until proven otherwise
                      (nm:compile
                        type:bool '(tcp) '(or
-                                           (and ((nb-bytes rest) >= 4)
+                                           (and ((num-bytes rest) >= 4)
                                                 ((firsts 3 rest) == #(#x67 #x6e #x64))
                                                 (or ((rest @ 3) == 1)
                                                     ((rest @ 3) == 2)))
-                                           (and ((nb-bytes rest) >= 22)
+                                           (and ((num-bytes rest) >= 22)
                                                 ; "gnutella connect/[012]\.[0-9]\x0d\x0a"
                                                 ((firsts 17 rest) == #(#x67 #x6e #x75 #x74 #x65 #x6c #x6c #x61 #x20 #x63 #x6f #x6e #x6e #x65 #x63 #x74 #x2f))
                                                 ((rest @ 17) >= 48)
@@ -58,14 +58,14 @@
                                                 ((rest @ 19) <= 57)
                                                 ((rest @ 20) == 13)
                                                 ((rest @ 21) == 10))
-                                           (and ((nb-bytes rest) >= 26)
+                                           (and ((num-bytes rest) >= 26)
                                                 ; "get /uri-res/n2r\?urn:sha1:"
                                                 ((firsts 26 rest) == #(#x67 #x65 #x74 #x20 #x2f #x75 #x72 #x69 #x2d #x72 #x65 #x73 #x2f #x6e #x32 #x72 #x3f #x75 #x72 #x6e #x3a #x73 #x68 #x61 #x31 #x3a)))
-                                           (and ((nb-bytes rest) >= 44)
+                                           (and ((num-bytes rest) >= 44)
                                                 ; gnutella.*content-type: application/x-gnutella
                                                 ((firsts 8 rest) == #(#x67 #x6e #x75 #x74 #x65 #x6c #x6c #x61))
                                                 (str-in-bytes rest "content-type: application/x-gnutella"))
-                                           (and ((nb-bytes rest) >= 5)
+                                           (and ((num-bytes rest) >= 5)
                                                 ((firsts 5 rest) == #(#x67 #x65 #x74 #x20 #x2f))
                                                 (or (str-in-bytes rest "content-type: application/x-gnutella-packets")
                                                     (str-in-bytes rest "user-agent: gtk-gnutella")
@@ -81,7 +81,7 @@
                        type:bool '(udp) '(and ((udp.src-port & 1) == 0)
                                               ((udp.dst-port & 1) == 0)
                                               ; ^\x80[\x01-"`-\x7f\x80-\xa2\xe0-\xff]?..........*\x80
-                                              ((nb-bytes rest) >= 11)
+                                              ((num-bytes rest) >= 11)
                                               ((rest @ 0) == #x80)))) ; the rest does not worth the trouble
 
 ; Discovery of HTTP payload
@@ -134,19 +134,19 @@
 ; Chat services
 (add-proto-signature "IRC" 11 'low
                      (nm:compile
-                       type:bool '(tcp) '(and ((nb-bytes rest) >= 8)
+                       type:bool '(tcp) '(and ((num-bytes rest) >= 8)
                                               ((firsts 5 rest) == #(#x4e #x49 #x43 #x4b #x20))))) ; "NICK "
 
 (add-proto-signature "Jabber" 12 'low
                      (nm:compile
-                       type:bool '(tcp) '(and ((nb-bytes rest) >= 14)
+                       type:bool '(tcp) '(and ((num-bytes rest) >= 14)
                                               ((firsts 14 rest) == #(#x3c #x73 #x74 #x72 #x65 #x61 #x6d #x3a #x73 #x74 #x72 #x65 #x61 #x6d)))))
 
 
 ; Other, mostly windows related
 (add-proto-signature "VNC" 13 'high
                      (nm:compile
-                       type:bool '(tcp) '(and ((nb-bytes rest) >= 12)
+                       type:bool '(tcp) '(and ((num-bytes rest) >= 12)
                                               ((firsts 6 rest) == #(#x52 #x46 #x42 #x20 #x30 #x30))
                                               ((rest @ 6) >= 49) ; from 1
                                               ((rest @ 6) <= 57) ; to 9
@@ -160,7 +160,7 @@
 ; Detection of Netbios session for smb over tcp
 (add-proto-signature "Netbios" 14 'low
                      (nm:compile
-                       type:bool '(tcp) '(and ((nb-bytes rest) >= 36)
+                       type:bool '(tcp) '(and ((num-bytes rest) >= 36)
                                               ((rest @ 0) == #x00)
                                               ((rest @ 4) == #xff)
                                               ((rest @ 5) == #x53) ; S
@@ -169,7 +169,7 @@
 
 (add-proto-signature "PCanywhere" 15 'medium
                      (nm:compile
-                       type:bool '() '(and ((nb-bytes rest) == 2)
+                       type:bool '() '(and ((num-bytes rest) == 2)
                                            (or ((firsts 2 rest) == #(#x6e #x71))
                                                ((firsts 2 rest) == #(#x73 #x74))))))
 
@@ -179,7 +179,7 @@
 
 (add-proto-signature "Telnet" 17 'low
                      (nm:compile
-                       type:bool '(tcp) '(and ((nb-bytes rest) >= 8)
+                       type:bool '(tcp) '(and ((num-bytes rest) >= 8)
                                               ((rest @ 0) == #xff)
                                               ((rest @ 1) >= #xfb)
                                               ((rest @ 1) <= #xfe)
@@ -192,7 +192,7 @@
 
 (add-proto-signature "BGP" 18 'medium
                      (nm:compile
-                       type:bool '(tcp) '(and ((nb-bytes rest) >= 21)
+                       type:bool '(tcp) '(and ((num-bytes rest) >= 21)
                                               (starts-with rest "\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff")
                                               (or (and ((rest @ 17) == 1)
                                                        ((rest @ 18) >= 3)
@@ -203,17 +203,17 @@
 
 (add-proto-signature "IMAP" 19 'low
                      (nm:compile
-                       type:bool '(tcp) '(and ((nb-bytes rest) >= 4)
+                       type:bool '(tcp) '(and ((num-bytes rest) >= 4)
                                               (starts-with rest "* OK"))))
 
 (add-proto-signature "POP" 20 'low
                      (nm:compile
-                       type:bool '(tcp) '(and ((nb-bytes rest) > 7)
+                       type:bool '(tcp) '(and ((num-bytes rest) > 7)
                                               (starts-with rest "+OK POP"))))
 
 (add-proto-signature "NTP" 21 'low
                      (nm:compile
-                       type:bool '(udp) '(and ((nb-bytes rest) == 48)
+                       type:bool '(udp) '(and ((num-bytes rest) == 48)
                                               (or ((rest @ 0) == #x13)
                                                   ((rest @ 0) == #x14)
                                                   ((rest @ 0) == #x1b)
@@ -238,7 +238,7 @@
                                            ((rest @ 6) == #x00) ; Check that number of answers is < 255
                                            ((rest @ 8) == #x00) ; Check that number of authority RR is < 255
                                            ((rest @ 10) == #x00) ; Check that number of additional RR is < 255
-                                           ((nb-bytes rest) > (endname + 2)) ; Check that we have place for a dns type after
+                                           ((num-bytes rest) > (endname + 2)) ; Check that we have place for a dns type after
                                            (or
                                              (and
                                                ((rest @ (endname + 2) ) >= 1)
@@ -267,8 +267,8 @@
 (add-proto-signature "TNS" 25 'medium
                      (nm:compile
                        type:bool '(tcp) '(and
-                                           ((nb-bytes rest) >= 5)
-                                           ((rest @16n 0) == (nb-bytes rest)) ; Check length
+                                           ((num-bytes rest) >= 5)
+                                           ((rest @16n 0) == (num-bytes rest)) ; Check length
                                            ((rest @16n 2) == 0) ; Checksum is generally to 0...
                                            ((rest @ 4) >= #x01) ; Check data type
                                            ((rest @ 4) <= #x19))))
@@ -276,11 +276,11 @@
 (add-proto-signature "PostgreSQL" 26 'medium
                      (nm:compile
                        type:bool '(tcp) '(and
-                                           ((nb-bytes rest) >= 8)
+                                           ((num-bytes rest) >= 8)
                                            (or
                                              ; Check for startup
                                              (and
-                                               ((rest @32n 0) == (nb-bytes rest)) ; Check length
+                                               ((rest @32n 0) == (num-bytes rest)) ; Check length
                                                ((rest @32n 4) == #x30000)) ; Check protocol version
                                              ; Check for ssl request
                                              (and
@@ -290,14 +290,14 @@
 (add-proto-signature "TDS" 27 'medium
                      (nm:compile
                        type:bool '(tcp) '(and
-                                           ((nb-bytes rest) >= 8) ; Header length
+                                           ((num-bytes rest) >= 8) ; Header length
                                            (or
                                              (and ((rest @ 0) >= 1) ((rest @ 0) <= 4))   ; Batch, Login, Rpc, Result
                                              ((rest @ 0) == 6)                           ; Attention
                                              ((rest @ 0) == 7)                           ; Bulk load
                                              ((rest @ 0) == 14)                          ; Manager Req
                                              (and ((rest @ 0) >= 16) ((rest @ 0) <= 18))); Login, Sspi, Pre login
-                                           ((rest @16n 2) == (nb-bytes rest))
+                                           ((rest @16n 2) == (num-bytes rest))
                                            ((rest @16n 4) < 100) ; Channel number should not be too high...
                                            ((rest @ 6) < 10)))) ; Packet number should not be too high
 

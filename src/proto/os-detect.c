@@ -87,9 +87,9 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           if ((tcp->set_values & TCP_MSS_SET) && tcp->mss == 1460) {
             if ((true /* multiple of MTU not implemented */) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
               if (
-                (0 < tcp->nb_options && tcp->options[0] == 2) &&
-                (1 < tcp->nb_options && tcp->options[1] == 1) &&
-                (2 < tcp->nb_options && tcp->options[2] == 3) &&
+                (0 < tcp->num_options && tcp->options[0] == 2) &&
+                (1 < tcp->num_options && tcp->options[1] == 1) &&
+                (2 < tcp->num_options && tcp->options[2] == 3) &&
                 true) {
                 if (
                   (true) &&
@@ -109,7 +109,7 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           if ((tcp->set_values & TCP_MSS_SET) && tcp->mss == 1024) {
             if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 4)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
               if (
-                (0 < tcp->nb_options && tcp->options[0] == 2) &&
+                (0 < tcp->num_options && tcp->options[0] == 2) &&
                 true) {
                 if (
                   (true) &&
@@ -124,11 +124,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           } else if ((tcp->set_values & TCP_MSS_SET) && tcp->mss == 1430) {
             if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 4)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 6))) {
               if (
-                (0 < tcp->nb_options && tcp->options[0] == 2) &&
-                (1 < tcp->nb_options && tcp->options[1] == 4) &&
-                (2 < tcp->nb_options && tcp->options[2] == 8) &&
-                (3 < tcp->nb_options && tcp->options[3] == 1) &&
-                (4 < tcp->nb_options && tcp->options[4] == 3) &&
+                (0 < tcp->num_options && tcp->options[0] == 2) &&
+                (1 < tcp->num_options && tcp->options[1] == 4) &&
+                (2 < tcp->num_options && tcp->options[2] == 8) &&
+                (3 < tcp->num_options && tcp->options[3] == 1) &&
+                (4 < tcp->num_options && tcp->options[4] == 3) &&
                 true) {
                 if (
                   (true) &&
@@ -143,10 +143,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           } else if ((tcp->set_values & TCP_MSS_SET) && tcp->mss == 1460) {
             if ((tcp->window == 32768) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
               if (
-                (0 < tcp->nb_options && tcp->options[0] == 2) &&
-                (1 < tcp->nb_options && tcp->options[1] == 1) &&
-                (2 < tcp->nb_options && tcp->options[2] == 1) &&
-                (3 < tcp->nb_options && tcp->options[3] == 4) &&
+                (0 < tcp->num_options && tcp->options[0] == 2) &&
+                (1 < tcp->num_options && tcp->options[1] == 1) &&
+                (2 < tcp->num_options && tcp->options[2] == 1) &&
+                (3 < tcp->num_options && tcp->options[3] == 4) &&
                 true) {
                 if (
                   (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -158,9 +158,9 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
                   }
                 }
               } else if (
-                (0 < tcp->nb_options && tcp->options[0] == 2) &&
-                (1 < tcp->nb_options && tcp->options[1] == 1) &&
-                (2 < tcp->nb_options && tcp->options[2] == 3) &&
+                (0 < tcp->num_options && tcp->options[0] == 2) &&
+                (1 < tcp->num_options && tcp->options[1] == 1) &&
+                (2 < tcp->num_options && tcp->options[2] == 3) &&
                 true) {
                 if (
                   (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -174,9 +174,9 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             } else if ((tcp->window == 61440) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
               if (
-                (0 < tcp->nb_options && tcp->options[0] == 2) &&
-                (1 < tcp->nb_options && tcp->options[1] == 1) &&
-                (2 < tcp->nb_options && tcp->options[2] == 3) &&
+                (0 < tcp->num_options && tcp->options[0] == 2) &&
+                (1 < tcp->num_options && tcp->options[1] == 1) &&
+                (2 < tcp->num_options && tcp->options[2] == 3) &&
                 true) {
                 if (
                   (true) &&
@@ -199,13 +199,13 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
         if ((tcp->set_values & TCP_MSS_SET) && tcp->mss == 1452) {
           if ((tcp->window == 65535) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 1) &&
-              (2 < tcp->nb_options && tcp->options[2] == 1) &&
-              (3 < tcp->nb_options && tcp->options[3] == 4) &&
-              (4 < tcp->nb_options && tcp->options[4] == 1) &&
-              (5 < tcp->nb_options && tcp->options[5] == 1) &&
-              (6 < tcp->nb_options && tcp->options[6] == 8) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 1) &&
+              (2 < tcp->num_options && tcp->options[2] == 1) &&
+              (3 < tcp->num_options && tcp->options[3] == 4) &&
+              (4 < tcp->num_options && tcp->options[4] == 1) &&
+              (5 < tcp->num_options && tcp->options[5] == 1) &&
+              (6 < tcp->num_options && tcp->options[6] == 8) &&
               true) {
               if (
                 (true) &&
@@ -220,10 +220,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
         }
         if ((true) && (true)) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -235,12 +235,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -254,10 +254,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if ((tcp->window == 16384) && (true)) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -269,12 +269,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -288,10 +288,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if ((tcp->window == 16384) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -305,10 +305,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if ((tcp->window == 65535) && (true)) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -320,12 +320,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -339,10 +339,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if ((tcp->window == 65535) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -354,12 +354,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -373,12 +373,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if ((tcp->window == 65535) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 1))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -392,12 +392,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if ((tcp->window == 65535) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 2))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -411,10 +411,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if ((tcp->window == 8192) && (true)) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -426,12 +426,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -445,10 +445,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if ((tcp->window == 8192) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -462,12 +462,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if ((tcp->window == 8192) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 2))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -479,11 +479,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
-            (4 < tcp->nb_options && tcp->options[4] == 8) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
+            (4 < tcp->num_options && tcp->options[4] == 8) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -497,12 +497,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if ((tcp->window == 8192) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 8))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -522,8 +522,8 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
         if ((tcp->set_values & TCP_MSS_SET) && tcp->mss == 1331) {
           if ((tcp->window == 1337) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 1) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 1) &&
               true) {
               if (
                 (true) &&
@@ -534,9 +534,9 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
                 }
               }
             } else if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 4) &&
-              (2 < tcp->nb_options && tcp->options[2] == 1) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 4) &&
+              (2 < tcp->num_options && tcp->options[2] == 1) &&
               true) {
               if (
                 (true) &&
@@ -547,10 +547,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
                 }
               }
             } else if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 4) &&
-              (2 < tcp->nb_options && tcp->options[2] == 8) &&
-              (3 < tcp->nb_options && tcp->options[3] == 1) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 4) &&
+              (2 < tcp->num_options && tcp->options[2] == 8) &&
+              (3 < tcp->num_options && tcp->options[3] == 1) &&
               true) {
               if (
                 (true) &&
@@ -561,9 +561,9 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
                 }
               }
             } else if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 8) &&
-              (2 < tcp->nb_options && tcp->options[2] == 1) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 8) &&
+              (2 < tcp->num_options && tcp->options[2] == 1) &&
               true) {
               if (
                 (true) &&
@@ -576,9 +576,9 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
             }
           } else if ((tcp->window == 1337) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 5))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 3) &&
-              (2 < tcp->nb_options && tcp->options[2] == 1) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 3) &&
+              (2 < tcp->num_options && tcp->options[2] == 1) &&
               true) {
               if (
                 (true) &&
@@ -589,10 +589,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
                 }
               }
             } else if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 3) &&
-              (2 < tcp->nb_options && tcp->options[2] == 4) &&
-              (3 < tcp->nb_options && tcp->options[3] == 1) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 3) &&
+              (2 < tcp->num_options && tcp->options[2] == 4) &&
+              (3 < tcp->num_options && tcp->options[3] == 1) &&
               true) {
               if (
                 (true) &&
@@ -603,11 +603,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
                 }
               }
             } else if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 3) &&
-              (2 < tcp->nb_options && tcp->options[2] == 4) &&
-              (3 < tcp->nb_options && tcp->options[3] == 8) &&
-              (4 < tcp->nb_options && tcp->options[4] == 1) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 3) &&
+              (2 < tcp->num_options && tcp->options[2] == 4) &&
+              (3 < tcp->num_options && tcp->options[3] == 8) &&
+              (4 < tcp->num_options && tcp->options[4] == 1) &&
               true) {
               if (
                 (true) &&
@@ -618,10 +618,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
                 }
               }
             } else if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 3) &&
-              (2 < tcp->nb_options && tcp->options[2] == 8) &&
-              (3 < tcp->nb_options && tcp->options[3] == 1) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 3) &&
+              (2 < tcp->num_options && tcp->options[2] == 8) &&
+              (3 < tcp->num_options && tcp->options[3] == 1) &&
               true) {
               if (
                 (true) &&
@@ -641,10 +641,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
         if ((tcp->set_values & TCP_MSS_SET) && tcp->mss == 1360) {
           if ((tcp->window == 32768) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 1) &&
-              (2 < tcp->nb_options && tcp->options[2] == 1) &&
-              (3 < tcp->nb_options && tcp->options[3] == 4) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 1) &&
+              (2 < tcp->num_options && tcp->options[2] == 1) &&
+              (3 < tcp->num_options && tcp->options[3] == 4) &&
               true) {
               if (
                 (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -660,12 +660,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
         } else if ((tcp->set_values & TCP_MSS_SET) && tcp->mss == 1380) {
           if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 4)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 6))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 1) &&
-              (2 < tcp->nb_options && tcp->options[2] == 1) &&
-              (3 < tcp->nb_options && tcp->options[3] == 8) &&
-              (4 < tcp->nb_options && tcp->options[4] == 1) &&
-              (5 < tcp->nb_options && tcp->options[5] == 3) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 1) &&
+              (2 < tcp->num_options && tcp->options[2] == 1) &&
+              (3 < tcp->num_options && tcp->options[3] == 8) &&
+              (4 < tcp->num_options && tcp->options[4] == 1) &&
+              (5 < tcp->num_options && tcp->options[5] == 3) &&
               true) {
               if (
                 (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -679,12 +679,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
             }
           } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 4)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 7))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 1) &&
-              (2 < tcp->nb_options && tcp->options[2] == 1) &&
-              (3 < tcp->nb_options && tcp->options[3] == 8) &&
-              (4 < tcp->nb_options && tcp->options[4] == 1) &&
-              (5 < tcp->nb_options && tcp->options[5] == 3) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 1) &&
+              (2 < tcp->num_options && tcp->options[2] == 1) &&
+              (3 < tcp->num_options && tcp->options[3] == 8) &&
+              (4 < tcp->num_options && tcp->options[4] == 1) &&
+              (5 < tcp->num_options && tcp->options[5] == 3) &&
               true) {
               if (
                 (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -700,20 +700,20 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
         } else if ((tcp->set_values & TCP_MSS_SET) && tcp->mss == 1460) {
           if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 4)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 2))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 4) &&
-              (2 < tcp->nb_options && tcp->options[2] == 1) &&
-              (3 < tcp->nb_options && tcp->options[3] == 1) &&
-              (4 < tcp->nb_options && tcp->options[4] == 1) &&
-              (5 < tcp->nb_options && tcp->options[5] == 1) &&
-              (6 < tcp->nb_options && tcp->options[6] == 1) &&
-              (7 < tcp->nb_options && tcp->options[7] == 1) &&
-              (8 < tcp->nb_options && tcp->options[8] == 1) &&
-              (9 < tcp->nb_options && tcp->options[9] == 1) &&
-              (10 < tcp->nb_options && tcp->options[10] == 1) &&
-              (11 < tcp->nb_options && tcp->options[11] == 1) &&
-              (12 < tcp->nb_options && tcp->options[12] == 1) &&
-              (13 < tcp->nb_options && tcp->options[13] == 3) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 4) &&
+              (2 < tcp->num_options && tcp->options[2] == 1) &&
+              (3 < tcp->num_options && tcp->options[3] == 1) &&
+              (4 < tcp->num_options && tcp->options[4] == 1) &&
+              (5 < tcp->num_options && tcp->options[5] == 1) &&
+              (6 < tcp->num_options && tcp->options[6] == 1) &&
+              (7 < tcp->num_options && tcp->options[7] == 1) &&
+              (8 < tcp->num_options && tcp->options[8] == 1) &&
+              (9 < tcp->num_options && tcp->options[9] == 1) &&
+              (10 < tcp->num_options && tcp->options[10] == 1) &&
+              (11 < tcp->num_options && tcp->options[11] == 1) &&
+              (12 < tcp->num_options && tcp->options[12] == 1) &&
+              (13 < tcp->num_options && tcp->options[13] == 3) &&
               true) {
               if (
                 (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -727,20 +727,20 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
             }
           } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 4)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 7))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 4) &&
-              (2 < tcp->nb_options && tcp->options[2] == 1) &&
-              (3 < tcp->nb_options && tcp->options[3] == 1) &&
-              (4 < tcp->nb_options && tcp->options[4] == 1) &&
-              (5 < tcp->nb_options && tcp->options[5] == 1) &&
-              (6 < tcp->nb_options && tcp->options[6] == 1) &&
-              (7 < tcp->nb_options && tcp->options[7] == 1) &&
-              (8 < tcp->nb_options && tcp->options[8] == 1) &&
-              (9 < tcp->nb_options && tcp->options[9] == 1) &&
-              (10 < tcp->nb_options && tcp->options[10] == 1) &&
-              (11 < tcp->nb_options && tcp->options[11] == 1) &&
-              (12 < tcp->nb_options && tcp->options[12] == 1) &&
-              (13 < tcp->nb_options && tcp->options[13] == 3) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 4) &&
+              (2 < tcp->num_options && tcp->options[2] == 1) &&
+              (3 < tcp->num_options && tcp->options[3] == 1) &&
+              (4 < tcp->num_options && tcp->options[4] == 1) &&
+              (5 < tcp->num_options && tcp->options[5] == 1) &&
+              (6 < tcp->num_options && tcp->options[6] == 1) &&
+              (7 < tcp->num_options && tcp->options[7] == 1) &&
+              (8 < tcp->num_options && tcp->options[8] == 1) &&
+              (9 < tcp->num_options && tcp->options[9] == 1) &&
+              (10 < tcp->num_options && tcp->options[10] == 1) &&
+              (11 < tcp->num_options && tcp->options[11] == 1) &&
+              (12 < tcp->num_options && tcp->options[12] == 1) &&
+              (13 < tcp->num_options && tcp->options[13] == 3) &&
               true) {
               if (
                 (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -756,11 +756,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
         } else if ((tcp->set_values & TCP_MSS_SET) && tcp->mss == 16376) {
           if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 2)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 2))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 4) &&
-              (2 < tcp->nb_options && tcp->options[2] == 8) &&
-              (3 < tcp->nb_options && tcp->options[3] == 1) &&
-              (4 < tcp->nb_options && tcp->options[4] == 3) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 4) &&
+              (2 < tcp->num_options && tcp->options[2] == 8) &&
+              (3 < tcp->num_options && tcp->options[3] == 1) &&
+              (4 < tcp->num_options && tcp->options[4] == 3) &&
               true) {
               if (
                 (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -774,11 +774,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
             }
           } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 2)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 4))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 4) &&
-              (2 < tcp->nb_options && tcp->options[2] == 8) &&
-              (3 < tcp->nb_options && tcp->options[3] == 1) &&
-              (4 < tcp->nb_options && tcp->options[4] == 3) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 4) &&
+              (2 < tcp->num_options && tcp->options[2] == 8) &&
+              (3 < tcp->num_options && tcp->options[3] == 1) &&
+              (4 < tcp->num_options && tcp->options[4] == 3) &&
               true) {
               if (
                 (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -794,11 +794,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
         } else if ((tcp->set_values & TCP_MSS_SET) && tcp->mss == 16396) {
           if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 2)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 4) &&
-              (2 < tcp->nb_options && tcp->options[2] == 8) &&
-              (3 < tcp->nb_options && tcp->options[3] == 1) &&
-              (4 < tcp->nb_options && tcp->options[4] == 3) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 4) &&
+              (2 < tcp->num_options && tcp->options[2] == 8) &&
+              (3 < tcp->num_options && tcp->options[3] == 1) &&
+              (4 < tcp->num_options && tcp->options[4] == 3) &&
               true) {
               if (
                 (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -812,11 +812,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
             }
           } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 2)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 2))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 4) &&
-              (2 < tcp->nb_options && tcp->options[2] == 8) &&
-              (3 < tcp->nb_options && tcp->options[3] == 1) &&
-              (4 < tcp->nb_options && tcp->options[4] == 3) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 4) &&
+              (2 < tcp->num_options && tcp->options[2] == 8) &&
+              (3 < tcp->num_options && tcp->options[3] == 1) &&
+              (4 < tcp->num_options && tcp->options[4] == 3) &&
               true) {
               if (
                 (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -830,11 +830,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
             }
           } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 2)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 4))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 4) &&
-              (2 < tcp->nb_options && tcp->options[2] == 8) &&
-              (3 < tcp->nb_options && tcp->options[3] == 1) &&
-              (4 < tcp->nb_options && tcp->options[4] == 3) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 4) &&
+              (2 < tcp->num_options && tcp->options[2] == 8) &&
+              (3 < tcp->num_options && tcp->options[3] == 1) &&
+              (4 < tcp->num_options && tcp->options[4] == 3) &&
               true) {
               if (
                 (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -850,11 +850,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
         } else if ((tcp->set_values & TCP_MSS_SET) && tcp->mss == 3884) {
           if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 8)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 4) &&
-              (2 < tcp->nb_options && tcp->options[2] == 8) &&
-              (3 < tcp->nb_options && tcp->options[3] == 1) &&
-              (4 < tcp->nb_options && tcp->options[4] == 3) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 4) &&
+              (2 < tcp->num_options && tcp->options[2] == 8) &&
+              (3 < tcp->num_options && tcp->options[3] == 1) &&
+              (4 < tcp->num_options && tcp->options[4] == 3) &&
               true) {
               if (
                 (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -870,12 +870,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
         }
         if ((true) && (true)) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -887,11 +887,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 4) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 4) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -905,7 +905,7 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if ((true) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -919,7 +919,7 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if ((tcp->window == 16384) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
             true) {
             if (
               (true) &&
@@ -930,15 +930,15 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 3) &&
-            (6 < tcp->nb_options && tcp->options[6] == 1) &&
-            (7 < tcp->nb_options && tcp->options[7] == 1) &&
-            (8 < tcp->nb_options && tcp->options[8] == 8) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 3) &&
+            (6 < tcp->num_options && tcp->options[6] == 1) &&
+            (7 < tcp->num_options && tcp->options[7] == 1) &&
+            (8 < tcp->num_options && tcp->options[8] == 8) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -952,15 +952,15 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if ((tcp->window == 16384) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 3))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 3) &&
-            (6 < tcp->nb_options && tcp->options[6] == 1) &&
-            (7 < tcp->nb_options && tcp->options[7] == 1) &&
-            (8 < tcp->nb_options && tcp->options[8] == 8) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 3) &&
+            (6 < tcp->num_options && tcp->options[6] == 1) &&
+            (7 < tcp->num_options && tcp->options[7] == 1) &&
+            (8 < tcp->num_options && tcp->options[8] == 8) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -974,15 +974,15 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if ((tcp->window == 32850) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 1))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 1) &&
-            (1 < tcp->nb_options && tcp->options[1] == 3) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 8) &&
-            (5 < tcp->nb_options && tcp->options[5] == 1) &&
-            (6 < tcp->nb_options && tcp->options[6] == 1) &&
-            (7 < tcp->nb_options && tcp->options[7] == 4) &&
-            (8 < tcp->nb_options && tcp->options[8] == 2) &&
+            (0 < tcp->num_options && tcp->options[0] == 1) &&
+            (1 < tcp->num_options && tcp->options[1] == 3) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 8) &&
+            (5 < tcp->num_options && tcp->options[5] == 1) &&
+            (6 < tcp->num_options && tcp->options[6] == 1) &&
+            (7 < tcp->num_options && tcp->options[7] == 4) &&
+            (8 < tcp->num_options && tcp->options[8] == 2) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -996,13 +996,13 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if ((tcp->window == 65535) && (true)) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 8) &&
-            (6 < tcp->nb_options && tcp->options[6] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 8) &&
+            (6 < tcp->num_options && tcp->options[6] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1014,11 +1014,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
-            (4 < tcp->nb_options && tcp->options[4] == 8) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
+            (4 < tcp->num_options && tcp->options[4] == 8) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1032,13 +1032,13 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if ((tcp->window == 65535) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 1))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 8) &&
-            (6 < tcp->nb_options && tcp->options[6] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 8) &&
+            (6 < tcp->num_options && tcp->options[6] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1052,13 +1052,13 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if ((tcp->window == 65535) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 2))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 8) &&
-            (6 < tcp->nb_options && tcp->options[6] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 8) &&
+            (6 < tcp->num_options && tcp->options[6] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1072,13 +1072,13 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if ((tcp->window == 65535) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 3))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 8) &&
-            (6 < tcp->nb_options && tcp->options[6] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 8) &&
+            (6 < tcp->num_options && tcp->options[6] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1090,11 +1090,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
-            (4 < tcp->nb_options && tcp->options[4] == 8) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
+            (4 < tcp->num_options && tcp->options[4] == 8) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1108,13 +1108,13 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if ((tcp->window == 65535) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 4))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 8) &&
-            (6 < tcp->nb_options && tcp->options[6] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 8) &&
+            (6 < tcp->num_options && tcp->options[6] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1128,11 +1128,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if ((tcp->window == 65535) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 6))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
-            (4 < tcp->nb_options && tcp->options[4] == 8) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
+            (4 < tcp->num_options && tcp->options[4] == 8) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1146,11 +1146,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 10)) && (true)) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 4) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 4) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1164,11 +1164,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 10)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 4))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 4) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 4) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1182,11 +1182,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 10)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 5))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 4) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 4) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1200,11 +1200,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 10)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 6))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 4) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 4) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1218,11 +1218,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 10)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 7))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 4) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 4) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1236,11 +1236,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 11)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 4) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 4) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1254,7 +1254,7 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 12)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
             true) {
             if (
               (true) &&
@@ -1267,11 +1267,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 20)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 4) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 4) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1285,11 +1285,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 22)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 4) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 4) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1303,12 +1303,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 34)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1322,11 +1322,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 4)) && (true)) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 4) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 4) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1340,11 +1340,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 4)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 4) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 4) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1358,11 +1358,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 4)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 1))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 4) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 4) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1376,11 +1376,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 4)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 2))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 4) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 4) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1394,11 +1394,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 4)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 6))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 4) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 4) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1412,11 +1412,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 4)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 7))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 4) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 4) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1430,11 +1430,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 4)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 8))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 4) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 4) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1448,11 +1448,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 44)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 1))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 4) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 4) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1466,11 +1466,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 44)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 3))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 4) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 4) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1490,9 +1490,9 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
         if ((tcp->set_values & TCP_MSS_SET) && tcp->mss == 0) {
           if ((tcp->window == 4) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 10))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 4) &&
-              (1 < tcp->nb_options && tcp->options[1] == 8) &&
-              (2 < tcp->nb_options && tcp->options[2] == 3) &&
+              (0 < tcp->num_options && tcp->options[0] == 4) &&
+              (1 < tcp->num_options && tcp->options[1] == 8) &&
+              (2 < tcp->num_options && tcp->options[2] == 3) &&
               true) {
               if (
                 (tcp->ack_num != 0 && !tcp->ack) &&
@@ -1507,10 +1507,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
         } else if ((tcp->set_values & TCP_MSS_SET) && tcp->mss == 1400) {
           if ((tcp->window == 63) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 3) &&
-              (2 < tcp->nb_options && tcp->options[2] == 4) &&
-              (3 < tcp->nb_options && tcp->options[3] == 8) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 3) &&
+              (2 < tcp->num_options && tcp->options[2] == 4) &&
+              (3 < tcp->num_options && tcp->options[3] == 8) &&
               true) {
               if (
                 (tcp->ack_num != 0 && !tcp->ack) &&
@@ -1525,11 +1525,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
         } else if ((tcp->set_values & TCP_MSS_SET) && tcp->mss == 1460) {
           if ((tcp->window == 1) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 10))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 3) &&
-              (1 < tcp->nb_options && tcp->options[1] == 1) &&
-              (2 < tcp->nb_options && tcp->options[2] == 2) &&
-              (3 < tcp->nb_options && tcp->options[3] == 8) &&
-              (4 < tcp->nb_options && tcp->options[4] == 4) &&
+              (0 < tcp->num_options && tcp->options[0] == 3) &&
+              (1 < tcp->num_options && tcp->options[1] == 1) &&
+              (2 < tcp->num_options && tcp->options[2] == 2) &&
+              (3 < tcp->num_options && tcp->options[3] == 8) &&
+              (4 < tcp->num_options && tcp->options[4] == 4) &&
               true) {
               if (
                 (tcp->ack_num != 0 && !tcp->ack) &&
@@ -1542,7 +1542,7 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
             }
           } else if ((tcp->window == 1024) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
               true) {
               if (
                 (true) &&
@@ -1555,7 +1555,7 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
             }
           } else if ((tcp->window == 2048) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
               true) {
               if (
                 (true) &&
@@ -1568,12 +1568,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
             }
           } else if ((tcp->window == 3) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 10))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 3) &&
-              (1 < tcp->nb_options && tcp->options[1] == 1) &&
-              (2 < tcp->nb_options && tcp->options[2] == 2) &&
-              (3 < tcp->nb_options && tcp->options[3] == 4) &&
-              (4 < tcp->nb_options && tcp->options[4] == 1) &&
-              (5 < tcp->nb_options && tcp->options[5] == 1) &&
+              (0 < tcp->num_options && tcp->options[0] == 3) &&
+              (1 < tcp->num_options && tcp->options[1] == 1) &&
+              (2 < tcp->num_options && tcp->options[2] == 2) &&
+              (3 < tcp->num_options && tcp->options[3] == 4) &&
+              (4 < tcp->num_options && tcp->options[4] == 1) &&
+              (5 < tcp->num_options && tcp->options[5] == 1) &&
               true) {
               if (
                 (0 != (ip->traffic_class & IP_TOS_ECN_MASK)) &&
@@ -1587,7 +1587,7 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
             }
           } else if ((tcp->window == 3072) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
               true) {
               if (
                 (true) &&
@@ -1600,7 +1600,7 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
             }
           } else if ((tcp->window == 4096) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
               true) {
               if (
                 (true) &&
@@ -1615,11 +1615,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
         } else if ((tcp->set_values & TCP_MSS_SET) && tcp->mss == 265) {
           if ((tcp->window == 31337) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 10))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 3) &&
-              (1 < tcp->nb_options && tcp->options[1] == 1) &&
-              (2 < tcp->nb_options && tcp->options[2] == 2) &&
-              (3 < tcp->nb_options && tcp->options[3] == 8) &&
-              (4 < tcp->nb_options && tcp->options[4] == 4) &&
+              (0 < tcp->num_options && tcp->options[0] == 3) &&
+              (1 < tcp->num_options && tcp->options[1] == 1) &&
+              (2 < tcp->num_options && tcp->options[2] == 2) &&
+              (3 < tcp->num_options && tcp->options[3] == 8) &&
+              (4 < tcp->num_options && tcp->options[4] == 4) &&
               true) {
               if (
                 (tcp->ack_num != 0 && !tcp->ack) &&
@@ -1632,9 +1632,9 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
             }
           } else if ((tcp->window == 512) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 4) &&
-              (2 < tcp->nb_options && tcp->options[2] == 8) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 4) &&
+              (2 < tcp->num_options && tcp->options[2] == 8) &&
               true) {
               if (
                 (tcp->ack_num != 0 && !tcp->ack) &&
@@ -1649,10 +1649,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
         } else if ((tcp->set_values & TCP_MSS_SET) && tcp->mss == 536) {
           if ((tcp->window == 16) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 10))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 4) &&
-              (2 < tcp->nb_options && tcp->options[2] == 8) &&
-              (3 < tcp->nb_options && tcp->options[3] == 3) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 4) &&
+              (2 < tcp->num_options && tcp->options[2] == 8) &&
+              (3 < tcp->num_options && tcp->options[3] == 3) &&
               true) {
               if (
                 (tcp->ack_num != 0 && !tcp->ack) &&
@@ -1667,12 +1667,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
         } else if ((tcp->set_values & TCP_MSS_SET) && tcp->mss == 640) {
           if ((tcp->window == 4) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 5))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 8) &&
-              (1 < tcp->nb_options && tcp->options[1] == 1) &&
-              (2 < tcp->nb_options && tcp->options[2] == 1) &&
-              (3 < tcp->nb_options && tcp->options[3] == 3) &&
-              (4 < tcp->nb_options && tcp->options[4] == 1) &&
-              (5 < tcp->nb_options && tcp->options[5] == 2) &&
+              (0 < tcp->num_options && tcp->options[0] == 8) &&
+              (1 < tcp->num_options && tcp->options[1] == 1) &&
+              (2 < tcp->num_options && tcp->options[2] == 1) &&
+              (3 < tcp->num_options && tcp->options[3] == 3) &&
+              (4 < tcp->num_options && tcp->options[4] == 1) &&
+              (5 < tcp->num_options && tcp->options[5] == 2) &&
               true) {
               if (
                 (tcp->ack_num != 0 && !tcp->ack) &&
@@ -1693,7 +1693,7 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
         if (ip->info.head_len - 20 == 0) {
           if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 7)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
               true) {
               if (
                 (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1705,10 +1705,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
                 }
               }
             } else if (
-              (0 < tcp->nb_options && tcp->options[0] == 1) &&
-              (1 < tcp->nb_options && tcp->options[1] == 1) &&
-              (2 < tcp->nb_options && tcp->options[2] == 8) &&
-              (3 < tcp->nb_options && tcp->options[3] == 2) &&
+              (0 < tcp->num_options && tcp->options[0] == 1) &&
+              (1 < tcp->num_options && tcp->options[1] == 1) &&
+              (2 < tcp->num_options && tcp->options[2] == 8) &&
+              (3 < tcp->num_options && tcp->options[3] == 2) &&
               true) {
               if (
                 (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1720,12 +1720,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
                 }
               }
             } else if (
-              (0 < tcp->nb_options && tcp->options[0] == 1) &&
-              (1 < tcp->nb_options && tcp->options[1] == 1) &&
-              (2 < tcp->nb_options && tcp->options[2] == 8) &&
-              (3 < tcp->nb_options && tcp->options[3] == 1) &&
-              (4 < tcp->nb_options && tcp->options[4] == 3) &&
-              (5 < tcp->nb_options && tcp->options[5] == 2) &&
+              (0 < tcp->num_options && tcp->options[0] == 1) &&
+              (1 < tcp->num_options && tcp->options[1] == 1) &&
+              (2 < tcp->num_options && tcp->options[2] == 8) &&
+              (3 < tcp->num_options && tcp->options[3] == 1) &&
+              (4 < tcp->num_options && tcp->options[4] == 3) &&
+              (5 < tcp->num_options && tcp->options[5] == 2) &&
               true) {
               if (
                 (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1737,9 +1737,9 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
                 }
               }
             } else if (
-              (0 < tcp->nb_options && tcp->options[0] == 1) &&
-              (1 < tcp->nb_options && tcp->options[1] == 3) &&
-              (2 < tcp->nb_options && tcp->options[2] == 2) &&
+              (0 < tcp->num_options && tcp->options[0] == 1) &&
+              (1 < tcp->num_options && tcp->options[1] == 3) &&
+              (2 < tcp->num_options && tcp->options[2] == 2) &&
               true) {
               if (
                 (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1759,7 +1759,7 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           if ((tcp->set_values & TCP_MSS_SET) && tcp->mss == 1460) {
             if ((tcp->window == 3993) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
               if (
-                (0 < tcp->nb_options && tcp->options[0] == 2) &&
+                (0 < tcp->num_options && tcp->options[0] == 2) &&
                 true) {
                 if (
                   (true) &&
@@ -1770,9 +1770,9 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
                   }
                 }
               } else if (
-                (0 < tcp->nb_options && tcp->options[0] == 2) &&
-                (1 < tcp->nb_options && tcp->options[1] == 1) &&
-                (2 < tcp->nb_options && tcp->options[2] == 3) &&
+                (0 < tcp->num_options && tcp->options[0] == 2) &&
+                (1 < tcp->num_options && tcp->options[1] == 1) &&
+                (2 < tcp->num_options && tcp->options[2] == 3) &&
                 true) {
                 if (
                   (true) &&
@@ -1785,7 +1785,7 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 25)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
               if (
-                (0 < tcp->nb_options && tcp->options[0] == 2) &&
+                (0 < tcp->num_options && tcp->options[0] == 2) &&
                 true) {
                 if (
                   (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1797,9 +1797,9 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
                   }
                 }
               } else if (
-                (0 < tcp->nb_options && tcp->options[0] == 2) &&
-                (1 < tcp->nb_options && tcp->options[1] == 1) &&
-                (2 < tcp->nb_options && tcp->options[2] == 3) &&
+                (0 < tcp->num_options && tcp->options[0] == 2) &&
+                (1 < tcp->num_options && tcp->options[1] == 1) &&
+                (2 < tcp->num_options && tcp->options[2] == 3) &&
                 true) {
                 if (
                   (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1822,7 +1822,7 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
       if (ip->info.head_len - 20 == 0) {
         if ((tcp->window == 16384) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1834,10 +1834,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1849,29 +1849,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 8) &&
-            true) {
-            if (
-              (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
-              (ip->version == 6 || (ip->fragmentation == IP_DONTFRAG && ip->id != 0)) &&
-              (true) &&
-              true) {
-              if (tcp->info.payload > 0) {
-              } else if (tcp->info.payload == 0) {
-                return 17;
-              }
-            }
-          } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 8) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 1) &&
-            (6 < tcp->nb_options && tcp->options[6] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 8) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1884,43 +1865,13 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            true) {
-            if (
-              (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
-              (ip->version == 6 || (ip->fragmentation == IP_DONTFRAG && ip->id != 0)) &&
-              true) {
-              if (tcp->info.payload > 0) {
-              } else if (tcp->info.payload == 0) {
-                return 17;
-              }
-            }
-          } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 4) &&
-            true) {
-            if (
-              (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
-              (ip->version == 6 || (ip->fragmentation == IP_DONTFRAG && ip->id != 0)) &&
-              true) {
-              if (tcp->info.payload > 0) {
-              } else if (tcp->info.payload == 0) {
-                return 17;
-              }
-            }
-          } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 8) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 8) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 1) &&
+            (6 < tcp->num_options && tcp->options[6] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1933,15 +1884,64 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 8) &&
-            (6 < tcp->nb_options && tcp->options[6] == 1) &&
-            (7 < tcp->nb_options && tcp->options[7] == 1) &&
-            (8 < tcp->nb_options && tcp->options[8] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            true) {
+            if (
+              (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
+              (ip->version == 6 || (ip->fragmentation == IP_DONTFRAG && ip->id != 0)) &&
+              true) {
+              if (tcp->info.payload > 0) {
+              } else if (tcp->info.payload == 0) {
+                return 17;
+              }
+            }
+          } else if (
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 4) &&
+            true) {
+            if (
+              (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
+              (ip->version == 6 || (ip->fragmentation == IP_DONTFRAG && ip->id != 0)) &&
+              true) {
+              if (tcp->info.payload > 0) {
+              } else if (tcp->info.payload == 0) {
+                return 17;
+              }
+            }
+          } else if (
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 8) &&
+            true) {
+            if (
+              (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
+              (ip->version == 6 || (ip->fragmentation == IP_DONTFRAG && ip->id != 0)) &&
+              (true) &&
+              true) {
+              if (tcp->info.payload > 0) {
+              } else if (tcp->info.payload == 0) {
+                return 17;
+              }
+            }
+          } else if (
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 8) &&
+            (6 < tcp->num_options && tcp->options[6] == 1) &&
+            (7 < tcp->num_options && tcp->options[7] == 1) &&
+            (8 < tcp->num_options && tcp->options[8] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1956,7 +1956,7 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if ((tcp->window == 65535) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1968,10 +1968,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -1983,29 +1983,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 8) &&
-            true) {
-            if (
-              (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
-              (ip->version == 6 || (ip->fragmentation == IP_DONTFRAG && ip->id != 0)) &&
-              (true) &&
-              true) {
-              if (tcp->info.payload > 0) {
-              } else if (tcp->info.payload == 0) {
-                return 17;
-              }
-            }
-          } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 8) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 1) &&
-            (6 < tcp->nb_options && tcp->options[6] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 8) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2018,43 +1999,13 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            true) {
-            if (
-              (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
-              (ip->version == 6 || (ip->fragmentation == IP_DONTFRAG && ip->id != 0)) &&
-              true) {
-              if (tcp->info.payload > 0) {
-              } else if (tcp->info.payload == 0) {
-                return 17;
-              }
-            }
-          } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 4) &&
-            true) {
-            if (
-              (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
-              (ip->version == 6 || (ip->fragmentation == IP_DONTFRAG && ip->id != 0)) &&
-              true) {
-              if (tcp->info.payload > 0) {
-              } else if (tcp->info.payload == 0) {
-                return 17;
-              }
-            }
-          } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 8) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 8) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 1) &&
+            (6 < tcp->num_options && tcp->options[6] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2067,15 +2018,64 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 8) &&
-            (6 < tcp->nb_options && tcp->options[6] == 1) &&
-            (7 < tcp->nb_options && tcp->options[7] == 1) &&
-            (8 < tcp->nb_options && tcp->options[8] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            true) {
+            if (
+              (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
+              (ip->version == 6 || (ip->fragmentation == IP_DONTFRAG && ip->id != 0)) &&
+              true) {
+              if (tcp->info.payload > 0) {
+              } else if (tcp->info.payload == 0) {
+                return 17;
+              }
+            }
+          } else if (
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 4) &&
+            true) {
+            if (
+              (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
+              (ip->version == 6 || (ip->fragmentation == IP_DONTFRAG && ip->id != 0)) &&
+              true) {
+              if (tcp->info.payload > 0) {
+              } else if (tcp->info.payload == 0) {
+                return 17;
+              }
+            }
+          } else if (
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 8) &&
+            true) {
+            if (
+              (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
+              (ip->version == 6 || (ip->fragmentation == IP_DONTFRAG && ip->id != 0)) &&
+              (true) &&
+              true) {
+              if (tcp->info.payload > 0) {
+              } else if (tcp->info.payload == 0) {
+                return 17;
+              }
+            }
+          } else if (
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 8) &&
+            (6 < tcp->num_options && tcp->options[6] == 1) &&
+            (7 < tcp->num_options && tcp->options[7] == 1) &&
+            (8 < tcp->num_options && tcp->options[8] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2090,7 +2090,7 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if ((tcp->window == 8192) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2102,10 +2102,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2117,10 +2117,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 8) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 8) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2132,9 +2132,9 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 4) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 4) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2148,9 +2148,9 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if ((tcp->window == 8192) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 8))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2162,12 +2162,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2179,12 +2179,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 8) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 8) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2196,11 +2196,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
-            (4 < tcp->nb_options && tcp->options[4] == 8) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
+            (4 < tcp->num_options && tcp->options[4] == 8) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2220,10 +2220,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
         if ((tcp->set_values & TCP_MSS_SET) && tcp->mss == 1460) {
           if ((tcp->window == 16384) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 1) &&
-              (2 < tcp->nb_options && tcp->options[2] == 1) &&
-              (3 < tcp->nb_options && tcp->options[3] == 4) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 1) &&
+              (2 < tcp->num_options && tcp->options[2] == 1) &&
+              (3 < tcp->num_options && tcp->options[3] == 4) &&
               true) {
               if (
                 (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2235,13 +2235,13 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
                 }
               }
             } else if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 1) &&
-              (2 < tcp->nb_options && tcp->options[2] == 1) &&
-              (3 < tcp->nb_options && tcp->options[3] == 4) &&
-              (4 < tcp->nb_options && tcp->options[4] == 1) &&
-              (5 < tcp->nb_options && tcp->options[5] == 1) &&
-              (6 < tcp->nb_options && tcp->options[6] == 8) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 1) &&
+              (2 < tcp->num_options && tcp->options[2] == 1) &&
+              (3 < tcp->num_options && tcp->options[3] == 4) &&
+              (4 < tcp->num_options && tcp->options[4] == 1) &&
+              (5 < tcp->num_options && tcp->options[5] == 1) &&
+              (6 < tcp->num_options && tcp->options[6] == 8) &&
               true) {
               if (
                 (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2253,10 +2253,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
                 }
               }
             } else if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 1) &&
-              (2 < tcp->nb_options && tcp->options[2] == 1) &&
-              (3 < tcp->nb_options && tcp->options[3] == 8) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 1) &&
+              (2 < tcp->num_options && tcp->options[2] == 1) &&
+              (3 < tcp->num_options && tcp->options[3] == 8) &&
               true) {
               if (
                 (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2270,12 +2270,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
             }
           } else if ((tcp->window == 16384) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 3))) {
             if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 1) &&
-              (2 < tcp->nb_options && tcp->options[2] == 1) &&
-              (3 < tcp->nb_options && tcp->options[3] == 4) &&
-              (4 < tcp->nb_options && tcp->options[4] == 1) &&
-              (5 < tcp->nb_options && tcp->options[5] == 3) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 1) &&
+              (2 < tcp->num_options && tcp->options[2] == 1) &&
+              (3 < tcp->num_options && tcp->options[3] == 4) &&
+              (4 < tcp->num_options && tcp->options[4] == 1) &&
+              (5 < tcp->num_options && tcp->options[5] == 3) &&
               true) {
               if (
                 (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2287,15 +2287,15 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
                 }
               }
             } else if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 1) &&
-              (2 < tcp->nb_options && tcp->options[2] == 1) &&
-              (3 < tcp->nb_options && tcp->options[3] == 4) &&
-              (4 < tcp->nb_options && tcp->options[4] == 1) &&
-              (5 < tcp->nb_options && tcp->options[5] == 3) &&
-              (6 < tcp->nb_options && tcp->options[6] == 1) &&
-              (7 < tcp->nb_options && tcp->options[7] == 1) &&
-              (8 < tcp->nb_options && tcp->options[8] == 8) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 1) &&
+              (2 < tcp->num_options && tcp->options[2] == 1) &&
+              (3 < tcp->num_options && tcp->options[3] == 4) &&
+              (4 < tcp->num_options && tcp->options[4] == 1) &&
+              (5 < tcp->num_options && tcp->options[5] == 3) &&
+              (6 < tcp->num_options && tcp->options[6] == 1) &&
+              (7 < tcp->num_options && tcp->options[7] == 1) &&
+              (8 < tcp->num_options && tcp->options[8] == 8) &&
               true) {
               if (
                 (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2307,9 +2307,9 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
                 }
               }
             } else if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 1) &&
-              (2 < tcp->nb_options && tcp->options[2] == 3) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 1) &&
+              (2 < tcp->num_options && tcp->options[2] == 3) &&
               true) {
               if (
                 (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2321,12 +2321,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
                 }
               }
             } else if (
-              (0 < tcp->nb_options && tcp->options[0] == 2) &&
-              (1 < tcp->nb_options && tcp->options[1] == 1) &&
-              (2 < tcp->nb_options && tcp->options[2] == 3) &&
-              (3 < tcp->nb_options && tcp->options[3] == 1) &&
-              (4 < tcp->nb_options && tcp->options[4] == 1) &&
-              (5 < tcp->nb_options && tcp->options[5] == 8) &&
+              (0 < tcp->num_options && tcp->options[0] == 2) &&
+              (1 < tcp->num_options && tcp->options[1] == 1) &&
+              (2 < tcp->num_options && tcp->options[2] == 3) &&
+              (3 < tcp->num_options && tcp->options[3] == 1) &&
+              (4 < tcp->num_options && tcp->options[4] == 1) &&
+              (5 < tcp->num_options && tcp->options[5] == 8) &&
               true) {
               if (
                 (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2342,7 +2342,7 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
         }
         if ((tcp->window == 32768) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2354,10 +2354,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2369,13 +2369,13 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 1) &&
-            (6 < tcp->nb_options && tcp->options[6] == 8) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 1) &&
+            (6 < tcp->num_options && tcp->options[6] == 8) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2387,12 +2387,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
-            (4 < tcp->nb_options && tcp->options[4] == 3) &&
-            (5 < tcp->nb_options && tcp->options[5] == 1) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
+            (4 < tcp->num_options && tcp->options[4] == 3) &&
+            (5 < tcp->num_options && tcp->options[5] == 1) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2404,15 +2404,15 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
-            (4 < tcp->nb_options && tcp->options[4] == 3) &&
-            (5 < tcp->nb_options && tcp->options[5] == 1) &&
-            (6 < tcp->nb_options && tcp->options[6] == 1) &&
-            (7 < tcp->nb_options && tcp->options[7] == 1) &&
-            (8 < tcp->nb_options && tcp->options[8] == 8) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
+            (4 < tcp->num_options && tcp->options[4] == 3) &&
+            (5 < tcp->num_options && tcp->options[5] == 1) &&
+            (6 < tcp->num_options && tcp->options[6] == 1) &&
+            (7 < tcp->num_options && tcp->options[7] == 1) &&
+            (8 < tcp->num_options && tcp->options[8] == 8) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2424,10 +2424,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 8) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 8) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2439,9 +2439,9 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 3) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 3) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2453,12 +2453,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 3) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 8) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 3) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 8) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2472,10 +2472,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if ((tcp->window == 65535) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 8) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 8) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2487,11 +2487,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 8) &&
-            (4 < tcp->nb_options && tcp->options[4] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 8) &&
+            (4 < tcp->num_options && tcp->options[4] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2503,9 +2503,9 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2517,12 +2517,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 8) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 8) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2534,13 +2534,13 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 8) &&
-            (6 < tcp->nb_options && tcp->options[6] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 8) &&
+            (6 < tcp->num_options && tcp->options[6] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2552,10 +2552,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2567,8 +2567,8 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2580,9 +2580,9 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 4) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 4) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2596,9 +2596,9 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if ((tcp->window == 65535) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 3))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2610,12 +2610,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 8) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 8) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2627,10 +2627,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2642,11 +2642,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
-            (4 < tcp->nb_options && tcp->options[4] == 8) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
+            (4 < tcp->num_options && tcp->options[4] == 8) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2660,9 +2660,9 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if ((tcp->window == 65535) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 6))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2674,12 +2674,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 8) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 8) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2691,10 +2691,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2706,11 +2706,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
-            (4 < tcp->nb_options && tcp->options[4] == 8) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
+            (4 < tcp->num_options && tcp->options[4] == 8) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2724,12 +2724,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 10)) && (true)) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2740,12 +2740,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 8) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 8) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2756,9 +2756,9 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2769,11 +2769,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 4) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 4) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2786,7 +2786,7 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 10)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2797,10 +2797,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2811,10 +2811,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 8) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 8) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2825,9 +2825,9 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 4) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 4) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2840,7 +2840,7 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 19)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2852,10 +2852,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 1) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 4) &&
-            (3 < tcp->nb_options && tcp->options[3] == 2) &&
+            (0 < tcp->num_options && tcp->options[0] == 1) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 4) &&
+            (3 < tcp->num_options && tcp->options[3] == 2) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2867,10 +2867,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 1) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 2) &&
+            (0 < tcp->num_options && tcp->options[0] == 1) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 2) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2882,13 +2882,13 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 1) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 4) &&
-            (6 < tcp->nb_options && tcp->options[6] == 2) &&
+            (0 < tcp->num_options && tcp->options[0] == 1) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 4) &&
+            (6 < tcp->num_options && tcp->options[6] == 2) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2900,12 +2900,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 1) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 3) &&
-            (5 < tcp->nb_options && tcp->options[5] == 2) &&
+            (0 < tcp->num_options && tcp->options[0] == 1) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 3) &&
+            (5 < tcp->num_options && tcp->options[5] == 2) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2917,15 +2917,15 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 1) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 3) &&
-            (5 < tcp->nb_options && tcp->options[5] == 1) &&
-            (6 < tcp->nb_options && tcp->options[6] == 1) &&
-            (7 < tcp->nb_options && tcp->options[7] == 4) &&
-            (8 < tcp->nb_options && tcp->options[8] == 2) &&
+            (0 < tcp->num_options && tcp->options[0] == 1) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 3) &&
+            (5 < tcp->num_options && tcp->options[5] == 1) &&
+            (6 < tcp->num_options && tcp->options[6] == 1) &&
+            (7 < tcp->num_options && tcp->options[7] == 4) &&
+            (8 < tcp->num_options && tcp->options[8] == 2) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2937,9 +2937,9 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 1) &&
-            (1 < tcp->nb_options && tcp->options[1] == 3) &&
-            (2 < tcp->nb_options && tcp->options[2] == 2) &&
+            (0 < tcp->num_options && tcp->options[0] == 1) &&
+            (1 < tcp->num_options && tcp->options[1] == 3) &&
+            (2 < tcp->num_options && tcp->options[2] == 2) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2951,12 +2951,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 1) &&
-            (1 < tcp->nb_options && tcp->options[1] == 3) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 4) &&
-            (5 < tcp->nb_options && tcp->options[5] == 2) &&
+            (0 < tcp->num_options && tcp->options[0] == 1) &&
+            (1 < tcp->num_options && tcp->options[1] == 3) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 4) &&
+            (5 < tcp->num_options && tcp->options[5] == 2) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2970,7 +2970,7 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 37)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2982,10 +2982,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -2997,9 +2997,9 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -3011,12 +3011,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -3028,10 +3028,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 1) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 2) &&
+            (0 < tcp->num_options && tcp->options[0] == 1) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 2) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -3043,13 +3043,13 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 1) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 2) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 1) &&
-            (6 < tcp->nb_options && tcp->options[6] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 1) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 2) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 1) &&
+            (6 < tcp->num_options && tcp->options[6] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -3061,12 +3061,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 1) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 2) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 1) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 2) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -3078,15 +3078,15 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 1) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 2) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 3) &&
-            (6 < tcp->nb_options && tcp->options[6] == 1) &&
-            (7 < tcp->nb_options && tcp->options[7] == 1) &&
-            (8 < tcp->nb_options && tcp->options[8] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 1) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 2) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 3) &&
+            (6 < tcp->num_options && tcp->options[6] == 1) &&
+            (7 < tcp->num_options && tcp->options[7] == 1) &&
+            (8 < tcp->num_options && tcp->options[8] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -3100,12 +3100,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 4)) && (true)) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -3116,12 +3116,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 8) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 8) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -3132,9 +3132,9 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -3145,11 +3145,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 4) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 4) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -3162,7 +3162,7 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
           }
         } else if (((tcp->set_values & TCP_MSS_SET) && (tcp->window == tcp->mss * 4)) && ((!(tcp->set_values & TCP_WSF_SET)) || (tcp->wsf == 0))) {
           if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -3173,10 +3173,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -3187,12 +3187,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 4) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 4) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -3203,10 +3203,10 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 8) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 8) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -3217,12 +3217,12 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 1) &&
-            (3 < tcp->nb_options && tcp->options[3] == 8) &&
-            (4 < tcp->nb_options && tcp->options[4] == 1) &&
-            (5 < tcp->nb_options && tcp->options[5] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 1) &&
+            (3 < tcp->num_options && tcp->options[3] == 8) &&
+            (4 < tcp->num_options && tcp->options[4] == 1) &&
+            (5 < tcp->num_options && tcp->options[5] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -3233,9 +3233,9 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 1) &&
-            (2 < tcp->nb_options && tcp->options[2] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 1) &&
+            (2 < tcp->num_options && tcp->options[2] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -3246,9 +3246,9 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 4) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 4) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&
@@ -3259,11 +3259,11 @@ unsigned os_detect(struct ip_proto_info const *ip, struct tcp_proto_info const *
               }
             }
           } else if (
-            (0 < tcp->nb_options && tcp->options[0] == 2) &&
-            (1 < tcp->nb_options && tcp->options[1] == 4) &&
-            (2 < tcp->nb_options && tcp->options[2] == 8) &&
-            (3 < tcp->nb_options && tcp->options[3] == 1) &&
-            (4 < tcp->nb_options && tcp->options[4] == 3) &&
+            (0 < tcp->num_options && tcp->options[0] == 2) &&
+            (1 < tcp->num_options && tcp->options[1] == 4) &&
+            (2 < tcp->num_options && tcp->options[2] == 8) &&
+            (3 < tcp->num_options && tcp->options[3] == 1) &&
+            (4 < tcp->num_options && tcp->options[4] == 3) &&
             true) {
             if (
               (ip->version == 6 || ip->fragmentation == IP_DONTFRAG) &&

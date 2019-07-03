@@ -16,8 +16,8 @@ static char *payloads[] = {
 };
 
 static struct streambuf sbuf;
-static unsigned nb_calls = 0;
-static unsigned nb_chunks = 0;
+static unsigned num_calls = 0;
+static unsigned num_chunks = 0;
 
 enum proto_parse_status parse(struct parser *parser, struct proto_info unused_ *info, unsigned way, uint8_t const *packet, size_t cap_len, size_t unused_ wire_len, struct timeval const unused_ *now, size_t unused_ tot_cap_len, uint8_t const unused_ *tot_packet)
 {
@@ -27,13 +27,13 @@ enum proto_parse_status parse(struct parser *parser, struct proto_info unused_ *
     SLOG(LOG_DEBUG, "Parse called on payload '%.*s'", (int)cap_len, packet);
     assert(packet[0] >= 'A' && packet[0] <= 'Z');   // Since we ask for the sentences to be given in full.
 
-    nb_calls ++;
+    num_calls ++;
     int last_punct = -1;
 
     // wait for a '.' or a ':' before proceeding :
     for (unsigned l = 0; l < cap_len; l++) {
         if (packet[l] == '.' || packet[l] == ':') {
-            nb_chunks ++;
+            num_chunks ++;
             last_punct = l;
         }
     }
@@ -46,8 +46,8 @@ enum proto_parse_status parse(struct parser *parser, struct proto_info unused_ *
 
 static void setup(void)
 {
-    nb_calls = 0;
-    nb_chunks = 0;
+    num_calls = 0;
+    num_chunks = 0;
     assert(0 == streambuf_ctor(&sbuf, parse, 80));
 }
 
@@ -67,8 +67,8 @@ static void check_simple(void)
         assert(status == PROTO_OK);
     }
 
-    assert(nb_calls == NB_ELEMS(payloads));
-    assert(nb_chunks == 2);
+    assert(num_calls == NB_ELEMS(payloads));
+    assert(num_chunks == 2);
 
     teardown();
 }
@@ -86,7 +86,7 @@ static void check_vicious(void)
         }
     }
 
-    assert(nb_chunks == 2);
+    assert(num_chunks == 2);
 
     teardown();
 }

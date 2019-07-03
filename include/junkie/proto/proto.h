@@ -190,17 +190,17 @@ struct proto {
         PROTO_CODE_GTP, PROTO_CODE_VXLAN,
         PROTO_CODE_MAX
     } code;                 ///< Numeric code used for instance to serialize these events
-    uint64_t nb_frames;     ///< How many times we called this parse (count frames only if this parser is never called more than once on a frame)
-    uint64_t nb_bytes;      ///< How many bytes this proto had on wire
+    uint64_t num_frames;     ///< How many times we called this parse (count frames only if this parser is never called more than once on a frame)
+    uint64_t num_bytes;      ///< How many bytes this proto had on wire
     /// How many parsers of this proto exists
-    unsigned nb_parsers;
+    unsigned num_parsers;
     /// Entry in the list of all registered protos
     LIST_ENTRY(proto) entry;
     /// Fuzzing statistics: number of time this proto has been fuzzed.
     unsigned fuzzed_times;
     /// Hook to be called back for each packet involving this proto
     struct hook hook;
-    /// Mutex to protect the mutable values of this proto (entry, parsers, nb_parsers, nb_frames, subscribers list)
+    /// Mutex to protect the mutable values of this proto (entry, parsers, num_parsers, num_frames, subscribers list)
     struct mutex lock;
     /// Some benchmark counters
     struct bench_event parsing; // measure time spent parsing this protocol
@@ -279,7 +279,7 @@ struct proto_info const *proto_info_get(
 /** @returns the last proto_info owned by any of the given protos, or NULL.
  * Useful for ipv4/ipv6 for instance */
 struct proto_info const *proto_info_get_any(
-    unsigned nb_protos,             ///< Length of following array
+    unsigned num_protos,             ///< Length of following array
     struct proto const **protos,    ///< The protos to look for
     struct proto_info const *last   ///< Where to start looking for (may be NULL)
 );
@@ -433,11 +433,11 @@ struct mux_proto {
     /// Following 3 fields are protected by proto->lock
     LIST_ENTRY(mux_proto) entry;    ///< Entry in the list of mux protos
     unsigned hash_size;             ///< The required size for the hash used to store subparsers
-    unsigned nb_max_children;       ///< The max number of subparsers (after which old ones are deleted)
-    uint64_t nb_infanticide;        ///< Nb children that were deleted because of the previous limitation
-    uint64_t nb_collisions;         ///< Nb collisions in the hashes since last change of hash size
-    uint64_t nb_lookups;            ///< Nb lookups in the hashes since last change of hash size
-    uint64_t nb_timeouts;           ///< Nb subparsers timeouted from the hashes (ie. not how many parsers of this proto were timeouted!)
+    unsigned num_max_children;       ///< The max number of subparsers (after which old ones are deleted)
+    uint64_t num_infanticide;        ///< Nb children that were deleted because of the previous limitation
+    uint64_t num_collisions;         ///< Nb collisions in the hashes since last change of hash size
+    uint64_t num_lookups;            ///< Nb lookups in the hashes since last change of hash size
+    uint64_t num_timeouts;           ///< Nb subparsers timeouted from the hashes (ie. not how many parsers of this proto were timeouted!)
     time_t last_used;               ///< last time we had traffic (used to give time to timeouter thread)
     /** A pool of mutexes so that we have enough for all the subparsers hash lines
      * but not one per hash line (would require too much memory). Also, we turn this
@@ -526,8 +526,8 @@ struct mux_subparser {
 struct mux_parser {
     struct parser parser;                                   ///< A mux_parser is a specialization of this parser
     unsigned hash_size;                                     ///< The hash size for this particular mux_parser (taken from mux_proto at creation time, constant)
-    unsigned nb_max_children;                               ///< The max number of children allowed (0 if not limited)
-    unsigned nb_children;                                   ///< Current number of children
+    unsigned num_max_children;                               ///< The max number of children allowed (0 if not limited)
+    unsigned num_children;                                   ///< Current number of children
     /// The hash of subparsers (Beware of the variable size)
     struct subparsers {
         /// These two fields are protected by one of the mux_proto->mutexes
@@ -607,7 +607,7 @@ void mux_subparser_unref(struct mux_subparser **);
 void mux_subparser_deindex(struct mux_subparser *);
 
 /// Construct a mux_parser
-int mux_parser_ctor(struct mux_parser *mux_parser, struct mux_proto *mux_proto, unsigned hash_size, unsigned nb_max_children);
+int mux_parser_ctor(struct mux_parser *mux_parser, struct mux_proto *mux_proto, unsigned hash_size, unsigned num_max_children);
 
 /// Destruct a mux_parser
 void mux_parser_dtor(struct mux_parser *parser);

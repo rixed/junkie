@@ -82,7 +82,7 @@ int compare_expected_sql(struct sql_proto_info const *info, struct sql_proto_inf
         CHECK_INT(info->version_min, expected->version_min);
     }
     if ((expected->set_values & (SQL_NB_FIELDS)) == (SQL_NB_FIELDS))
-        CHECK_INT(info->u.query.nb_fields, expected->u.query.nb_fields);
+        CHECK_INT(info->u.query.num_fields, expected->u.query.num_fields);
     if ((expected->set_values & (SQL_REQUEST_STATUS)) == (SQL_REQUEST_STATUS))
         CHECK_INT(info->request_status, expected->request_status);
     if ((expected->set_values & (SQL_ERROR_CODE)) == (SQL_ERROR_CODE))
@@ -90,7 +90,7 @@ int compare_expected_sql(struct sql_proto_info const *info, struct sql_proto_inf
     if ((expected->set_values & (SQL_ERROR_MESSAGE)) == (SQL_ERROR_MESSAGE))
         CHECK_STR(info->error_message, expected->error_message);
     if ((expected->set_values & (SQL_NB_ROWS)) == (SQL_NB_ROWS))
-        CHECK_INT(info->u.query.nb_rows, expected->u.query.nb_rows);
+        CHECK_INT(info->u.query.num_rows, expected->u.query.num_rows);
     if ((expected->set_values & (SQL_SQL)) == (SQL_SQL))
         CHECK_STR(info->u.query.sql, expected->u.query.sql);
     if ((expected->set_values & (SQL_ENCODING)) == (SQL_ENCODING))

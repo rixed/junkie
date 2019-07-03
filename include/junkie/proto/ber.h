@@ -36,7 +36,7 @@ char const *ber_uint_2_str(struct ber_uint const *);
 enum proto_parse_status ber_skip(struct cursor *);
 
 /// Copy the next value
-enum proto_parse_status ber_copy(struct cursor *, void *dest, size_t *nb_bytes, size_t max_sz);
+enum proto_parse_status ber_copy(struct cursor *, void *dest, size_t *num_bytes, size_t max_sz);
 
 /// Skip an explicitly tagged value if present at cursor
 enum proto_parse_status ber_skip_optional(struct cursor *, unsigned tag);

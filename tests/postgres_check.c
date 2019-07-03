@@ -14,12 +14,12 @@
 #include "lib.h"
 #include "proto/postgres.c"
 
-static void fetch_nb_rows_check(void)
+static void fetch_num_rows_check(void)
 {
-    static struct nbr_test {
+    static struct num_test {
         char const *result;
         enum proto_parse_status expected_status;
-        unsigned expected_nb_rows;
+        unsigned expected_num_rows;
     } tests[] = {
         { "INSERT 16",  PROTO_OK, 16 },
         { "UPDATE 1",   PROTO_OK, 1 },
@@ -30,12 +30,12 @@ static void fetch_nb_rows_check(void)
     };
 
     for (unsigned t = 0; t < NB_ELEMS(tests); t++) {
-        struct nbr_test const *const test = tests+t;
-        unsigned nb_rows = -1;
-        enum proto_parse_status status = fetch_nb_rows(test->result, &nb_rows);
+        struct num_test const *const test = tests+t;
+        unsigned num_rows = -1;
+        enum proto_parse_status status = fetch_num_rows(test->result, &num_rows);
         assert(status == test->expected_status);
         if (status == PROTO_OK) {
-            assert(nb_rows == test->expected_nb_rows);
+            assert(num_rows == test->expected_num_rows);
         }
     }
 }
@@ -57,7 +57,7 @@ int main(void)
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("postgres_check.log");
 
-    fetch_nb_rows_check();
+    fetch_num_rows_check();
 
     doomer_stop();
     pgsql_fini();

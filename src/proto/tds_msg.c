@@ -857,9 +857,9 @@ static enum proto_parse_status rpc_parameter_data(struct tds_msg_parser const *t
             }
         case VARIABLE_COUNT_TOKEN:
             CHECK(2);
-            uint_least16_t nb_fields = cursor_read_u16n(cursor);
-            if (nb_fields == 0xffff) {  // COLMETADATA uses this (TODO: check ALTMETADATA)
-                nb_fields = 0;  // Cf table at end of 2.2.7.4
+            uint_least16_t num_fields = cursor_read_u16n(cursor);
+            if (num_fields == 0xffff) {  // COLMETADATA uses this (TODO: check ALTMETADATA)
+                num_fields = 0;  // Cf table at end of 2.2.7.4
             }
             // TODO
             return PROTO_PARSE_ERR;
@@ -1020,20 +1020,20 @@ static enum proto_parse_status tds_rpc(struct tds_msg_parser const *tds_msg_pars
 static void add_rows(struct sql_proto_info *info, unsigned count)
 {
     if (info->set_values & SQL_NB_ROWS) {
-        info->u.query.nb_rows += count;
+        info->u.query.num_rows += count;
     } else {
         info->set_values |= SQL_NB_ROWS;
-        info->u.query.nb_rows = count;
+        info->u.query.num_rows = count;
     }
 }
 
 static void add_fields(struct sql_proto_info *info, unsigned count)
 {
     if (info->set_values & SQL_NB_FIELDS) {
-        info->u.query.nb_fields += count;
+        info->u.query.num_fields += count;
     } else {
         info->set_values |= SQL_NB_FIELDS;
-        info->u.query.nb_fields = count;
+        info->u.query.num_fields = count;
     }
 }
 
@@ -1073,7 +1073,7 @@ static enum proto_parse_status tds_result_token(struct tds_msg_parser *tds_msg_p
                 }
                 if (msg_status & DONE_COUNT_SET) {
                     info->set_values |= SQL_NB_ROWS;
-                    info->u.query.nb_rows = rowcount;
+                    info->u.query.num_rows = rowcount;
                 }
                 if (! (msg_status & DONE_MORE)) {
                     // done with query
@@ -1162,7 +1162,7 @@ static enum proto_parse_status tds_result_token(struct tds_msg_parser *tds_msg_p
             for (unsigned i = 0; i < tds_msg_parser->column_count; i++) {
                 skip_type_info_value(cursor, tds_msg_parser->type_info + i);
             }
-            SLOG(LOG_DEBUG, "Incrementing row count %d", info->u.query.nb_rows);
+            SLOG(LOG_DEBUG, "Incrementing row count %d", info->u.query.num_rows);
             add_rows(info, 1);
             break;
         case LOGINACK_TOKEN:

@@ -19,10 +19,10 @@
  * or similar to a mere list if your initial guess is too small.
  */
 struct redim_array {
-    unsigned nb_used;       ///< Number of used entries
-    unsigned nb_malloced;   ///< Number of malloced entries
-    unsigned nb_holes;      ///< Number of used entries freed by user (on the freelist)
-    unsigned nb_chunks;     ///< How many chunks of memory are used to map this array
+    unsigned num_used;       ///< Number of used entries
+    unsigned num_malloced;   ///< Number of malloced entries
+    unsigned num_holes;      ///< Number of used entries freed by user (on the freelist)
+    unsigned num_chunks;     ///< How many chunks of memory are used to map this array
     unsigned alloc_size;    ///< Size of the initial chunk of memory (nth chunk will be n times bigger)
     size_t entry_size;      ///< Size of a single value
     TAILQ_HEAD(redim_array_chunks, redim_array_chunk) chunks;   ///< List of array chunks

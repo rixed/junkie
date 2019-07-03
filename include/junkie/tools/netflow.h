@@ -26,7 +26,7 @@ struct nf_flow {
 
 struct nf_msg {
     unsigned version;
-    unsigned nb_flows;
+    unsigned num_flows;
     unsigned sys_uptime;
     struct timeval ts;
     unsigned seqnum;

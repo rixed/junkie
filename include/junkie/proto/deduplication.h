@@ -24,7 +24,7 @@ struct digest_queue {
         HASH_TABLE(qcells, digest_qcell) qcells;
     } queues[NB_QUEUES];    // The queue is chosen according to digest hash, so that several distinct threads can perform lookups simultaneously.
     // Some stats for the user
-    uint_least64_t nb_dup_found, nb_nodup_found;
+    uint_least64_t num_dup_found, num_nodup_found;
     uint8_t dev_id;
 };
 

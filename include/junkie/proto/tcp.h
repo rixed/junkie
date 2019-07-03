@@ -33,7 +33,7 @@ struct tcp_proto_info {
     unsigned set_values;
     uint16_t mss;
     uint8_t wsf;
-    uint8_t nb_options;
+    uint8_t num_options;
     uint8_t options[16]; // The option kind that were set, in order of appearance (useful for OS detection)
 };
 

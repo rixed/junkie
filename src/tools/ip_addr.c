@@ -233,11 +233,11 @@ bool ip_addr_is_broadcast(struct ip_addr const *addr)
     }
 }
 
-static bool match_mask_byte(uint8_t const *host, uint8_t const *net, uint8_t const *mask, unsigned nb_bytes)
+static bool match_mask_byte(uint8_t const *host, uint8_t const *net, uint8_t const *mask, unsigned num_bytes)
 {
-    if (nb_bytes == 0) return true;
+    if (num_bytes == 0) return true;
     if ((*net & *mask) != (*host & *mask)) return false;
-    return match_mask_byte(host+1, net+1, mask+1, nb_bytes-1);
+    return match_mask_byte(host+1, net+1, mask+1, num_bytes-1);
 }
 
 bool ip_addr_match_mask(struct ip_addr const *host, struct ip_addr const *net, struct ip_addr const *mask)

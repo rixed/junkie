@@ -22,12 +22,12 @@ struct pkt_source {
     pcap_t *pcap_handle;            ///< The handle for libpcap
     pthread_t sniffer_pth;          ///< The thread sniffing this device or file
     void *(*sniffer_fun)(void *);   ///< The function that's sniffing packet (stored here for convenience)
-    uint64_t nb_packets;            ///< Number of packets received from PCAP
-    uint64_t nb_duplicates;         ///< Number of which that were duplicates
-    uint64_t nb_cap_bytes;          ///< Number of captured bytes from this source
-    uint64_t nb_wire_bytes;         ///< Number of bytes on the wire for this source
-    unsigned nb_acked_recvs;        ///< How many packets were received at the time of last call to iface-stats
-    unsigned nb_acked_drops;        ///< How many packets were dropped at the time of last call to iface-stats
+    uint64_t num_packets;            ///< Number of packets received from PCAP
+    uint64_t num_duplicates;         ///< Number of which that were duplicates
+    uint64_t num_cap_bytes;          ///< Number of captured bytes from this source
+    uint64_t num_wire_bytes;         ///< Number of bytes on the wire for this source
+    unsigned num_acked_recvs;        ///< How many packets were received at the time of last call to iface-stats
+    unsigned num_acked_drops;        ///< How many packets were dropped at the time of last call to iface-stats
     bool is_file;                   ///< A flag to distinguish between files and ifaces
     bool patch_ts;                  ///< If set, all frame timestamps will be overwritten with current time (only valid when is_file)
     bool loop;                      ///< If set, the pcap will be read in a loop (only valid when is_file)

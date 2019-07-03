@@ -243,7 +243,7 @@ static void load_if_exist(char const *fname)
     }
 }
 
-int main(int nb_args, char **args)
+int main(int num_args, char **args)
 {
     // Start by building the version string that's used in usage and --version option
     snprintf(version_string, sizeof(version_string), STRIZE(TAGNAME) " / " STRIZE(BRANCHNAME) ", compiled on " STRIZE(COMP_HOST) " @ %s", __DATE__);
@@ -277,15 +277,15 @@ int main(int nb_args, char **args)
         { { "filter", "f" },  "filter",  "open next ifaces with this BPF filter",
                                                                           CLI_DUP_STR,  { .str = &default_bpf_filter } },
         { { "read", "r" },    "file",    "read this pcap file",           CLI_CALL,     { .call = opt_read } },
-        { { "count", NULL },  "nb-pkts", "Exit after displaying this amount of packets",
+        { { "count", NULL },  "num-pkts", "Exit after displaying this amount of packets",
                                                                           CLI_SET_UINT, { .uint = &pkt_count } },
     };
 
     cli_register(NULL, main_opts, NB_ELEMS(main_opts));
 
     /* If args[0] is not "junkie" then assume it's a plugin name: */
-    assert(nb_args >= 1);
-    char *alt_args[nb_args+2];
+    assert(num_args >= 1);
+    char *alt_args[num_args+2];
 #   if HAVE_BASENAME_R
     char basename_buf[PATH_MAX];
     char *plugin_name = basename_r(args[0], basename_buf);
@@ -316,10 +316,10 @@ int main(int nb_args, char **args)
             alt_args[i] = src;
         }
         args = alt_args;
-        nb_args = NB_ELEMS(alt_args);
+        num_args = NB_ELEMS(alt_args);
     }
 
-    if (0 != cli_parse(nb_args-1, args+1)) return EXIT_FAILURE;
+    if (0 != cli_parse(num_args-1, args+1)) return EXIT_FAILURE;
 
     set_thread_name("J-main");
     openlog("junkie", LOG_CONS | LOG_NOWAIT | LOG_PID, LOG_USER);

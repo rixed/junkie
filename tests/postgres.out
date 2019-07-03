@@ -15,7 +15,7 @@ head_len=13, payload=0, Srv->Clt, startup, No SSL
 head_len=41, payload=0, Clt->Srv, startup, No SSL, passwd=md5da87c231a64e7f478b162d2c52a27539
 head_len=303, payload=0, Srv->Clt, startup, No SSL, encoding=Latin1, Status=Completed
 head_len=35, payload=0, Clt->Srv, query, query='create table toto (titi int);'
-head_len=24, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1, Status=Completed
+head_len=24, payload=0, Srv->Clt, query, num_rows=-1, num_fields=-1, Status=Completed
 head_len=5, payload=0, Clt->Srv, exit, Status=Completed
 -- pcap/postgres/select.pcap --
 head_len=34, payload=0, Clt->Srv, version=3.0, startup, No SSL, user=rixed, dbname=nova
@@ -23,26 +23,26 @@ head_len=13, payload=0, Srv->Clt, startup, No SSL
 head_len=41, payload=0, Clt->Srv, startup, No SSL, passwd=md55dbf99b539164853cac6d2a8d09b77b2
 head_len=303, payload=0, Srv->Clt, startup, No SSL, encoding=Latin1, Status=Completed
 head_len=32, payload=0, Clt->Srv, query, query='select * from meta_table ;'
-head_len=1448, payload=0, Srv->Clt, query, nb_rows=22, nb_fields=2
-head_len=1489, payload=0, Srv->Clt, query, nb_rows=31, nb_fields=-1
-head_len=1466, payload=0, Srv->Clt, query, nb_rows=35, nb_fields=-1
-head_len=1479, payload=0, Srv->Clt, query, nb_rows=36, nb_fields=-1
-head_len=1451, payload=0, Srv->Clt, query, nb_rows=35, nb_fields=-1
-head_len=1464, payload=0, Srv->Clt, query, nb_rows=35, nb_fields=-1
-head_len=1477, payload=0, Srv->Clt, query, nb_rows=36, nb_fields=-1
-head_len=1449, payload=0, Srv->Clt, query, nb_rows=35, nb_fields=-1
-head_len=1462, payload=0, Srv->Clt, query, nb_rows=35, nb_fields=-1
-head_len=1475, payload=0, Srv->Clt, query, nb_rows=35, nb_fields=-1
-head_len=1488, payload=0, Srv->Clt, query, nb_rows=36, nb_fields=-1
-head_len=468, payload=0, Srv->Clt, query, nb_rows=11, nb_fields=-1
-head_len=1465, payload=0, Srv->Clt, query, nb_rows=35, nb_fields=-1
-head_len=1478, payload=0, Srv->Clt, query, nb_rows=36, nb_fields=-1
-head_len=1450, payload=0, Srv->Clt, query, nb_rows=35, nb_fields=-1
-head_len=1463, payload=0, Srv->Clt, query, nb_rows=35, nb_fields=-1
-head_len=1476, payload=0, Srv->Clt, query, nb_rows=36, nb_fields=-1
-head_len=952, payload=0, Srv->Clt, query, nb_rows=23, nb_fields=-1
-head_len=1457, payload=0, Srv->Clt, query, nb_rows=35, nb_fields=-1
-head_len=1125, payload=0, Srv->Clt, query, nb_rows=27, nb_fields=-1, Status=Completed
+head_len=1448, payload=0, Srv->Clt, query, num_rows=22, num_fields=2
+head_len=1489, payload=0, Srv->Clt, query, num_rows=31, num_fields=-1
+head_len=1466, payload=0, Srv->Clt, query, num_rows=35, num_fields=-1
+head_len=1479, payload=0, Srv->Clt, query, num_rows=36, num_fields=-1
+head_len=1451, payload=0, Srv->Clt, query, num_rows=35, num_fields=-1
+head_len=1464, payload=0, Srv->Clt, query, num_rows=35, num_fields=-1
+head_len=1477, payload=0, Srv->Clt, query, num_rows=36, num_fields=-1
+head_len=1449, payload=0, Srv->Clt, query, num_rows=35, num_fields=-1
+head_len=1462, payload=0, Srv->Clt, query, num_rows=35, num_fields=-1
+head_len=1475, payload=0, Srv->Clt, query, num_rows=35, num_fields=-1
+head_len=1488, payload=0, Srv->Clt, query, num_rows=36, num_fields=-1
+head_len=468, payload=0, Srv->Clt, query, num_rows=11, num_fields=-1
+head_len=1465, payload=0, Srv->Clt, query, num_rows=35, num_fields=-1
+head_len=1478, payload=0, Srv->Clt, query, num_rows=36, num_fields=-1
+head_len=1450, payload=0, Srv->Clt, query, num_rows=35, num_fields=-1
+head_len=1463, payload=0, Srv->Clt, query, num_rows=35, num_fields=-1
+head_len=1476, payload=0, Srv->Clt, query, num_rows=36, num_fields=-1
+head_len=952, payload=0, Srv->Clt, query, num_rows=23, num_fields=-1
+head_len=1457, payload=0, Srv->Clt, query, num_rows=35, num_fields=-1
+head_len=1125, payload=0, Srv->Clt, query, num_rows=27, num_fields=-1, Status=Completed
 head_len=5, payload=0, Clt->Srv, exit, Status=Completed
 -- pcap/postgres/connect_ssl.pcap --
 head_len=8, payload=0, Clt->Srv, startup, SSL requested

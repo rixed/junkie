@@ -37,25 +37,25 @@ static void check_hash_size(struct test_hash *h, unsigned expected_size)
     assert(count == expected_size);
 }
 
-static void hash_check(unsigned nb_elem)
+static void hash_check(unsigned num_elem)
 {
     struct test_hash h;
-    HASH_INIT(&h, nb_elem, "test");
+    HASH_INIT(&h, num_elem, "test");
 
     assert(HASH_EMPTY(&h));
 
     // Insert that many values
-    for (unsigned i = 0; i < nb_elem; i++) {
+    for (unsigned i = 0; i < num_elem; i++) {
         struct h_value *v = v_new(i);
         HASH_INSERT(&h, v, &v->value, entry);
     }
 
-    // Check we have nb_elem elements
-    check_hash_size(&h, nb_elem);
+    // Check we have num_elem elements
+    check_hash_size(&h, num_elem);
 
     // Check we can each of them, once
     struct h_value *v;
-    for (unsigned val = 0; val < nb_elem; val++) {
+    for (unsigned val = 0; val < num_elem; val++) {
         bool found = false;
         HASH_FOREACH_MATCH(v, &h, &val, value, entry) {
             assert(! found);
@@ -91,7 +91,7 @@ static void rehash_check(void)
 
     // Now we have a hash that's too big. Let's resize :
     HASH_TRY_REHASH(&h, value, entry);
-    assert(HASH_AVG_LENGTH(&h) >= HASH_LENGTH_MIN || h.base.nb_lists <= h.base.nb_lists_min);
+    assert(HASH_AVG_LENGTH(&h) >= HASH_LENGTH_MIN || h.base.num_lists <= h.base.num_lists_min);
     assert(HASH_AVG_LENGTH(&h) <= HASH_LENGTH_MAX);
 
     check_hash_size(&h, 3);

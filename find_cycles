@@ -17,14 +17,14 @@ let main () =
             Hashtbl.replace nodes dst 0 ;
             Hashtbl.add paths src dst
         )) ;
-    let nb_nodes = Hashtbl.length nodes in
+    let num_nodes = Hashtbl.length nodes in
     (* Give a unique index to each node *)
     let i = ref 0 in
     Hashtbl.iter (fun n _v -> Hashtbl.replace nodes n !i ; incr i) nodes ;
-    let node_name = Array.create nb_nodes "" in
+    let node_name = Array.create num_nodes "" in
     Hashtbl.iter (fun n i -> node_name.(i) <- n) nodes ;
     (* Build accessibility matrix *)
-    let make_matrix () = Array.init nb_nodes (fun _i -> Array.create nb_nodes false) in
+    let make_matrix () = Array.init num_nodes (fun _i -> Array.create num_nodes false) in
     let reachable = ref (make_matrix ()) in
     (* add all known paths *)
     let node_index n = Hashtbl.find nodes n in
@@ -34,11 +34,11 @@ let main () =
     let rec loop () =
         let changed = ref false in
         let res = make_matrix () in
-        for i = 0 to nb_nodes-1 do
-            for j = 0 to nb_nodes-1 do
+        for i = 0 to num_nodes-1 do
+            for j = 0 to num_nodes-1 do
                 res.(i).(j) <- !reachable.(i).(j) ;
                 if not res.(i).(j) then (
-                    for k = 0 to nb_nodes-1 do
+                    for k = 0 to num_nodes-1 do
                         res.(i).(j) <- res.(i).(j) || (!reachable.(i).(k) && !reachable.(k).(j))
                     done ;
                     if res.(i).(j) then changed := true
@@ -51,7 +51,7 @@ let main () =
         ) in
     loop () ;
     (* Display cycles *)
-    for i = 0 to nb_nodes-1 do
+    for i = 0 to num_nodes-1 do
         if !reachable.(i).(i) then
             Printf.printf "Cycle from %s\n" node_name.(i)
     done;;

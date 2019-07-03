@@ -203,10 +203,10 @@ static void reassembly_check(void)
     reset_sent();
 
     // We sent the message one random piece at a time, using less pieces thant the wait_list defined limit.
-    unsigned nb_pieces = 0;
+    unsigned num_pieces = 0;
     while (! all_sent()) {
         unsigned start, len;
-        if (nb_pieces < 900) {
+        if (num_pieces < 900) {
             start = rand() % NB_ELEMS(msg);
             len = rand() % 16;
         } else {    // sent everything!
@@ -223,7 +223,7 @@ static void reassembly_check(void)
             mark_sent(0, len);
         }
 
-        nb_pieces ++;
+        num_pieces ++;
     }
 
     // Now that we sent everyhting try reassembling :
@@ -266,6 +266,6 @@ int main(void)
     return EXIT_SUCCESS;
 }
 
-void fuzz(struct parser unused_ *parser, uint8_t const unused_ *packet, size_t unused_ packet_len, unsigned unused_ max_nb_fuzzed_bits)
+void fuzz(struct parser unused_ *parser, uint8_t const unused_ *packet, size_t unused_ packet_len, unsigned unused_ max_num_fuzzed_bits)
 {
 }

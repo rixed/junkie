@@ -36,10 +36,10 @@ LOG_CATEGORY_DEF(proto_dns);
 struct dns_hdr {
     uint16_t transaction_id;
     uint16_t flags;
-    uint16_t nb_questions;
-    uint16_t nb_answers;
-    uint16_t nb_auths;
-    uint16_t nb_adds;
+    uint16_t num_questions;
+    uint16_t num_answers;
+    uint16_t num_auths;
+    uint16_t num_adds;
 } packed_;
 
 #define FLAG_QR     0x8000U
@@ -191,21 +191,21 @@ enum proto_parse_status dns_parse(struct parser *parser, struct proto_info *pare
     size_t parsed = sizeof(*dnshdr);
     uint16_t const flags = READ_U16N(&dnshdr->flags);
     uint16_t const transaction_id = READ_U16N(&dnshdr->transaction_id);
-    uint16_t const nb_questions = READ_U16N(&dnshdr->nb_questions);
-    uint16_t const nb_answers = READ_U16N(&dnshdr->nb_answers);
-    uint16_t const nb_auths = READ_U16N(&dnshdr->nb_auths);
-    uint16_t const nb_adds = READ_U16N(&dnshdr->nb_adds);
+    uint16_t const num_questions = READ_U16N(&dnshdr->num_questions);
+    uint16_t const num_answers = READ_U16N(&dnshdr->num_answers);
+    uint16_t const num_auths = READ_U16N(&dnshdr->num_auths);
+    uint16_t const num_adds = READ_U16N(&dnshdr->num_adds);
 
     struct dns_proto_info info;
     dns_proto_info_ctor(&info, parser, parent, wire_len, transaction_id, flags);
 
     // Improbable number of questions and answers
-    if (nb_questions > 255 || nb_answers > 255 || nb_auths > 255 || nb_adds > 255) return PROTO_PARSE_ERR;
+    if (num_questions > 255 || num_answers > 255 || num_auths > 255 || num_adds > 255) return PROTO_PARSE_ERR;
 
     char tmp_name[sizeof(info.name)];    // to skip all but first names
 
     // Extract queried name
-    for (unsigned q = 0; q < nb_questions; q++) {
+    for (unsigned q = 0; q < num_questions; q++) {
         ssize_t ret = extract_qname(q == 0 ? info.name : tmp_name, sizeof(info.name), packet+parsed, cap_len-parsed, false);
         if (ret < 0) return PROTO_TOO_SHORT;    // FIXME: or maybe this is a parse error ? extract_qname should tell the difference
         parsed += ret;

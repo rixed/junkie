@@ -41,7 +41,7 @@ struct mysql_parser {
     unsigned c2s_way;       // The way when traffic is going from client to server (UNSET for unset)
     enum phase { NONE, STARTUP, QUERY, EXIT } phase;
     struct streambuf sbuf;
-    unsigned nb_eof;        // count the Srv->Clt EOF packets (to parse result sets)
+    unsigned num_eof;        // count the Srv->Clt EOF packets (to parse result sets)
     unsigned expected_eof;  // Expected EOF packets for response
 };
 
@@ -55,7 +55,7 @@ static int mysql_parser_ctor(struct mysql_parser *mysql_parser, struct proto *pr
     mysql_parser->phase = NONE;
     mysql_parser->c2s_way = UNSET;
     if (0 != streambuf_ctor(&mysql_parser->sbuf, mysql_sbuf_parse, 30000)) return -1;
-    mysql_parser->nb_eof = 0;
+    mysql_parser->num_eof = 0;
     mysql_parser->expected_eof = 2;
 
     return 0;
@@ -458,17 +458,17 @@ static enum proto_parse_status mysql_parse_query(struct mysql_parser *mysql_pars
             if (packet_len-- < 1) return PROTO_PARSE_ERR;
             unsigned field_count = cursor_read_u8(&cursor);
             if (field_count == 0) { // Ok packet
-                uint_least64_t nb_rows;
-                status = cursor_read_varlen(&cursor, &nb_rows, packet_len);
+                uint_least64_t num_rows;
+                status = cursor_read_varlen(&cursor, &num_rows, packet_len);
                 if (status != PROTO_OK) return status;
                 info->set_values |= SQL_NB_ROWS;    // number of affected rows
-                info->u.query.nb_rows = nb_rows;
+                info->u.query.num_rows = num_rows;
             } else if (field_count == 0xff) {   // Error packet
                 status = mysql_parse_error(info, &cursor, packet_len);
                 if (status != PROTO_OK) return status;
             } else if (field_count == 0xfe) {   // EOF packet
                 if (packet_len != 4) return PROTO_PARSE_ERR;
-                mysql_parser->nb_eof ++;
+                mysql_parser->num_eof ++;
             } else {    // result set/field set/row data packet
                 // We must re-read the field count since it's actually a varlen binary
                 cursor_rollback(&cursor, 1);
@@ -477,22 +477,22 @@ static enum proto_parse_status mysql_parse_query(struct mysql_parser *mysql_pars
                 status = cursor_read_varlen(&cursor, &field_count, packet_len+1);
                 if (packet_num == 1) {  // result set header
                     info->set_values |= SQL_NB_FIELDS;
-                    info->u.query.nb_fields = field_count;
-                    mysql_parser->nb_eof = 0;
+                    info->u.query.num_fields = field_count;
+                    mysql_parser->num_eof = 0;
                 } else {
-                    if (mysql_parser->nb_eof == 0) {    // Field packet
+                    if (mysql_parser->num_eof == 0) {    // Field packet
                         // not interesting
-                    } else if (mysql_parser->nb_eof == 1) { // Row data packet
+                    } else if (mysql_parser->num_eof == 1) { // Row data packet
                         if (! (info->set_values & SQL_NB_ROWS)) {
                             info->set_values |= SQL_NB_ROWS;
-                            info->u.query.nb_rows = 0;
+                            info->u.query.num_rows = 0;
                         }
-                        info->u.query.nb_rows ++;
+                        info->u.query.num_rows ++;
                     } else return PROTO_PARSE_ERR;
                 }
             }
             // An eof for field description and an eof for rows
-            if (mysql_parser->nb_eof == mysql_parser->expected_eof) {
+            if (mysql_parser->num_eof == mysql_parser->expected_eof) {
                 SLOG(LOG_DEBUG, "Query is completed");
                 info->set_values |= SQL_REQUEST_STATUS;
                 info->request_status = SQL_REQUEST_COMPLETE;

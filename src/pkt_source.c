@@ -116,9 +116,9 @@ static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, 
     if (header->len == 0) return;   // should not happen, but does occur sometime
     size_t const caplen = MIN(header->caplen, header->len); // caplen > len was seen in the wild - the correct behavior was to consider caplen was off by a few bytes.
 
-    pkt_source->nb_packets ++;
-    pkt_source->nb_cap_bytes += caplen;
-    pkt_source->nb_wire_bytes += header->len;
+    pkt_source->num_packets ++;
+    pkt_source->num_cap_bytes += caplen;
+    pkt_source->num_wire_bytes += header->len;
 
     struct frame frame = {
         .tv = header->ts,
@@ -138,7 +138,7 @@ static void parse_packet(u_char *pkt_source_, const struct pcap_pkthdr *header, 
         (collapse_ifaces && global_digests && digest_queue_find(global_digests, caplen, (uint8_t *)packet, &header->ts))
     ) {
         SLOG(LOG_DEBUG, "Drop duplicated packet");
-        pkt_source->nb_duplicates ++;
+        pkt_source->num_duplicates ++;
         return;
     }
 
@@ -191,14 +191,14 @@ static void *sniffer(struct pkt_source *pkt_source, pcap_handler callback)
 {
     SLOG(LOG_INFO, "Dispatching packets from packet source %s", pkt_source_name(pkt_source));
     do {
-        int nb_packets = pcap_dispatch(pkt_source->pcap_handle, 100, callback, (u_char *)pkt_source);
-        SLOG(LOG_DEBUG, "Got a batch of %d packets", nb_packets);
-        if (nb_packets < 0) {
-            if (nb_packets != -2) {
+        int num_packets = pcap_dispatch(pkt_source->pcap_handle, 100, callback, (u_char *)pkt_source);
+        SLOG(LOG_DEBUG, "Got a batch of %d packets", num_packets);
+        if (num_packets < 0) {
+            if (num_packets != -2) {
                 SLOG(LOG_ALERT, "Cannot pcap_dispatch on pkt_source %s: %s", pkt_source_name(pkt_source), pcap_geterr(pkt_source->pcap_handle));
             }
             break;
-        } else if (nb_packets == 0) {
+        } else if (num_packets == 0) {
             if (pkt_source->is_file) {
                 if (pkt_source->loop) {
                     rewind_file(pkt_source);
@@ -209,7 +209,7 @@ static void *sniffer(struct pkt_source *pkt_source, pcap_handler callback)
         }
     } while (! want_exit);
 
-    SLOG(LOG_INFO, "Stop sniffing on packet source %s (%"PRIuLEAST64" packets received)", pkt_source_name(pkt_source), pkt_source->nb_packets);
+    SLOG(LOG_INFO, "Stop sniffing on packet source %s (%"PRIuLEAST64" packets received)", pkt_source_name(pkt_source), pkt_source->num_packets);
     pkt_source_del(pkt_source);
     return NULL;
 }
@@ -271,7 +271,7 @@ static void *sniffer_rt(struct pkt_source *pkt_source, pcap_handler callback)
         callback((void *)pkt_source, pkt_hdr, packet);
     } while (1);
 
-    SLOG(LOG_INFO, "Stop sniffing on packet source %s (realtime) (%"PRIuLEAST64" packets received)", pkt_source_name(pkt_source), pkt_source->nb_packets);
+    SLOG(LOG_INFO, "Stop sniffing on packet source %s (realtime) (%"PRIuLEAST64" packets received)", pkt_source_name(pkt_source), pkt_source->num_packets);
     pkt_source_del(pkt_source);
     return NULL;
 }
@@ -336,12 +336,12 @@ static int pkt_source_ctor(struct pkt_source *pkt_source, char const *name, pcap
     snprintf(pkt_source->name, sizeof(pkt_source->name), "%s", name);
     pkt_source->instance = 0;
     pkt_source->pcap_handle = pcap_handle;
-    pkt_source->nb_packets = 0;
-    pkt_source->nb_duplicates = 0;
-    pkt_source->nb_cap_bytes = 0;
-    pkt_source->nb_wire_bytes = 0;
-    pkt_source->nb_acked_recvs = 0;
-    pkt_source->nb_acked_drops = 0;
+    pkt_source->num_packets = 0;
+    pkt_source->num_duplicates = 0;
+    pkt_source->num_cap_bytes = 0;
+    pkt_source->num_wire_bytes = 0;
+    pkt_source->num_acked_recvs = 0;
+    pkt_source->num_acked_drops = 0;
     pkt_source->is_file = is_file;
     pkt_source->patch_ts = patch_ts;
     pkt_source->loop = loop;
@@ -519,7 +519,7 @@ err2:
 // Caller must own pkt_sources_lock
 static void pkt_source_dtor(struct pkt_source *pkt_source)
 {
-    SLOG(LOG_DEBUG, "Closing packet source %s (parsed %"PRIu64" packets)", pkt_source_name(pkt_source), pkt_source->nb_packets);
+    SLOG(LOG_DEBUG, "Closing packet source %s (parsed %"PRIu64" packets)", pkt_source_name(pkt_source), pkt_source->num_packets);
 
     LIST_REMOVE(pkt_source, entry);
 
@@ -560,7 +560,7 @@ static void pkt_source_del(struct pkt_source *pkt_source)
 // Caller must own pkt_sources_lock
 static void pkt_source_terminate(struct pkt_source *pkt_source)
 {
-    SLOG(LOG_DEBUG, "Terminating packet source '%s' after %"PRIu64" packets (%"PRIu64" dups)", pkt_source_name(pkt_source), pkt_source->nb_packets, pkt_source->nb_duplicates);
+    SLOG(LOG_DEBUG, "Terminating packet source '%s' after %"PRIu64" packets (%"PRIu64" dups)", pkt_source_name(pkt_source), pkt_source->num_packets, pkt_source->num_duplicates);
     pkt_source->loop = false;
     pcap_breakloop(pkt_source->pcap_handle);
 }
@@ -673,14 +673,14 @@ static SCM g_iface_names(void)
 }
 
 static SCM id_sym;
-static SCM nb_packets_sym;
-static SCM nb_duplicates_sym;
+static SCM num_packets_sym;
+static SCM num_duplicates_sym;
 static SCM tot_received_sym;
 static SCM tot_dropped_sym;
 static SCM new_received_sym;
 static SCM new_dropped_sym;
-static SCM nb_cap_bytes_sym;
-static SCM nb_wire_bytes_sym;
+static SCM num_cap_bytes_sym;
+static SCM num_wire_bytes_sym;
 static SCM filep_sym;
 static SCM filter_sym;
 
@@ -701,22 +701,22 @@ static SCM g_iface_stats(SCM ifname_)
 
     ret = scm_list_n(
         scm_cons(id_sym,            scm_from_uint8(pkt_source->dev_id)),
-        scm_cons(nb_packets_sym,    scm_from_uint64(pkt_source->nb_packets)),
-        scm_cons(nb_duplicates_sym, scm_from_uint64(pkt_source->nb_duplicates)),
-        scm_cons(tot_received_sym,  have_stats ? scm_from_uint(stats.ps_recv) : scm_from_uint64(pkt_source->nb_packets)),
+        scm_cons(num_packets_sym,    scm_from_uint64(pkt_source->num_packets)),
+        scm_cons(num_duplicates_sym, scm_from_uint64(pkt_source->num_duplicates)),
+        scm_cons(tot_received_sym,  have_stats ? scm_from_uint(stats.ps_recv) : scm_from_uint64(pkt_source->num_packets)),
         scm_cons(tot_dropped_sym,   have_stats ? scm_from_uint(stats.ps_drop) : scm_from_int(0)),
-        scm_cons(new_received_sym,  have_stats ? scm_from_uint(stats.ps_recv - pkt_source->nb_acked_recvs) : scm_from_uint64(pkt_source->nb_packets)),
-        scm_cons(new_dropped_sym,   have_stats ? scm_from_uint(stats.ps_drop - pkt_source->nb_acked_drops) : scm_from_int(0)),
-        scm_cons(nb_cap_bytes_sym,  scm_from_uint64(pkt_source->nb_cap_bytes)),
-        scm_cons(nb_wire_bytes_sym, scm_from_uint64(pkt_source->nb_wire_bytes)),
+        scm_cons(new_received_sym,  have_stats ? scm_from_uint(stats.ps_recv - pkt_source->num_acked_recvs) : scm_from_uint64(pkt_source->num_packets)),
+        scm_cons(new_dropped_sym,   have_stats ? scm_from_uint(stats.ps_drop - pkt_source->num_acked_drops) : scm_from_int(0)),
+        scm_cons(num_cap_bytes_sym,  scm_from_uint64(pkt_source->num_cap_bytes)),
+        scm_cons(num_wire_bytes_sym, scm_from_uint64(pkt_source->num_wire_bytes)),
         scm_cons(filep_sym,         scm_from_bool(pkt_source->is_file)),
         pkt_source->filter ?
             scm_cons(filter_sym,    scm_from_latin1_string(pkt_source->filter)) :
             SCM_UNDEFINED,
         SCM_UNDEFINED);
 
-    pkt_source->nb_acked_recvs = stats.ps_recv;
-    pkt_source->nb_acked_drops = stats.ps_drop;
+    pkt_source->num_acked_recvs = stats.ps_recv;
+    pkt_source->num_acked_drops = stats.ps_drop;
 
 err:
     mutex_unlock(&pkt_sources_lock);
@@ -753,14 +753,14 @@ void pkt_source_init(void)
     mutex_ctor(&pkt_sources_lock, "pkt_sources");
 
     id_sym                = scm_permanent_object(scm_from_latin1_symbol("id"));
-    nb_packets_sym        = scm_permanent_object(scm_from_latin1_symbol("nb-packets"));
-    nb_duplicates_sym     = scm_permanent_object(scm_from_latin1_symbol("nb-duplicates"));
+    num_packets_sym        = scm_permanent_object(scm_from_latin1_symbol("num-packets"));
+    num_duplicates_sym     = scm_permanent_object(scm_from_latin1_symbol("num-duplicates"));
     tot_received_sym      = scm_permanent_object(scm_from_latin1_symbol("tot-received"));
     tot_dropped_sym       = scm_permanent_object(scm_from_latin1_symbol("tot-dropped"));
     new_received_sym      = scm_permanent_object(scm_from_latin1_symbol("new-received"));
     new_dropped_sym       = scm_permanent_object(scm_from_latin1_symbol("new-dropped"));
-    nb_cap_bytes_sym      = scm_permanent_object(scm_from_latin1_symbol("nb-cap-bytes"));
-    nb_wire_bytes_sym     = scm_permanent_object(scm_from_latin1_symbol("nb-wire-bytes"));
+    num_cap_bytes_sym      = scm_permanent_object(scm_from_latin1_symbol("num-cap-bytes"));
+    num_wire_bytes_sym     = scm_permanent_object(scm_from_latin1_symbol("num-wire-bytes"));
     filep_sym             = scm_permanent_object(scm_from_latin1_symbol("file?"));
     filter_sym            = scm_permanent_object(scm_from_latin1_symbol("filter"));
 
@@ -830,7 +830,7 @@ void pkt_source_fini(void)
     mutex_unlock(&pkt_sources_lock);
 
     // Waiting for the pkt_sources to be destroyed (and all listener threads - but me) to terminate
-    for (unsigned nb_try = 0; nb_try < 5; nb_try ++) {
+    for (unsigned num_try = 0; num_try < 5; num_try ++) {
         mutex_lock(&pkt_sources_lock);
         bool is_empty = LIST_EMPTY(&pkt_sources);
         mutex_unlock(&pkt_sources_lock);

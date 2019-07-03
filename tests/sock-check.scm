@@ -35,14 +35,14 @@
 
 (call-with-values
   (lambda ()
-    (let loop ((nb-try 0))
-      (if (>= nb-try 10)
+    (let loop ((num-try 0))
+      (if (>= num-try 10)
           (throw 'cannot-create-udp-server)
           (let ((port (random-port)))
             (catch 'cannot-create-sock
                    (lambda ()
                      (values port (make-sock 'udp 'server port)))
-                   (lambda (k . args) (loop (1+ nb-try))))))))
+                   (lambda (k . args) (loop (1+ num-try))))))))
   (lambda (port srv-sock)
     (slog log-debug "UDP server listening on port ~s, socket ~s" port srv-sock)
     ; now try to connect to it
@@ -60,14 +60,14 @@
 
 (call-with-values
   (lambda ()
-    (let loop ((nb-try 0))
-      (if (>= nb-try 10)
+    (let loop ((num-try 0))
+      (if (>= num-try 10)
           (throw 'cannot-create-tcp-server)
           (let ((port (random-port)))
             (catch 'cannot-create-sock
                    (lambda ()
                      (values port (make-sock 'tcp 'server port)))
-                   (lambda (k . args) (loop (1+ nb-try))))))))
+                   (lambda (k . args) (loop (1+ num-try))))))))
   (lambda (port srv-sock)
     (slog log-debug "TCP server listening on port ~s, socket ~s" port srv-sock)
     ; now try to connect to it
@@ -125,8 +125,8 @@
         (ll-clt-sock #f)
         (port        (random-port))
         (test-msg    "glop glop pas glop")
-        (nb-rcvd     0)
-        (nb-sent     0))
+        (num-rcvd     0)
+        (num-sent     0))
     (set! ll-srv-sock (make-sock 'udp 'server port))
     (set! ll-clt-sock (make-sock 'udp 'client "localhost" port))
     (set! srv-sock (make-sock 'buffered mtu ll-srv-sock))
@@ -145,7 +145,7 @@
                                                   (set! done #t)]
                                                  [(string=? test-msg msg)
                                                   (slog log-debug "Read 1 message")
-                                                  (set! nb-rcvd (1+ nb-rcvd))]
+                                                  (set! num-rcvd (1+ num-rcvd))]
                                                  [else
                                                    (assert #f)]))
                                              (sock-recv srv-sock))
@@ -153,7 +153,7 @@
       (let loop ((n 20))
         (assert (sock-send clt-sock test-msg))
         (slog log-debug "Write 1 message")
-        (set! nb-sent (1+ nb-sent))
+        (set! num-sent (1+ num-sent))
         (if (> n 1) (loop (- n 1))))
       (assert (sock-send clt-sock "END"))
       (slog log-debug "Disconnecting client")
@@ -165,8 +165,8 @@
       (set! ll-srv-sock #f)
       (set! ll-clt-sock #f)
       (gc)
-      (slog log-debug "We've sent ~a msgs and read ~a" nb-sent nb-rcvd)
-      (assert (= nb-sent nb-rcvd)))))
+      (slog log-debug "We've sent ~a msgs and read ~a" num-sent num-rcvd)
+      (assert (= num-sent num-rcvd)))))
 (test-buf 32) ; small buffer
 (test-buf 100) ; a few msgs per PDU
 (test-buf 1000) ; all in one PDU

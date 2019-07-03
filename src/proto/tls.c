@@ -773,14 +773,14 @@ static char const *tls_handshake_2_str(unsigned set_values, struct tls_info_hand
             set_values & CIPHER_SUITE_SET ? tls_cipher_suite_2_str(info->cipher_suite) : "",
             set_values & CIPHER_SUITE_SET ? ", compression_algo=":"",
             set_values & CIPHER_SUITE_SET ? tls_compress_algo_2_str(info->compress_algorithm) : "",
-            set_values & NB_CERTS_SET ? ", nb_certs=":"",
-            set_values & NB_CERTS_SET ? tempstr_smallint(info->nb_certs):"",
+            set_values & NB_CERTS_SET ? ", num_certs=":"",
+            set_values & NB_CERTS_SET ? tempstr_smallint(info->num_certs):"",
             set_values & SERVER_NAME_INDICATION_SET ? ", SNI=":"",
             set_values & SERVER_NAME_INDICATION_SET ? info->sni:"");
 
     if (set_values & NB_CERTS_SET) {
         size_t len = strlen(s);
-        for (unsigned c = 0; c < info->nb_certs && c < NB_ELEMS(info->certs); c++) {
+        for (unsigned c = 0; c < info->num_certs && c < NB_ELEMS(info->certs); c++) {
             len += snprintf(s+len, TEMPSTR_SIZE, ", %s", tls_cert_info_2_str(info->certs+c, c));
         }
     }
@@ -1156,8 +1156,8 @@ static enum proto_parse_status tls_parse_validity(struct tls_cert_info *cert, st
 
 static enum proto_parse_status tls_parse_certificate(struct tls_proto_info *info, struct cursor *cur)
 {
-    if (info->u.handshake.nb_certs < NB_ELEMS(info->u.handshake.certs)) {
-        struct tls_cert_info *cert = info->u.handshake.certs + info->u.handshake.nb_certs;
+    if (info->u.handshake.num_certs < NB_ELEMS(info->u.handshake.certs)) {
+        struct tls_cert_info *cert = info->u.handshake.certs + info->u.handshake.num_certs;
         cert->subject[0] = cert->issuer[0] = '\0';
 
         SLOG(LOG_DEBUG, "Parsing TLS certificate");
@@ -1186,13 +1186,13 @@ static enum proto_parse_status tls_parse_certificate(struct tls_proto_info *info
     }
 
     SLOG(LOG_DEBUG, "Successively parsed certificate");
-    info->u.handshake.nb_certs ++;
+    info->u.handshake.num_certs ++;
     return PROTO_OK;
 }
 
 static enum proto_parse_status tls_parse_all_certificates(struct tls_proto_info *info, struct cursor *cur, size_t wire_len)
 {
-    info->u.handshake.nb_certs = 0;
+    info->u.handshake.num_certs = 0;
     info->set_values |= NB_CERTS_SET;
 
     for (unsigned n = 0; ; n++) {

@@ -40,7 +40,7 @@
 #define LOG_CAT sock_log_category
 LOG_CATEGORY_DEF(sock);
 
-/** We cannot easilly use objalloc from here (due to module recursive dep),
+/** We cannot easily use objalloc from here (due to module recursive dep),
  * So we use straight mallocer */
 static MALLOCER_DEF(sock_mallocer);
 
@@ -80,7 +80,7 @@ static void sock_dtor(struct sock *s)
 struct sock_inet {
     struct sock sock;
     int fd[5];  // up to 5 listened sockets (for servers, clients use only the first)
-    unsigned nb_fds;
+    unsigned num_fds;
     // everything required to rebuild the socket in case something goes wrong
     char *host;   // strdupped
     char *service;    // strdupped
@@ -91,12 +91,12 @@ struct sock_inet {
 
 static void sock_inet_disconnect_all(struct sock_inet *s)
 {
-    for (unsigned f = 0; f < s->nb_fds; f++) {
+    for (unsigned f = 0; f < s->num_fds; f++) {
         SLOG(LOG_DEBUG, "Closing fd %d", s->fd[f]);
         file_close(s->fd[f]);
         s->fd[f] = -1;
     }
-    s->nb_fds = 0;
+    s->num_fds = 0;
 }
 
 static int sock_inet_client_connect(struct sock_inet *s)
@@ -166,7 +166,7 @@ static int sock_inet_client_connect(struct sock_inet *s)
         }
         // Finish construction of s
         res = 0;
-        s->nb_fds = 1;
+        s->num_fds = 1;
         SLOG(LOG_INFO, "Connected to %s", s->sock.name);
         break;  // go with this one
     }
@@ -188,7 +188,7 @@ static int sock_inet_client_ctor(struct sock_inet *s, char const *host, char con
     s->buf_size = buf_size;
     s->type = type;
     s->last_connect = 0;
-    s->nb_fds = 0;
+    s->num_fds = 0;
 
     return sock_inet_client_connect(s);
 }
@@ -216,16 +216,16 @@ static int sock_inet_server_ctor(struct sock_inet *s, char const *service, size_
     socklen_t srv_addrlen;
     int srv_family;
 
-    s->nb_fds = 0;
-    for (struct addrinfo *info_ = info; info_ && s->nb_fds < NB_ELEMS(s->fd); info_ = info_->ai_next) {
+    s->num_fds = 0;
+    for (struct addrinfo *info_ = info; info_ && s->num_fds < NB_ELEMS(s->fd); info_ = info_->ai_next) {
         memset(&srv_addr, 0, sizeof(srv_addr));
         memcpy(&srv_addr, info_->ai_addr, info_->ai_addrlen);
         srv_addrlen = info_->ai_addrlen;
         srv_family = info_->ai_family;
         snprintf(s->sock.name, sizeof(s->sock.name), "%s://*:%s", proto, service);
 
-        s->fd[s->nb_fds] = socket(srv_family, type, 0);
-        if (s->fd[s->nb_fds] < 0) {
+        s->fd[s->num_fds] = socket(srv_family, type, 0);
+        if (s->fd[s->num_fds] < 0) {
             SLOG(LOG_WARNING, "Cannot socket(): %s", strerror(errno));
             continue;
         }
@@ -235,35 +235,35 @@ static int sock_inet_server_ctor(struct sock_inet *s, char const *service, size_
             /* Do what I say instead of what Linux thinks I should do
              * (ie, work around poor default value for bindv6only) */
             SLOG(LOG_DEBUG, "binding IPv6 only when binding IPv6");
-            if (0 != setsockopt(s->fd[s->nb_fds], IPPROTO_IPV6, IPV6_V6ONLY, &one, sizeof(one))) {
+            if (0 != setsockopt(s->fd[s->num_fds], IPPROTO_IPV6, IPV6_V6ONLY, &one, sizeof(one))) {
                 SLOG(LOG_ERR, "Cannot setsockopt(%s, IPV6_V6ONLY): %s", service, strerror(errno));
             }
         }
-        if (0 != setsockopt(s->fd[s->nb_fds], SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one))) {
+        if (0 != setsockopt(s->fd[s->num_fds], SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one))) {
             SLOG(LOG_ERR, "Cannot setsockopt(%s, SO_REUSEADDR): %s", service, strerror(errno));
         }
 
-        if (0 != bind(s->fd[s->nb_fds], &srv_addr.a, srv_addrlen)) {
+        if (0 != bind(s->fd[s->num_fds], &srv_addr.a, srv_addrlen)) {
             SLOG(LOG_WARNING, "Cannot bind(%s): %s", service, strerror(errno));
-            file_close(s->fd[s->nb_fds]);
-            s->fd[s->nb_fds] = -1;
+            file_close(s->fd[s->num_fds]);
+            s->fd[s->num_fds] = -1;
             continue;
         } else {
-            if (buf_size) set_rcvbuf(s->fd[s->nb_fds], buf_size);
-            SLOG(LOG_DEBUG, "Bound TCP sock on fd %d", s->fd[s->nb_fds]);
-            s->nb_fds ++;
+            if (buf_size) set_rcvbuf(s->fd[s->num_fds], buf_size);
+            SLOG(LOG_DEBUG, "Bound TCP sock on fd %d", s->fd[s->num_fds]);
+            s->num_fds ++;
             continue;
         }
     }
 
-    if (s->nb_fds > 0) {
+    if (s->num_fds > 0) {
         // Finish construction
         sock_ctor(&s->sock, ops);
         SLOG(LOG_INFO, "Serving %s", s->sock.name);
     }
     freeaddrinfo(info);
 
-    return s->nb_fds > 0 ? 0:-1;
+    return s->num_fds > 0 ? 0:-1;
 }
 
 static void sock_inet_dtor(struct sock_inet *s)
@@ -282,7 +282,7 @@ static void sock_inet_dtor(struct sock_inet *s)
 
 static bool sock_inet_is_opened(struct sock_inet *s)
 {
-    return s->nb_fds > 0;
+    return s->num_fds > 0;
 }
 
 /*
@@ -300,7 +300,7 @@ static int sock_udp_send(struct sock *s_, void const *buf, size_t len)
     SLOG(LOG_DEBUG, "Sending %zu bytes to %s (fd %d)", len, s_->name, i_->fd[0]);
 
     uint64_t const start = bench_event_start();
-    if (i_->nb_fds < 1 || -1 == send(i_->fd[0], buf, len, MSG_DONTWAIT)) {
+    if (i_->num_fds < 1 || -1 == send(i_->fd[0], buf, len, MSG_DONTWAIT)) {
         TIMED_SLOG(LOG_ERR, "Cannot send %zu bytes into %s: %s", len, s_->name, strerror(errno));
         if (0 != sock_inet_client_connect(i_)) {
             return -1;
@@ -337,7 +337,7 @@ static int sock_udp_recv(struct sock *s_, fd_set *set)
 {
     struct sock_inet *i_ = DOWNCAST(s_, sock, sock_inet);
 
-    for (unsigned fdi = 0; fdi < i_->nb_fds; fdi++) {
+    for (unsigned fdi = 0; fdi < i_->num_fds; fdi++) {
         if (! FD_ISSET(i_->fd[fdi], set)) continue;
 
         SLOG(LOG_DEBUG, "Reading on socket %s (fd %d)", s_->name, i_->fd[fdi]);
@@ -364,7 +364,7 @@ static int sock_udp_set_fd(struct sock *s_, fd_set *set)
 {
     struct sock_inet *i_ = DOWNCAST(s_, sock, sock_inet);
     int max = -1;
-    for (unsigned fdi = 0; fdi < i_->nb_fds; fdi++) {
+    for (unsigned fdi = 0; fdi < i_->num_fds; fdi++) {
         max = MAX(max, i_->fd[fdi]);
         FD_SET(i_->fd[fdi], set);
     }
@@ -464,7 +464,7 @@ static int sock_tcp_send(struct sock *s_, void const *buf, size_t len)
         { .iov_base = (void *)buf, .iov_len = len, },
     };
     uint64_t const start = bench_event_start();
-    if (i_->nb_fds < 1 || -1 == file_writev(i_->fd[0], iov, NB_ELEMS(iov))) {
+    if (i_->num_fds < 1 || -1 == file_writev(i_->fd[0], iov, NB_ELEMS(iov))) {
         TIMED_SLOG(LOG_ERR, "Cannot send %zu bytes into %s: %s", len, s_->name, strerror(errno));
         if (0 != sock_inet_client_connect(i_)) {
             return -1;
@@ -581,7 +581,7 @@ static int sock_tcp_recv(struct sock *s_, fd_set *set)
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
     // Note: a sock_inet listens on several sockets (for instance, ipv4 + ipv6)
-    for (unsigned fdi = 0; fdi < i_->nb_fds; fdi++) {
+    for (unsigned fdi = 0; fdi < i_->num_fds; fdi++) {
         // Handle new connections
         if (! FD_ISSET(i_->fd[fdi], set)) continue;
 
@@ -643,8 +643,8 @@ static int sock_tcp_set_fd(struct sock *s_, fd_set *set)
     struct sock_inet *i_ = DOWNCAST(s_, sock, sock_inet);
     struct sock_tcp *s = DOWNCAST(i_, inet, sock_tcp);
     int max = -1;
-    SLOG(LOG_DEBUG, "Setting TCP fds (%u listeners)", i_->nb_fds);
-    for (unsigned fdi = 0; fdi < i_->nb_fds; fdi++) {
+    SLOG(LOG_DEBUG, "Setting TCP fds (%u listeners)", i_->num_fds);
+    for (unsigned fdi = 0; fdi < i_->num_fds; fdi++) {
         SLOG(LOG_DEBUG, "Setting TCP listener fd %d", i_->fd[fdi]);
         max = MAX(max, i_->fd[fdi]);
         FD_SET(i_->fd[fdi], set);
@@ -730,7 +730,7 @@ static int sock_tcp_server_ctor(struct sock_tcp *s, char const *service, size_t 
     int err = sock_inet_server_ctor(&s->inet, service, buf_size, SOCK_STREAM, &sock_tcp_ops);
     if (err) return err;
 
-    for (unsigned fds = 0; fds < s->inet.nb_fds; fds++) {
+    for (unsigned fds = 0; fds < s->inet.num_fds; fds++) {
         SLOG(LOG_DEBUG, "listen on fd %d", s->inet.fd[fds]);
         if (listen(s->inet.fd[fds], 3) < 0) {
             SLOG(LOG_ERR, "Cannot listen on socket %s: %s", s->inet.sock.name, strerror(errno));

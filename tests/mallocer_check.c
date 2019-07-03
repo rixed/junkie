@@ -11,7 +11,7 @@
 
 static void assert_empty(struct mallocer *mallocer)
 {
-    assert(mallocer->nb_blocks == 0);
+    assert(mallocer->num_blocks == 0);
     assert(mallocer->tot_size == 0);
 }
 
@@ -24,7 +24,7 @@ static void malloc_check(void)
     assert(ptr);
     ptr[1] = 'a';
     assert(mallocer_test1.tot_size == 1);
-    assert(mallocer_test1.nb_blocks == 1);
+    assert(mallocer_test1.num_blocks == 1);
     FREE(ptr);
     assert_empty(&mallocer_test1);
 

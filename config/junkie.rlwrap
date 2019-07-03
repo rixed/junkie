@@ -26,7 +26,7 @@ get-log-file
 get-log-level
 get-max-dup-delay
 get-mux-timeout
-get-nb-fuzzed-bits
+get-num-fuzzed-bits
 get-otherip-metric-enabled
 get-parameter-value
 get-sysfile-check
@@ -81,7 +81,7 @@ set-log-level
 set-max-children
 set-max-dup-delay
 set-mux-hash-size
-set-nb-fuzzed-bits
+set-num-fuzzed-bits
 set-otherip-metric-enabled
 set-mux-timeout
 set-sysfile-check

@@ -49,7 +49,7 @@ int sdper_parse(struct sdper const *sdper, size_t *head_sz, uint8_t const *packe
         // Otherwise tokenize the header line
         liner_init(&tokenizer, &eq, liner.start, liner_tok_length(&liner));
 
-        for (unsigned f = 0; f < sdper->nb_fields; f++) {
+        for (unsigned f = 0; f < sdper->num_fields; f++) {
             struct sdper_field const *field = sdper->fields + f;
 
             size_t len = liner_tok_length(&tokenizer);

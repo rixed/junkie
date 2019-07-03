@@ -63,7 +63,7 @@
                 res))
             "/* Register definitions */\n\n"
             regnames)
-      "unsigned nb_registers = " (number->string idx) "U;\n"
+      "unsigned num_registers = " (number->string idx) "U;\n"
       "\n\n")))
 
 ; Given a stub, returns the complete C source code

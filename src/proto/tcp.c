@@ -57,7 +57,7 @@ static char const *tcp_options_2_str(struct tcp_proto_info const *info)
 {
     char *tmp = tempstr();
     int len = 0;
-    for (unsigned o = 0; o < info->nb_options && len < TEMPSTR_SIZE; o++) {
+    for (unsigned o = 0; o < info->num_options && len < TEMPSTR_SIZE; o++) {
         switch (info->options[o]) {
             case 0:  len += snprintf(tmp+len, TEMPSTR_SIZE-len, ",end"); break;
             case 1:  len += snprintf(tmp+len, TEMPSTR_SIZE-len, ",nop"); break;
@@ -112,7 +112,7 @@ static void tcp_proto_info_ctor(struct tcp_proto_info *info, struct parser *pars
     info->seq_num = READ_U32N(&tcphdr->seq_num);
     info->rel_seq_num = 0U;
     info->set_values = 0;   // options will be set later
-    info->nb_options = 0;
+    info->num_options = 0;
 }
 
 static ssize_t parse_next_option(struct tcp_proto_info *info, uint8_t const *options, size_t rem_len)
@@ -123,8 +123,8 @@ static ssize_t parse_next_option(struct tcp_proto_info *info, uint8_t const *opt
     uint8_t const kind = options[0];
 
     // We only decode MSS and WSF but record all options
-    if (info->nb_options < NB_ELEMS(info->options)) {
-        info->options[info->nb_options++] = kind;
+    if (info->num_options < NB_ELEMS(info->options)) {
+        info->options[info->num_options++] = kind;
     }
 
     if (kind == 0) {    // end of option list

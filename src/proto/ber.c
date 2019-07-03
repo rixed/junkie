@@ -121,9 +121,9 @@ static enum proto_parse_status ber_decode_tag(struct cursor *c, struct ber_tag *
     if (c->cap_len < 1) return PROTO_TOO_SHORT;
     t->length = cursor_read_u8(c);
     if (t->length >= 0x80U) {    // long form
-        unsigned nb_bytes = t->length & 0x7fU;
+        unsigned num_bytes = t->length & 0x7fU;
         t->length = 0;
-        while (nb_bytes--) {
+        while (num_bytes--) {
             t->length <<= 8U;
             if (c->cap_len < 1) return PROTO_TOO_SHORT;
             t->length |= cursor_read_u8(c);
@@ -146,7 +146,7 @@ enum proto_parse_status ber_skip(struct cursor *c)
     return PROTO_OK;
 }
 
-enum proto_parse_status ber_copy(struct cursor *c, void *dest, size_t *nb_bytes, size_t max_sz)
+enum proto_parse_status ber_copy(struct cursor *c, void *dest, size_t *num_bytes, size_t max_sz)
 {
     struct ber_tag t;
     enum proto_parse_status status = ber_decode_tag(c, &t);
@@ -155,7 +155,7 @@ enum proto_parse_status ber_copy(struct cursor *c, void *dest, size_t *nb_bytes,
     if (c->cap_len < t.length) return PROTO_TOO_SHORT;
     if (max_sz < t.length) return PROTO_PARSE_ERR;
     cursor_copy(dest, c, t.length);
-    *nb_bytes = t.length;
+    *num_bytes = t.length;
 
     return PROTO_OK;
 }

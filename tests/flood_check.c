@@ -15,24 +15,24 @@
 #include <junkie/proto/udp.h>
 #include "lib.h"
 
-static void flood_check(unsigned nb)
+static void flood_check(unsigned num)
 {
-    mux_proto_ip.nb_max_children = 10;
+    mux_proto_ip.num_max_children = 10;
     struct timeval now;
     timeval_set_now(&now);
     struct parser *ip_parser = proto_ip->ops->parser_new(proto_ip);
     assert(ip_parser);
 
     uint8_t packet[2048];
-    for (unsigned t = 0; t < nb; t++) {
+    for (unsigned t = 0; t < num; t++) {
         size_t len = rand() % sizeof(packet);
         if (! udp_ctor_random(packet, len)) continue;
         (void)ip_parser->proto->ops->parse(ip_parser,  NULL, 0, packet, len, len, &now, len, packet);
     }
 
-    SLOG(LOG_INFO, "Number of UDP parsers : %u", proto_udp->nb_parsers);
+    SLOG(LOG_INFO, "Number of UDP parsers : %u", proto_udp->num_parsers);
     fflush(stdout);
-    assert(proto_udp->nb_parsers < 20); // Limiting the nb of children is a best effort attempt
+    assert(proto_udp->num_parsers < 20); // Limiting the number of children is a best effort attempt
 
     parser_unref(&ip_parser);
 }

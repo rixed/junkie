@@ -44,7 +44,7 @@ struct cert {
     char key[MAX_KEY_SIZE];
     struct tls_cert_info info;
     // TODO: a hash?
-    unsigned nb_servers;
+    unsigned num_servers;
     struct ip_addr servers[100];
     unsigned count;
 };
@@ -204,17 +204,17 @@ static void column_dtor(struct column *col)
     }
 }
 
-static void table_dtor(struct column *col, unsigned nb_cols)
+static void table_dtor(struct column *col, unsigned num_cols)
 {
-    for (unsigned c = 0; c < nb_cols; c++)
+    for (unsigned c = 0; c < num_cols; c++)
         column_dtor(col+c);
 }
 
-static void table_display(struct column *columns, unsigned nb_cols, unsigned nb_lines, unsigned max_width)
+static void table_display(struct column *columns, unsigned num_cols, unsigned num_lines, unsigned max_width)
 {
     unsigned tot_width = 0;
-    for (unsigned c = 0; c < nb_cols; c++) {
-        tot_width += columns[c].width + (c < nb_cols-1 ? 1:0);
+    for (unsigned c = 0; c < num_cols; c++) {
+        tot_width += columns[c].width + (c < num_cols-1 ? 1:0);
     }
 #   define SEQNUM 0
 #   define SUBJECT 1
@@ -225,24 +225,24 @@ static void table_display(struct column *columns, unsigned nb_cols, unsigned nb_
     unsigned trunc_seqnum = extra > 0 ? MIN(extra - trunc_subject - trunc_issuer, columns[SEQNUM].width) : 0;
 
     printf(REVERSE);
-    for (unsigned c = 0; c < nb_cols; c++) {
+    for (unsigned c = 0; c < num_cols; c++) {
         int w = columns[c].width;
         if (c == SUBJECT) w -= trunc_subject;
         else if (c == ISSUER) w -= trunc_issuer;
         else if (c == SEQNUM) w -= trunc_seqnum;
         assert(w >= 0 && w < 1000);
-        printf("%*.*s%s", w, w, columns[c].title, c < nb_cols-1 ? "|":"");
+        printf("%*.*s%s", w, w, columns[c].title, c < num_cols-1 ? "|":"");
     }
     printf(NORMAL "\n");
 
-    for (unsigned l = 0; l < nb_lines; l++) {
-        for (unsigned c = 0; c < nb_cols; c++) {
+    for (unsigned l = 0; l < num_lines; l++) {
+        for (unsigned c = 0; c < num_cols; c++) {
             int w = columns[c].width;
             if (c == SUBJECT) w -= trunc_subject;
             else if (c == ISSUER) w -= trunc_issuer;
             else if (c == SEQNUM) w -= trunc_seqnum;
             assert(w >= 0 && w < 1000);
-            printf("%*.*s%s", w, w, columns[c].text[l], c < nb_cols-1 ? REVERSE"|"NORMAL:"");
+            printf("%*.*s%s", w, w, columns[c].text[l], c < num_cols-1 ? REVERSE"|"NORMAL:"");
         }
         printf("\n");
     }
@@ -250,10 +250,10 @@ static void table_display(struct column *columns, unsigned nb_cols, unsigned nb_
 
 static void do_display_top(struct timeval const unused_ *now)
 {
-    unsigned nb_lines, max_width;
-    get_window_size(&max_width, &nb_lines);
-    if (nb_lines < 5) nb_lines = MAX_TOP;  // probably get_window_size failed?
-    top_n = MIN(MAX_TOP, nb_lines - 2);
+    unsigned num_lines, max_width;
+    get_window_size(&max_width, &num_lines);
+    if (num_lines < 5) num_lines = MAX_TOP;  // probably get_window_size failed?
+    top_n = MIN(MAX_TOP, num_lines - 2);
 
     struct column columns[6];
     column_ctor(columns + 0, "Serial Number");
@@ -297,11 +297,11 @@ static void tls_callback(struct proto_subscriber unused_ *subscription, struct p
     ASSIGN_INFO_CHK(tls, last, );
     // Do we have a certificate?
     if (! (tls->set_values & NB_CERTS_SET)) return;
-    if (tls->u.handshake.nb_certs == 0) return;
+    if (tls->u.handshake.num_certs == 0) return;
     ASSIGN_INFO_CHK2(ip, ip6, &tls->info, );
     ip = ip ? ip:ip6;
 
-    for (unsigned c = 0; c < tls->u.handshake.nb_certs; c++) {
+    for (unsigned c = 0; c < tls->u.handshake.num_certs; c++) {
         char key[MAX_KEY_SIZE];
         key_ctor(key, tls->u.handshake.certs + c);
         struct cert *cert;
@@ -319,7 +319,7 @@ static void tls_callback(struct proto_subscriber unused_ *subscription, struct p
             memcpy(cert->key, key, sizeof(key));
             cert->info = tls->u.handshake.certs[c];
             cert->count= 1;
-            cert->nb_servers = 0; // TODO
+            cert->num_servers = 0; // TODO
             SLOG(LOG_INFO, "New cert: %s\n", tls_cert_info_2_str(tls->u.handshake.certs+c, c));
             HASH_INSERT(&certs, cert, &cert->key, entry);
             top_maybe_insert(cert, sort_key->cmp);

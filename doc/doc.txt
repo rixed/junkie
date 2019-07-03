@@ -590,12 +590,12 @@ Yes this prompt is Junkie waiting for more orders. Go ahead:
     "eth0"
     junkie> (iface-stats "eth0")
     ((id . 0)
-     (nb-packets . 56)
-     (nb-duplicates . 0)
+     (num-packets . 56)
+     (num-duplicates . 0)
      (tot-received . 56)
      (tot-dropped . 0)
-     (nb-cap-bytes . 5898)
-     (nb-wire-bytes . 5898)
+     (num-cap-bytes . 5898)
+     (num-wire-bytes . 5898)
      (file? . #f)
      (filter . "udp port 53"))
 
@@ -930,16 +930,16 @@ digraph G {
 
     config [
         shape=record
-        label="<h>pkt_wl_config|acceptable_gap|nb_pkts_max|payload_max|timeout"
+        label="<h>pkt_wl_config|acceptable_gap|num_pkts_max|payload_max|timeout"
     ]
 
     wl1 [
         shape=record
-        label="pkt_wait_list (1)|<p>pkts|<c>config|nb_pkts|tot_payload|next_offset|last_used|parser"
+        label="pkt_wait_list (1)|<p>pkts|<c>config|num_pkts|tot_payload|next_offset|last_used|parser"
     ]
     wl2 [
         shape=record
-        label="pkt_wait_list (2)|<p>pkts|<c>config|nb_pkts|tot_payload|next_offset|last_used|parser"
+        label="pkt_wait_list (2)|<p>pkts|<c>config|num_pkts|tot_payload|next_offset|last_used|parser"
     ]
 
     wl1:c -> config:h

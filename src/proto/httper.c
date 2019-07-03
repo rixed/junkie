@@ -64,7 +64,7 @@ no_command:
     if (ret) return PROTO_PARSE_ERR;
 
     // Parse header fields
-    unsigned nb_hdr_lines = 0;
+    unsigned num_hdr_lines = 0;
 
     char const *field_end = NULL;
 
@@ -76,7 +76,7 @@ no_command:
         if (liner_eof(&liner)) {
             // As an accommodation to old HTTP implementations, we allow a single line command
             // FIXME: check line termination with "*/x.y" ?
-            if (nb_hdr_lines == 0 && has_newline) break;
+            if (num_hdr_lines == 0 && has_newline) break;
             return PROTO_TOO_SHORT;
         }
 
@@ -105,7 +105,7 @@ no_command:
             }
         }
         field_end = liner.start + liner.tok_size;   // save end of line position in field_end
-        nb_hdr_lines ++;
+        num_hdr_lines ++;
     }
 
     if (field) {
@@ -120,16 +120,16 @@ no_command:
     return PROTO_OK;
 }
 
-void httper_ctor(struct httper *httper, size_t nb_commands, struct httper_string const *commands, size_t nb_fields, struct httper_string const *fields)
+void httper_ctor(struct httper *httper, size_t num_commands, struct httper_string const *commands, size_t num_fields, struct httper_string const *fields)
 {
     radix_tree_ctor(&httper->command_tree, false);
-    for (unsigned c = 0; c < nb_commands; c++) {
+    for (unsigned c = 0; c < num_commands; c++) {
         radix_tree_add(&httper->command_tree, commands[c].name, commands[c].len, (void *)(commands+c));
     }
     radix_tree_compact(&httper->command_tree);
 
     radix_tree_ctor(&httper->field_tree, false);
-    for (unsigned c = 0; c < nb_fields; c++) {
+    for (unsigned c = 0; c < num_fields; c++) {
         radix_tree_add(&httper->field_tree, fields[c].name, fields[c].len, (void *)(fields+c));
     }
     radix_tree_compact(&httper->field_tree);

@@ -234,27 +234,27 @@ struct packet {
 
 static struct timeval now;
 static struct parser *eth_parser;
-static unsigned nb_okfn_calls;
-static unsigned nb_gets, nb_resps;
+static unsigned num_okfn_calls;
+static unsigned num_gets, num_resps;
 static struct proto_subscriber sub;
 
 static void okfn(struct proto_subscriber unused_ *s, struct proto_info const *last, size_t unused_ cap_len, uint8_t const unused_ *packet, struct timeval const unused_ *now)
 {
-    nb_okfn_calls ++;
+    num_okfn_calls ++;
     SLOG(LOG_INFO, "Last info [%s]: %s", last->parser->proto->name, last->parser->proto->ops->info_2_str(last));
 
     if (last->parser->proto == proto_http) {
         struct http_proto_info const *info = DOWNCAST(last, info, http_proto_info);
         if ((info->set_values & HTTP_METHOD_SET) && info->method == HTTP_METHOD_GET) {
-            assert(nb_gets < 2);
-            if (nb_gets == 0) assert(info->strs[info->url+1] == 'g');  // check GETs order
-            if (nb_gets == 1) assert(info->strs[info->url+1] == 'c');
-            nb_gets ++;
+            assert(num_gets < 2);
+            if (num_gets == 0) assert(info->strs[info->url+1] == 'g');  // check GETs order
+            if (num_gets == 1) assert(info->strs[info->url+1] == 'c');
+            num_gets ++;
         } else if (! (info->set_values & HTTP_METHOD_SET) && (info->set_values & HTTP_CODE_SET)) {
-            assert(nb_resps < 2);
-            if (nb_resps == 0) assert(info->code == 204);   // check resp order
-            if (nb_resps == 1) assert(info->code == 200);
-            nb_resps ++;
+            assert(num_resps < 2);
+            if (num_resps == 0) assert(info->code == 204);   // check resp order
+            if (num_resps == 1) assert(info->code == 200);
+            num_resps ++;
         }
     }
 }
@@ -264,7 +264,7 @@ static void setup(void)
     timeval_set_now(&now);
     eth_parser = proto_eth->ops->parser_new(proto_eth);
     assert(eth_parser);
-    nb_okfn_calls = nb_gets = nb_resps = 0;
+    num_okfn_calls = num_gets = num_resps = 0;
     hook_subscriber_ctor(&pkt_hook, &sub, okfn);
 }
 
@@ -282,9 +282,9 @@ static void simple_check(void)
     for (unsigned p = 0 ; p < NB_ELEMS(pkts); p++) {
         assert(PROTO_OK == proto_parse(eth_parser, NULL, 0, pkts[p].payload, pkts[p].size, pkts[p].size, &now, pkts[p].size, pkts[p].payload));
     }
-    assert(nb_okfn_calls == NB_ELEMS(pkts));
-    assert(nb_gets == 2);
-    assert(nb_resps == 2);
+    assert(num_okfn_calls == NB_ELEMS(pkts));
+    assert(num_gets == 2);
+    assert(num_resps == 2);
 
     teardown();
 }
@@ -297,16 +297,16 @@ static void random_check(void)
 
     bool sent[NB_ELEMS(pkts)] = { };
 
-    for (unsigned nb_sent = 0; nb_sent < NB_ELEMS(pkts); nb_sent++) {
-        unsigned p = nb_sent < 2 ? nb_sent : random() % NB_ELEMS(pkts); // send the first syn first, then random
+    for (unsigned num_sent = 0; num_sent < NB_ELEMS(pkts); num_sent++) {
+        unsigned p = num_sent < 2 ? num_sent : random() % NB_ELEMS(pkts); // send the first syn first, then random
         while (sent[p]) p = (p+1) % NB_ELEMS(pkts);
         sent[p] = true;
         SLOG(LOG_DEBUG, "Sending Packet %u", p);
         assert(PROTO_OK == proto_parse(eth_parser, NULL, 0, pkts[p].payload, pkts[p].size, pkts[p].size, &now, pkts[p].size, pkts[p].payload));
     }
-    assert(nb_okfn_calls == NB_ELEMS(pkts));
-    assert(nb_gets == 2);
-    assert(nb_resps == 2);
+    assert(num_okfn_calls == NB_ELEMS(pkts));
+    assert(num_gets == 2);
+    assert(num_resps == 2);
 
     teardown();
 }
@@ -332,7 +332,7 @@ int main(void)
     log_set_file("tcp_reorder_check.log");
 
     simple_check();
-    for (unsigned nb_rand = 0; nb_rand < 100; nb_rand++) random_check();
+    for (unsigned num_rand = 0; num_rand < 100; num_rand++) random_check();
 
     doomer_stop();
     http_fini();

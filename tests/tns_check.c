@@ -19,7 +19,7 @@ static struct parse_test {
     uint8_t const *packet;
     int size;
     enum proto_parse_status ret;         // Expected proto status
-    int nb_fields;                       // Tns State for num columns
+    int num_fields;                       // Tns State for num columns
     struct sql_proto_info expected;
 } parse_tests[] = {
 
@@ -34,12 +34,12 @@ static struct parse_test {
         },
         .size = 0x41,
         .ret = PROTO_OK,
-        .nb_fields = 0,
+        .num_fields = 0,
         .expected = {
             .info = { .head_len = 0x41, .payload = 0},
             .request_status = SQL_REQUEST_COMPLETE,
             .set_values = SQL_ERROR_CODE | SQL_ERROR_MESSAGE | SQL_REQUEST_STATUS | SQL_NB_ROWS,
-            .u = { .query = { .nb_rows = 0 } },
+            .u = { .query = { .num_rows = 0 } },
             .error_code = "ORA-01403",
             .error_message = "no data found\n",
             .msg_type = SQL_QUERY,
@@ -57,12 +57,12 @@ static struct parse_test {
         },
         .size = 0x50,
         .ret = PROTO_OK,
-        .nb_fields = 1,
+        .num_fields = 1,
         .expected = {
             .info = { .head_len = 0x50, .payload = 0},
             .request_status = SQL_REQUEST_COMPLETE,
             .set_values = SQL_REQUEST_STATUS | SQL_NB_ROWS | SQL_ERROR_CODE | SQL_ERROR_MESSAGE,
-            .u = { .query = { .nb_rows = 1 } },
+            .u = { .query = { .num_rows = 1 } },
             .error_code = "ORA-01403",
             .error_message = "no data found\n",
             .msg_type = SQL_QUERY,
@@ -82,12 +82,12 @@ static struct parse_test {
         },
         .size = 0x65,
         .ret = PROTO_OK,
-        .nb_fields = 0,
+        .num_fields = 0,
         .expected = {
             .info = { .head_len = 0x65, .payload = 0},
             .request_status = SQL_REQUEST_ERROR,
             .set_values = SQL_ERROR_CODE | SQL_ERROR_MESSAGE | SQL_REQUEST_STATUS | SQL_NB_ROWS,
-            .u = { .query = { .nb_rows = 0 } },
+            .u = { .query = { .num_rows = 0 } },
             .error_code = "ORA-00001",
             .error_message = "unique constraint (SYSTEM.SYS_C007161) violated\n",
             .msg_type = SQL_QUERY,
@@ -105,7 +105,7 @@ static struct parse_test {
         },
         .size = 0x4c,
         .ret = PROTO_OK,
-        .nb_fields = 0,
+        .num_fields = 0,
         .expected = {
             .info = { .head_len = 0x4c, .payload = 0},
             .set_values = SQL_SQL,
@@ -175,11 +175,11 @@ static struct parse_test {
         },
         .size = 0x1bb,
         .ret = PROTO_OK,
-        .nb_fields = 0,
+        .num_fields = 0,
         .expected = {
             .info = { .head_len = 0x1bb, .payload = 0},
             .set_values = SQL_NB_FIELDS | SQL_NB_ROWS,
-            .u = { .query = { .nb_fields = 2, .nb_rows = 0 } },
+            .u = { .query = { .num_fields = 2, .num_rows = 0 } },
             .msg_type = SQL_QUERY,
         },
     },
@@ -196,12 +196,12 @@ static struct parse_test {
         },
         .size = 0x5a,
         .ret = PROTO_OK,
-        .nb_fields = 2,
+        .num_fields = 2,
         .expected = {
             .info = { .head_len = 0x5a, .payload = 0},
             .request_status = SQL_REQUEST_COMPLETE,
             .set_values = SQL_REQUEST_STATUS | SQL_NB_ROWS | SQL_ERROR_CODE | SQL_ERROR_MESSAGE,
-            .u = { .query = { .nb_rows = 1 } },
+            .u = { .query = { .num_rows = 1 } },
             .error_code = "ORA-01403",
             .error_message = "no data found\n",
             .msg_type = SQL_QUERY,
@@ -218,7 +218,7 @@ static struct parse_test {
         },
             .size = 0x21,
             .ret = PROTO_OK,
-            .nb_fields = 0,
+            .num_fields = 0,
             .expected = {
                 .info = { .head_len = 0x21, .payload = 0},
                 .msg_type = SQL_STARTUP,
@@ -249,7 +249,7 @@ static struct parse_test {
         },
         .size = 0xed,
         .ret = PROTO_OK,
-        .nb_fields = 0,
+        .num_fields = 0,
         .expected = {
             .info = { .head_len = 0xed, .payload = 0},
             .set_values = SQL_ENCODING,
@@ -285,7 +285,7 @@ static struct parse_test {
         },
         .size = 0xe5,
         .ret = PROTO_OK,
-        .nb_fields = 0,
+        .num_fields = 0,
         .expected = {
             .info = { .head_len = 0xe5, .payload = 0},
             .set_values = SQL_ENCODING,
@@ -323,7 +323,7 @@ static void parse_check(void)
     for (cur_test = 0; cur_test < NB_ELEMS(parse_tests); cur_test++) {
         struct parse_test const *test = parse_tests + cur_test;
         printf("Check packet %d of size 0x%x (%d)\n", cur_test, test->size, test->size);
-        tns_parser->nb_fields = test->nb_fields;
+        tns_parser->num_fields = test->num_fields;
         enum proto_parse_status ret = tns_parse(parser, NULL, 0, test->packet, test->size,
                 test->size, &now, test->size, test->packet);
         assert(ret == test->ret);

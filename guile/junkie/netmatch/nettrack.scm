@@ -99,7 +99,7 @@
 
 (define (vertices->stub vertices)
   (slog log-debug "Nettrack compiling vertices ~s" vertices)
-  (let ((nb-vertices (length vertices)))
+  (let ((num-vertices (length vertices)))
     (match (fold (lambda (v prev)
                    (let ((preamble (car prev))
                          (defs     (cdr prev)))
@@ -107,7 +107,7 @@
                  (cons type:empty-stub ; empty preamble
                        (type:make-stub ; start of defs
                          (string-append
-                           "struct nt_vertex_def vertice_defs[" (number->string nb-vertices) "] = {\n    ")
+                           "struct nt_vertex_def vertice_defs[" (number->string num-vertices) "] = {\n    ")
                          "" '()))
                  vertices)
            [(preamble . defs)
@@ -117,7 +117,7 @@
               (type:make-stub
                 (string-append
                   "\n};\n"
-                  "unsigned nb_vertice_defs = " (number->string nb-vertices) ";\n\n")
+                  "unsigned num_vertice_defs = " (number->string num-vertices) ";\n\n")
                 "vertice_defs" '()))])))
 
 ; returns the stub for a given edge
@@ -179,7 +179,7 @@
 
 (define (edges->stub edges)
   (slog log-debug "Nettrack compiling edges ~s" edges)
-  (let ((nb-edges (length edges)))
+  (let ((num-edges (length edges)))
     (match (fold (lambda (v prev)
                    (let ((preamble (car prev))
                          (defs     (cdr prev)))
@@ -187,7 +187,7 @@
                  (cons type:empty-stub ; empty preamble
                        (type:make-stub ; start of defs
                          (string-append
-                           "struct nt_edge_def edge_defs[" (number->string nb-edges) "] = {\n    ")
+                           "struct nt_edge_def edge_defs[" (number->string num-edges) "] = {\n    ")
                          "" '()))
                  edges)
            [(preamble . defs)
@@ -197,7 +197,7 @@
               (type:make-stub
                 (string-append
                   "\n};\n"
-                  "unsigned nb_edge_defs = " (number->string nb-edges) ";\n\n")
+                  "unsigned num_edge_defs = " (number->string num-edges) ";\n\n")
                 "edge_defs" '()))])))
 
 ; takes a nettrack expression and returns the nettrack SMOB

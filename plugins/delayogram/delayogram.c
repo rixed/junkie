@@ -66,40 +66,40 @@ static int cli_set_refresh(char const *v)
 }
 
 // Global stats
-static uint64_t nb_tot_packets, nb_l4_packets, nb_seen_packets;
+static uint64_t num_tot_packets, num_l4_packets, num_seen_packets;
 
 // Histogram from delay to number of packets
-static unsigned nb_buckets;
+static unsigned num_buckets;
 static unsigned *buckets;
 
 static struct mutex lock;   // protects both hash and histogram
 
-static void histo_clear(unsigned nb_buckets, unsigned *buckets)
+static void histo_clear(unsigned num_buckets, unsigned *buckets)
 {
     if (! buckets) return;
 
-    for (unsigned b = 0; b < nb_buckets; b++) {
+    for (unsigned b = 0; b < num_buckets; b++) {
         buckets[b] = 0;
     }
-    nb_tot_packets = nb_l4_packets = nb_seen_packets = 0;
+    num_tot_packets = num_l4_packets = num_seen_packets = 0;
 }
 
-static void histo_print(unsigned nb_buckets, unsigned *buckets, unsigned lines, unsigned columns, unsigned bucket_width)
+static void histo_print(unsigned num_buckets, unsigned *buckets, unsigned lines, unsigned columns, unsigned bucket_width)
 {
     if (! buckets) {
         printf("no data yet\n");
         return;
     }
 
-    double bucketsf[nb_buckets];
-    for (unsigned b = 0; b < nb_buckets; b++) {
+    double bucketsf[num_buckets];
+    for (unsigned b = 0; b < num_buckets; b++) {
         bucketsf[b] = logarithmic ? log10(buckets[b]) : buckets[b];
     }
 
     // look for max value
     static double val_max = 0;
     double cur_val_max = 0;
-    for (unsigned b = 0; b < nb_buckets; b++) {
+    for (unsigned b = 0; b < num_buckets; b++) {
         if (bucketsf[b] > cur_val_max) cur_val_max = bucketsf[b];
     }
     if (val_max == 0) {
@@ -146,7 +146,7 @@ static void histo_print(unsigned nb_buckets, unsigned *buckets, unsigned lines, 
 
     fflush(stdout);
 
-    histo_clear(nb_buckets, buckets);
+    histo_clear(num_buckets, buckets);
 }
 
 // Hash from socket key to last packet timestamp
@@ -233,15 +233,15 @@ static void do_display(struct timeval const *now)
 
     printf(TOPLEFT CLEAR);
     printf("Delayogram - Every " BRIGHT "%.2fs%s" NORMAL " - " BRIGHT "%s" NORMAL, refresh_rate / 1000000., logarithmic ? " (logaritmic)":"", ctime(&now->tv_sec));
-    printf("packets displayed/displayable/total: %"PRIu64"/%"PRIu64"/%"PRIu64"\n", nb_seen_packets, nb_l4_packets, nb_tot_packets);
+    printf("packets displayed/displayable/total: %"PRIu64"/%"PRIu64"/%"PRIu64"\n", num_seen_packets, num_l4_packets, num_tot_packets);
 
     unsigned lines, columns;
     get_window_size(&columns, &lines);
 
     if (lines <= 5 || !buckets) return;
 
-    unsigned const bucket_width = ROUND_DIV(cutoff_delay, nb_buckets);
-    histo_print(nb_buckets, buckets, lines-3, columns, bucket_width);
+    unsigned const bucket_width = ROUND_DIV(cutoff_delay, num_buckets);
+    histo_print(num_buckets, buckets, lines-3, columns, bucket_width);
 }
 
 static struct timeval last_display;
@@ -258,7 +258,7 @@ static void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info c
 {
     SLOG(LOG_DEBUG, "New packet at %s", timeval_2_str(now));
 
-    nb_tot_packets ++;
+    num_tot_packets ++;
 
     ASSIGN_INFO_CHK(cap, last, );
     struct delay_key k;
@@ -275,18 +275,18 @@ static void pkt_callback(struct proto_subscriber unused_ *s, struct proto_info c
         SLOG(LOG_DEBUG, "Previous cell for key %s had ts=%s", delay_key_2_str(&k), timeval_2_str(&cell->last_ts));
         int64_t dt = timeval_sub(now, &cell->last_ts);
         cell->last_ts = *now;
-        nb_l4_packets ++;
+        num_l4_packets ++;
         if (dt >= 0 && dt < cutoff_delay) {
             if (! buckets) {
-                get_window_size(&nb_buckets, NULL);
-                buckets = calloc(nb_buckets, sizeof(*buckets));
+                get_window_size(&num_buckets, NULL);
+                buckets = calloc(num_buckets, sizeof(*buckets));
             }
             if (buckets) {
-                unsigned const b = (dt * nb_buckets) / cutoff_delay;
-                if (b < nb_buckets) {
+                unsigned const b = (dt * num_buckets) / cutoff_delay;
+                if (b < num_buckets) {
                     SLOG(LOG_DEBUG, "One more sample in bucket %u", b);
                     if (buckets) buckets[b] ++;
-                    nb_seen_packets ++;
+                    num_seen_packets ++;
                 }
             }
         }

@@ -17,7 +17,7 @@
 (open-pcap (string-append (getenv "srcdir") "/pcap/misc/" pcap-file) #t)
 
 (define (wait-packets n)
-  (let ((packets (assoc-ref (iface-stats pcap-file) 'nb-packets)))
+  (let ((packets (assoc-ref (iface-stats pcap-file) 'num-packets)))
     (if (< packets n)
         (begin
           (usleep 10000)
@@ -26,10 +26,10 @@
 (wait-packets 2) ; wait for all but the last packet
 
 (let ((stats    (iface-stats pcap-file)))
-  (assert (eqv? (assoc-ref stats 'nb-packets) 2))
-  (assert (eqv? (assoc-ref stats 'nb-duplicates) 0))
-  (assert (eqv? (assoc-ref stats 'nb-cap-bytes) (+ 42 42)))
-  (assert (eqv? (assoc-ref stats 'nb-wire-bytes) (+ 74 60))))
+  (assert (eqv? (assoc-ref stats 'num-packets) 2))
+  (assert (eqv? (assoc-ref stats 'num-duplicates) 0))
+  (assert (eqv? (assoc-ref stats 'num-cap-bytes) (+ 42 42)))
+  (assert (eqv? (assoc-ref stats 'num-wire-bytes) (+ 74 60))))
 
 ; (close-iface pcap-file)
 ; This would not terminate junkie immediately since the sniffer thread is

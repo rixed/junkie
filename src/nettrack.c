@@ -41,36 +41,36 @@ LOG_CATEGORY_DEF(nettrack);
  * Register Files
  */
 
-static void npc_regfile_ctor(struct npc_register *regfile, unsigned nb_registers)
+static void npc_regfile_ctor(struct npc_register *regfile, unsigned num_registers)
 {
-    for (unsigned r = 0; r < nb_registers; r++) {
+    for (unsigned r = 0; r < num_registers; r++) {
         regfile[r].value = 0;
         regfile[r].size = -1;
     }
 }
 
-static struct npc_register *npc_regfile_new(unsigned nb_registers)
+static struct npc_register *npc_regfile_new(unsigned num_registers)
 {
-    size_t size = sizeof(struct npc_register) * nb_registers;
+    size_t size = sizeof(struct npc_register) * num_registers;
     struct npc_register *regfile = objalloc(size, "nettrack regfiles");
     if (! regfile) return NULL;
 
-    npc_regfile_ctor(regfile, nb_registers);
+    npc_regfile_ctor(regfile, num_registers);
     return regfile;
 }
 
-static void npc_regfile_dtor(struct npc_register *regfile, unsigned nb_registers)
+static void npc_regfile_dtor(struct npc_register *regfile, unsigned num_registers)
 {
-    for (unsigned r = 0; r < nb_registers; r++) {
+    for (unsigned r = 0; r < num_registers; r++) {
         if (regfile[r].size > 0 && regfile[r].value) {
             free((void *)regfile[r].value); // beware that individual registers are malloced with malloc not objalloc
         }
     }
 }
 
-static void npc_regfile_del(struct npc_register *regfile, unsigned nb_registers)
+static void npc_regfile_del(struct npc_register *regfile, unsigned num_registers)
 {
-    npc_regfile_dtor(regfile, nb_registers);
+    npc_regfile_dtor(regfile, num_registers);
     objfree(regfile);
 }
 
@@ -86,12 +86,12 @@ static void register_copy(struct npc_register *dst, struct npc_register const *s
     }
 }
 
-static struct npc_register *npc_regfile_copy(struct npc_register *prev_regfile, unsigned nb_registers)
+static struct npc_register *npc_regfile_copy(struct npc_register *prev_regfile, unsigned num_registers)
 {
-    struct npc_register *copy = npc_regfile_new(nb_registers);
+    struct npc_register *copy = npc_regfile_new(num_registers);
     if (! copy) return NULL;
 
-    for (unsigned r = 0; r < nb_registers; r++) {
+    for (unsigned r = 0; r < num_registers; r++) {
         register_copy(copy+r, prev_regfile+r);
     }
 
@@ -100,12 +100,12 @@ static struct npc_register *npc_regfile_copy(struct npc_register *prev_regfile, 
 
 /* Given the regular regfile prev_regfile and the new bindings of new_regfile, returns a fresh register with new bindings applied.
  * If steal_from_prev then the previous values may be moved from prev_regfile to the new one. In any cases the new values are. */
-static struct npc_register *npc_regfile_merge(struct npc_register *prev_regfile, struct npc_register *new_regfile, unsigned nb_registers, bool steal_from_prev)
+static struct npc_register *npc_regfile_merge(struct npc_register *prev_regfile, struct npc_register *new_regfile, unsigned num_registers, bool steal_from_prev)
 {
-    struct npc_register *merged = npc_regfile_new(nb_registers);
+    struct npc_register *merged = npc_regfile_new(num_registers);
     if (! merged) return NULL;
 
-    for (unsigned r = 0; r < nb_registers; r++) {
+    for (unsigned r = 0; r < num_registers; r++) {
         if (new_regfile[r].size < 0) {  // still unbound
             if (steal_from_prev) {
                 merged[r] = prev_regfile[r];
@@ -140,7 +140,7 @@ static int nt_state_ctor(struct nt_state *state, struct nt_state *parent, struct
     state->last_moved_run = run_id;
 
     WITH_LOCK(&vertex->mutex) {
-        vertex->nb_states ++;
+        vertex->num_states ++;
         if (parent) LIST_INSERT_HEAD(&parent->children, state, same_parent);
         TAILQ_INSERT_HEAD(&vertex->index[index], state, same_index);
         TAILQ_INSERT_HEAD(&vertex->age_list, state, same_vertex);
@@ -178,11 +178,11 @@ static void nt_state_dtor(struct nt_state *state, struct nt_graph *graph)
         }
         TAILQ_REMOVE(&state->vertex->age_list, state, same_vertex);
         TAILQ_REMOVE(&state->vertex->index[state->h_value % state->vertex->index_size], state, same_index);
-        state->vertex->nb_states --;
+        state->vertex->num_states --;
     }
 
     if (state->regfile) {
-        npc_regfile_del(state->regfile, graph->nb_registers);
+        npc_regfile_del(state->regfile, graph->num_registers);
         state->regfile = NULL;
     }
 }
@@ -216,8 +216,8 @@ static void nt_state_move(struct nt_state *state, struct nt_vertex *to, unsigned
     TAILQ_REMOVE(&from->index[state->h_value % from->index_size], state, same_index);
     TAILQ_INSERT_HEAD(&to->age_list, state, same_vertex);
     TAILQ_INSERT_HEAD(&to->index[h_value % to->index_size], state, same_index);
-    from->nb_states --;
-    to->nb_states ++;
+    from->num_states --;
+    to->num_states ++;
     state->last_used = *now;
     state->last_enter = *now;
     state->vertex = to;
@@ -244,16 +244,16 @@ static int nt_vertex_ctor(struct nt_vertex *vertex, char const *name, struct nt_
     for (unsigned i = 0; i < vertex->index_size; i++) {
         TAILQ_INIT(&vertex->index[i]);
     }
-    vertex->nb_states = 0;
+    vertex->num_states = 0;
 
     // A vertex named "root" starts with an initial state (and is not timeouted)
     if (0 == strcmp("root", name)) {
         struct timeval now = TIMEVAL_INITIALIZER;
         for (unsigned i = 0; i < vertex->index_size; i++) { // actually, one state per index
-            struct npc_register *regfile = npc_regfile_new(graph->nb_registers);
+            struct npc_register *regfile = npc_regfile_new(graph->num_registers);
             if (! regfile) return -1;
             if (! nt_state_new(NULL, vertex, regfile, &now, 0, graph->run_id)) {
-                npc_regfile_del(regfile, graph->nb_registers);
+                npc_regfile_del(regfile, graph->num_registers);
                 return -1;
             }
         }
@@ -337,7 +337,7 @@ static int nt_edge_ctor(struct nt_edge *edge, struct nt_graph *graph, struct nt_
     edge->min_age = min_age;
     edge->spawn = spawn;
     edge->grab = grab;
-    edge->nb_matches = edge->nb_tries = 0;
+    edge->num_matches = edge->num_tries = 0;
     edge->graph = graph;
     LIST_INSERT_HEAD(&from->outgoing_edges, edge, same_from);
     LIST_INSERT_HEAD(&to->incoming_edges, edge, same_to);
@@ -418,10 +418,10 @@ static int nt_graph_ctor(struct nt_graph *graph, char const *name, char const *l
     }
 
     unsigned *uptr;
-    if (NULL != (uptr = lt_dlsym(graph->lib, "nb_registers"))) {
-        graph->nb_registers = *uptr;
+    if (NULL != (uptr = lt_dlsym(graph->lib, "num_registers"))) {
+        graph->num_registers = *uptr;
     } else {
-        SLOG(LOG_ERR, "Cannot find nb_registers in shared object %s", libname);
+        SLOG(LOG_ERR, "Cannot find num_registers in shared object %s", libname);
         (void)lt_dlclose(graph->lib);
         graph->lib = NULL;
         return -1;
@@ -437,7 +437,7 @@ static int nt_graph_ctor(struct nt_graph *graph, char const *name, char const *l
 
     graph->name = objalloc_strdup(name);
     graph->started = false;
-    graph->nb_frames = 0;
+    graph->num_frames = 0;
     graph->run_id = 0;
 
     LIST_INIT(&graph->vertices);
@@ -546,10 +546,10 @@ static void nt_graph_del(struct nt_graph *graph)
  * Update graph with proto_infos
  */
 
-static bool ensure_merged_regfile(struct npc_register **merged_regfile, struct npc_register *prev_regfile, struct npc_register *new_regfile, unsigned nb_registers, bool steal_from_prev)
+static bool ensure_merged_regfile(struct npc_register **merged_regfile, struct npc_register *prev_regfile, struct npc_register *new_regfile, unsigned num_registers, bool steal_from_prev)
 {
     if (*merged_regfile) return true;
-    *merged_regfile = npc_regfile_merge(prev_regfile, new_regfile, nb_registers, steal_from_prev);
+    *merged_regfile = npc_regfile_merge(prev_regfile, new_regfile, num_registers, steal_from_prev);
     if (! *merged_regfile) {
         SLOG(LOG_WARNING, "Cannot create the new register file");
         return false;
@@ -557,11 +557,11 @@ static bool ensure_merged_regfile(struct npc_register **merged_regfile, struct n
     return true;
 }
 
-static void destroy_merged_regfile(struct npc_register **merged_regfile, unsigned nb_registers)
+static void destroy_merged_regfile(struct npc_register **merged_regfile, unsigned num_registers)
 {
     if (! *merged_regfile) return;
 
-    npc_regfile_del(*merged_regfile, nb_registers);
+    npc_regfile_del(*merged_regfile, num_registers);
     *merged_regfile = NULL;
 }
 
@@ -591,8 +591,8 @@ static bool edge_matching(struct nt_edge *edge, struct proto_info const *last, s
     mutex_lock(&edge->from->mutex);
 
     for (unsigned index = index_start; index < index_stop; index++) {
-        static unsigned max_nb_collisions = 16;
-        unsigned nb_collisions = 0;
+        static unsigned max_num_collisions = 16;
+        unsigned num_collisions = 0;
         TAILQ_FOREACH_SAFE(state, &edge->from->index[index], same_index, tmp) {  // Beware that this state may move
 
             // While we are there try to timeout this state?
@@ -611,9 +611,9 @@ static bool edge_matching(struct nt_edge *edge, struct proto_info const *last, s
 
             if (h_value_set && state->h_value != h_value) continue; // hopeless
 
-            if (++nb_collisions > max_nb_collisions) {
-                max_nb_collisions = nb_collisions;
-                TIMED_SLOG(LOG_NOTICE, "%u collisions for %s->%s, size=%u, index=%u->%u/%u", nb_collisions, edge->from->name, edge->to->name, edge->from->nb_states, index_start, index_stop, edge->from->index_size);
+            if (++num_collisions > max_num_collisions) {
+                max_num_collisions = num_collisions;
+                TIMED_SLOG(LOG_NOTICE, "%u collisions for %s->%s, size=%u, index=%u->%u/%u", num_collisions, edge->from->name, edge->to->name, edge->from->num_states, index_start, index_stop, edge->from->index_size);
             }
 
             SLOG(LOG_DEBUG, "Testing state@%p from vertex %s for %s into %s",
@@ -621,7 +621,7 @@ static bool edge_matching(struct nt_edge *edge, struct proto_info const *last, s
                     edge->from->name,
                     edge->spawn ? "spawn":"move",
                     edge->to->name);
-            edge->nb_tries ++;
+            edge->num_tries ++;
 
             /* Delayed bindings:
              *   Matching functions do not change the bindings of the regfile while performing the tests because
@@ -641,18 +641,18 @@ static bool edge_matching(struct nt_edge *edge, struct proto_info const *last, s
              * Car, si pitie de nous pauvres avez, Dieu en aura plus tôt de vous mercis. */
 
 #           define MAX_NB_REGISTERS 100
-            assert(edge->graph->nb_registers <= MAX_NB_REGISTERS);
+            assert(edge->graph->num_registers <= MAX_NB_REGISTERS);
             struct npc_register tmp_regfile[MAX_NB_REGISTERS];
-            npc_regfile_ctor(tmp_regfile, edge->graph->nb_registers);
+            npc_regfile_ctor(tmp_regfile, edge->graph->num_registers);
 
             if (edge->match_fn(last, rest, state->regfile, tmp_regfile)) {
                 SLOG(LOG_DEBUG, "Match!");
-                edge->nb_matches ++;
+                edge->num_matches ++;
                 // We need the merged state in all cases but when we have no action and don't keep the result
                 struct npc_register *merged_regfile = NULL;
 
                 // Call the entry function
-                if (edge->to->entry_fn && ensure_merged_regfile(&merged_regfile, state->regfile, tmp_regfile, edge->graph->nb_registers, !edge->spawn)) {
+                if (edge->to->entry_fn && ensure_merged_regfile(&merged_regfile, state->regfile, tmp_regfile, edge->graph->num_registers, !edge->spawn)) {
                     SLOG(LOG_DEBUG, "Calling entry function for vertex '%s'", edge->to->name);
                     // Entry function is not supposed to bind anything... for now (FIXME).
                     edge->to->entry_fn(last, rest, merged_regfile, NULL);
@@ -661,7 +661,7 @@ static bool edge_matching(struct nt_edge *edge, struct proto_info const *last, s
                 // first we need to know the location in the index
                 unsigned new_h_value = 0;
                 if (edge->to->index_size > 1) { // we'd better have a hashing function then!
-                    if (edge->to_index_fn && ensure_merged_regfile(&merged_regfile, state->regfile, tmp_regfile, edge->graph->nb_registers, !edge->spawn)) {
+                    if (edge->to_index_fn && ensure_merged_regfile(&merged_regfile, state->regfile, tmp_regfile, edge->graph->num_registers, !edge->spawn)) {
                         // Notice this hashing function can use the regfile but can still perform no bindings
                         new_h_value = edge->to_index_fn(last, rest, merged_regfile, NULL);
                         SLOG(LOG_DEBUG, "Will store at index location %u", new_h_value % edge->to->index_size);
@@ -671,40 +671,40 @@ static bool edge_matching(struct nt_edge *edge, struct proto_info const *last, s
                     } else {
                         // if not, then that's another story
                         SLOG(LOG_WARNING, "Don't know how to store spawned state in vertex %s, missing hashing function when coming from %s", edge->to->name, edge->from->name);
-                        destroy_merged_regfile(&merged_regfile, edge->graph->nb_registers);
+                        destroy_merged_regfile(&merged_regfile, edge->graph->num_registers);
                         goto hell;
                     }
                 }
                 // whatever we clone or move it, we must tag it
                 state->last_moved_run = edge->graph->run_id;
                 if (edge->spawn) {
-                    if (!LIST_EMPTY(&edge->to->outgoing_edges) && ensure_merged_regfile(&merged_regfile, state->regfile, tmp_regfile, edge->graph->nb_registers, !edge->spawn)) { // or we do not need to spawn anything
+                    if (!LIST_EMPTY(&edge->to->outgoing_edges) && ensure_merged_regfile(&merged_regfile, state->regfile, tmp_regfile, edge->graph->num_registers, !edge->spawn)) { // or we do not need to spawn anything
                         if (NULL == (state = nt_state_new(state, edge->to, merged_regfile, now, new_h_value, edge->graph->run_id))) {
-                            npc_regfile_del(merged_regfile, edge->graph->nb_registers);
+                            npc_regfile_del(merged_regfile, edge->graph->num_registers);
                             merged_regfile = NULL;
                         }
                     } else {
-                        destroy_merged_regfile(&merged_regfile, edge->graph->nb_registers);
+                        destroy_merged_regfile(&merged_regfile, edge->graph->num_registers);
                     }
                 } else {    // move the whole state
                     if (LIST_EMPTY(&edge->to->outgoing_edges)) {  // rather dispose of former state
                         nt_state_del(state, edge->graph);
                         if (merged_regfile) {
-                            npc_regfile_del(merged_regfile, edge->graph->nb_registers);
+                            npc_regfile_del(merged_regfile, edge->graph->num_registers);
                             merged_regfile = NULL;
                         }
-                    } else if (ensure_merged_regfile(&merged_regfile, state->regfile, tmp_regfile, edge->graph->nb_registers, !edge->spawn)) {    // replace former regfile with new one
-                        npc_regfile_del(state->regfile, edge->graph->nb_registers);
+                    } else if (ensure_merged_regfile(&merged_regfile, state->regfile, tmp_regfile, edge->graph->num_registers, !edge->spawn)) {    // replace former regfile with new one
+                        npc_regfile_del(state->regfile, edge->graph->num_registers);
                         state->regfile = merged_regfile;
                         nt_state_move(state, edge->to, new_h_value, now);
                     }
                 }
 hell:
-                npc_regfile_dtor(tmp_regfile, edge->graph->nb_registers);
+                npc_regfile_dtor(tmp_regfile, edge->graph->num_registers);
                 if (edge->grab) goto quit0;
             } else {
                 SLOG(LOG_DEBUG, "No match");
-                npc_regfile_dtor(tmp_regfile, edge->graph->nb_registers);
+                npc_regfile_dtor(tmp_regfile, edge->graph->num_registers);
             }
         } // loop on states
     } // loop on index
@@ -730,7 +730,7 @@ static void edge_aging(struct nt_edge *edge, struct timeval const *now)
             if (state->last_moved_run == edge->graph->run_id) continue;
 
             SLOG(LOG_DEBUG, "Ageing!");
-            edge->nb_matches ++;
+            edge->num_matches ++;
 
             if (edge->to->entry_fn) {
                 SLOG(LOG_DEBUG, "Calling entry function for vertex '%s'", edge->to->name);
@@ -759,10 +759,10 @@ static void edge_aging(struct nt_edge *edge, struct timeval const *now)
             state->last_moved_run = edge->graph->run_id;
             if (edge->spawn) {
                 if (!LIST_EMPTY(&edge->to->outgoing_edges)) { // or we do not need to spawn anything
-                    struct npc_register *copy = npc_regfile_copy(state->regfile, edge->graph->nb_registers);
+                    struct npc_register *copy = npc_regfile_copy(state->regfile, edge->graph->num_registers);
                     if (! copy) goto hell;
                     if (! nt_state_new(state, edge->to, copy, now, new_h_value, edge->graph->run_id)) {
-                        npc_regfile_del(copy, edge->graph->nb_registers);
+                        npc_regfile_del(copy, edge->graph->num_registers);
                     }
                     // reset the age of this state
                     nt_state_promote_age_list(state, now);
@@ -835,7 +835,7 @@ static int print_graph_smob(SCM graph_smob, SCM port, scm_print_state unused_ *p
 {
     struct nt_graph *graph = (struct nt_graph *)SCM_SMOB_DATA(graph_smob);
 
-    char const *head = tempstr_printf("#<nettrack-graph %s with %u regs", graph->name, graph->nb_registers);
+    char const *head = tempstr_printf("#<nettrack-graph %s with %u regs", graph->name, graph->num_registers);
     scm_puts(head, port);
 
     struct nt_vertex *vertex;
@@ -871,9 +871,9 @@ static SCM g_make_nettrack(SCM name_, SCM libname_)
     scm_dynwind_unwind_handler((void (*)(void *))nt_graph_del, graph, 0);
 
     // Create vertices from declarations (others will be created hereafter with default settings)
-    unsigned *nb_vertice_defs = lt_dlsym(graph->lib, "nb_vertice_defs");
-    if (! nb_vertice_defs) {
-        scm_throw(scm_from_latin1_symbol("cannot-create-nt-vertex"), scm_list_1(scm_from_latin1_string("nb_vertice_defs")));
+    unsigned *num_vertice_defs = lt_dlsym(graph->lib, "num_vertice_defs");
+    if (! num_vertice_defs) {
+        scm_throw(scm_from_latin1_symbol("cannot-create-nt-vertex"), scm_list_1(scm_from_latin1_string("num_vertice_defs")));
         assert(!"Never reached");
     }
     struct nt_vertex_def *v_def = lt_dlsym(graph->lib, "vertice_defs");
@@ -881,7 +881,7 @@ static SCM g_make_nettrack(SCM name_, SCM libname_)
         scm_throw(scm_from_latin1_symbol("cannot-create-nt-vertex"), scm_list_1(scm_from_latin1_string("vertice_defs")));
         assert(!"Never reached");
     }
-    for (unsigned vi = 0; vi < *nb_vertice_defs; vi++) {
+    for (unsigned vi = 0; vi < *num_vertice_defs; vi++) {
         struct nt_vertex *vertex = nt_vertex_new(v_def[vi].name, graph, v_def[vi].entry_fn, v_def[vi].timeout_fn, v_def[vi].index_size, v_def[vi].timeout);
         if (! vertex) {
             scm_throw(scm_from_latin1_symbol("cannot-create-nt-vertex"), scm_list_1(scm_from_latin1_string(v_def[vi].name)));
@@ -890,9 +890,9 @@ static SCM g_make_nettrack(SCM name_, SCM libname_)
     }
 
     // Create edges (and other vertices)
-    unsigned *nb_edge_defs = lt_dlsym(graph->lib, "nb_edge_defs");
-    if (! nb_edge_defs) {
-        scm_throw(scm_from_latin1_symbol("cannot-create-nt-vertex"), scm_list_1(scm_from_latin1_string("nb_edge_defs")));
+    unsigned *num_edge_defs = lt_dlsym(graph->lib, "num_edge_defs");
+    if (! num_edge_defs) {
+        scm_throw(scm_from_latin1_symbol("cannot-create-nt-vertex"), scm_list_1(scm_from_latin1_string("num_edge_defs")));
         assert(!"Never reached");
     }
     struct nt_edge_def *e_def = lt_dlsym(graph->lib, "edge_defs");
@@ -900,7 +900,7 @@ static SCM g_make_nettrack(SCM name_, SCM libname_)
         scm_throw(scm_from_latin1_symbol("cannot-create-nt-vertex"), scm_list_1(scm_from_latin1_string("edge_defs")));
         assert(!"Never reached");
     }
-    for (unsigned e = 0; e < *nb_edge_defs; e++) {
+    for (unsigned e = 0; e < *num_edge_defs; e++) {
         struct nt_vertex *from = nt_vertex_lookup(graph, e_def[e].from_vertex);
         if (! from) scm_throw(scm_from_latin1_symbol("cannot-create-nt-edge"), scm_list_1(scm_from_latin1_string(e_def[e].from_vertex)));
         struct nt_vertex *to   = nt_vertex_lookup(graph, e_def[e].to_vertex);

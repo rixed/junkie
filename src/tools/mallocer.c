@@ -51,7 +51,7 @@ static void add_block(struct mallocer *mallocer, struct mallocer_block *block)
     PTHREAD_ASSERT_LOCK(&mallocer->mutex.mutex);
     LIST_INSERT_HEAD(&mallocer->blocks, block, entry);
     mallocer->tot_size += block->size;
-    mallocer->nb_blocks ++;
+    mallocer->num_blocks ++;
 #   ifdef __GNUC__
     overweight = __sync_add_and_fetch(&malloced_tot_size, block->size) > malloced_tot_size_max && malloced_tot_size_max > 0;
 #   else
@@ -66,11 +66,11 @@ static void add_block(struct mallocer *mallocer, struct mallocer_block *block)
 static void rem_block(struct mallocer_block *block)
 {
     PTHREAD_ASSERT_LOCK(&block->mallocer->mutex.mutex);
-    assert(block->mallocer->nb_blocks > 0);
+    assert(block->mallocer->num_blocks > 0);
     assert(block->mallocer->tot_size >= block->size);
     LIST_REMOVE(block, entry);
     block->mallocer->tot_size -= block->size;
-    block->mallocer->nb_blocks --;
+    block->mallocer->num_blocks --;
 #   ifdef __GNUC__
     overweight = __sync_sub_and_fetch(&malloced_tot_size, block->size) > malloced_tot_size_max && malloced_tot_size_max > 0;
 #   else
@@ -182,7 +182,7 @@ void *mallocer_alloc(struct mallocer *mallocer, size_t size)
     mutex_lock(&mallocer->mutex);
     block->size = size;
     block->mallocer = mallocer;
-    block->mallocer->nb_allocs ++;
+    block->mallocer->num_allocs ++;
     add_block(mallocer, block);
     mutex_unlock(&mallocer->mutex);
     return block+1;
@@ -296,8 +296,8 @@ static struct mallocer *mallocer_of_scm_name(SCM name_)
 }
 
 static SCM tot_size_sym;
-static SCM nb_blocks_sym;
-static SCM nb_allocs_sym;
+static SCM num_blocks_sym;
+static SCM num_allocs_sym;
 
 static struct ext_function sg_mallocer_stats;
 static SCM g_mallocer_stats(SCM name_)
@@ -308,8 +308,8 @@ static SCM g_mallocer_stats(SCM name_)
     return scm_list_3(
         // See g_proto_stats
         scm_cons(tot_size_sym, scm_from_size_t(mallocer->tot_size)),
-        scm_cons(nb_blocks_sym, scm_from_uint(mallocer->nb_blocks)),
-        scm_cons(nb_allocs_sym, scm_from_uint(mallocer->nb_allocs)));
+        scm_cons(num_blocks_sym, scm_from_uint(mallocer->num_blocks)),
+        scm_cons(num_allocs_sym, scm_from_uint(mallocer->num_allocs)));
 }
 
 static SCM start_address_sym;
@@ -357,8 +357,8 @@ void mallocer_init(void)
     freed_bytes_sym         = scm_permanent_object(scm_from_latin1_symbol("freed-bytes"));
     topmost_free_bytes_sym  = scm_permanent_object(scm_from_latin1_symbol("topmost-free-bytes"));
     tot_size_sym            = scm_permanent_object(scm_from_latin1_symbol("tot-size"));
-    nb_blocks_sym           = scm_permanent_object(scm_from_latin1_symbol("nb-blocks"));
-    nb_allocs_sym           = scm_permanent_object(scm_from_latin1_symbol("nb-allocs"));
+    num_blocks_sym           = scm_permanent_object(scm_from_latin1_symbol("num-blocks"));
+    num_allocs_sym           = scm_permanent_object(scm_from_latin1_symbol("num-allocs"));
     start_address_sym       = scm_permanent_object(scm_from_latin1_symbol("start-address"));
     size_sym                = scm_permanent_object(scm_from_latin1_symbol("size"));
 

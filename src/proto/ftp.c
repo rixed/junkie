@@ -56,10 +56,10 @@ static int parse_brokendown_addr(char const *data, char const *fmt, size_t rem_l
     str[copy_len] = '\0';
 
     unsigned brok_ip[4], brok_port[2];
-    int const nb_matches = sscanf(str, fmt,
+    int const num_matches = sscanf(str, fmt,
         brok_ip+0, brok_ip+1, brok_ip+2, brok_ip+3,
         brok_port+0, brok_port+1);
-    if (nb_matches != 6) {
+    if (num_matches != 6) {
         SLOG(LOG_DEBUG, "Cannot match format %s in payload", fmt);
         return -1;
     }

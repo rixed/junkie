@@ -389,7 +389,7 @@ static SCM max_size_sym;
 static SCM max_secs_sym;
 static SCM cap_len_sym;
 static SCM rotation_sym;
-static SCM nb_pkts_sym;
+static SCM num_pkts_sym;
 static SCM fsize_sym;
 static SCM fnum_sym;
 
@@ -406,7 +406,7 @@ static SCM g_capture_stats(SCM conf_smob)
             scm_cons(max_secs_sym, conf->max_secs ? scm_from_uint(conf->max_secs) : unset_sym),
             scm_cons(cap_len_sym,  conf->cap_len  ? scm_from_uint(conf->cap_len)  : unset_sym),
             scm_cons(rotation_sym, conf->rotation ? scm_from_uint(conf->rotation) : unset_sym),
-            scm_cons(nb_pkts_sym,  conf->capfile ? scm_from_uint(conf->capfile->nb_pkts) : unset_sym),
+            scm_cons(num_pkts_sym,  conf->capfile ? scm_from_uint(conf->capfile->num_pkts) : unset_sym),
             scm_cons(fsize_sym,    conf->capfile ? scm_from_size_t(conf->capfile->file_size) : unset_sym),
             scm_cons(fnum_sym,     conf->capfile ? scm_from_uint(conf->capfile->file_num) : unset_sym),
             SCM_UNDEFINED);
@@ -456,7 +456,7 @@ void on_load(void)
 	max_secs_sym = scm_permanent_object(scm_from_latin1_symbol("max-secs"));
 	cap_len_sym  = scm_permanent_object(scm_from_latin1_symbol("cap-size"));
 	rotation_sym = scm_permanent_object(scm_from_latin1_symbol("rotation"));
-	nb_pkts_sym  = scm_permanent_object(scm_from_latin1_symbol("nb-pkts"));
+	num_pkts_sym  = scm_permanent_object(scm_from_latin1_symbol("num-pkts"));
 	fsize_sym    = scm_permanent_object(scm_from_latin1_symbol("file-size"));
 	fnum_sym     = scm_permanent_object(scm_from_latin1_symbol("file-num"));
 

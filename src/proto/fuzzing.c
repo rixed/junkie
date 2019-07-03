@@ -35,17 +35,17 @@
 #define LOG_CAT proto_log_category
 
 static void do_fuzz(uint8_t const *packet, size_t packet_len, unsigned bits_2_fuzz);
-static int nb_bits_to_fuzz(unsigned upper_bound);
+static int num_bits_to_fuzz(unsigned upper_bound);
 static void update_fuzzing_stat(struct proto * protocol);
 
 /// fuzzing statistics
 static struct fuzzed_stat {
-    unsigned nb_fuzzed_pkt;         /// overall sum of fuzzing operation (an operation may perform several bit mutation) performed on packets
-    unsigned nb_fuzzed_proto;       /// number of protocol fuzzed
+    unsigned num_fuzzed_pkt;         /// overall sum of fuzzing operation (an operation may perform several bit mutation) performed on packets
+    unsigned num_fuzzed_proto;       /// number of protocol fuzzed
     unsigned max_fuzzed_pkt_proto;  /// the maximal number of fuzzing operation performed on a protocol
 } f_stat;
 
-void fuzz(struct parser *parser, uint8_t const *packet, size_t packet_len, unsigned max_nb_fuzzed_bits)
+void fuzz(struct parser *parser, uint8_t const *packet, size_t packet_len, unsigned max_num_fuzzed_bits)
 {
     // Handle the case of the `cap' parser which must not be fuzzed.
     // It is a "fake" parser with a "fake" packet containing unrelevant information in our case.
@@ -56,12 +56,12 @@ void fuzz(struct parser *parser, uint8_t const *packet, size_t packet_len, unsig
     update_fuzzing_stat(parser->proto);
 
     if (packet_len != 0) {
-        do_fuzz(packet, packet_len, nb_bits_to_fuzz(max_nb_fuzzed_bits));
+        do_fuzz(packet, packet_len, num_bits_to_fuzz(max_num_fuzzed_bits));
     }
 }
 
 // Return the number of bits to fuzz for a protocolar layer fuzzing action
-static int nb_bits_to_fuzz(unsigned upper_bound)
+static int num_bits_to_fuzz(unsigned upper_bound)
 {
     return rand() % (upper_bound + 1);
 }
@@ -70,14 +70,14 @@ static int nb_bits_to_fuzz(unsigned upper_bound)
 static void update_fuzzing_stat(struct proto * protocol)
 {
     if (protocol->fuzzed_times == 0) {
-        f_stat.nb_fuzzed_proto ++;
+        f_stat.num_fuzzed_proto ++;
     }
 
     // incremeting the protocol internal counter : this protocol is just about to get fuzzed!
     protocol->fuzzed_times++;
 
     // and then updating the fuzzing statistics
-    f_stat.nb_fuzzed_pkt++;
+    f_stat.num_fuzzed_pkt++;
     if (protocol->fuzzed_times > f_stat.max_fuzzed_pkt_proto)
         f_stat.max_fuzzed_pkt_proto = protocol->fuzzed_times;
 }
@@ -132,12 +132,12 @@ void fuzzing_init(void)
 
 void fuzzing_fini(void)
 {
-    if (0 == f_stat.nb_fuzzed_pkt) return;
+    if (0 == f_stat.num_fuzzed_pkt) return;
 
     // displays statistic about all protocols
     printf("Fuzzing stats:\n");
-    printf("\tAverage fuzzing events by protocols: %g\n", (((double) f_stat.nb_fuzzed_pkt)/f_stat.nb_fuzzed_proto));
-    printf("\tNumber of fuzzing events: %u\n", f_stat.nb_fuzzed_pkt);
-    printf("\tNumber of protocols fuzzed: %u\n", f_stat.nb_fuzzed_proto);
+    printf("\tAverage fuzzing events by protocols: %g\n", (((double) f_stat.num_fuzzed_pkt)/f_stat.num_fuzzed_proto));
+    printf("\tNumber of fuzzing events: %u\n", f_stat.num_fuzzed_pkt);
+    printf("\tNumber of protocols fuzzed: %u\n", f_stat.num_fuzzed_proto);
     printf("\tMaximal number of fuzzing event for a protocol: %u\n", f_stat.max_fuzzed_pkt_proto);
 }

@@ -33,7 +33,7 @@ LOG_CATEGORY_DEF(netflow);
 
 struct nf_msg_ll {
     uint16_t version;
-    uint16_t nb_flows;
+    uint16_t num_flows;
     uint32_t sys_uptime;
     uint32_t ts_sec;
     uint32_t ts_nsec;
@@ -104,7 +104,7 @@ static int nf_msg_head_decode(struct nf_msg *msg, void const *src)
     }
 
     CONV_16(msg, version);
-    CONV_16(msg, nb_flows);
+    CONV_16(msg, num_flows);
     CONV_32(msg, sys_uptime);
     msg->ts.tv_sec  = ntohl(msg_ll->ts_sec);
     msg->ts.tv_usec = ntohl(msg_ll->ts_nsec) / 1000;
@@ -131,13 +131,13 @@ ssize_t netflow_decode_msg(struct nf_msg *msg, void const *src, size_t size)
     if (0 != nf_msg_head_decode(msg, ptr)) return -1;
     ptr += sizeof(struct nf_msg_ll);
 
-    size_t const tot_size = sizeof(struct nf_msg_ll) + msg->nb_flows * sizeof(struct nf_flow_ll);
+    size_t const tot_size = sizeof(struct nf_msg_ll) + msg->num_flows * sizeof(struct nf_flow_ll);
     if (size < tot_size) {
         SLOG(LOG_INFO, "Cannot decode netflow msg: too few bytes (%zu < %zu)", size, tot_size);
         return -1;
     }
 
-    for (unsigned f = 0; f < msg->nb_flows; f++) {
+    for (unsigned f = 0; f < msg->num_flows; f++) {
         if (0 != nf_flow_decode(msg->flows+f, msg, ptr)) return -1;
         ptr += sizeof(struct nf_flow_ll);
     }
@@ -166,7 +166,7 @@ static int netflow_receive(struct sock unused_ *sock, size_t len, uint8_t const 
 
     netflow_callback *cb = sock->user_data;
 
-    for (unsigned f = 0; f < msg.nb_flows; f++) {
+    for (unsigned f = 0; f < msg.num_flows; f++) {
         if (0 > cb(sender, &msg, msg.flows+f)) return -1;
     }
 

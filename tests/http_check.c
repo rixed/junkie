@@ -23,7 +23,7 @@ static struct parse_test {
     char const *name;
     bool reset_parser;
     char const *packet;
-    unsigned nb_expected;    // how many okfn calls this packet should generate
+    unsigned num_expected;    // how many okfn calls this packet should generate
     struct http_proto_info expected[2];
     enum proto_parse_status ret;    // expected return code
 } parse_tests [] = {
@@ -32,7 +32,7 @@ static struct parse_test {
         .name = "too simple",
         .reset_parser = true,
         .packet = "GET\n",
-        .nb_expected = 1,
+        .num_expected = 1,
         .expected = {
             {
                 .info = { .head_len = 4, .payload = 0 },
@@ -51,7 +51,7 @@ static struct parse_test {
         .packet =
             "GET /\r\n"
             "\r\n",
-        .nb_expected = 1,
+        .num_expected = 1,
         .expected = {
             {
                 .info = { .head_len = 9, .payload = 0 },
@@ -81,7 +81,7 @@ static struct parse_test {
                 "If-Modified-Since: Sat, 14 Feb 2009 05:37:35 GMT\015\012"
                 "Cache-Control: max-age=0\015\012"
                 "\015\012",
-            .nb_expected = 1,
+            .num_expected = 1,
             .expected = {
                 {
                     .info = { .head_len = 527, .payload = 0 },
@@ -114,7 +114,7 @@ static struct parse_test {
                 "Via: 1.0 knsq2.knams.wikimedia.org:3128 (squid/2.7.STABLE6), 1.0 knsq23.knams.wikimedia.org:80 (squid/2.7.STABLE6)\r\n"
                 "Connection: keep-alive\r\n"
                 "\r\n",
-            .nb_expected = 1,
+            .num_expected = 1,
             .expected = {
                 {
                     .info = { .head_len = 510, .payload = 0 },
@@ -153,7 +153,7 @@ static struct parse_test {
                 "Connection: keep-alive\r\n"
                 "\r\n"
                 "123\n",
-            .nb_expected = 2,
+            .num_expected = 2,
             .expected = {
                 {
                     .info = { .head_len = 781, .payload = 0 },
@@ -183,7 +183,7 @@ static struct parse_test {
                 "Host: \r\n"
                 "cOnTenT-Length:123\r\n"
                 "\n",
-            .nb_expected = 1,
+            .num_expected = 1,
             .expected = {
                 {
                     .info = { .head_len = 45, .payload = 0 },
@@ -201,7 +201,7 @@ static struct parse_test {
         .name = "erroneous",
             .reset_parser = true,
             .packet = "GE\r\n",
-            .nb_expected = 1,
+            .num_expected = 1,
             .expected = {
                 {
                     .info = { .head_len = 4, .payload = 0 },
@@ -224,7 +224,7 @@ static struct parse_test {
                 "Server: gws\r\n"
                 "\r\n"
                 "0123456789",
-            .nb_expected = 2,
+            .num_expected = 2,
             .expected = {
                 {
                     .info = { .head_len = 78, .payload = 0 },
@@ -254,7 +254,7 @@ static struct parse_test {
                 "HTTP/1.1 204 No Content\r\n"
                 "Content-Length: 0\r\n"
                 "\r\n",
-            .nb_expected = 2,
+            .num_expected = 2,
             .expected = {
                 {
                     .info = { .head_len = 0, .payload = 22 },
@@ -281,7 +281,7 @@ static unsigned current_rep;
 
 static void http_info_check(struct proto_subscriber unused_ *s, struct proto_info const *info_, size_t unused_ cap_len, uint8_t const unused_ *packet, struct timeval const unused_ *now)
 {
-    assert(current_rep < parse_tests[current_test].nb_expected);
+    assert(current_rep < parse_tests[current_test].num_expected);
 
     // Check info against parse_tests[current_test].expected
     struct http_proto_info const *const info = DOWNCAST(info_, info, http_proto_info);

@@ -53,11 +53,11 @@ static struct hash_base *hash_of_scm_name(SCM name_)
     return hash;
 }
 
-static SCM nb_lists_sym;
-static SCM nb_lists_min_sym;
-static SCM nb_entries_sym;
-static SCM nb_entries_max_sym;
-static SCM nb_rehash_sym;
+static SCM num_lists_sym;
+static SCM num_lists_min_sym;
+static SCM num_entries_sym;
+static SCM num_entries_max_sym;
+static SCM num_rehash_sym;
 
 static struct ext_function sg_hash_stats;
 static SCM g_hash_stats(SCM name_)
@@ -67,11 +67,11 @@ static SCM g_hash_stats(SCM name_)
 
     return scm_list_5(
         // See g_proto_stats
-        scm_cons(nb_lists_sym, scm_from_uint(hash->nb_lists)),
-        scm_cons(nb_lists_min_sym, scm_from_uint(hash->nb_lists_min)),
-        scm_cons(nb_entries_sym, scm_from_uint(hash->size)),
-        scm_cons(nb_entries_max_sym, scm_from_uint(hash->max_size)),
-        scm_cons(nb_rehash_sym, scm_from_uint(hash->nb_rehash)));
+        scm_cons(num_lists_sym, scm_from_uint(hash->num_lists)),
+        scm_cons(num_lists_min_sym, scm_from_uint(hash->num_lists_min)),
+        scm_cons(num_entries_sym, scm_from_uint(hash->size)),
+        scm_cons(num_entries_max_sym, scm_from_uint(hash->max_size)),
+        scm_cons(num_rehash_sym, scm_from_uint(hash->num_rehash)));
 }
 
 extern inline uint_least32_t hashfun(void const *key, size_t len);
@@ -83,11 +83,11 @@ void hash_init(void)
     ext_init();
     objalloc_init();
 
-    nb_lists_sym       = scm_permanent_object(scm_from_latin1_symbol("nb-lists"));
-    nb_lists_min_sym   = scm_permanent_object(scm_from_latin1_symbol("nb-lists-min"));
-    nb_entries_sym     = scm_permanent_object(scm_from_latin1_symbol("nb-entries"));
-    nb_entries_max_sym = scm_permanent_object(scm_from_latin1_symbol("nb-entries-max"));
-    nb_rehash_sym      = scm_permanent_object(scm_from_latin1_symbol("nb-rehash"));
+    num_lists_sym       = scm_permanent_object(scm_from_latin1_symbol("num-lists"));
+    num_lists_min_sym   = scm_permanent_object(scm_from_latin1_symbol("num-lists-min"));
+    num_entries_sym     = scm_permanent_object(scm_from_latin1_symbol("num-entries"));
+    num_entries_max_sym = scm_permanent_object(scm_from_latin1_symbol("num-entries-max"));
+    num_rehash_sym      = scm_permanent_object(scm_from_latin1_symbol("num-rehash"));
 
     ext_function_ctor(&sg_hash_names,
         "hash-names", 0, 0, 0, g_hash_names,

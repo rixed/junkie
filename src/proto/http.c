@@ -181,7 +181,7 @@ struct http_parser {
         struct timeval first;   // first packet for this message
         struct timeval last;    // last packet we received (only set if first is set)
 #       define CONTENT_UP_TO_END ((size_t)((ssize_t)-1))
-        size_t remaining_content;   // nb bytes before next header (or (ssize_t)-1 if unknown). Only relevant when phase=BODY|CHUNK.
+        size_t remaining_content;   // number of bytes before next header (or (ssize_t)-1 if unknown). Only relevant when phase=BODY|CHUNK.
         // Store the last query command, to be taken it into account to skip body in answer to HEADs
         enum http_method last_method;
         // FIXME: take into account http-range?

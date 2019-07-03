@@ -73,7 +73,7 @@ DEFINE tcp AS
     srv_mac eth,
     srv_ip ip,
     srv_port u16,
-    nb_syns u32,
+    num_syns u32,
     cnx_time float)
   FACTORS device AND vlan
   EVENT STARTING AT start WITH DURATION cnx_time;
@@ -107,7 +107,7 @@ DEFINE x509 AS
     srv_ip ip,
     srv_port u16,
     cert_depth u16,
-    nb_certs u16,
+    num_certs u16,
     serial_number string,
     not_before string,
     not_after string,

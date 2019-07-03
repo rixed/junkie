@@ -174,7 +174,7 @@ def tests_for(indent, num, sigs):
             code.append(prefix + "if (")
             for idx, opt in enumerate(opts):
                 if not opt.startswith("eol+"): ## no support for this since we lack the information
-                    code.append("  (%s < tcp->nb_options && tcp->options[%s] == %s) &&" % (idx, idx, option_kind_of(opt)))
+                    code.append("  (%s < tcp->num_options && tcp->options[%s] == %s) &&" % (idx, idx, option_kind_of(opt)))
             code.append("  true) {")
             code.append(tests_for(True, num+1, values[x]))
         code.append("}")

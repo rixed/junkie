@@ -8,7 +8,7 @@
   * The nearer those bits are from the beginning of the packet, the more chance
   * they get to be mutated.
 */
-void fuzz(struct parser *parser, uint8_t const *packet, size_t packet_len, unsigned max_nb_fuzzed_bits);
+void fuzz(struct parser *parser, uint8_t const *packet, size_t packet_len, unsigned max_num_fuzzed_bits);
 
 void fuzzing_init(void);
 void fuzzing_fini(void);

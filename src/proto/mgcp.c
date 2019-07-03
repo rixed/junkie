@@ -187,7 +187,7 @@ static enum mgcp_command mgcp_code_2_command(char const *code, size_t len)
 }
 
 static struct liner_delimiter_set param_delims = {
-    .nb_delims = 2,
+    .num_delims = 2,
     .delims = (struct liner_delimiter []){ { ", ", 2 }, { ",", 1 } },
     .collapse = true,
 };

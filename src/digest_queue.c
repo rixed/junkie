@@ -184,28 +184,28 @@ static void reset_dedup_stats(void)
 {
     struct digest_queue *dq;
     LIST_FOREACH(dq, &digest_queues, entry) {
-        dq->nb_dup_found = dq->nb_nodup_found = 0;
+        dq->num_dup_found = dq->num_nodup_found = 0;
     }
 }
 
 static void incr_dup(struct digest_queue *dq)
 {
 #   ifdef __GNUC__
-    __sync_add_and_fetch(&dq->nb_dup_found, 1);
+    __sync_add_and_fetch(&dq->num_dup_found, 1);
 #   else
-    dq->nb_dup_found ++;
+    dq->num_dup_found ++;
 #   endif
-    // as nb_dup_found is 64 bits we don't fear a wrap around
+    // as num_dup_found is 64 bits we don't fear a wrap around
 }
 
 static void incr_nodup(struct digest_queue *dq)
 {
 #   ifdef __GNUC__
-    __sync_add_and_fetch(&dq->nb_nodup_found, 1);
+    __sync_add_and_fetch(&dq->num_nodup_found, 1);
 #   else
-    dq->nb_nodup_found ++;
+    dq->num_nodup_found ++;
 #   endif
-    // as nb_nodup_found is 64 bits we don't fear a wrap around
+    // as num_nodup_found is 64 bits we don't fear a wrap around
 }
 
 /*
@@ -363,8 +363,8 @@ static SCM g_dedup_stats(SCM dev_id_)
     if (! dq) return SCM_BOOL_F;
 
     SCM ret = scm_list_2(
-        scm_cons(dup_found_sym,         scm_from_uint64(dq->nb_dup_found)),
-        scm_cons(nodup_found_sym,       scm_from_uint64(dq->nb_nodup_found)));
+        scm_cons(dup_found_sym,         scm_from_uint64(dq->num_dup_found)),
+        scm_cons(nodup_found_sym,       scm_from_uint64(dq->num_nodup_found)));
 
     return ret;
 }

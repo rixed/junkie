@@ -40,7 +40,7 @@ struct tns_parser {
     struct parser parser;
     unsigned c2s_way;   // The way when traffic is going from client to server (UNSET for unset)
     struct streambuf sbuf;
-    unsigned nb_fields; // Keep number of fields for query response
+    unsigned num_fields; // Keep number of fields for query response
 };
 
 static parse_fun tns_sbuf_parse;
@@ -50,7 +50,7 @@ static int tns_parser_ctor(struct tns_parser *tns_parser, struct proto *proto)
     assert(proto == proto_tns);
     if (0 != parser_ctor(&tns_parser->parser, proto)) return -1;
     tns_parser->c2s_way = UNSET;    // unset
-    tns_parser->nb_fields = UNSET;
+    tns_parser->num_fields = UNSET;
     if (0 != streambuf_ctor(&tns_parser->sbuf, tns_sbuf_parse, 30000)) return -1;
 
     return 0;
@@ -394,8 +394,8 @@ static enum proto_parse_status tns_parse_row_recap(struct cursor *cursor)
     uint_least64_t num_fields;
     status = cursor_read_variable_int(cursor, &num_fields);
     if (status != PROTO_OK) return status;
-    unsigned nb_ignore = (num_fields + 7) / 8;
-    DROP_FIX(cursor, nb_ignore);
+    unsigned num_ignore = (num_fields + 7) / 8;
+    DROP_FIX(cursor, num_ignore);
     return PROTO_OK;
 }
 
@@ -421,7 +421,7 @@ static enum proto_parse_status tns_parse_row_data(struct tns_parser *tns_parser,
     /* A row data contains :
      * - 1 var for each fields
      */
-    DROP_VAR_STRS(cursor, tns_parser->nb_fields);
+    DROP_VAR_STRS(cursor, tns_parser->num_fields);
     return PROTO_OK;
 }
 
@@ -438,9 +438,9 @@ static enum proto_parse_status tns_parse_row_description_prefix(struct tns_parse
     status = cursor_read_variable_int(cursor, &num_fields);
     if (status != PROTO_OK) return status;
     info->set_values |= SQL_NB_FIELDS;
-    info->u.query.nb_fields = num_fields;
-    tns_parser->nb_fields = info->u.query.nb_fields;
-    SLOG(LOG_DEBUG, "Got %d fields", info->u.query.nb_fields);
+    info->u.query.num_fields = num_fields;
+    tns_parser->num_fields = info->u.query.num_fields;
+    SLOG(LOG_DEBUG, "Got %d fields", info->u.query.num_fields);
 
     DROP_FIX(cursor, 1);
     for (unsigned i = 0; i < num_fields; i++) {
@@ -473,10 +473,10 @@ static enum proto_parse_status tns_parse_row_description(struct sql_proto_info *
     DROP_VARS(cursor, length);
     DROP_VAR(cursor);
 
-    uint_least64_t nb_ignore;
-    status = cursor_read_variable_int(cursor, &nb_ignore);
+    uint_least64_t num_ignore;
+    status = cursor_read_variable_int(cursor, &num_ignore);
     if (status != PROTO_OK) return status;
-    for (unsigned i = 0; i < nb_ignore; i++) {
+    for (unsigned i = 0; i < num_ignore; i++) {
         DROP_VAR(cursor);
         DROP_DALC(cursor);
         DROP_VAR(cursor);
@@ -516,12 +516,12 @@ static enum proto_parse_status tns_parse_end(struct sql_proto_info *info, struct
     // Sequence
     DROP_VAR(cursor);
 
-    uint_least64_t nb_rows;
-    status = cursor_read_variable_int(cursor, &nb_rows);
+    uint_least64_t num_rows;
+    status = cursor_read_variable_int(cursor, &num_rows);
     if (status != PROTO_OK) return status;
-    info->u.query.nb_rows = nb_rows;
+    info->u.query.num_rows = num_rows;
     info->set_values |= SQL_NB_ROWS;
-    SLOG(LOG_DEBUG, "Nb rows %d", info->u.query.nb_rows);
+    SLOG(LOG_DEBUG, "Nb rows %d", info->u.query.num_rows);
 
     uint_least64_t error_code;
     status = cursor_read_variable_int(cursor, &error_code);
@@ -674,7 +674,7 @@ static enum proto_parse_status tns_parse_query(struct tns_parser *tns_parser, st
     unsigned fun_code = cursor_read_u8(cursor);
     switch (fun_code) {
         case TTC_QUERY_SQL:
-            tns_parser->nb_fields = UNSET;
+            tns_parser->num_fields = UNSET;
             info->msg_type = SQL_QUERY;
             status = tns_parse_sql_query(info, cursor);
             break;

@@ -7,7 +7,8 @@
              (srfi srfi-8) ; for receive
              (rnrs records syntactic)
              (ice-9 format)
-             (junkie tools))
+             (junkie tools)
+             (junkie defs))
 
 
 ;;; We have a few types likes integer, ip address, string (or known max size) that we
@@ -980,10 +981,10 @@
 
 ;; Bytes manipulation
 
-(define nb-bytes
-  (make-op 'nb-bytes uint (list bytes)
+(define num-bytes
+  (make-op 'num-bytes uint (list bytes)
            (lambda (b)
-             (let ((res (gensymC "nb_bytes")))
+             (let ((res (gensymC "num_bytes")))
                (make-stub
                  (string-append
                    (stub-code b)
@@ -991,7 +992,7 @@
                  res
                 (stub-regnames b))))))
 
-(add-operator 'nb-bytes nb-bytes)
+(add-operator 'num-bytes num-bytes)
 
 (define byte-at
   (make-op 'byte-at uint (list bytes uint)

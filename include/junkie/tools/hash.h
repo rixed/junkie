@@ -23,11 +23,11 @@ extern LIST_HEAD(hashes, hash_base) hashes;
 
 struct hash_base {
     LIST_ENTRY(hash_base) entry;    ///< entry in the list of all hashes
-    unsigned nb_lists;              ///< number of list heads in the hash table
-    unsigned nb_lists_min;          ///< initial number of lists (we never go below this)
+    unsigned num_lists;              ///< number of list heads in the hash table
+    unsigned num_lists_min;          ///< initial number of lists (we never go below this)
     unsigned size;                  ///< number of entries in this hash
     unsigned max_size;              ///< max size since last rehash
-    unsigned nb_rehash;             ///< number of rehash performed
+    unsigned num_rehash;             ///< number of rehash performed
     char const *name;               ///< useful to retrieve this hash from guile
 };
 
@@ -40,15 +40,15 @@ struct name_ { \
 #define HASH_SIZE(hash) (hash)->base.size
 
 #define HASH_INIT(hash, size_, name_) do { \
-    (hash)->base.nb_lists = 1 + size_ / HASH_LENGTH_GOOD; \
-    (hash)->base.nb_lists_min = (hash)->base.nb_lists; \
-    (hash)->lists = objalloc((hash)->base.nb_lists * sizeof(*(hash)->lists), name_); \
+    (hash)->base.num_lists = 1 + size_ / HASH_LENGTH_GOOD; \
+    (hash)->base.num_lists_min = (hash)->base.num_lists; \
+    (hash)->lists = objalloc((hash)->base.num_lists * sizeof(*(hash)->lists), name_); \
     (hash)->base.size = 0; \
     (hash)->base.max_size = 0; \
-    (hash)->base.nb_rehash = 0; \
+    (hash)->base.num_rehash = 0; \
     (hash)->base.name = (name_); \
     LIST_INSERT_HEAD(&hashes, &(hash)->base, entry); \
-    for (unsigned l = 0; l < (hash)->base.nb_lists; l++) LIST_INIT((hash)->lists+l); \
+    for (unsigned l = 0; l < (hash)->base.num_lists; l++) LIST_INIT((hash)->lists+l); \
 } while (0)
 
 #define HASH_DEINIT(hash) do { \
@@ -60,15 +60,15 @@ struct name_ { \
 
 // FIXME: HASH_FOREACH and HASH_FOREACH_SAFE are not correct since a break do not break the whole loop. Find a way to write this differently so one can break out completely.
 #define HASH_FOREACH(var, hash, field) \
-    for (unsigned __hash_l = 0; __hash_l < (hash)->base.nb_lists; __hash_l++) \
+    for (unsigned __hash_l = 0; __hash_l < (hash)->base.num_lists; __hash_l++) \
         LIST_FOREACH(var, (hash)->lists+__hash_l, field)
 
 #define HASH_FOREACH_SAFE(var, hash, field, tvar) \
-    for (unsigned __hash_l = 0; __hash_l < (hash)->base.nb_lists; __hash_l++) \
+    for (unsigned __hash_l = 0; __hash_l < (hash)->base.num_lists; __hash_l++) \
         LIST_FOREACH_SAFE(var, (hash)->lists+__hash_l, field, tvar)
 
 #define HASH_FUNC(key) hashfun(key, sizeof(*(key)))
-#define HASH_LIST(hash, key) ((hash)->lists + (HASH_FUNC(key) % (hash)->base.nb_lists))
+#define HASH_LIST(hash, key) ((hash)->lists + (HASH_FUNC(key) % (hash)->base.num_lists))
 
 #define HASH_FOREACH_SAME_KEY(var, hash, key, key_field, field) \
     ASSERT_COMPILE(sizeof(*(key)) == sizeof((var)->key_field)); \
@@ -96,25 +96,25 @@ struct name_ { \
     (hash)->base.size --; \
 } while (0)
 
-#define HASH_AVG_LENGTH(hash) (((hash)->base.max_size + (hash)->base.nb_lists/2) / (hash)->base.nb_lists)
+#define HASH_AVG_LENGTH(hash) (((hash)->base.max_size + (hash)->base.num_lists/2) / (hash)->base.num_lists)
 
 #define HASH_TRY_REHASH(hash, key_field, field) do { \
     unsigned const avg_length = HASH_AVG_LENGTH(hash); \
-    if ((avg_length < HASH_LENGTH_MIN && (hash)->base.nb_lists > (hash)->base.nb_lists_min) || avg_length > HASH_LENGTH_MAX) { \
-        unsigned new_nb_lists = 1 + (hash)->base.max_size / HASH_LENGTH_GOOD; \
-        __typeof__((hash)->lists) new_lists = objalloc(new_nb_lists * sizeof(*(hash)->lists), (hash)->base.name); \
+    if ((avg_length < HASH_LENGTH_MIN && (hash)->base.num_lists > (hash)->base.num_lists_min) || avg_length > HASH_LENGTH_MAX) { \
+        unsigned new_num_lists = 1 + (hash)->base.max_size / HASH_LENGTH_GOOD; \
+        __typeof__((hash)->lists) new_lists = objalloc(new_num_lists * sizeof(*(hash)->lists), (hash)->base.name); \
         if (! new_lists) break; \
-        SLOG(LOG_INFO, "Rehashing hash %s from %u to %u lists (%u max entries)", (hash)->base.name, (hash)->base.nb_lists, new_nb_lists, (hash)->base.max_size); \
-        for (unsigned l = 0; l < new_nb_lists; l++) LIST_INIT(new_lists + l); \
+        SLOG(LOG_INFO, "Rehashing hash %s from %u to %u lists (%u max entries)", (hash)->base.name, (hash)->base.num_lists, new_num_lists, (hash)->base.max_size); \
+        for (unsigned l = 0; l < new_num_lists; l++) LIST_INIT(new_lists + l); \
         __typeof__((hash)->lists[0].lh_first) elm, tmp; \
         HASH_FOREACH_SAFE(elm, hash, field, tmp) { \
             LIST_REMOVE(elm, field); \
-            LIST_INSERT_HEAD(new_lists + (HASH_FUNC(&elm->key_field) % new_nb_lists), elm, field); \
+            LIST_INSERT_HEAD(new_lists + (HASH_FUNC(&elm->key_field) % new_num_lists), elm, field); \
         } \
         objfree((hash)->lists); \
         (hash)->lists = new_lists; \
-        (hash)->base.nb_lists = new_nb_lists; \
-        (hash)->base.nb_rehash ++; \
+        (hash)->base.num_lists = new_num_lists; \
+        (hash)->base.num_rehash ++; \
     } \
     (hash)->base.max_size = (hash)->base.size; \
 } while (0)

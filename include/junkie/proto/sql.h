@@ -80,8 +80,8 @@ struct sql_proto_info {
         } startup;
         struct sql_query {
             char sql[512];
-            unsigned nb_rows;
-            unsigned nb_fields;
+            unsigned num_rows;
+            unsigned num_fields;
         } query;
     } u;
 };

@@ -42,14 +42,14 @@ struct cli_opt {
 /// Register a new bloc of options (under the heading /name/).
 /** @param name the title under which these options are presented if not NULL
  * @param opt the cli_opt array to add
- * @param nb_cli_opts size of the previous array
+ * @param num_cli_opts size of the previous array
  */
-int cli_register(char const *name, struct cli_opt *opt, unsigned nb_cli_opts);
+int cli_register(char const *name, struct cli_opt *opt, unsigned num_cli_opts);
 
 /// Unregister a bloc of options
 int cli_unregister(struct cli_opt *);
 
-int cli_parse(unsigned nb_args, char **args);
+int cli_parse(unsigned num_args, char **args);
 int cli_2_enum(bool case_sensitive, char const *value, ...) sentinel_;
 
 void cli_init(void);

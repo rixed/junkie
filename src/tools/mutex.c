@@ -174,7 +174,7 @@ static struct mutex supermutex_meta_lock;
  * we want to access them from other threads as well.  Instead, we use thread
  * local storage to store the address of the current thread supermutex_user. */
 struct supermutex_user {
-    unsigned nb_locks;  /// how many locks I own or wait for
+    unsigned num_locks;  /// how many locks I own or wait for
 #   define NB_MAX_LOCKED_SUPERMUTEX_PER_THREAD 16
     struct supermutex_user_lock locks[NB_MAX_LOCKED_SUPERMUTEX_PER_THREAD];
 };
@@ -184,7 +184,7 @@ static __thread struct supermutex_user *my_supermutex_user;
 
 static void supermutex_user_ctor(struct supermutex_user *usr)
 {
-    usr->nb_locks = 0;
+    usr->num_locks = 0;
     for (unsigned l = 0; l < NB_ELEMS(usr->locks); l ++) {
         usr->locks[l].user = usr;
     }
@@ -207,7 +207,7 @@ static struct supermutex_user *supermutex_user_new(void)
 static void supermutex_user_dtor(struct supermutex_user *usr)
 {
     // We are supposed to release our locks first
-    assert(usr->nb_locks == 0);
+    assert(usr->num_locks == 0);
 }
 #endif
 
@@ -245,7 +245,7 @@ static bool supermutex_is_cycling(struct supermutex_user *usr, struct supermutex
         if (usr_ == usr) continue;  // in the special case where usr == target dont report a cycle
         if (usr_ == target) return true;
         // Now look over all *other* locks owned by this other thread
-        for (unsigned l = 0; l < usr_->nb_locks; l++) {
+        for (unsigned l = 0; l < usr_->num_locks; l++) {
             if (! usr_->locks[l].supermutex) continue;
             if (usr_->locks[l].supermutex == super) continue;
             // Can I reach target from this one?
@@ -262,16 +262,16 @@ int supermutex_lock(struct supermutex *super)
         my_supermutex_user = supermutex_user_new();
     }
 
-    assert(my_supermutex_user->nb_locks <= NB_ELEMS(my_supermutex_user->locks));
+    assert(my_supermutex_user->num_locks <= NB_ELEMS(my_supermutex_user->locks));
 
     // Easy case: maybe I already own it?
     unsigned l;
     unsigned free_l = UNSET;
-    for (l = 0; l < my_supermutex_user->nb_locks; l++) {
+    for (l = 0; l < my_supermutex_user->num_locks; l++) {
         if (my_supermutex_user->locks[l].supermutex == super) break;
         if (my_supermutex_user->locks[l].supermutex == NULL) free_l = l;
     }
-    if (l < my_supermutex_user->nb_locks) {
+    if (l < my_supermutex_user->num_locks) {
         SLOG(LOG_DEBUG, "Locking again supermutex %s", supermutex_name(super));
         assert(my_supermutex_user->locks[l].rec_count > 0);
 
@@ -296,12 +296,12 @@ int supermutex_lock(struct supermutex *super)
     if (free_l != UNSET) {
         l = free_l;
     } else {
-        if (my_supermutex_user->nb_locks == NB_ELEMS(my_supermutex_user->locks)) {
+        if (my_supermutex_user->num_locks == NB_ELEMS(my_supermutex_user->locks)) {
             SLOG(LOG_ERR, "Cannot lock supermutex %s since I'm holding too many locks already!?", supermutex_name(super));
             mutex_unlock(&supermutex_meta_lock);
             return MUTEX_SYS_ERROR;
         }
-        l = my_supermutex_user->nb_locks++;
+        l = my_supermutex_user->num_locks++;
     }
     my_supermutex_user->locks[l].rec_count = 1;
     my_supermutex_user->locks[l].supermutex = super;
@@ -334,14 +334,14 @@ void supermutex_unlock(struct supermutex *super)
 {
     SLOG(LOG_DEBUG, "Unlocking supermutex %s", supermutex_name(super));
 
-    assert(my_supermutex_user->nb_locks <= NB_ELEMS(my_supermutex_user->locks));
-    assert(my_supermutex_user->nb_locks > 0);
+    assert(my_supermutex_user->num_locks <= NB_ELEMS(my_supermutex_user->locks));
+    assert(my_supermutex_user->num_locks > 0);
 
     unsigned l;
-    for (l = 0; l < my_supermutex_user->nb_locks; l++) {
+    for (l = 0; l < my_supermutex_user->num_locks; l++) {
         if (my_supermutex_user->locks[l].supermutex == super) break;
     }
-    assert(l < my_supermutex_user->nb_locks);  // Or I'm releasing something I do not own?
+    assert(l < my_supermutex_user->num_locks);  // Or I'm releasing something I do not own?
 
     if (--my_supermutex_user->locks[l].rec_count > 0) return;
 
@@ -353,9 +353,9 @@ void supermutex_unlock(struct supermutex *super)
 
     mutex_unlock(&supermutex_meta_lock);
 
-    // Compact nb_locks
-    while (my_supermutex_user->nb_locks > 0 && my_supermutex_user->locks[my_supermutex_user->nb_locks-1].supermutex == NULL) {
-        my_supermutex_user->nb_locks--;
+    // Compact num_locks
+    while (my_supermutex_user->num_locks > 0 && my_supermutex_user->locks[my_supermutex_user->num_locks-1].supermutex == NULL) {
+        my_supermutex_user->num_locks--;
     }
 }
 

@@ -29,7 +29,7 @@ struct capfile {
     size_t cap_len;
     unsigned rotation;
     unsigned file_num;  // this file number (if rotation)
-    unsigned nb_pkts;   // number of packets written in this file
+    unsigned num_pkts;   // number of packets written in this file
     size_t file_size;   // total number of bytes written in this file (including all sort of headers)
     struct timeval start;   // when we opened the file
     int fd;

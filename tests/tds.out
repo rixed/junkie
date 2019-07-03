@@ -2,15 +2,15 @@
 TDS: head_len=8, payload=182, type=SQL batch, status=0x1
 TDS(msg): head_len=182, payload=0, Clt->Srv, query, query=' set transaction isolation level  read committed  set implicit_transactions off '
 TDS: head_len=8, payload=26, type=Tabular result, status=0x1
-TDS(msg): head_len=26, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1, Status=Completed
+TDS(msg): head_len=26, payload=0, Srv->Clt, query, num_rows=-1, num_fields=-1, Status=Completed
 TDS: head_len=8, payload=284, type=RPC, status=0x1
 TDS(msg): head_len=284, payload=0, Clt->Srv, query, query='PrepExec(?*=0,?=@P0 nvarchar(4000),@P1 int,?=select * from test_table_1 where name = @P0 and id = @P1                ,?=zzz,?=2)'
 TDS: head_len=8, payload=350, type=Tabular result, status=0x1
-TDS(msg): head_len=350, payload=0, Srv->Clt, query, nb_rows=1, nb_fields=4, Status=Completed
+TDS(msg): head_len=350, payload=0, Srv->Clt, query, num_rows=1, num_fields=4, Status=Completed
 TDS: head_len=8, payload=36, type=SQL batch, status=0x1
 TDS(msg): head_len=36, payload=0, Clt->Srv, query, query='COMMIT TRANSACTION'
 TDS: head_len=8, payload=9, type=Tabular result, status=0x1
-TDS(msg): head_len=9, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1, Status=Completed
+TDS(msg): head_len=9, payload=0, Srv->Clt, query, num_rows=-1, num_fields=-1, Status=Completed
 TDS: head_len=8, payload=177, type=RPC, status=0x9
 TDS(msg): head_len=177, payload=0, Clt->Srv, query, query='p_GetBogusData(@SearchType=1,@MaxWaitTimeInSeconds=0,@ProcessNegativeAck=0)'
 TDS: head_len=8, payload=1074, type=RPC, status=0x9
@@ -18,31 +18,31 @@ TDS(msg): head_len=1074, payload=0, Clt->Srv, query, query='sp_executesql(?=SELE
 TDS: head_len=8, payload=182, type=SQL batch, status=0x1
 TDS(msg): head_len=182, payload=0, Clt->Srv, query, query=' set transaction isolation level  read committed  set implicit_transactions off '
 TDS: head_len=8, payload=26, type=Tabular result, status=0x1
-TDS(msg): head_len=26, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1, Status=Completed
+TDS(msg): head_len=26, payload=0, Srv->Clt, query, num_rows=-1, num_fields=-1, Status=Completed
 TDS: head_len=8, payload=245, type=RPC, status=0x1
 TDS(msg): head_len=245, payload=0, Clt->Srv, query, query='PrepExec(?*=0,?=NULL,?=create table newsyb (column1 char(30) not null, column2 char(30) null,column3 char(30) null))'
 TDS: head_len=8, payload=49, type=Tabular result, status=0x1
-TDS(msg): head_len=49, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1, Status=Completed
+TDS(msg): head_len=49, payload=0, Srv->Clt, query, num_rows=-1, num_fields=-1, Status=Completed
 TDS: head_len=8, payload=225, type=RPC, status=0x1
 TDS(msg): head_len=225, payload=0, Clt->Srv, query, query='PrepExec(?*=0,?=NULL,?=insert INTO newsyb (column1, column2, column3) VALUES ('first', 'second', 'third'))'
 TDS: head_len=8, payload=49, type=Tabular result, status=0x1
-TDS(msg): head_len=49, payload=0, Srv->Clt, query, nb_rows=1, nb_fields=-1, Status=Completed
+TDS(msg): head_len=49, payload=0, Srv->Clt, query, num_rows=1, num_fields=-1, Status=Completed
 TDS: head_len=8, payload=53, type=RPC, status=0x1
 TDS(msg): head_len=53, payload=0, Clt->Srv, query, query='Execute(?=2)'
 TDS: head_len=8, payload=72, type=Tabular result, status=0x1
-TDS(msg): head_len=72, payload=0, Srv->Clt, query, nb_rows=1, nb_fields=-1, Status=Completed
+TDS(msg): head_len=72, payload=0, Srv->Clt, query, num_rows=1, num_fields=-1, Status=Completed
 TDS: head_len=8, payload=101, type=RPC, status=0x1
 TDS(msg): head_len=101, payload=0, Clt->Srv, query, query='PrepExec(?*=0,?=NULL,?=select * from newsyb)'
 TDS: head_len=8, payload=430, type=Tabular result, status=0x1
-TDS(msg): head_len=430, payload=0, Srv->Clt, query, nb_rows=3, nb_fields=3, Status=Completed
+TDS(msg): head_len=430, payload=0, Srv->Clt, query, num_rows=3, num_fields=3, Status=Completed
 TDS: head_len=8, payload=37, type=RPC, status=0x1
 TDS(msg): head_len=37, payload=0, Clt->Srv, query, query='Execute(?=3)'
 TDS: head_len=8, payload=412, type=Tabular result, status=0x1
-TDS(msg): head_len=412, payload=0, Srv->Clt, query, nb_rows=3, nb_fields=3, Status=Completed
+TDS(msg): head_len=412, payload=0, Srv->Clt, query, num_rows=3, num_fields=3, Status=Completed
 TDS: head_len=8, payload=95, type=RPC, status=0x1
 TDS(msg): head_len=95, payload=0, Clt->Srv, query, query='PrepExec(?*=0,?=NULL,?=drop table newsyb)'
 TDS: head_len=8, payload=49, type=Tabular result, status=0x1
-TDS(msg): head_len=49, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1, Status=Completed
+TDS(msg): head_len=49, payload=0, Srv->Clt, query, num_rows=-1, num_fields=-1, Status=Completed
 TDS: head_len=8, payload=7992, type=RPC, status=0x4
 TDS: head_len=8, payload=331, type=RPC, status=0x1
 TDS(msg): head_len=8323, payload=0, Clt->Srv, query, query='p_SaveExample(@LongParam=Studenckie Koło Przewodników Turystycznych w Gdańsku

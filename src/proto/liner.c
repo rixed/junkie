@@ -117,43 +117,43 @@ unsigned long long liner_strtoull(struct liner *liner, char const **end, int bas
 static int look_for_delim(size_t *tok_len, size_t *delim_len, char const *start, size_t rem_size, struct liner_delimiter_set const *delims)
 {
 #   define NB_MAX_DELIMS 4
-    assert(delims->nb_delims <= NB_MAX_DELIMS);
+    assert(delims->num_delims <= NB_MAX_DELIMS);
     struct {
         unsigned matched;  // how many chars were already matched
         bool winner;
         size_t tok_len;
     } matches[NB_MAX_DELIMS];
 
-    for (unsigned d = 0; d < delims->nb_delims; d++) {
+    for (unsigned d = 0; d < delims->num_delims; d++) {
         matches[d].matched = 0;
         matches[d].winner = false;
         assert(delims->delims[d].len > 0);  // or the following algo will fail
     }
 
     int best_winner = -1;
-    unsigned nb_matching = 0;
+    unsigned num_matching = 0;
 
     // Now scan the buffer until a match
     for (unsigned o = 0; o < rem_size; o++) {
         char const c = start[o];
-        if (best_winner != -1 && nb_matching == 0) break; // nothing left matching
+        if (best_winner != -1 && num_matching == 0) break; // nothing left matching
 
-        for (unsigned d = 0; d < delims->nb_delims; d++) {
+        for (unsigned d = 0; d < delims->num_delims; d++) {
             struct liner_delimiter const *delim = delims->delims+d;
             if (! matches[d].winner) {
                 if (c == delim->str[matches[d].matched]) {
-                    nb_matching += matches[d].matched == 0;
+                    num_matching += matches[d].matched == 0;
                     if (++matches[d].matched >= delim->len) {   // we have a winner
                         matches[d].winner = true;  // but keep looking for a longer match
                         matches[d].tok_len = o - matches[d].matched + 1;
                         if (-1 == best_winner || matches[d].matched > matches[best_winner].matched) {
                             best_winner = d;
                         }
-                        nb_matching --;
+                        num_matching --;
                     }
                 } else if (matches[d].matched > 0) {
                     matches[d].matched = c == delim->str[0];
-                    nb_matching -= matches[d].matched == 0;
+                    num_matching -= matches[d].matched == 0;
                 }
             }
         }
@@ -175,7 +175,7 @@ static void liner_skip_delimiters(struct liner *liner)
     size_t const rem = liner->rem_size - liner->tok_size - liner->delim_size;
     char const *const after = liner->start + liner->tok_size + liner->delim_size;
 
-    for (unsigned d = 0; d < liner->delims->nb_delims; d++) {
+    for (unsigned d = 0; d < liner->delims->num_delims; d++) {
         struct liner_delimiter const *const delim = liner->delims->delims+d;
         if (delim->len > rem) continue;
         if (0 != strncmp(after, delim->str, delim->len)) continue;

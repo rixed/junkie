@@ -158,7 +158,7 @@ static enum proto_parse_status sdp_parse(struct parser *parser, struct proto_inf
     };
 
     static struct sdper const sdper = {
-        .nb_fields = NB_ELEMS(fields),
+        .num_fields = NB_ELEMS(fields),
         .fields = fields
     };
 

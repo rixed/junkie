@@ -108,7 +108,7 @@ struct pkt_wl_config {
     /// Acceptable gap between two successive packets
     unsigned acceptable_gap;
     /// Max number of pending packets
-    unsigned nb_pkts_max;
+    unsigned num_pkts_max;
     /// Max pending payload
     size_t payload_max;
     /// Can we parse only a subset of the packets or must we wait for the grand reassembly (note: IP -> false, TCP -> true)
@@ -124,7 +124,7 @@ void pkt_wl_config_ctor(
     struct pkt_wl_config *,         ///< The pkt_wait_list global conf structure to initialize
     char const *name,               ///< The name used to change this pkt_wait_list configurarion
     unsigned acceptable_gap,        ///< Accept to enqueue a packet only if its not further away from previous one (0 for no check)
-    unsigned nb_pkts_max,           ///< Max number of pending packets (0 for unlimited)
+    unsigned num_pkts_max,           ///< Max number of pending packets (0 for unlimited)
     size_t payload_max,             ///< Max pending payload (0 for unlimited)
     unsigned timeout,               ///< Timeout these pkt_wait_lists after this number of seconds (0 for no timeout)
     bool allow_partial              ///< Should we parse packets as soon as possible or wait for a full PDU?
@@ -150,7 +150,7 @@ struct pkt_wait_list {
     /// And the entry in this list
     LIST_ENTRY(pkt_wait_list) entry;
     /// Current number of pending packets
-    unsigned nb_pkts;
+    unsigned num_pkts;
     /// Current pending payload
     size_t tot_payload;
     /// The offset we are currently waiting for to resume parsing

@@ -7,7 +7,7 @@
 #include <junkie/tools/miscmacs.h>
 #include "proto/liner.c"
 
-static unsigned nb_tokens(char const *buf, size_t buf_sz, struct liner_delimiter_set *delims)
+static unsigned num_tokens(char const *buf, size_t buf_sz, struct liner_delimiter_set *delims)
 {
     struct liner liner;
     liner_init(&liner, delims, buf, buf_sz);
@@ -42,14 +42,14 @@ static void check_simple(void)
     assert(liner_tok_length(&liner) == 0);
     assert(liner_parsed(&liner) == strlen(simple_text));
 
-    assert(nb_tokens(simple_text, sizeof(simple_text)-1, &eols) == 3);
+    assert(num_tokens(simple_text, sizeof(simple_text)-1, &eols) == 3);
 }
 
 static void check_empty(void)
 {
     static struct {
         char const *str;
-        unsigned nb_lines[2];   // non greedy / greedy
+        unsigned num_lines[2];   // non greedy / greedy
     } line_tests[] = {
         { "", {0,0} }, { "blabla", {1,1} },
         { "\r\n", {1,1} }, { " \r\n", {1,1} } , { " \n", {1,1} },
@@ -60,8 +60,8 @@ static void check_empty(void)
     struct liner_delimiter_set eols[2] = { { 2, eol, false }, { 2, eol, true } };
 
     for (unsigned e = 0; e < NB_ELEMS(line_tests); e++) {
-        assert(nb_tokens(line_tests[e].str, strlen(line_tests[e].str), eols+0) == line_tests[e].nb_lines[0]);
-        assert(nb_tokens(line_tests[e].str, strlen(line_tests[e].str), eols+1) == line_tests[e].nb_lines[1]);
+        assert(num_tokens(line_tests[e].str, strlen(line_tests[e].str), eols+0) == line_tests[e].num_lines[0]);
+        assert(num_tokens(line_tests[e].str, strlen(line_tests[e].str), eols+1) == line_tests[e].num_lines[1]);
     }
 }
 
@@ -83,7 +83,7 @@ static void check_restart(void)
     struct liner_delimiter ab[] = { { "AB", 2 } };
     struct liner_delimiter_set set = { 1, ab, false };
 
-    assert(nb_tokens(text, strlen(text), &set) == 2);
+    assert(num_tokens(text, strlen(text), &set) == 2);
 }
 
 static void check_longest_match(void)

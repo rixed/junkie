@@ -1,7 +1,7 @@
 -- pcap/https/tlsv1.pcap --
 TLS: head_len=167, payload=0, version=3.1, content-type=handshake, SNI=www.google.com
 TLS: head_len=70, payload=0, version=3.1, content-type=handshake, cipher_suite=Unknown cipher suite 0xc011, compression_algo=none
-TLS: head_len=1630, payload=0, version=3.1, content-type=handshake, nb_certs=2, serial_number_0=0x4f9d96d966b0992b54c2957cb4157d4d, issuer_0=Thawte SGC CA, subject_0=www.google.com, not_before_0=2011-10-26 00:00:00, not_after_0=2013-09-30 23:59:59, serial_number_1=0x30000002, issuer_1=, subject_1=Thawte SGC CA, not_before_1=2004-05-13 00:00:00, not_after_1=2014-05-12 23:59:59
+TLS: head_len=1630, payload=0, version=3.1, content-type=handshake, num_certs=2, serial_number_0=0x4f9d96d966b0992b54c2957cb4157d4d, issuer_0=Thawte SGC CA, subject_0=www.google.com, not_before_0=2011-10-26 00:00:00, not_after_0=2013-09-30 23:59:59, serial_number_1=0x30000002, issuer_1=, subject_1=Thawte SGC CA, not_before_1=2004-05-13 00:00:00, not_after_1=2014-05-12 23:59:59
 TLS: head_len=75, payload=0, version=3.1, content-type=handshake
 TLS: head_len=179, payload=0, version=3.1, content-type=handshake
 TLS: head_len=1138, payload=0, version=3.1, content-type=data
@@ -80,15 +80,15 @@ TNS: head_len=237, payload=0, Srv->Clt, startup, No SSL, encoding=UTF8
 TNS: head_len=779, payload=0, Clt->Srv, unknown
 TNS: head_len=834, payload=0, Srv->Clt, unknown
 TNS: head_len=19, payload=0, Clt->Srv, unknown
-TNS: head_len=71, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
+TNS: head_len=71, payload=0, Srv->Clt, query, num_rows=-1, num_fields=-1
 TNS: head_len=159, payload=0, Clt->Srv, unknown
-TNS: head_len=73, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
+TNS: head_len=73, payload=0, Srv->Clt, query, num_rows=-1, num_fields=-1
 TNS: head_len=568, payload=0, Clt->Srv, unknown
-TNS: head_len=1169, payload=0, Srv->Clt, query, nb_rows=-1, nb_fields=-1
+TNS: head_len=1169, payload=0, Srv->Clt, query, num_rows=-1, num_fields=-1
 TNS: head_len=76, payload=0, Clt->Srv, query, query='SELECT * FROM "Toto"'
-TNS: head_len=443, payload=0, Srv->Clt, query, nb_rows=0, nb_fields=2
+TNS: head_len=443, payload=0, Srv->Clt, query, num_rows=0, num_fields=2
 TNS: head_len=17, payload=0, Clt->Srv, query
-TNS: head_len=90, payload=0, Srv->Clt, query, nb_rows=1, nb_fields=-1, Status=Completed, ErrorCode=ORA-01403, ErrorMessage=no data found
+TNS: head_len=90, payload=0, Srv->Clt, query, num_rows=1, num_fields=-1, Status=Completed, ErrorCode=ORA-01403, ErrorMessage=no data found
 -- pcap/postgres/connect.pcap --
 PostgreSQL: head_len=34, payload=0, Clt->Srv, version=3.0, startup, No SSL, user=rixed, dbname=nova
 PostgreSQL: head_len=13, payload=0, Srv->Clt, startup, No SSL
@@ -101,5 +101,5 @@ PostgreSQL: head_len=1, payload=0, Srv->Clt, startup, SSL refused
 PostgreSQL: head_len=33, payload=0, Clt->Srv, version=3.0, startup, No SSL, user=sora, dbname=sora
 PostgreSQL: head_len=324, payload=0, Srv->Clt, startup, No SSL, encoding=Unknown, Status=Completed
 PostgreSQL: head_len=285, payload=0, Clt->Srv, query, query='SELECT * FROM                                                                                                                                                                                                                                                                octonions;'
-PostgreSQL: head_len=71, payload=0, Srv->Clt, query, nb_rows=0, nb_fields=2, Status=Completed
+PostgreSQL: head_len=71, payload=0, Srv->Clt, query, num_rows=0, num_fields=2, Status=Completed
 PostgreSQL: head_len=5, payload=0, Clt->Srv, exit, Status=Completed

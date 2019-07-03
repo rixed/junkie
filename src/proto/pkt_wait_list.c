@@ -81,10 +81,10 @@ static void pkt_wait_dtor(struct pkt_wait *pkt, struct pkt_wait_list *pkt_wl)
 {
     SLOG(LOG_DEBUG, "Destruct pkt@%p", pkt);
 
-    assert(pkt_wl->nb_pkts > 0);
+    assert(pkt_wl->num_pkts > 0);
     assert(pkt_wl->tot_payload >= pkt->cap_len);
     LIST_REMOVE(pkt, entry);
-    pkt_wl->nb_pkts --;
+    pkt_wl->num_pkts --;
     pkt_wl->tot_payload -= pkt->cap_len;
 
     if (pkt->parent) {
@@ -279,7 +279,7 @@ static enum proto_parse_status pkt_wait_list_empty(struct pkt_wait_list *pkt_wl)
     while (NULL != (pkt = LIST_FIRST(&pkt_wl->pkts))) {
         last_status = pkt_wait_finalize(pkt, pkt_wl);
     }
-    assert(pkt_wl->nb_pkts == 0);
+    assert(pkt_wl->num_pkts == 0);
     assert(pkt_wl->tot_payload == 0);
 
     return last_status;
@@ -307,7 +307,7 @@ enum proto_parse_status pkt_wait_list_flush(struct pkt_wait_list *pkt_wl, uint8_
             }
         }
         parser_unref(&parser);
-        assert(pkt_wl->nb_pkts == 0);
+        assert(pkt_wl->num_pkts == 0);
         assert(pkt_wl->tot_payload == 0);
     }
 
@@ -320,7 +320,7 @@ int pkt_wait_list_ctor(struct pkt_wait_list *pkt_wl, unsigned next_offset, struc
     SLOG(LOG_DEBUG, "Construct pkt_wait_list @%p", pkt_wl);
 
     LIST_INIT(&pkt_wl->pkts);
-    pkt_wl->nb_pkts = 0;
+    pkt_wl->num_pkts = 0;
     pkt_wl->tot_payload = 0;
     pkt_wl->next_offset = next_offset;
     pkt_wl->parser = parser_ref(parser);
@@ -356,11 +356,11 @@ void pkt_wait_list_dtor(struct pkt_wait_list *pkt_wl)
     supermutex_unlock(mutex);
 }
 
-void pkt_wl_config_ctor(struct pkt_wl_config *config, char const *name, unsigned acceptable_gap, unsigned nb_pkts_max, size_t payload_max, unsigned timeout, bool allow_partial)
+void pkt_wl_config_ctor(struct pkt_wl_config *config, char const *name, unsigned acceptable_gap, unsigned num_pkts_max, size_t payload_max, unsigned timeout, bool allow_partial)
 {
     config->name = name;
     config->acceptable_gap = acceptable_gap;
-    config->nb_pkts_max = nb_pkts_max;
+    config->num_pkts_max = num_pkts_max;
     config->payload_max = payload_max;
     config->timeout = timeout;
     config->allow_partial = allow_partial;
@@ -469,10 +469,10 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
     timeval_set_max(&pkt_wl->list->last_used, now);
 
     while (
-        (pkt_wl->config->nb_pkts_max && pkt_wl->nb_pkts >= pkt_wl->config->nb_pkts_max) ||
+        (pkt_wl->config->num_pkts_max && pkt_wl->num_pkts >= pkt_wl->config->num_pkts_max) ||
         (pkt_wl->config->payload_max && pkt_wl->tot_payload >= pkt_wl->config->payload_max)
     ) {
-        SLOG(LOG_DEBUG, "Waiting list too big (%u pkts, %zu bytes), force timeout", pkt_wl->nb_pkts, pkt_wl->tot_payload);
+        SLOG(LOG_DEBUG, "Waiting list too big (%u pkts, %zu bytes), force timeout", pkt_wl->num_pkts, pkt_wl->tot_payload);
         enum proto_parse_status status = PROTO_OK;
         pkt_wait_list_try_locked(pkt_wl, &status, now, true);
         if (status == PROTO_OK && pkt_wl->sync_with) pkt_wait_list_try(pkt_wl->sync_with, &status, now, false); // TODO: see above about mutex
@@ -538,7 +538,7 @@ enum proto_parse_status pkt_wait_list_add(struct pkt_wait_list *pkt_wl, unsigned
     } else {
         LIST_INSERT_HEAD(&pkt_wl->pkts, pkt, entry);
     }
-    pkt_wl->nb_pkts ++;
+    pkt_wl->num_pkts ++;
     pkt_wl->tot_payload += pkt->cap_len;
 
     // Maybe this packet content is enough to allow parsing (we end here in case its content overlap what's already there)
@@ -717,7 +717,7 @@ static SCM g_wait_list_stats(SCM name_)
     return scm_list_4(
         scm_cons(timeout_sym,        scm_from_uint(config->timeout)),
         scm_cons(max_payload_sym,    scm_from_size_t(config->payload_max)),
-        scm_cons(max_packets_sym,    scm_from_uint(config->nb_pkts_max)),
+        scm_cons(max_packets_sym,    scm_from_uint(config->num_pkts_max)),
         scm_cons(acceptable_gap_sym, scm_from_uint(config->acceptable_gap)));
 }
 
@@ -735,7 +735,7 @@ static SCM g_wait_list_set_max_pkts(SCM name_, SCM pkts_max_)
 {
     struct pkt_wl_config *config = pkt_wl_config_of_scm_name(name_);
     if (! config) return SCM_BOOL_F;
-    config->nb_pkts_max = scm_to_uint(pkts_max_);
+    config->num_pkts_max = scm_to_uint(pkts_max_);
     return SCM_BOOL_T;
 }
 

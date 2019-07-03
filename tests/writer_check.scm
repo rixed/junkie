@@ -29,18 +29,18 @@
   (while (not (null? (iface-names)))
          (usleep 100)))
 
-(define (nb-pkts)
-  (assq-ref (proto-stats "Capture") 'nb-frames))
+(define (num-pkts)
+  (assq-ref (proto-stats "Capture") 'num-frames))
 
 (play (string-append (getenv "srcdir") "/pcap/voip/sip_via.pcap"))
-(define nb-pkts1 (nb-pkts))
-(simple-format #t "We had ~a packets~%" nb-pkts1)
+(define num-pkts1 (num-pkts))
+(simple-format #t "We had ~a packets~%" num-pkts1)
 
 ;; Stop recording and replay the save file!
 (capture-stop conf)
 (play savefile)
-(simple-format #t "We now have ~a packets~%" (nb-pkts))
-(assert (eqv? (nb-pkts) (* 2 nb-pkts1)))
+(simple-format #t "We now have ~a packets~%" (num-pkts))
+(assert (eqv? (num-pkts) (* 2 num-pkts1)))
 
 (delete-file savefile)
 

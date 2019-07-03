@@ -62,7 +62,7 @@ static unsigned max_count = 0;
 static unsigned count = 0;
 static unsigned histo[65536];
 static unsigned proto_count[PROTO_CODE_MAX];
-static unsigned nb_disps;
+static unsigned num_disps;
 static unsigned histo_tot[65536];
 static unsigned proto_tot[NB_ELEMS(proto_count)];
 
@@ -114,11 +114,11 @@ static void do_display(struct timeval const *now)
         proto_tot[p] += proto_count[p];
         if (proto_tot[p]  >= (UINT_MAX>>1)) rescale = true;
     }
-    nb_disps ++;
+    num_disps ++;
     if (rescale) {
         for (unsigned s = 0; s <= max_bucket; s ++) histo_tot[s] >>= 1;
         for (unsigned p = 0; p < NB_ELEMS(proto_count); p++) proto_tot[p] >>= 1;
-        nb_disps >>= 1;
+        num_disps >>= 1;
     }
 
     /* Display protocol statistics */
@@ -126,14 +126,14 @@ static void do_display(struct timeval const *now)
     printf(TOPLEFT CLEAR);
     printf("Packetogram - Every " BRIGHT "%.2fs" NORMAL " - " BRIGHT "%s" NORMAL, refresh_rate / 1000000., ctime(&now->tv_sec));
 
-    unsigned nb_pc = 0;
+    unsigned num_pc = 0;
     enum proto_code pc[NB_ELEMS(proto_count)];
     struct proto *proto;
     LIST_FOREACH(proto, &protos, entry) {
         if (proto_count[proto->code] == 0 && proto_tot[proto->code] == 0) continue;
-        pc[nb_pc++] = proto->code;
+        pc[num_pc++] = proto->code;
     }
-    qsort(pc, nb_pc, sizeof(pc[0]), proto_code_cmp);
+    qsort(pc, num_pc, sizeof(pc[0]), proto_code_cmp);
 
     /* Display distribution of sizes */
 
@@ -142,16 +142,16 @@ static void do_display(struct timeval const *now)
     get_window_size(&columns, &lines);
 
     // Y scale : max_bucket buckets in lines-lineno-1 lines
-    unsigned nb_buckets_per_line = 1;
+    unsigned num_buckets_per_line = 1;
     if (lines-lineno > 1 && max_bucket > lines-lineno-1) {
-        nb_buckets_per_line = (max_bucket+lines-lineno-1-1) / (lines-lineno-1);
+        num_buckets_per_line = (max_bucket+lines-lineno-1-1) / (lines-lineno-1);
     }
-    assert(nb_buckets_per_line >= 1);
+    assert(num_buckets_per_line >= 1);
 
-    for (unsigned s = 0; s <= max_bucket || nb_pc > 0; ) {
-        if (nb_pc > 0) {
-            nb_pc--;
-            proto = proto_of_code(pc[nb_pc]);
+    for (unsigned s = 0; s <= max_bucket || num_pc > 0; ) {
+        if (num_pc > 0) {
+            num_pc--;
+            proto = proto_of_code(pc[num_pc]);
             printf("%11s: %6u/%-7u (%5.1f%%) ",
                 proto->name,
                 proto_count[proto->code],
@@ -163,26 +163,26 @@ static void do_display(struct timeval const *now)
 
         if (s <= max_bucket) {
             unsigned n = 0, t = 0;
-            for (unsigned b = 0; b < nb_buckets_per_line; b++) {
+            for (unsigned b = 0; b < num_buckets_per_line; b++) {
                 n += histo[s+b];
                 t += histo_tot[s+b];
             }
 #           define LABEL_WIDTH (38+27)
             unsigned const bar_size = columns > LABEL_WIDTH && tot_max_count > 0 ?
-                (n * (columns - LABEL_WIDTH)) / (tot_max_count * nb_buckets_per_line) : 0;
+                (n * (columns - LABEL_WIDTH)) / (tot_max_count * num_buckets_per_line) : 0;
             assert(bar_size <= columns - LABEL_WIDTH);
-            unsigned const avg_size = columns > LABEL_WIDTH && tot_max_count > 0 && nb_disps > 0 ?
-                (((t + nb_disps-1) / nb_disps) * (columns - LABEL_WIDTH)) / (tot_max_count * nb_buckets_per_line) : 0;
+            unsigned const avg_size = columns > LABEL_WIDTH && tot_max_count > 0 && num_disps > 0 ?
+                (((t + num_disps-1) / num_disps) * (columns - LABEL_WIDTH)) / (tot_max_count * num_buckets_per_line) : 0;
             assert(avg_size <= columns - LABEL_WIDTH);
             float const percent = count > 0 ? n * 100. / count : 0.;
-            printf("%5u-%5u: %5u, %5.1f%% ", s*bucket_width, (s+nb_buckets_per_line)*bucket_width-1, n, percent);
+            printf("%5u-%5u: %5u, %5.1f%% ", s*bucket_width, (s+num_buckets_per_line)*bucket_width-1, n, percent);
             unsigned c;
             for (c = 0; c < bar_size; c ++) {
                 printf(c == avg_size-1 ? "+":"-");
             }
             for (; avg_size > 0 && c < avg_size-1; c++) printf(" ");
             if (c == avg_size-1) printf("|");
-            s += nb_buckets_per_line;
+            s += num_buckets_per_line;
         }
         puts("");
 

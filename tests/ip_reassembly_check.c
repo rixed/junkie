@@ -241,7 +241,7 @@ uint8_t pkts[][PKT_SIZE] = {
 static bool had_udp;
 static struct timeval now;
 static struct parser *eth_parser;
-static unsigned nb_okfn_calls;
+static unsigned num_okfn_calls;
 static unsigned udp_num; // when did we receive the whole payload ?
 static unsigned pkt_num[NB_ELEMS(pkts)];
 static struct proto_subscriber sub;
@@ -252,7 +252,7 @@ static void okfn(struct proto_subscriber unused_ *s, struct proto_info const *la
     if (last->parser->proto == proto_udp) {
         assert(! had_udp);
         had_udp = true;
-        udp_num = nb_okfn_calls;
+        udp_num = num_okfn_calls;
         assert(last->payload == 1024);
     } else {
         assert(last->parser->proto == proto_ip);
@@ -262,13 +262,13 @@ static void okfn(struct proto_subscriber unused_ *s, struct proto_info const *la
     // Try to find out which packet have been sent
     for (unsigned p = 0; p < NB_ELEMS(pkts); p++) {
         if (0 == memcmp(packet, pkts[p], cap_len)) {
-            assert(nb_okfn_calls < NB_ELEMS(pkt_num));
-            pkt_num[nb_okfn_calls] = p;
+            assert(num_okfn_calls < NB_ELEMS(pkt_num));
+            pkt_num[num_okfn_calls] = p;
             break;
         }
     }
 
-    nb_okfn_calls ++;
+    num_okfn_calls ++;
 }
 
 static void setup(void)
@@ -277,7 +277,7 @@ static void setup(void)
     eth_parser = proto_eth->ops->parser_new(proto_eth);
     assert(eth_parser);
     had_udp = false;
-    nb_okfn_calls = 0;
+    num_okfn_calls = 0;
     udp_num = ~0;
     for (unsigned p = 0; p < NB_ELEMS(pkt_num); p++) pkt_num[p] = ~0;
     hook_subscriber_ctor(&pkt_hook, &sub, okfn);
@@ -291,7 +291,7 @@ static void teardown(void)
 
 static void check_result(void)
 {
-    assert(nb_okfn_calls == NB_ELEMS(pkts));
+    assert(num_okfn_calls == NB_ELEMS(pkts));
     assert(udp_num == NB_ELEMS(pkts)-1);    // we'd like the full reassembled packet to be revealed last
     // Also check that we were sent the packets in the correct order (ie first to last fragment)
     for (unsigned p = 0; p < NB_ELEMS(pkts); p++) assert(pkt_num[p] == p);
@@ -331,7 +331,7 @@ static void random_check(void)
 
     bool sent[NB_ELEMS(pkts)] = { };
 
-    for (unsigned nb_sent = 0; nb_sent < NB_ELEMS(pkts); nb_sent++) {
+    for (unsigned num_sent = 0; num_sent < NB_ELEMS(pkts); num_sent++) {
         unsigned p = random() % NB_ELEMS(pkts);
         while (sent[p]) p = (p+1) % NB_ELEMS(pkts);
         sent[p] = true;
@@ -366,7 +366,7 @@ int main(void)
 
     simple_check();
     reverse_check();
-    for (unsigned nb_rand = 0; nb_rand < 100; nb_rand++) random_check();
+    for (unsigned num_rand = 0; num_rand < 100; num_rand++) random_check();
 
     doomer_stop();
     udp_fini();

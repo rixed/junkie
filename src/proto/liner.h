@@ -14,7 +14,7 @@ struct liner {
     size_t rem_size;    // remaining size, including the current token
     size_t tot_size;    // initial buffer size
     struct liner_delimiter_set {
-        unsigned nb_delims;
+        unsigned num_delims;
         struct liner_delimiter {
             char const *str;    // This works only if all delimiter chars are different
             size_t len;

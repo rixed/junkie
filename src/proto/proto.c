@@ -32,8 +32,8 @@
 #include "junkie/tools/mallocer.h"  // for overweight
 #include "proto/fuzzing.h"
 
-static unsigned nb_fuzzed_bits = 0;
-EXT_PARAM_RW(nb_fuzzed_bits, "nb-fuzzed-bits", uint, "Max number of bits to fuzz by protocolar layer (0 to disable fuzzing).")
+static unsigned num_fuzzed_bits = 0;
+EXT_PARAM_RW(num_fuzzed_bits, "num-fuzzed-bits", uint, "Max number of bits to fuzz by protocolar layer (0 to disable fuzzing).")
 
 static unsigned mux_timeout = 120;
 EXT_PARAM_RW(mux_timeout, "mux-timeout", uint, "After how many seconds an unused multiplexer subparser may be deleted (0 to disable timeouting).")
@@ -65,10 +65,10 @@ void proto_ctor(struct proto *proto, struct proto_ops const *ops, char const *na
     proto->name = name;
     proto->enabled = true;
     proto->code = code;
-    proto->nb_frames = 0;
-    proto->nb_bytes = 0;
+    proto->num_frames = 0;
+    proto->num_bytes = 0;
     proto->fuzzed_times = 0;
-    proto->nb_parsers = 0;
+    proto->num_parsers = 0;
     hook_ctor(&proto->hook, name);
     mutex_ctor_recursive(&proto->lock, name);
     bench_event_ctor(&proto->parsing, tempstr_printf("parsing %s", name));
@@ -79,10 +79,10 @@ void proto_ctor(struct proto *proto, struct proto_ops const *ops, char const *na
 static void add_to_proto(struct parser *parser)
 {
 #   ifdef __GNUC__
-    (void)__sync_add_and_fetch(&parser->proto->nb_parsers, 1);
+    (void)__sync_add_and_fetch(&parser->proto->num_parsers, 1);
 #   else
     mutex_lock(&parser->proto->lock);
-    parser->proto->nb_parsers ++;
+    parser->proto->num_parsers ++;
     mutex_unlock(&parser->proto->lock);
 #   endif
 }
@@ -90,10 +90,10 @@ static void add_to_proto(struct parser *parser)
 static void remove_from_proto(struct parser *parser)
 {
 #   ifdef __GNUC__
-    (void)__sync_sub_and_fetch(&parser->proto->nb_parsers, 1);
+    (void)__sync_sub_and_fetch(&parser->proto->num_parsers, 1);
 #   else
     mutex_lock(&parser->proto->lock);
-    parser->proto->nb_parsers --;
+    parser->proto->num_parsers --;
     mutex_unlock(&parser->proto->lock);
 #   endif
 #   ifndef NDEBUG
@@ -106,10 +106,10 @@ void proto_dtor(struct proto *proto)
 {
     SLOG(LOG_DEBUG, "Destructing proto %s", proto->name);
 #   if 0
-    assert(proto->nb_parsers == 0);
+    assert(proto->num_parsers == 0);
 #   endif
     hook_dtor(&proto->hook);
-    if (proto->nb_parsers != 0) {
+    if (proto->num_parsers != 0) {
         SLOG(LOG_NOTICE, "Some parsers are still in use for %s", proto->name);
     }
 
@@ -163,19 +163,19 @@ enum proto_parse_status proto_parse(struct parser *parser, struct proto_info *pa
     if (! go_deeper) return PROTO_OK;
 
 #   ifdef __GNUC__
-    (void)__sync_add_and_fetch(&parser->proto->nb_frames, 1);
-    (void)__sync_add_and_fetch(&parser->proto->nb_bytes, wire_len);
+    (void)__sync_add_and_fetch(&parser->proto->num_frames, 1);
+    (void)__sync_add_and_fetch(&parser->proto->num_bytes, wire_len);
 #   else
     mutex_lock(&parser->proto->lock);
-    parser->proto->nb_frames ++;
-    parser->proto->nb_bytes += wire_len;
+    parser->proto->num_frames ++;
+    parser->proto->num_bytes += wire_len;
     mutex_unlock(&parser->proto->lock);
 #   endif
 
     SLOG(LOG_DEBUG, "Parse packet @%p, size %zu (%zu captured), #%"PRIu64" for %s",
-        packet, wire_len, cap_len, parser->proto->nb_frames, parser_name(parser));
+        packet, wire_len, cap_len, parser->proto->num_frames, parser_name(parser));
 
-    if (unlikely_(nb_fuzzed_bits > 0)) fuzz(parser, packet, cap_len, nb_fuzzed_bits);
+    if (unlikely_(num_fuzzed_bits > 0)) fuzz(parser, packet, cap_len, num_fuzzed_bits);
 
     uint64_t start = bench_event_start();
     enum proto_parse_status const ret = parser->proto->ops->parse(parser, parent, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
@@ -242,10 +242,10 @@ struct proto_info const *proto_info_get(struct proto const *proto, struct proto_
     return NULL;
 }
 
-struct proto_info const *proto_info_get_any(unsigned nb_protos, struct proto const **protos, struct proto_info const *last)
+struct proto_info const *proto_info_get_any(unsigned num_protos, struct proto const **protos, struct proto_info const *last)
 {
     while (last) {
-        for (unsigned p = nb_protos; p-- ; ) {
+        for (unsigned p = num_protos; p-- ; ) {
             if (last->parser->proto == protos[p]) return last;
         }
         last = last->parent;
@@ -439,11 +439,11 @@ static void mux_subparser_deindex_locked(struct mux_subparser *subparser)
     struct subparsers *const h_list = h_list_of_subparser(subparser);
     struct per_mutex *const to_list = to_list_of_subparser(subparser);
 #   ifdef __GNUC__
-    unsigned const unused_ n = __sync_fetch_and_sub(&subparser->mux_parser->nb_children, 1);
+    unsigned const unused_ n = __sync_fetch_and_sub(&subparser->mux_parser->num_children, 1);
     assert(n > 0);
 #   else
     mutex_lock(&subparser->mux_proto->proto.lock);
-    subparser->mux_parser->nb_children --;
+    subparser->mux_parser->num_children --;
     mutex_unlock(&subparser->mux_proto->proto.lock);
 #   endif
     STAILQ_REMOVE(&h_list->list, subparser, mux_subparser, h_entry);
@@ -482,12 +482,12 @@ static void mux_subparser_index(struct mux_subparser *subparser)
     struct per_mutex *const to_list = to_list_of_subparser(subparser);
     STAILQ_INSERT_HEAD(&h_list->list, subparser, h_entry); // most used first
     TAILQ_INSERT_TAIL(&to_list->timeout_queue, subparser, to_entry); // most used last
-    // inc nb_children
+    // inc num_children
 #   if __GNUC__
-    (void)__sync_fetch_and_add(&subparser->mux_parser->nb_children, 1);
+    (void)__sync_fetch_and_add(&subparser->mux_parser->num_children, 1);
 #   else
     mutex_lock(&subparser->mux_proto->proto.lock);
-    subparser->mux_parser->nb_children ++;
+    subparser->mux_parser->num_children ++;
     mutex_unlock(&subparser->mux_proto->proto.lock);
 #   endif
     mux_subparser_ref(subparser);
@@ -513,8 +513,8 @@ void mux_subparser_del(struct mux_subparser *subparser)
 static bool too_many_children(struct mux_parser *mux_parser)
 {
     return
-        mux_parser->nb_max_children != 0 &&
-        mux_parser->nb_children > mux_parser->nb_max_children;
+        mux_parser->num_max_children != 0 &&
+        mux_parser->num_children > mux_parser->num_max_children;
 }
 
 // Caller must own list->mutex
@@ -528,10 +528,10 @@ static void try_sacrifice_child(struct mux_proto *mux_proto, struct subparsers *
     mux_subparser_deindex_locked(subparser);
 
 #   ifdef __GNUC__
-    (void)__sync_add_and_fetch(&mux_proto->nb_infanticide, 1);
+    (void)__sync_add_and_fetch(&mux_proto->num_infanticide, 1);
 #   else
     mutex_lock(&mux_proto->proto.lock);
-    mux_proto->nb_infanticide ++
+    mux_proto->num_infanticide ++
     mutex_unlock(&mux_proto->proto.lock);
 #   endif
 }
@@ -561,9 +561,9 @@ static unsigned mux_subparsers_timeout(struct mux_proto *mux_proto, struct per_m
     }
 
 #   ifdef __GNUC__
-    (void)__sync_add_and_fetch(&mux_proto->nb_timeouts, count);
+    (void)__sync_add_and_fetch(&mux_proto->num_timeouts, count);
 #   else    // well, don't put to much trust in this then
-    mux_proto->nb_timeouts += count;
+    mux_proto->num_timeouts += count;
 #   endif
 
     return count;
@@ -662,7 +662,7 @@ struct mux_subparser *mux_subparser_lookup(struct mux_parser *mux_parser, struct
 
     mutex_lock(mutex);
 
-    unsigned nb_colls = 0;
+    unsigned num_colls = 0;
     struct mux_subparser *subparser;
     STAILQ_FOREACH(subparser, &h_list->list, h_entry) {
         if (
@@ -675,7 +675,7 @@ struct mux_subparser *mux_subparser_lookup(struct mux_parser *mux_parser, struct
         ) {
             break;
         }
-        nb_colls ++;
+        num_colls ++;
     }
 
     if (subparser && now) {
@@ -689,10 +689,10 @@ struct mux_subparser *mux_subparser_lookup(struct mux_parser *mux_parser, struct
         STAILQ_INSERT_HEAD(&h_list->list, subparser, h_entry);
     }
 
-    if (nb_colls > 8) {
-        SLOG(nb_colls > 100 ? LOG_INFO : LOG_DEBUG, "%u collisions while looking for subparser of %s", nb_colls, mux_parser->parser.proto->name);
+    if (num_colls > 8) {
+        SLOG(num_colls > 100 ? LOG_INFO : LOG_DEBUG, "%u collisions while looking for subparser of %s", num_colls, mux_parser->parser.proto->name);
 #       ifndef NDEBUG
-        if (unlikely_(nb_colls > 100)) {
+        if (unlikely_(num_colls > 100)) {
             SLOG(LOG_NOTICE, "Dump of first keys for h = %u :", h);
             SLOG_HEX(LOG_NOTICE, STAILQ_FIRST(&h_list->list)->key, mux_proto->key_size);
             SLOG_HEX(LOG_NOTICE, STAILQ_FIRST(&h_list->list)->h_entry.stqe_next->key, mux_proto->key_size);
@@ -708,12 +708,12 @@ struct mux_subparser *mux_subparser_lookup(struct mux_parser *mux_parser, struct
     mux_proto->last_used = now->tv_sec;  // give time to timeouter thread (no need to lock as long as writting a time_t is atomic)
 
 #   ifdef __GNUC__
-    (void)__sync_add_and_fetch(&mux_proto->nb_lookups, 1);
-    (void)__sync_add_and_fetch(&mux_proto->nb_collisions, nb_colls);
+    (void)__sync_add_and_fetch(&mux_proto->num_lookups, 1);
+    (void)__sync_add_and_fetch(&mux_proto->num_collisions, num_colls);
 #   else
     mutex_lock(&mux_proto->proto.lock);
-    mux_proto->nb_lookups ++;
-    mux_proto->nb_collisions += nb_colls;
+    mux_proto->num_lookups ++;
+    mux_proto->num_collisions += num_colls;
     mutex_unlock(&mux_proto->proto.lock);
 #   endif
 
@@ -761,13 +761,13 @@ void mux_subparser_change_key(struct mux_subparser *subparser, struct mux_parser
     mutex_unlock2(cur_mutex, new_mutex);
 }
 
-int mux_parser_ctor(struct mux_parser *mux_parser, struct mux_proto *mux_proto, unsigned hash_size, unsigned nb_max_children)
+int mux_parser_ctor(struct mux_parser *mux_parser, struct mux_proto *mux_proto, unsigned hash_size, unsigned num_max_children)
 {
     if (unlikely_(0 != parser_ctor(&mux_parser->parser, &mux_proto->proto))) return -1;
 
     mux_parser->hash_size = hash_size;
-    mux_parser->nb_max_children = nb_max_children;
-    mux_parser->nb_children = 0;
+    mux_parser->num_max_children = num_max_children;
+    mux_parser->num_children = 0;
 
     for (unsigned h = 0; h < mux_parser->hash_size; h++) {
         struct subparsers *const h_list = mux_parser->subparsers + h;
@@ -787,7 +787,7 @@ struct parser *mux_parser_new(struct proto *proto)
 {
     struct mux_proto *mux_proto = DOWNCAST(proto, proto, mux_proto);
     unsigned const hash_size = mux_proto->hash_size;  // so that we don't care if the size change between the malloc and the ctor
-    unsigned const nb_max_children = mux_proto->nb_max_children;
+    unsigned const num_max_children = mux_proto->num_max_children;
     size_t const sz = mux_parser_size(hash_size);
     struct mux_parser *mux_parser = objalloc_nice(sz, "mux_parsers");
     if (unlikely_(! mux_parser)) {
@@ -795,7 +795,7 @@ struct parser *mux_parser_new(struct proto *proto)
         return NULL;
     }
 
-    if (unlikely_(0 != mux_parser_ctor(mux_parser, mux_proto, hash_size, nb_max_children))) {
+    if (unlikely_(0 != mux_parser_ctor(mux_parser, mux_proto, hash_size, num_max_children))) {
         objfree(mux_parser);
         return NULL;
     }
@@ -828,7 +828,7 @@ void mux_parser_dtor(struct mux_parser *mux_parser)
         }
         mutex_unlock(mutex);
     }
-    assert(mux_parser->nb_children == 0);
+    assert(mux_parser->num_children == 0);
 
     // Then ancestor parser
     parser_dtor(&mux_parser->parser);
@@ -847,11 +847,11 @@ void mux_proto_ctor(struct mux_proto *mux_proto, struct proto_ops const *ops, st
     mux_proto->ops = *mux_ops;
     mux_proto->hash_size = hash_size;
     mux_proto->key_size = key_size;
-    mux_proto->nb_max_children = 0;
-    mux_proto->nb_infanticide = 0;
-    mux_proto->nb_collisions = 0;
-    mux_proto->nb_lookups = 0;
-    mux_proto->nb_timeouts = 0;
+    mux_proto->num_max_children = 0;
+    mux_proto->num_infanticide = 0;
+    mux_proto->num_collisions = 0;
+    mux_proto->num_lookups = 0;
+    mux_proto->num_timeouts = 0;
     mux_proto->last_used = 0;
     for (unsigned m = 0; m < NB_ELEMS(mux_proto->mutexes); m++) {
         mutex_ctor_recursive(&mux_proto->mutexes[m].mutex, "subparsers");
@@ -984,11 +984,11 @@ static struct mux_proto *mux_proto_of_scm_name(SCM name_)
 }
 
 static SCM hash_size_sym;
-static SCM nb_max_children_sym;
-static SCM nb_infanticide_sym;
-static SCM nb_collisions_sym;
-static SCM nb_lookups_sym;
-static SCM nb_timeouts_sym;
+static SCM num_max_children_sym;
+static SCM num_infanticide_sym;
+static SCM num_collisions_sym;
+static SCM num_lookups_sym;
+static SCM num_timeouts_sym;
 
 static struct ext_function sg_mux_proto_stats;
 static SCM g_mux_proto_stats(SCM name_)
@@ -998,20 +998,20 @@ static SCM g_mux_proto_stats(SCM name_)
 
     SCM alist = scm_list_n(
         scm_cons(hash_size_sym,       scm_from_uint(mux_proto->hash_size)),
-        scm_cons(nb_max_children_sym, scm_from_uint(mux_proto->nb_max_children)),
-        scm_cons(nb_infanticide_sym,  scm_from_uint64(mux_proto->nb_infanticide)),
-        scm_cons(nb_collisions_sym,   scm_from_uint64(mux_proto->nb_collisions)),
-        scm_cons(nb_lookups_sym,      scm_from_uint64(mux_proto->nb_lookups)),
-        scm_cons(nb_timeouts_sym,     scm_from_uint64(mux_proto->nb_timeouts)),
+        scm_cons(num_max_children_sym, scm_from_uint(mux_proto->num_max_children)),
+        scm_cons(num_infanticide_sym,  scm_from_uint64(mux_proto->num_infanticide)),
+        scm_cons(num_collisions_sym,   scm_from_uint64(mux_proto->num_collisions)),
+        scm_cons(num_lookups_sym,      scm_from_uint64(mux_proto->num_lookups)),
+        scm_cons(num_timeouts_sym,     scm_from_uint64(mux_proto->num_timeouts)),
         SCM_UNDEFINED);
     return alist;
 }
 
 static SCM enabled_sym;
-static SCM nb_frames_sym;
-static SCM nb_bytes_sym;
-static SCM nb_parsers_sym;
-static SCM nb_fuzzed_sym;
+static SCM num_frames_sym;
+static SCM num_bytes_sym;
+static SCM num_parsers_sym;
+static SCM num_fuzzed_sym;
 
 static struct ext_function sg_proto_stats;
 static SCM g_proto_stats(SCM name_)
@@ -1021,21 +1021,21 @@ static SCM g_proto_stats(SCM name_)
 
     return scm_list_5(
         scm_cons(enabled_sym,    scm_from_bool(proto->enabled)),
-        scm_cons(nb_frames_sym,  scm_from_int64(proto->nb_frames)),
-        scm_cons(nb_bytes_sym,   scm_from_int64(proto->nb_bytes)),
-        scm_cons(nb_parsers_sym, scm_from_uint(proto->nb_parsers)),
-        scm_cons(nb_fuzzed_sym,  scm_from_uint(proto->fuzzed_times)));
+        scm_cons(num_frames_sym,  scm_from_int64(proto->num_frames)),
+        scm_cons(num_bytes_sym,   scm_from_int64(proto->num_bytes)),
+        scm_cons(num_parsers_sym, scm_from_uint(proto->num_parsers)),
+        scm_cons(num_fuzzed_sym,  scm_from_uint(proto->fuzzed_times)));
 }
 
 static struct ext_function sg_mux_proto_set_max_children;
-static SCM g_mux_proto_set_max_children(SCM name_, SCM nb_max_children_)
+static SCM g_mux_proto_set_max_children(SCM name_, SCM num_max_children_)
 {
     struct mux_proto *mux_proto = mux_proto_of_scm_name(name_);
     if (! mux_proto) return SCM_UNSPECIFIED;
 
-    unsigned const nb_max_children = scm_to_uint(nb_max_children_); // beware: don't take the lock before scm_to_uint() which can raise an exception
+    unsigned const num_max_children = scm_to_uint(num_max_children_); // beware: don't take the lock before scm_to_uint() which can raise an exception
     mutex_lock(&mux_proto->proto.lock);
-    mux_proto->nb_max_children = nb_max_children;
+    mux_proto->num_max_children = num_max_children;
     mutex_unlock(&mux_proto->proto.lock);
 
     return SCM_BOOL_T;
@@ -1050,8 +1050,8 @@ static SCM g_mux_proto_set_hash_size(SCM name_, SCM hash_size_)
     unsigned const hash_size = scm_to_uint(hash_size_);
     mutex_lock(&mux_proto->proto.lock);
     mux_proto->hash_size = hash_size;
-    mux_proto->nb_collisions = 0;
-    mux_proto->nb_lookups = 0;
+    mux_proto->num_collisions = 0;
+    mux_proto->num_lookups = 0;
     mutex_unlock(&mux_proto->proto.lock);
 
     return SCM_BOOL_T;
@@ -1074,7 +1074,7 @@ void proto_init(void)
     bench_init();
     log_category_proto_init();
     mutex_init();
-    ext_param_nb_fuzzed_bits_init();
+    ext_param_num_fuzzed_bits_init();
     ext_param_mux_timeout_init();
     ext_param_denied_parsers_init();
 
@@ -1087,16 +1087,16 @@ void proto_init(void)
     }
 
     hash_size_sym       = scm_permanent_object(scm_from_latin1_symbol("hash-size"));
-    nb_max_children_sym = scm_permanent_object(scm_from_latin1_symbol("nb-max-children"));
-    nb_infanticide_sym  = scm_permanent_object(scm_from_latin1_symbol("nb-infanticide"));
-    nb_collisions_sym   = scm_permanent_object(scm_from_latin1_symbol("nb-collisions"));
-    nb_lookups_sym      = scm_permanent_object(scm_from_latin1_symbol("nb-lookups"));
-    nb_timeouts_sym     = scm_permanent_object(scm_from_latin1_symbol("nb-timeouts"));
+    num_max_children_sym = scm_permanent_object(scm_from_latin1_symbol("num-max-children"));
+    num_infanticide_sym  = scm_permanent_object(scm_from_latin1_symbol("num-infanticide"));
+    num_collisions_sym   = scm_permanent_object(scm_from_latin1_symbol("num-collisions"));
+    num_lookups_sym      = scm_permanent_object(scm_from_latin1_symbol("num-lookups"));
+    num_timeouts_sym     = scm_permanent_object(scm_from_latin1_symbol("num-timeouts"));
     enabled_sym         = scm_permanent_object(scm_from_latin1_symbol("enabled"));
-    nb_frames_sym       = scm_permanent_object(scm_from_latin1_symbol("nb-frames"));
-    nb_bytes_sym        = scm_permanent_object(scm_from_latin1_symbol("nb-bytes"));
-    nb_parsers_sym      = scm_permanent_object(scm_from_latin1_symbol("nb-parsers"));
-    nb_fuzzed_sym       = scm_permanent_object(scm_from_latin1_symbol("nb-fuzzed"));
+    num_frames_sym       = scm_permanent_object(scm_from_latin1_symbol("num-frames"));
+    num_bytes_sym        = scm_permanent_object(scm_from_latin1_symbol("num-bytes"));
+    num_parsers_sym      = scm_permanent_object(scm_from_latin1_symbol("num-parsers"));
+    num_fuzzed_sym       = scm_permanent_object(scm_from_latin1_symbol("num-fuzzed"));
 
     ext_function_ctor(&sg_proto_stats,
         "proto-stats", 1, 0, 0, g_proto_stats,
@@ -1154,7 +1154,7 @@ void proto_fini(void)
     dummy_fini();
     ext_param_denied_parsers_fini();
     ext_param_mux_timeout_fini();
-    ext_param_nb_fuzzed_bits_fini();
+    ext_param_num_fuzzed_bits_fini();
     log_category_proto_fini();
     mutex_fini();
     bench_fini();

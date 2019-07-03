@@ -171,7 +171,7 @@ static int capfile_open(struct capfile *capfile, char const *path, struct timeva
     inc_capture_files();
 
     capfile->file_size = 0;
-    capfile->nb_pkts = 0;
+    capfile->num_pkts = 0;
     capfile->start = *now;
 
     return 0;
@@ -181,14 +181,14 @@ static void capfile_may_rotate(struct capfile *capfile, struct timeval const *no
 {
     mutex_lock(&capfile->lock);
     if (
-        (capfile->max_pkts && capfile->nb_pkts >= capfile->max_pkts) ||
+        (capfile->max_pkts && capfile->num_pkts >= capfile->max_pkts) ||
         (capfile->max_size && capfile->file_size >= capfile->max_size) ||
         (capfile->max_secs && timeval_sub(now, &capfile->start) > 1000000LL * capfile->max_secs)
     ) {
         capfile->ops->close(capfile);
 
         if (capfile->rotation) {    // reopens the capfile
-            SLOG(LOG_DEBUG, "Rotating capfile of %u packets", capfile->nb_pkts);
+            SLOG(LOG_DEBUG, "Rotating capfile of %u packets", capfile->num_pkts);
             capfile->ops->open(capfile, capfile_path(capfile), now);
         }
     }
@@ -262,7 +262,7 @@ static int write_pcap(struct capfile *capfile, struct proto_info const *info, si
     };
     if (0 != file_writev(capfile->fd, iov, NB_ELEMS(iov))) goto err;
 
-    capfile->nb_pkts++;
+    capfile->num_pkts++;
     capfile->file_size += sizeof(pkthdr) + cap_len;
 
     capfile_may_rotate(capfile, now);
@@ -325,7 +325,7 @@ static int write_csv(struct capfile *capfile, struct proto_info const *info, siz
 
     if (0 != file_write(capfile->fd, str, len)) goto err;
 
-    capfile->nb_pkts++;
+    capfile->num_pkts++;
     capfile->file_size += len;
 
     capfile_may_rotate(capfile, now);

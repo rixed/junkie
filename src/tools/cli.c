@@ -33,14 +33,14 @@
 struct cli_bloc {
     TAILQ_ENTRY(cli_bloc) entry;
     char const *name;
-    unsigned nb_cli_opts;
+    unsigned num_cli_opts;
     struct cli_opt *opts;
 };
 
 static TAILQ_HEAD(cli_blocs, cli_bloc) cli_blocs = TAILQ_HEAD_INITIALIZER(cli_blocs);
 static struct mutex cli_mutex;
 
-int cli_register(char const *name, struct cli_opt *opts, unsigned nb_opts)
+int cli_register(char const *name, struct cli_opt *opts, unsigned num_opts)
 {
     SLOG(LOG_DEBUG, "Registering a new bloc of command line options for %s", name);
 
@@ -48,7 +48,7 @@ int cli_register(char const *name, struct cli_opt *opts, unsigned nb_opts)
     if (! bloc) return -1;
 
     bloc->name = name;
-    bloc->nb_cli_opts = nb_opts;
+    bloc->num_cli_opts = num_opts;
     bloc->opts = opts;
     mutex_lock(&cli_mutex);
     TAILQ_INSERT_TAIL(&cli_blocs, bloc, entry);
@@ -91,7 +91,7 @@ static struct cli_opt *find_opt(char const *arg)
 {
     struct cli_bloc *bloc;
     TAILQ_FOREACH(bloc, &cli_blocs, entry) {
-        for (unsigned o = 0; o < bloc->nb_cli_opts; o++) {
+        for (unsigned o = 0; o < bloc->num_cli_opts; o++) {
             for (unsigned c = 0; c < NB_ELEMS(bloc->opts[o].arg); c++) {
                 if (arg_match(arg, bloc->opts[o].arg[c])) {
                     return bloc->opts+o;
@@ -108,22 +108,22 @@ static int check_bool(char const *value)
     return cli_2_enum(false, value, "t", "f", "true", "false", NULL) > 0 ? 0:-1;
 }
 
-int cli_parse(unsigned nb_args, char **args)
+int cli_parse(unsigned num_args, char **args)
 {
-    if (! nb_args) return 0;
+    if (! num_args) return 0;
     SLOG(LOG_DEBUG, "Parse option '%s'", args[0]);
 
-    // If args[0] have the form "name=value" change it to name then value and incr nb_args
+    // If args[0] have the form "name=value" change it to name then value and incr num_args
     char *eq = strchr(args[0], '=');
     if (eq) {
         *eq = '\0';
 #       define NB_ARGS_MAX 50
-        assert(nb_args+1 <= NB_ARGS_MAX);
+        assert(num_args+1 <= NB_ARGS_MAX);
         char *new_args[NB_ARGS_MAX];
         new_args[0] = args[0];
         new_args[1] = eq+1;
-        memcpy(new_args+2, args+1, (nb_args-1) * sizeof(*args));
-        return cli_parse(nb_args+1, new_args);
+        memcpy(new_args+2, args+1, (num_args-1) * sizeof(*args));
+        return cli_parse(num_args+1, new_args);
     }
 
     // Beware that new options may be added while we are parsing the command line
@@ -132,7 +132,7 @@ int cli_parse(unsigned nb_args, char **args)
         fprintf(stderr, "Unkown option '%s'\n", args[0]);
         return -1;
     }
-    if (opt->arg_name && nb_args < 2) {
+    if (opt->arg_name && num_args < 2) {
         fprintf(stderr, "Option '%s' requires an argument\n", args[0]);
         return -1;
     }
@@ -197,7 +197,7 @@ int cli_parse(unsigned nb_args, char **args)
 
     if (err) return err;
     unsigned const shift = opt->arg_name ? 2:1;
-    return cli_parse(nb_args - shift, args + shift);
+    return cli_parse(num_args - shift, args + shift);
 }
 
 static char *cli_enum_2_str(unsigned v, char const *values)
@@ -285,7 +285,7 @@ static void help_block(struct cli_bloc const *bloc)
     if (bloc->name) {
         printf("\nOptions for %s:\n", bloc->name);
     }
-    for (unsigned o = 0; o < bloc->nb_cli_opts; o++) {
+    for (unsigned o = 0; o < bloc->num_cli_opts; o++) {
         struct cli_opt const *opt = bloc->opts+o;
         int len = printf("    %s%s%s%s%s%s%s",
             opt->arg[0] ? "--" : "",
