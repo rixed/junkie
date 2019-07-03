@@ -1146,7 +1146,7 @@
 (define bool-hash
   (make-op 'bool-hash uint (list bool)
            (lambda (v)
-             (let ((res (gensync "bool_hash")))
+             (let ((res (gensymC "bool_hash")))
                (make-stub
                  (string-append
                    (stub-code v)
@@ -1180,7 +1180,7 @@
            (lambda (bytes)
              (let ((res (gensymC "bytes_hash")))
                (make-stub
-                 (bytesing-append
+                 (string-append
                    (stub-code bytes)
                    "    uint32_t " res " = hashfun((void *)" (stub-result bytes) ".value, " (stub-result bytes) ".size);\n")
                  res
