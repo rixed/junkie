@@ -79,10 +79,10 @@ static void vxlan_proto_info_ctor(struct vxlan_proto_info *info, struct parser *
     proto_info_ctor(&info->info, parser, parent, hdr_len, payload);
     info->vni = vni;
     info->group_policy_id = group_policy_id;
-    info->gbp_extension = flags & 0x80;
-    info->vni_set = flags & 0x08;
-    info->dont_learn = flags & 0x400;
-    info->policy_applied = flags & 0x8000;
+    info->gbp_extension = !!(flags & 0x80);
+    info->vni_set = !!(flags & 0x08);
+    info->dont_learn = !!(flags & 0x400);
+    info->policy_applied = !!(flags & 0x8000);
 }
 
 /*
