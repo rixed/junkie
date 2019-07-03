@@ -200,15 +200,39 @@ static void sip_proto_info_ctor(struct sip_proto_info *info, struct parser *pars
  * Parse
  */
 
-static int sip_set_command(unsigned cmd, struct liner unused_ *liner, void *info_)
+static int sip_set_command(enum sip_cmd_e cmd, void *info_)
 {
     struct sip_proto_info *info = info_;
     info->set_values |= SIP_CMD_SET;
     info->cmd = cmd;
     return 0;
 }
+static int sip_set_command_register(struct liner unused_ *liner, void *info_)
+{
+    return sip_set_command(SIP_CMD_REGISTER, info_);
+}
+static int sip_set_command_invite(struct liner unused_ *liner, void *info_)
+{
+    return sip_set_command(SIP_CMD_INVITE, info_);
+}
+static int sip_set_command_ack(struct liner unused_ *liner, void *info_)
+{
+    return sip_set_command(SIP_CMD_ACK, info_);
+}
+static int sip_set_command_cancel(struct liner unused_ *liner, void *info_)
+{
+    return sip_set_command(SIP_CMD_CANCEL, info_);
+}
+static int sip_set_command_options(struct liner unused_ *liner, void *info_)
+{
+    return sip_set_command(SIP_CMD_OPTIONS, info_);
+}
+static int sip_set_command_bye(struct liner unused_ *liner, void *info_)
+{
+    return sip_set_command(SIP_CMD_BYE, info_);
+}
 
-static int sip_set_response(unsigned unused_ cmd, struct liner *liner, void *info_)
+static int sip_set_response(struct liner *liner, void *info_)
 {
     struct sip_proto_info *info = info_;
     info->set_values |= SIP_CODE_SET;
@@ -216,7 +240,7 @@ static int sip_set_response(unsigned unused_ cmd, struct liner *liner, void *inf
     return 0;
 }
 
-static int sip_extract_cseq(unsigned unused_ cmd, struct liner *liner, void *info_)
+static int sip_extract_cseq(struct liner *liner, void *info_)
 {
     struct sip_proto_info *info = info_;
     info->cseq = liner_strtoull(liner, NULL, 10);
@@ -224,7 +248,7 @@ static int sip_extract_cseq(unsigned unused_ cmd, struct liner *liner, void *inf
     return 0;
 }
 
-static int sip_extract_content_length(unsigned unused_ field, struct liner *liner, void *info_)
+static int sip_extract_content_length(struct liner *liner, void *info_)
 {
     struct sip_proto_info *info = info_;
     info->set_values |= SIP_LENGTH_SET;
@@ -232,7 +256,7 @@ static int sip_extract_content_length(unsigned unused_ field, struct liner *line
     return 0;
 }
 
-static int sip_extract_content_type(unsigned unused_ field, struct liner *liner, void *info_)
+static int sip_extract_content_type(struct liner *liner, void *info_)
 {
     struct sip_proto_info *info = info_;
     info->set_values |= SIP_MIME_SET;
@@ -240,7 +264,7 @@ static int sip_extract_content_type(unsigned unused_ field, struct liner *liner,
     return 0;
 }
 
-static int sip_extract_callid(unsigned unused_ field, struct liner *liner, void *info_)
+static int sip_extract_callid(struct liner *liner, void *info_)
 {
     struct sip_proto_info *info = info_;
     info->set_values |= SIP_CALLID_SET;
@@ -249,7 +273,7 @@ static int sip_extract_callid(unsigned unused_ field, struct liner *liner, void 
     return 0;
 }
 
-static int sip_extract_from(unsigned unused_ field, struct liner *liner, void *info_)
+static int sip_extract_from(struct liner *liner, void *info_)
 {
     struct sip_proto_info *info = info_;
     info->set_values |= SIP_FROM_SET;
@@ -257,7 +281,7 @@ static int sip_extract_from(unsigned unused_ field, struct liner *liner, void *i
     return 0;
 }
 
-static int sip_extract_to(unsigned unused_ field, struct liner *liner, void *info_)
+static int sip_extract_to(struct liner *liner, void *info_)
 {
     struct sip_proto_info *info = info_;
     info->set_values |= SIP_TO_SET;
@@ -265,7 +289,7 @@ static int sip_extract_to(unsigned unused_ field, struct liner *liner, void *inf
     return 0;
 }
 
-static int sip_extract_via(unsigned unused_ field, struct liner *liner, void *info_)
+static int sip_extract_via(struct liner *liner, void *info_)
 {
     struct sip_proto_info *info = info_;
 
@@ -342,35 +366,30 @@ static void conntrack_via(struct sip_proto_info const *info, struct timeval cons
     (void)cnxtrack_ip_new(info->via.protocol, &info->via.addr, info->via.port, ADDR_UNKNOWN, PORT_UNKNOWN, false /* only one cnx */, proto_sip, now, NULL);
 }
 
+static struct httper_string const httper_commands[] = {
+    [SIP_CMD_REGISTER] = { STRING_AND_LEN("REGISTER"), sip_set_command_register },
+    [SIP_CMD_INVITE] =   { STRING_AND_LEN("INVITE"),   sip_set_command_invite },
+    [SIP_CMD_ACK] =      { STRING_AND_LEN("ACK"),      sip_set_command_ack },
+    [SIP_CMD_CANCEL] =   { STRING_AND_LEN("CANCEL"),   sip_set_command_cancel },
+    [SIP_CMD_OPTIONS] =  { STRING_AND_LEN("OPTIONS"),  sip_set_command_options },
+    [SIP_CMD_BYE] =      { STRING_AND_LEN("BYE"),      sip_set_command_bye },
+    [SIP_CMD_BYE+1] =    { STRING_AND_LEN("SIP/2.0"),  sip_set_response },
+};
+
+static struct httper_string const httper_fields[] = {
+    { STRING_AND_LEN("content-length"), sip_extract_content_length },
+    { STRING_AND_LEN("content-type"),   sip_extract_content_type },
+    { STRING_AND_LEN("cseq"),           sip_extract_cseq },
+    { STRING_AND_LEN("call-id"),        sip_extract_callid },
+    { STRING_AND_LEN("from"),           sip_extract_from },
+    { STRING_AND_LEN("to"),             sip_extract_to },
+    { STRING_AND_LEN("via"),            sip_extract_via },
+};
+
+static struct httper httper;
+
 static enum proto_parse_status sip_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
-    static struct httper_command const commands[] = {
-        [SIP_CMD_REGISTER] = { STRING_AND_LEN("REGISTER"), sip_set_command },
-        [SIP_CMD_INVITE] =   { STRING_AND_LEN("INVITE"),   sip_set_command },
-        [SIP_CMD_ACK] =      { STRING_AND_LEN("ACK"),      sip_set_command },
-        [SIP_CMD_CANCEL] =   { STRING_AND_LEN("CANCEL"),   sip_set_command },
-        [SIP_CMD_OPTIONS] =  { STRING_AND_LEN("OPTIONS"),  sip_set_command },
-        [SIP_CMD_BYE] =      { STRING_AND_LEN("BYE"),      sip_set_command },
-        [SIP_CMD_BYE+1] =    { STRING_AND_LEN("SIP/2.0"),  sip_set_response },
-    };
-
-    static struct httper_field const fields[] = {
-        { STRING_AND_LEN("content-length"), sip_extract_content_length },
-        { STRING_AND_LEN("content-type"),   sip_extract_content_type },
-        { STRING_AND_LEN("cseq"),           sip_extract_cseq },
-        { STRING_AND_LEN("call-id"),        sip_extract_callid },
-        { STRING_AND_LEN("from"),           sip_extract_from },
-        { STRING_AND_LEN("to"),             sip_extract_to },
-        { STRING_AND_LEN("via"),            sip_extract_via },
-    };
-
-    static struct httper const httper = {
-        .nb_commands = NB_ELEMS(commands),
-        .commands = commands,
-        .nb_fields = NB_ELEMS(fields),
-        .fields = fields
-    };
-
     SLOG(LOG_DEBUG, "Starting SIP analysis");
 
     /* Parse */
@@ -449,6 +468,7 @@ void sip_init(void)
     hash_init();
     mutex_ctor(&callids_2_sdps_mutex, "callids_2_sdps");
     HASH_INIT(&callids_2_sdps, 67, "SIP->SDP");
+    httper_ctor(&httper, NB_ELEMS(httper_commands), httper_commands, NB_ELEMS(httper_fields), httper_fields);
 
     static struct proto_ops const ops = {
         .parse       = sip_parse,
@@ -468,6 +488,7 @@ void sip_fini(void)
     port_muxer_dtor(&tcp_port_muxer, &tcp_port_muxers);
     port_muxer_dtor(&udp_port_muxer, &udp_port_muxers);
     uniq_proto_dtor(&uniq_proto_sip);
+    httper_dtor(&httper);
     HASH_DEINIT(&callids_2_sdps);
     mutex_dtor(&callids_2_sdps_mutex);
 #   endif

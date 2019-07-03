@@ -1,6 +1,7 @@
 thisincludedir = $(pkgincludedir)/tools
 
 thisinclude_HEADERS = \
+	radix_tree.h \
 	ext.h \
 	mutex.h \
 	files.h \

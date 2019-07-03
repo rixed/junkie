@@ -313,6 +313,7 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 thisincludedir = $(pkgincludedir)/tools
 thisinclude_HEADERS = \
+	radix_tree.h \
 	ext.h \
 	mutex.h \
 	files.h \

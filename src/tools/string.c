@@ -52,3 +52,6 @@ void copy_string(char *dest, char const *src, size_t dest_size)
         dest[dest_size - 1] = '\0';
 }
 
+extern inline int tolower_ascii(int c);
+extern inline int toupper_ascii(int c);
+extern inline int changecase_ascii(int c);

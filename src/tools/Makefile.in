@@ -131,11 +131,11 @@ am__uninstall_files_from_dir = { \
 am__installdirs = "$(DESTDIR)$(libdir)"
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libjunkietools_la_LIBADD =
-am_libjunkietools_la_OBJECTS = files.lo hash.lo ip_addr.lo log.lo \
-	mallocer.lo mutex.lo redim_array.lo tempstr.lo timeval.lo \
-	ext.lo cli.lo ref.lo sock.lo serialization.lo netflow.lo \
-	objalloc.lo proto.lo bench.lo proto_stack.lo term.lo \
-	timebound.lo string.lo
+am_libjunkietools_la_OBJECTS = radix_tree.lo files.lo hash.lo \
+	ip_addr.lo log.lo mallocer.lo mutex.lo redim_array.lo \
+	tempstr.lo timeval.lo ext.lo cli.lo ref.lo sock.lo \
+	serialization.lo netflow.lo objalloc.lo proto.lo bench.lo \
+	proto_stack.lo term.lo timebound.lo string.lo
 libjunkietools_la_OBJECTS = $(am_libjunkietools_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -352,7 +352,7 @@ AM_CFLAGS = -std=c99 -Wall -W
 AM_CPPFLAGS = -I $(top_srcdir)/include -D_GNU_SOURCE
 lib_LTLIBRARIES = libjunkietools.la
 libjunkietools_la_SOURCES = \
-	files.c hash.c ip_addr.c \
+	radix_tree.c files.c hash.c ip_addr.c \
 	log.c mallocer.c mutex.c redim_array.c \
 	tempstr.c timeval.c ext.c cli.c ref.c \
 	sock.c serialization.c netflow.c \
@@ -451,6 +451,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/objalloc.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/proto.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/proto_stack.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/radix_tree.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/redim_array.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ref.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/serialization.Plo@am__quote@

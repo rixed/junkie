@@ -42,40 +42,33 @@
 enum proto_parse_status httper_parse(struct httper const *httper, size_t *head_sz, uint8_t const *packet, size_t packet_len, void *user_data)
 {
     struct liner liner, tokenizer;
-    bool found = false;
 
-    for (unsigned c = 0; c < httper->nb_commands; c++) {
-        struct httper_command const *const cmd = httper->commands + c;
-
-        // Start by looking for the command before tokenizing (tokenizing takes too much time on random traffic)
-        if (0 != strncmp(cmd->name, (char const *)packet, MIN(packet_len, cmd->len))) continue;
-        if (packet_len < cmd->len) return PROTO_TOO_SHORT;
-
-        liner_init(&liner, &delim_lines, (char const *)packet, packet_len);
-        liner_init(&tokenizer, &delim_blanks, liner.start, liner_tok_length(&liner));
-
-        if (liner_tok_length(&tokenizer) != cmd->len) {
+    size_t prefix_len;
+    struct httper_string const *command =
+        radix_tree_find(&httper->command_tree, (char const *)packet, packet_len, &prefix_len);
+    if (! command) {
 no_command:
-            SLOG(LOG_DEBUG, "Cannot find command");
-            return PROTO_PARSE_ERR;
-        }
-        SLOG(LOG_DEBUG, "Found command %s", cmd->name);
-        liner_next(&tokenizer);
-        int ret = cmd->cb(c, &tokenizer, user_data);
-        if (ret) return PROTO_PARSE_ERR;
-
-        found = true;
-        break;
+        SLOG(LOG_DEBUG, "Cannot find command");
+        return PROTO_PARSE_ERR;
     }
+    if ((void *)command == TOO_SHORT) return PROTO_TOO_SHORT;
 
-    if (! found) goto no_command;
+    liner_init(&liner, &delim_lines, (char const *)packet, packet_len);
+    liner_init(&tokenizer, &delim_blanks, liner.start, liner_tok_length(&liner));
+
+    if (liner_tok_length(&tokenizer) != prefix_len) goto no_command;
+
+    SLOG(LOG_DEBUG, "Found command %s", command->name);
+    liner_next(&tokenizer);
+    int ret = command->cb(&tokenizer, user_data);
+    if (ret) return PROTO_PARSE_ERR;
 
     // Parse header fields
     unsigned nb_hdr_lines = 0;
 
-    int field_idx = -1;
     char const *field_end = NULL;
 
+    struct httper_string const *field = NULL;
     while (true) {
         // Next line
         bool const has_newline = liner.delim_size > 0;
@@ -93,43 +86,58 @@ no_command:
         // Check if we reached the end of a multiline field.
         // FIXME: Is isspace appropriate here?
         if (! isspace(liner.start[0])) {
-            if (field_idx >= 0) {
+            if (field) {
                 liner_grow(&tokenizer, field_end);
                 // Absorb all remaining of line onto this token
                 liner_expand(&tokenizer);
-                int ret = httper->fields[field_idx].cb(field_idx, &tokenizer, user_data);
+                int ret = field->cb(&tokenizer, user_data);
                 if (ret) return PROTO_PARSE_ERR;
             }
 
             // Tokenize the header line
             liner_init(&tokenizer, &delim_colons, liner.start, liner_tok_length(&liner));
 
-            field_idx = -1;
-            for (unsigned f = 0; f < httper->nb_fields; f++) {
-                struct httper_field const *field = httper->fields + f;
-
-                if (liner_tok_length(&tokenizer) < field->len) continue;
-                if (0 != strncasecmp(field->name, tokenizer.start, liner_tok_length(&tokenizer))) continue;
-
+            field = radix_tree_find(&httper->field_tree, tokenizer.start, liner_tok_length(&tokenizer), &prefix_len);
+            if (field == TOO_SHORT) field = NULL;
+            if (field) {
                 SLOG(LOG_DEBUG, "Found field %s", field->name);
                 liner_next(&tokenizer);
-                field_idx = f;
-                break;
             }
         }
         field_end = liner.start + liner.tok_size;   // save end of line position in field_end
         nb_hdr_lines ++;
     }
 
-    if (field_idx >= 0) {
+    if (field) {
         liner_grow(&tokenizer, field_end);
         // Absorb all remaining of line onto this token
         liner_expand(&tokenizer);
-        int ret = httper->fields[field_idx].cb(field_idx, &tokenizer, user_data);
+        int ret = field->cb(&tokenizer, user_data);
         if (ret) return PROTO_PARSE_ERR;
     }
 
     if (head_sz) *head_sz = liner_parsed(&liner);
     return PROTO_OK;
+}
+
+void httper_ctor(struct httper *httper, size_t nb_commands, struct httper_string const *commands, size_t nb_fields, struct httper_string const *fields)
+{
+    radix_tree_ctor(&httper->command_tree, false);
+    for (unsigned c = 0; c < nb_commands; c++) {
+        radix_tree_add(&httper->command_tree, commands[c].name, commands[c].len, (void *)(commands+c));
+    }
+    radix_tree_compact(&httper->command_tree);
+
+    radix_tree_ctor(&httper->field_tree, false);
+    for (unsigned c = 0; c < nb_fields; c++) {
+        radix_tree_add(&httper->field_tree, fields[c].name, fields[c].len, (void *)(fields+c));
+    }
+    radix_tree_compact(&httper->field_tree);
+}
+
+void httper_dtor(struct httper *httper)
+{
+    radix_tree_dtor(&httper->field_tree);
+    radix_tree_dtor(&httper->command_tree);
 }
 

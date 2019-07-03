@@ -205,7 +205,7 @@ static char const *http_parser_phase_2_str(enum http_phase phase)
         case CHUNK_CRLF: return "scanning chunk trailing CRLF";
         case CHUNK_TRAILER: return "scanning chunked-body trailer";
     }
-    assert(!"Unknown HTTP pase");
+    assert(!"Unknown HTTP phase");
 }
 
 
@@ -371,11 +371,11 @@ static void copy_token_in_strs(struct http_proto_info *info, unsigned *offset, s
     }
 }
 
-static int http_set_method(unsigned cmd, struct liner *liner, void *info_)
+static int http_set_method(enum http_method method, struct liner *liner, void *info_)
 {
     struct http_proto_info *info = info_;
     info->set_values |= HTTP_METHOD_SET;
-    info->method = cmd;
+    info->method = method;
     // URL is the next token
     if (! liner_eof(liner)) {
         info->set_values |= HTTP_URL_SET;
@@ -392,9 +392,42 @@ static int http_set_method(unsigned cmd, struct liner *liner, void *info_)
     return 0;
 }
 
+static int http_set_method_get(struct liner *liner, void *info_)
+{
+    return http_set_method(HTTP_METHOD_GET, liner, info_);
+}
+static int http_set_method_head(struct liner *liner, void *info_)
+{
+    return http_set_method(HTTP_METHOD_HEAD, liner, info_);
+}
+static int http_set_method_post(struct liner *liner, void *info_)
+{
+    return http_set_method(HTTP_METHOD_POST, liner, info_);
+}
+static int http_set_method_connect(struct liner *liner, void *info_)
+{
+    return http_set_method(HTTP_METHOD_CONNECT, liner, info_);
+}
+static int http_set_method_put(struct liner *liner, void *info_)
+{
+    return http_set_method(HTTP_METHOD_PUT, liner, info_);
+}
+static int http_set_method_options(struct liner *liner, void *info_)
+{
+    return http_set_method(HTTP_METHOD_OPTIONS, liner, info_);
+}
+static int http_set_method_trace(struct liner *liner, void *info_)
+{
+    return http_set_method(HTTP_METHOD_TRACE, liner, info_);
+}
+static int http_set_method_delete(struct liner *liner, void *info_)
+{
+    return http_set_method(HTTP_METHOD_DELETE, liner, info_);
+}
+
 // TODO: some boolean EXT_PARAMS to disable fetching of each HTTP fields
 
-static int http_extract_code(unsigned unused_ cmd, struct liner *liner, void *info_)
+static int http_extract_code(struct liner *liner, void *info_)
 {
     struct http_proto_info *info = info_;
     info->code = liner_strtoull(liner, NULL, 10);
@@ -402,7 +435,7 @@ static int http_extract_code(unsigned unused_ cmd, struct liner *liner, void *in
     return 0;
 }
 
-static int http_extract_content_length(unsigned unused_ field, struct liner *liner, void *info_)
+static int http_extract_content_length(struct liner *liner, void *info_)
 {
     struct http_proto_info *info = info_;
     info->set_values |= HTTP_LENGTH_SET;
@@ -410,7 +443,7 @@ static int http_extract_content_length(unsigned unused_ field, struct liner *lin
     return 0;
 }
 
-static int http_extract_content_type(unsigned unused_ field, struct liner *liner, void *info_)
+static int http_extract_content_type(struct liner *liner, void *info_)
 {
     struct http_proto_info *info = info_;
     info->set_values |= HTTP_MIME_SET;
@@ -418,7 +451,7 @@ static int http_extract_content_type(unsigned unused_ field, struct liner *liner
     return 0;
 }
 
-static int http_extract_transfert_encoding(unsigned unused_ field, struct liner *liner, void *info_)
+static int http_extract_transfert_encoding(struct liner *liner, void *info_)
 {
     struct http_proto_info *info = info_;
     info->set_values |= HTTP_TRANSFERT_ENCODING_SET;
@@ -426,7 +459,7 @@ static int http_extract_transfert_encoding(unsigned unused_ field, struct liner 
     return 0;
 }
 
-static int http_extract_host(unsigned unused_ field, struct liner *liner, void *info_)
+static int http_extract_host(struct liner *liner, void *info_)
 {
     struct http_proto_info *info = info_;
     info->set_values |= HTTP_HOST_SET;
@@ -434,7 +467,7 @@ static int http_extract_host(unsigned unused_ field, struct liner *liner, void *
     return 0;
 }
 
-static int http_extract_user_agent(unsigned unused_ field, struct liner *liner, void *info_)
+static int http_extract_user_agent(struct liner *liner, void *info_)
 {
     struct http_proto_info *info = info_;
     info->set_values |= HTTP_USER_AGENT_SET;
@@ -442,7 +475,7 @@ static int http_extract_user_agent(unsigned unused_ field, struct liner *liner, 
     return 0;
 }
 
-static int http_extract_referrer(unsigned unused_ field, struct liner *liner, void *info_)
+static int http_extract_referrer(struct liner *liner, void *info_)
 {
     struct http_proto_info *info = info_;
     info->set_values |= HTTP_REFERRER_SET;
@@ -450,7 +483,7 @@ static int http_extract_referrer(unsigned unused_ field, struct liner *liner, vo
     return 0;
 }
 
-static int http_extract_server(unsigned unused_ field, struct liner *liner, void *info_)
+static int http_extract_server(struct liner *liner, void *info_)
 {
     struct http_proto_info *info = info_;
     info->set_values |= HTTP_SERVER_SET;
@@ -458,7 +491,7 @@ static int http_extract_server(unsigned unused_ field, struct liner *liner, void
     return 0;
 }
 
-static int http_extract_requested_with(unsigned unused_ field, struct liner *liner, void *info_)
+static int http_extract_requested_with(struct liner *liner, void *info_)
 {
     struct http_proto_info *info = info_;
     info->ajax = 0 == strncasecmp(liner->start, "XMLHttpRequest", 14);
@@ -466,7 +499,7 @@ static int http_extract_requested_with(unsigned unused_ field, struct liner *lin
     return 0;
 }
 
-static int http_extract_accept(unsigned unused_ field, struct liner *liner, void *info_)
+static int http_extract_accept(struct liner *liner, void *info_)
 {
     struct http_proto_info *info = info_;
     info->ajax = 0 == strncasecmp(liner->start, "application/json", 16);
@@ -474,7 +507,7 @@ static int http_extract_accept(unsigned unused_ field, struct liner *liner, void
     return 0;
 }
 
-static int http_extract_origin(unsigned unused_ field, struct liner unused_ *liner, void *info_)
+static int http_extract_origin(struct liner unused_ *liner, void *info_)
 {
     struct http_proto_info *info = info_;
     info->ajax = true;
@@ -482,7 +515,7 @@ static int http_extract_origin(unsigned unused_ field, struct liner unused_ *lin
     return 0;
 }
 
-static int http_extract_content_encoding(unsigned unused_ field, struct liner *liner, void *info_)
+static int http_extract_content_encoding(struct liner *liner, void *info_)
 {
     struct http_proto_info *info = info_;
     info->compressed =
@@ -492,7 +525,7 @@ static int http_extract_content_encoding(unsigned unused_ field, struct liner *l
     return 0;
 }
 
-static int http_extract_client_ip(unsigned unused_ field, struct liner *liner, void *info_)
+static int http_extract_client_ip(struct liner *liner, void *info_)
 {
     struct http_proto_info *info = info_;
     /* We are supposed to have a list of IPs, coma separated, first one being
@@ -515,46 +548,43 @@ static int http_extract_client_ip(unsigned unused_ field, struct liner *liner, v
     return 0;
 }
 
+static struct httper_string const httper_commands[] = {
+    [HTTP_METHOD_GET]      = { STRING_AND_LEN("GET"),      http_set_method_get },
+    [HTTP_METHOD_HEAD]     = { STRING_AND_LEN("HEAD"),     http_set_method_head },
+    [HTTP_METHOD_POST]     = { STRING_AND_LEN("POST"),     http_set_method_post },
+    [HTTP_METHOD_CONNECT]  = { STRING_AND_LEN("CONNECT"),  http_set_method_connect },
+    [HTTP_METHOD_PUT]      = { STRING_AND_LEN("PUT"),      http_set_method_put },
+    [HTTP_METHOD_OPTIONS]  = { STRING_AND_LEN("OPTIONS"),  http_set_method_options },
+    [HTTP_METHOD_TRACE]    = { STRING_AND_LEN("TRACE"),    http_set_method_trace },
+    [HTTP_METHOD_DELETE]   = { STRING_AND_LEN("DELETE"),   http_set_method_delete },
+    [HTTP_METHOD_DELETE+1] = { STRING_AND_LEN("HTTP/1.1"), http_extract_code },
+    [HTTP_METHOD_DELETE+2] = { STRING_AND_LEN("HTTP/1.0"), http_extract_code },
+};
+
+static struct httper_string const httper_fields[] = {
+    { STRING_AND_LEN("content-length"),    http_extract_content_length },
+    { STRING_AND_LEN("content-type"),      http_extract_content_type },
+    { STRING_AND_LEN("transfer-encoding"), http_extract_transfert_encoding },
+    { STRING_AND_LEN("host"),              http_extract_host },
+    { STRING_AND_LEN("user-agent"),        http_extract_user_agent },
+    { STRING_AND_LEN("referrer"),          http_extract_referrer },
+    { STRING_AND_LEN("referer"),           http_extract_referrer },
+    { STRING_AND_LEN("server"),            http_extract_server },
+    { STRING_AND_LEN("x-requested-with"),  http_extract_requested_with },
+    { STRING_AND_LEN("accept"),            http_extract_accept },
+    { STRING_AND_LEN("origin"),            http_extract_origin },
+    { STRING_AND_LEN("content-encoding"),  http_extract_content_encoding },
+    { STRING_AND_LEN("x-forwarded-for"),   http_extract_client_ip },
+    { STRING_AND_LEN("x-real-ip"),         http_extract_client_ip },
+};
+
+static struct httper httper;
+
 static enum proto_parse_status http_parse_header(struct http_parser *http_parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     assert(http_parser->state[way].phase == HEAD);
 
     // Sanity checks + Parse
-    static struct httper_command const commands[] = {
-        [HTTP_METHOD_GET]      = { STRING_AND_LEN("GET"),      http_set_method },
-        [HTTP_METHOD_HEAD]     = { STRING_AND_LEN("HEAD"),     http_set_method },
-        [HTTP_METHOD_POST]     = { STRING_AND_LEN("POST"),     http_set_method },
-        [HTTP_METHOD_CONNECT]  = { STRING_AND_LEN("CONNECT"),  http_set_method },
-        [HTTP_METHOD_PUT]      = { STRING_AND_LEN("PUT"),      http_set_method },
-        [HTTP_METHOD_OPTIONS]  = { STRING_AND_LEN("OPTIONS"),  http_set_method },
-        [HTTP_METHOD_TRACE]    = { STRING_AND_LEN("TRACE"),    http_set_method },
-        [HTTP_METHOD_DELETE]   = { STRING_AND_LEN("DELETE"),   http_set_method },
-        [HTTP_METHOD_DELETE+1] = { STRING_AND_LEN("HTTP/1.1"), http_extract_code },
-        [HTTP_METHOD_DELETE+2] = { STRING_AND_LEN("HTTP/1.0"), http_extract_code },
-    };
-    static struct httper_field const fields[] = {
-        { STRING_AND_LEN("content-length"),    http_extract_content_length },
-        { STRING_AND_LEN("content-type"),      http_extract_content_type },
-        { STRING_AND_LEN("transfer-encoding"), http_extract_transfert_encoding },
-        { STRING_AND_LEN("host"),              http_extract_host },
-        { STRING_AND_LEN("user-agent"),        http_extract_user_agent },
-        { STRING_AND_LEN("referrer"),          http_extract_referrer },
-        { STRING_AND_LEN("referer"),           http_extract_referrer },
-        { STRING_AND_LEN("server"),            http_extract_server },
-        { STRING_AND_LEN("x-requested-with"),  http_extract_requested_with },
-        { STRING_AND_LEN("accept"),            http_extract_accept },
-        { STRING_AND_LEN("origin"),            http_extract_origin },
-        { STRING_AND_LEN("content-encoding"),  http_extract_content_encoding },
-        { STRING_AND_LEN("x-forwarded-for"),   http_extract_client_ip },
-        { STRING_AND_LEN("x-real-ip"),         http_extract_client_ip },
-    };
-    static struct httper const httper = {
-        .nb_commands = NB_ELEMS(commands),
-        .commands = commands,
-        .nb_fields = NB_ELEMS(fields),
-        .fields = fields
-    };
-
     struct http_proto_info info;
     http_proto_info_ctor(&info, &http_parser->state[way].first, http_parser->state[way].pkts);    // we init the proto_info once validated
 
@@ -882,6 +912,8 @@ void http_init(void)
 {
     log_category_proto_http_init();
 
+    httper_ctor(&httper, NB_ELEMS(httper_commands), httper_commands, NB_ELEMS(httper_fields), httper_fields);
+
     hook_ctor(&http_head_hook, "HTTP head");
     hook_ctor(&http_body_hook, "HTTP body");
 
@@ -907,6 +939,7 @@ void http_fini(void)
     hook_dtor(&http_body_hook);
     hook_dtor(&http_head_hook);
     proto_dtor(&proto_http_);
+    httper_dtor(&httper);
 #   endif
 
     log_category_proto_http_fini();

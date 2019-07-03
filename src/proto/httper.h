@@ -3,24 +3,24 @@
 #ifndef HTTPER_H_100505
 #define HTTPER_H_100505
 #include <stdint.h>
+#include "junkie/tools/radix_tree.h"
 #include "proto/liner.h"
+
+struct httper_string {
+    char const *name;
+    size_t len;
+    int (*cb)(struct liner *, void *);    // returns -1 for parse error
+};
 
 struct httper {
     // For first command line
-    unsigned nb_commands;
-    struct httper_command {
-        char const *name;
-        size_t len;
-        int (*cb)(unsigned cmd, struct liner *, void *);    // returns -1 for parse error
-    } const *commands;
+    struct radix_tree command_tree;
     // For header fields
-    unsigned nb_fields;
-    struct httper_field {
-        char const *name;
-        size_t len;
-        int (*cb)(unsigned field, struct liner *, void *);  // returns -1 for parse error
-    } const *fields;
+    struct radix_tree field_tree;
 };
+
+void httper_ctor(struct httper *, size_t, struct httper_string const *, size_t, struct httper_string const *);
+void httper_dtor(struct httper *);
 
 /// @returns PROTO_PARSE_ERR if none of the given command was found
 /// @returns PROTO_OK if a complete header was available
