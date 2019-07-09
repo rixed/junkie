@@ -21,6 +21,8 @@ struct radix_tree *radix_tree_new(bool case_sensitive);
 void radix_tree_add(struct radix_tree *, char const *, size_t, void *data);
 void radix_tree_compact(struct radix_tree *);
 
+void radix_tree_dump(struct radix_tree const *);
+
 /* Look for one of the strings at the beginning of the given string.
  * The given size is the max length of the string. If we match so far
  * without reaching the end of a known prefix, return TOO_SHORT.

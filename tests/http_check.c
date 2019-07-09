@@ -417,9 +417,9 @@ int main(void)
     ip_init();
     ip6_init();
     tcp_init();
-    http_init();
     log_set_level(LOG_DEBUG, NULL);
     log_set_file("http_check.log");
+    http_init();
 
     parse_check();
     build_url_check();

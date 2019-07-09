@@ -18,15 +18,20 @@
  * along with Junkie.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 #include <assert.h>
 #include "junkie/tools/string.h"  // for tolower_ascii
 #include "junkie/tools/objalloc.h"
 #include "junkie/tools/radix_tree.h"
+#include "junkie/tools/log.h"
 
 #define RADIX_MAX_CAPA 16
+#define RADIX_MAX_LENGTH 32
 
 struct radix_node {
-    char c1, c2;
+    char s[RADIX_MAX_LENGTH];    // the string at this node
+    unsigned len;
     void *data; // set if this node can be a leaf
     unsigned num_children;
     struct radix_node *children[];
@@ -36,10 +41,10 @@ struct radix_node {
  * Construction (empty)
  */
 
-static void radix_node_ctor(struct radix_node *node, char c, bool case_sensitive, void *data, unsigned capa)
+static void radix_node_ctor(struct radix_node *node, char c, void *data, unsigned capa)
 {
-    node->c1 = c;
-    node->c2 = case_sensitive ? c : changecase_ascii(c);
+    node->s[0] = c;
+    node->len = c = '\0' ? 0 : 1;
     node->data = data;
     node->num_children = capa;
     for (unsigned i = 0; i < capa; i ++) {
@@ -47,18 +52,19 @@ static void radix_node_ctor(struct radix_node *node, char c, bool case_sensitive
     }
 }
 
-static struct radix_node *radix_node_new(char c, bool case_sensitive, void *data, unsigned capa)
+static struct radix_node *radix_node_new(char c, void *data, unsigned capa)
 {
     size_t sz = sizeof(struct radix_node) + capa * sizeof(struct radix_node*);
     struct radix_node *node = objalloc(sz, "radix_node");
     if (! node) return NULL;
-    radix_node_ctor(node, c, case_sensitive, data, capa);
+    radix_node_ctor(node, c, data, capa);
     return node;
 }
 
 void radix_tree_ctor(struct radix_tree *tree, bool case_sensitive)
 {
-    tree->root = radix_node_new('\0', case_sensitive, NULL, RADIX_MAX_CAPA);
+    tree->root = radix_node_new('\0', NULL, RADIX_MAX_CAPA);
+    tree->case_sensitive = case_sensitive;
 }
 
 struct radix_tree *radix_tree_new(bool case_sensitive)
@@ -111,7 +117,8 @@ static void radix_node_append(struct radix_node *node, bool case_sensitive, char
         if (!node->children[i]) {
             if (first_unset < 0) first_unset = i;
         } else {
-            if (*s == node->children[i]->c1 || *s == node->children[i]->c2) {
+            if (0 == (case_sensitive ? strncmp : strncasecmp)
+                        (s, node->children[i]->s, node->children[i]->len)) {
                 // *s can not appear elsewhere
                 radix_node_append(node->children[i], case_sensitive, s+1, len-1, data);
                 return;
@@ -121,7 +128,7 @@ static void radix_node_append(struct radix_node *node, bool case_sensitive, char
 
     assert(first_unset >= 0);   // Or RADIX_MAX_CAPA is too small
 
-    node->children[first_unset] = radix_node_new(*s, case_sensitive, NULL, RADIX_MAX_CAPA);
+    node->children[first_unset] = radix_node_new(*s, NULL, RADIX_MAX_CAPA);
     assert(node->children[first_unset]);
     radix_node_append(node->children[first_unset], case_sensitive, s+1, len-1, data);
 }
@@ -131,10 +138,64 @@ void radix_tree_add(struct radix_tree *tree, char const *s, size_t len, void *da
     radix_node_append(tree->root, tree->case_sensitive, s, len, data);
 }
 
+static void radix_node_dump(struct radix_node const *node, unsigned depth)
+{
+    static char spaces[] = "                             ";
+    assert(depth < sizeof(spaces));
+    char *indent = spaces + (sizeof(spaces) - depth - 1);
+    SLOG(LOG_DEBUG, "%snode@%p: %.*s", indent, node, node->len, node->s);
+    for (unsigned i = 0; i < node->num_children; i ++) {
+        radix_node_dump(node->children[i], depth + 1);
+    }
+}
+
+void radix_tree_dump(struct radix_tree const *tree)
+{
+    radix_node_dump(tree->root, 0);
+}
+
+/* "Horizontal" compaction: keep only the required children */
+static void radix_node_compact_h(struct radix_node *node)
+{
+    for (unsigned i = 0; i < node->num_children; i ++) {
+        if (node->children[i]) {
+            radix_node_compact_h(node->children[i]);
+        } else {
+            node->num_children = i;
+            return;
+        }
+    }
+}
+
+/* "Vertical" compaction: make the tree shallower by aggregating nodes with
+ * only one child into a single string: */
+static void radix_node_compact_v(struct radix_node *node)
+{
+    // Compact the children first
+    for (unsigned i = 0; i < node->num_children; i ++) {
+        radix_node_compact_v(node->children[i]);
+    }
+
+    while (!node->data && node->num_children == 1) {
+        struct radix_node *child = node->children[0];
+        memcpy(node->s + node->len, child->s, child->len);
+        node->len += child->len;
+        assert(node->len < RADIX_MAX_LENGTH);
+        node->data = child->data;
+        node->num_children = child->num_children;
+        for (unsigned i = 0; i < child->num_children; i ++) {
+            node->children[i] = child->children[i];
+        }
+        child->num_children = 0;
+        radix_node_del(child);
+    }
+}
+
 void radix_tree_compact(struct radix_tree *tree)
 {
-    // TODO
-    (void)tree;
+    radix_node_compact_h(tree->root);
+    radix_node_compact_v(tree->root);
+    radix_tree_dump(tree);
 }
 
 /*
@@ -151,9 +212,13 @@ static void *radix_node_find(struct radix_node const *node, bool case_sensitive,
     if (0 == max_len) return TOO_SHORT;
 
     for (unsigned i = 0; i < node->num_children; i ++) {
-        if (node->children[i] == NULL) break;    // TODO: after compact, assert!
-        if (*s == node->children[i]->c1 || *s == node->children[i]->c2) {
-            return radix_node_find(node->children[i], case_sensitive, s+1, max_len-1, plen+1, prefix_len);
+        assert(node->children[i]);
+        size_t const len = MIN(max_len, node->children[i]->len);
+        if (0 == (case_sensitive ? strncmp : strncasecmp)
+                    (s, node->children[i]->s, len)) {
+            if (len < node->children[i]->len) return TOO_SHORT;
+            return radix_node_find(node->children[i], case_sensitive,
+                                   s + len, max_len - len, plen + len, prefix_len);
         }
         // TODO: order the children in alpha order so we can stop early
         // (dichotomy search looks too complicated for the few collisions we will have)
