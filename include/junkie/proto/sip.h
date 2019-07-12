@@ -25,15 +25,16 @@ enum sip_cmd_e {
 struct sip_proto_info {
     struct proto_info info;
 
-#   define SIP_CMD_SET    0x1
-#   define SIP_CSEQ_SET   0x2
-#   define SIP_CODE_SET   0x4
-#   define SIP_MIME_SET   0x8
-#   define SIP_LENGTH_SET 0x10
-#   define SIP_FROM_SET   0x20
-#   define SIP_TO_SET     0x40
-#   define SIP_VIA_SET    0x80
-#   define SIP_CALLID_SET 0x100
+#   define SIP_CMD_SET       0x001
+#   define SIP_CSEQ_SET      0x002
+#   define SIP_CODE_SET      0x004
+#   define SIP_MIME_SET      0x008
+#   define SIP_LENGTH_SET    0x010
+#   define SIP_FROM_SET      0x020
+#   define SIP_TO_SET        0x040
+#   define SIP_VIA_SET       0x080
+#   define SIP_CALLID_SET    0x100
+#   define SIP_SESSIONID_SET 0x200
     uint32_t set_values;
 
     enum sip_cmd_e cmd;
@@ -42,6 +43,8 @@ struct sip_proto_info {
     char to[128];
 #   define SIP_CALLID_LEN 128
     char call_id[SIP_CALLID_LEN+1];
+#   define SIP_SESSIONID_LEN 32  // By RFC 7329
+    char session_id[SIP_SESSIONID_LEN+1];
     char mime_type[128];
     struct sip_via {
         unsigned protocol;

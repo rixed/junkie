@@ -176,7 +176,7 @@ static char const *sip_info_2_str(struct proto_info const *info_)
 {
     struct sip_proto_info const *info = DOWNCAST(info_, info, sip_proto_info);
     char *str = tempstr();
-    snprintf(str, TEMPSTR_SIZE, "%s, cmd=%s, cseq=%s, via=%s, code=%s, mime_type=%s, content-length=%s, call-id=%s, from=%s, to=%s",
+    snprintf(str, TEMPSTR_SIZE, "%s, cmd=%s, cseq=%s, via=%s, code=%s, mime_type=%s, content-length=%s, call-id=%s, session-id=%s, from=%s, to=%s",
              proto_info_2_str(info_),
              info->set_values & SIP_CMD_SET    ? sip_cmd_2_str(info->cmd)          : "unset",
              info->set_values & SIP_CSEQ_SET   ? tempstr_printf("%lu", info->cseq) : "unset",
@@ -185,6 +185,7 @@ static char const *sip_info_2_str(struct proto_info const *info_)
              info->set_values & SIP_MIME_SET   ? info->mime_type                   : "unset",
              info->set_values & SIP_LENGTH_SET ? tempstr_printf("%u", info->content_length) : "unset",
              info->set_values & SIP_CALLID_SET ? info->call_id                     : "unset",
+             info->set_values & SIP_SESSIONID_SET ? info->session_id               : "unset",
              info->set_values & SIP_FROM_SET   ? info->from                        : "unset",
              info->set_values & SIP_TO_SET     ? info->to                          : "unset");
 
@@ -270,6 +271,14 @@ static int sip_extract_callid(struct liner *liner, void *info_)
     info->set_values |= SIP_CALLID_SET;
     memset(info->call_id, 0, sizeof info->call_id); // because it's used in HASH_LOOKUP
     copy_token(info->call_id, sizeof info->call_id, liner);
+    return 0;
+}
+
+static int sip_extract_sessionid(struct liner *liner, void *info_)
+{
+    struct sip_proto_info *info = info_;
+    info->set_values |= SIP_SESSIONID_SET;
+    copy_token(info->session_id, sizeof info->session_id, liner);
     return 0;
 }
 
@@ -381,6 +390,7 @@ static struct httper_string const httper_fields[] = {
     { STRING_AND_LEN("content-type"),   sip_extract_content_type },
     { STRING_AND_LEN("cseq"),           sip_extract_cseq },
     { STRING_AND_LEN("call-id"),        sip_extract_callid },
+    { STRING_AND_LEN("session-id"),     sip_extract_sessionid },
     { STRING_AND_LEN("from"),           sip_extract_from },
     { STRING_AND_LEN("to"),             sip_extract_to },
     { STRING_AND_LEN("via"),            sip_extract_via },
