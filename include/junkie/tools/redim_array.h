@@ -9,7 +9,7 @@
 /** @file
  * @brief Resizeable arrays
  *
- * In order to make good object allocator, each chunk of array comes
+ * In order to make a good object allocator, each chunk of array comes
  * with its internal freelist, and empty chunks are deleted when empty.
  */
 

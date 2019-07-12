@@ -208,7 +208,7 @@ void objfree(void *ptr)
 {
     struct obj *obj = DOWNCAST(ptr, userdata, obj);
     assert(obj->ra);
-    if ((intptr_t)obj->ra & 1) {    // unspecialized redim_array
+    if ((intptr_t)obj->ra & 1) {    // unspecialised redim_array
         struct preset_obj *p_obj = DOWNCAST(obj, obj, preset_obj);
         if (p_obj->spec_size < NB_ELEMS(spec_objallocs)) {
             unsigned const prev_lives =

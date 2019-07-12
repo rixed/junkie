@@ -54,7 +54,7 @@ static void radix_node_ctor(struct radix_node *node, char c, void *data, unsigne
 
 static struct radix_node *radix_node_new(char c, void *data, unsigned capa)
 {
-    size_t sz = sizeof(struct radix_node) + capa * sizeof(struct radix_node*);
+    size_t sz = sizeof(struct radix_node) + capa * sizeof(struct radix_node *);
     struct radix_node *node = objalloc(sz, "radix_node");
     if (! node) return NULL;
     radix_node_ctor(node, c, data, capa);
@@ -154,7 +154,7 @@ void radix_tree_dump(struct radix_tree const *tree)
     radix_node_dump(tree->root, 0);
 }
 
-/* "Horizontal" compaction: keep only the required children */
+/* "Horizontal" compaction: keep only the required children. */
 static void radix_node_compact_h(struct radix_node *node)
 {
     for (unsigned i = 0; i < node->num_children; i ++) {
