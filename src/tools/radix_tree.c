@@ -27,13 +27,13 @@
 #include "junkie/tools/log.h"
 
 #define RADIX_MAX_CAPA 16
-#define RADIX_MAX_LENGTH 32
+#define RADIX_MAX_LENGTH 19
 
 struct radix_node {
-    char s[RADIX_MAX_LENGTH];    // the string at this node
-    unsigned len;
     void *data; // set if this node can be a leaf
-    unsigned num_children;
+    char s[RADIX_MAX_LENGTH];    // the string at this node
+    uint8_t len;   // of the above string
+    uint8_t num_children;
     struct radix_node *children[];
 };
 
@@ -44,7 +44,12 @@ struct radix_node {
 static void radix_node_ctor(struct radix_node *node, char c, void *data, unsigned capa)
 {
     node->s[0] = c;
-    node->len = c = '\0' ? 0 : 1;
+    if ('\0' == c) {
+        node->len = 0;
+    } else {
+        node->len = 1;
+        node->s[1] = '\0';
+    }
     node->data = data;
     node->num_children = capa;
     for (unsigned i = 0; i < capa; i ++) {
@@ -174,13 +179,15 @@ static void radix_node_compact_v(struct radix_node *node)
     // Compact the children first
     for (unsigned i = 0; i < node->num_children; i ++) {
         radix_node_compact_v(node->children[i]);
+        /* Cannot be reallocated before vertical compression
+         * that may add children. */
     }
 
     while (!node->data && node->num_children == 1) {
         struct radix_node *child = node->children[0];
-        memcpy(node->s + node->len, child->s, child->len);
+        memcpy(node->s + node->len, child->s, child->len + 1); // Also copy the end of string
         node->len += child->len;
-        assert(node->len < RADIX_MAX_LENGTH);
+        assert(node->len + 1 < RADIX_MAX_LENGTH);
         node->data = child->data;
         node->num_children = child->num_children;
         for (unsigned i = 0; i < child->num_children; i ++) {
@@ -191,10 +198,53 @@ static void radix_node_compact_v(struct radix_node *node)
     }
 }
 
+// Desalloc unused children
+static void radix_node_realloc(struct radix_node *node)
+{
+    for (unsigned i = 0; i < node->num_children; i ++) {
+        radix_node_realloc(node->children[i]);
+        if (node->children[i]->num_children < RADIX_MAX_CAPA) {
+            /* Note: node->children[i] is the only pointer to that node,
+             * so it is safe to realloc: */
+            struct radix_node *old = node->children[i];
+            size_t sz = sizeof(struct radix_node) + old->num_children * sizeof(struct radix_node *);
+            node->children[i] = objalloc(sz, "radix_node");
+            memcpy(node->children[i], old, sz);
+            objfree(old);
+        }
+    }
+}
+
+// Order children alphabetically
+static int radix_node_comp(void const *n1_, void const *n2_)
+{
+    struct radix_node *const *n1 = n1_;
+    struct radix_node *const *n2 = n2_;
+    return strcmp((*n1)->s, (*n2)->s);
+}
+
+static int radix_node_comp_case_insensitive(void const *n1_, void const *n2_)
+{
+    struct radix_node *const *n1 = n1_;
+    struct radix_node *const *n2 = n2_;
+    return strcasecmp((*n1)->s, (*n2)->s);
+}
+
+static void radix_node_reorder(struct radix_node *node, bool case_sensitive)
+{
+    for (unsigned i = 0; i < node->num_children; i ++) {
+        radix_node_reorder(node->children[i], case_sensitive);
+    }
+    qsort(node->children, node->num_children, sizeof(struct radix_node *),
+          case_sensitive ? radix_node_comp : radix_node_comp_case_insensitive);
+}
+
 void radix_tree_compact(struct radix_tree *tree)
 {
     radix_node_compact_h(tree->root);
     radix_node_compact_v(tree->root);
+    radix_node_realloc(tree->root);
+    radix_node_reorder(tree->root, tree->case_sensitive);
     radix_tree_dump(tree);
 }
 
@@ -214,14 +264,13 @@ static void *radix_node_find(struct radix_node const *node, bool case_sensitive,
     for (unsigned i = 0; i < node->num_children; i ++) {
         assert(node->children[i]);
         size_t const len = MIN(max_len, node->children[i]->len);
-        if (0 == (case_sensitive ? strncmp : strncasecmp)
-                    (s, node->children[i]->s, len)) {
+        int c = (case_sensitive ? strncmp : strncasecmp)
+                    (s, node->children[i]->s, len);
+        if (0 == c) {
             if (len < node->children[i]->len) return TOO_SHORT;
             return radix_node_find(node->children[i], case_sensitive,
                                    s + len, max_len - len, plen + len, prefix_len);
-        }
-        // TODO: order the children in alpha order so we can stop early
-        // (dichotomy search looks too complicated for the few collisions we will have)
+        } else if (c < 0) return NOT_FOUND;
     }
     return NOT_FOUND;
 }
