@@ -143,7 +143,7 @@ ssize_t extract_qname(char *name, size_t name_len, uint8_t const *buf, size_t bu
     buf_len--;
     // Consider a name pointer as valid. We advance of the size of pointer (2 bytes) which finish the name
     if ((len & 0xc0) == 0xc0) return 2;
-    if (len > buf_len || len > 64) return -1;
+    if (len > buf_len || len >= 64) return -1;
 
     if (len == 0) {
         if (name_len > 0) *name = '\0';
