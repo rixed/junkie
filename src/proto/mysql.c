@@ -248,14 +248,14 @@ static enum proto_parse_status mysql_parse_error(struct sql_proto_info *info, st
     char *str;
     status = cursor_read_fixed_string(cursor, &str, SQL_ERROR_SQL_STATUS_SIZE);
     if (status != PROTO_OK) return status;
-    strncpy(info->error_sql_status, str, sizeof(info->error_sql_status));
+    snprintf(info->error_sql_status, sizeof(info->error_sql_status), "%s", str);
     info->set_values |= SQL_ERROR_SQL_STATUS;
 
     // The end of message is the error message
     size_t message_len = packet_len - MYSQL_ERROR_HEADER;
     status = cursor_read_fixed_string(cursor, &str, message_len);
     if (status != PROTO_OK) return status;
-    strncpy(info->error_message, str, sizeof(info->error_message));
+    snprintf(info->error_message, sizeof(info->error_message), "%s", str);
     info->set_values |= SQL_ERROR_MESSAGE;
 
     return PROTO_OK;
