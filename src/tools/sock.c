@@ -144,11 +144,16 @@ static int sock_inet_client_connect(struct sock_inet *s)
 
         char addr[256], srv[256];
         err = getnameinfo(&srv_addr.a, srv_addrlen, addr, sizeof(addr), srv, sizeof(srv), NI_DGRAM|NI_NOFQDN|NI_NUMERICSERV|NI_NUMERICHOST);
+        int name_len;
         if (! err) {
-            snprintf(s->sock.name, sizeof(s->sock.name), "%s://%s@%s:%s", proto, info_->ai_canonname, addr, srv);
+            name_len = snprintf(s->sock.name, sizeof(s->sock.name), "%s://%s@%s:%s", proto, info_->ai_canonname, addr, srv);
         } else {
             SLOG(LOG_WARNING, "Cannot getnameinfo(): %s", gai_strerror(err));
-            snprintf(s->sock.name, sizeof(s->sock.name), "%s://%s@?:%s", proto, info_->ai_canonname, s->service);
+            name_len = snprintf(s->sock.name, sizeof(s->sock.name), "%s://%s@?:%s", proto, info_->ai_canonname, s->service);
+        }
+        if ((size_t)name_len >= sizeof(s->sock.name)) {
+            SLOG(LOG_WARNING, "Socket name too long");
+            continue;
         }
         SLOG(LOG_DEBUG, "Trying to use socket %s", s->sock.name);
 
@@ -891,22 +896,30 @@ static int sock_unix_server_ctor(struct sock_unix *s, char const *file)
     s->fd = socket(AF_UNIX, SOCK_DGRAM, 0);
     if (s->fd < 0) {
         SLOG(LOG_ERR, "Cannot socket() to UNIX local domain: %s", strerror(errno));
-        return -1;
+        goto err0;
     }
 
     if (0 != bind(s->fd, (const struct sockaddr*)&local, sizeof(local))) {
         SLOG(LOG_ERR, "Cannot bind(): %s", strerror(errno));
-        file_close(s->fd);
-        s->fd = -1;
-        return -1;
+        goto err1;
     }
 
-    snprintf(s->sock.name, sizeof(s->sock.name), "unix://127.0.0.1/%s", local.sun_path);
+    if ((size_t)snprintf(s->sock.name, sizeof(s->sock.name), "unix://127.0.0.1/%s", local.sun_path) >= sizeof(s->sock.name)) {
+        SLOG(LOG_ERR, "Socket name too long");
+        goto err1;
+    }
+
     s->is_server = true;
     sock_ctor(&s->sock, &sock_unix_ops);
 
     SLOG(LOG_INFO, "Serving %s", s->sock.name);
     return 0;
+
+err1:
+    file_close(s->fd);
+    s->fd = -1;
+err0:
+    return -1;
 }
 
 struct sock *sock_unix_server_new(char const *file)
@@ -942,19 +955,22 @@ static int sock_file_open(struct sock_file *s, unsigned max_n)
         return -1;
     }
 
+    struct dirent *de;
     unsigned long n;
     char *end;
-    struct dirent de, *ptr;
     int err = -1;
     while (1) {
-        if (0 != readdir_r(dir, &de, &ptr)) {
-            SLOG(LOG_ERR, "Cannot readdir(%s): %s", s->dir, strerror(errno));
-            goto quit;
+        errno = 0;
+        if (!(de = readdir(dir))) {
+            if (errno) {
+                SLOG(LOG_ERR, "Cannot readdir(%s): %s", s->dir, strerror(errno));
+                goto quit;
+            }
+            break;
         }
-        if (!ptr) break;
 
-        SLOG(LOG_DEBUG, "Scanning %s", de.d_name);
-        n = strtoul(de.d_name, &end, 0);
+        SLOG(LOG_DEBUG, "Scanning %s", de->d_name);
+        n = strtoul(de->d_name, &end, 0);
         if (*end == '\0') max_n = MAX(max_n, n);
     }
 
@@ -1232,7 +1248,11 @@ int sock_buf_ctor(struct sock_buf *s, size_t mtu, struct sock *ll_sock)
     }
 
     sock_ctor(&s->sock, &sock_buf_ops);
-    snprintf(s->sock.name, sizeof(s->sock.name), "%s (buf up to %zu)", ll_sock->name, mtu);
+    if ((size_t)snprintf(s->sock.name, sizeof(s->sock.name), "%s (buf up to %zu)", ll_sock->name, mtu) >= sizeof(s->sock.name)) {
+        SLOG(LOG_ERR, "Socket name too long");
+        sock_dtor(&s->sock);
+        return -1;
+    }
 
     s->mtu = mtu;
     s->ll_sock = ll_sock;
