@@ -1,3 +1,5 @@
+[<img src="https://scan.coverity.com/projects/19699/badge.svg">](https://scan.coverity.com/projects/19699/badge.svg)
+
 Meet Junkie the network sniffer!
 ================================
 

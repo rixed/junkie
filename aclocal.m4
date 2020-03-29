@@ -1,6 +1,6 @@
-# generated automatically by aclocal 1.15 -*- Autoconf -*-
+# generated automatically by aclocal 1.16.1 -*- Autoconf -*-
 
-# Copyright (C) 1996-2014 Free Software Foundation, Inc.
+# Copyright (C) 1996-2018 Free Software Foundation, Inc.
 
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -19,6 +19,365 @@ m4_if(m4_defn([AC_AUTOCONF_VERSION]), [2.69],,
 You have another version of autoconf.  It may work, but is not guaranteed to.
 If you have problems, you may need to regenerate the build system entirely.
 To do so, use the procedure documented by the package, typically 'autoreconf'.])])
+
+
+# serial 10
+
+
+
+
+# GUILE_PKG -- find Guile development files
+#
+# Usage: GUILE_PKG([VERSIONS])
+#
+# This macro runs the @code{pkg-config} tool to find development files
+# for an available version of Guile.
+#
+# By default, this macro will search for the latest stable version of
+# Guile (e.g. 2.2), falling back to the previous stable version
+# (e.g. 2.0) if it is available.  If no guile-@var{VERSION}.pc file is
+# found, an error is signalled.  The found version is stored in
+# @var{GUILE_EFFECTIVE_VERSION}.
+#
+# If @code{GUILE_PROGS} was already invoked, this macro ensures that the
+# development files have the same effective version as the Guile
+# program.
+#
+# @var{GUILE_EFFECTIVE_VERSION} is marked for substitution, as by
+# @code{AC_SUBST}.
+#
+AC_DEFUN([GUILE_PKG],
+ [PKG_PROG_PKG_CONFIG
+  _guile_versions_to_search="m4_default([$1], [2.2 2.0 1.8])"
+  if test -n "$GUILE_EFFECTIVE_VERSION"; then
+    _guile_tmp=""
+    for v in $_guile_versions_to_search; do
+      if test "$v" = "$GUILE_EFFECTIVE_VERSION"; then
+        _guile_tmp=$v
+      fi
+    done
+    if test -z "$_guile_tmp"; then
+      AC_MSG_FAILURE([searching for guile development files for versions $_guile_versions_to_search, but previously found $GUILE version $GUILE_EFFECTIVE_VERSION])
+    fi
+    _guile_versions_to_search=$GUILE_EFFECTIVE_VERSION
+  fi
+  GUILE_EFFECTIVE_VERSION=""
+  _guile_errors=""
+  for v in $_guile_versions_to_search; do
+    if test -z "$GUILE_EFFECTIVE_VERSION"; then
+      AC_MSG_NOTICE([checking for guile $v])
+      PKG_CHECK_EXISTS([guile-$v], [GUILE_EFFECTIVE_VERSION=$v], [])
+    fi
+  done
+
+  if test -z "$GUILE_EFFECTIVE_VERSION"; then
+    AC_MSG_ERROR([
+No Guile development packages were found.
+
+Please verify that you have Guile installed.  If you installed Guile
+from a binary distribution, please verify that you have also installed
+the development packages.  If you installed it yourself, you might need
+to adjust your PKG_CONFIG_PATH; see the pkg-config man page for more.
+])
+  fi
+  AC_MSG_NOTICE([found guile $GUILE_EFFECTIVE_VERSION])
+  AC_SUBST([GUILE_EFFECTIVE_VERSION])
+ ])
+
+# GUILE_FLAGS -- set flags for compiling and linking with Guile
+#
+# Usage: GUILE_FLAGS
+#
+# This macro runs the @code{pkg-config} tool to find out how to compile
+# and link programs against Guile.  It sets four variables:
+# @var{GUILE_CFLAGS}, @var{GUILE_LDFLAGS}, @var{GUILE_LIBS}, and
+# @var{GUILE_LTLIBS}.
+#
+# @var{GUILE_CFLAGS}: flags to pass to a C or C++ compiler to build code that
+# uses Guile header files.  This is almost always just one or more @code{-I}
+# flags.
+#
+# @var{GUILE_LDFLAGS}: flags to pass to the compiler to link a program
+# against Guile.  This includes @code{-lguile-@var{VERSION}} for the
+# Guile library itself, and may also include one or more @code{-L} flag
+# to tell the compiler where to find the libraries.  But it does not
+# include flags that influence the program's runtime search path for
+# libraries, and will therefore lead to a program that fails to start,
+# unless all necessary libraries are installed in a standard location
+# such as @file{/usr/lib}.
+#
+# @var{GUILE_LIBS} and @var{GUILE_LTLIBS}: flags to pass to the compiler or to
+# libtool, respectively, to link a program against Guile.  It includes flags
+# that augment the program's runtime search path for libraries, so that shared
+# libraries will be found at the location where they were during linking, even
+# in non-standard locations.  @var{GUILE_LIBS} is to be used when linking the
+# program directly with the compiler, whereas @var{GUILE_LTLIBS} is to be used
+# when linking the program is done through libtool.
+#
+# The variables are marked for substitution, as by @code{AC_SUBST}.
+#
+AC_DEFUN([GUILE_FLAGS],
+ [AC_REQUIRE([GUILE_PKG])
+  PKG_CHECK_MODULES(GUILE, [guile-$GUILE_EFFECTIVE_VERSION])
+
+  dnl GUILE_CFLAGS and GUILE_LIBS are already defined and AC_SUBST'd by
+  dnl PKG_CHECK_MODULES.  But GUILE_LIBS to pkg-config is GUILE_LDFLAGS
+  dnl to us.
+
+  GUILE_LDFLAGS=$GUILE_LIBS
+
+  dnl Determine the platform dependent parameters needed to use rpath.
+  dnl AC_LIB_LINKFLAGS_FROM_LIBS is defined in gnulib/m4/lib-link.m4 and needs
+  dnl the file gnulib/build-aux/config.rpath.
+  AC_LIB_LINKFLAGS_FROM_LIBS([GUILE_LIBS], [$GUILE_LDFLAGS], [])
+  GUILE_LIBS="$GUILE_LDFLAGS $GUILE_LIBS"
+  AC_LIB_LINKFLAGS_FROM_LIBS([GUILE_LTLIBS], [$GUILE_LDFLAGS], [yes])
+  GUILE_LTLIBS="$GUILE_LDFLAGS $GUILE_LTLIBS"
+
+  AC_SUBST([GUILE_EFFECTIVE_VERSION])
+  AC_SUBST([GUILE_CFLAGS])
+  AC_SUBST([GUILE_LDFLAGS])
+  AC_SUBST([GUILE_LIBS])
+  AC_SUBST([GUILE_LTLIBS])
+ ])
+
+# GUILE_SITE_DIR -- find path to Guile site directories
+#
+# Usage: GUILE_SITE_DIR
+#
+# This looks for Guile's "site" directories.  The variable @var{GUILE_SITE} will
+# be set to Guile's "site" directory for Scheme source files (usually something
+# like PREFIX/share/guile/site).  @var{GUILE_SITE_CCACHE} will be set to the
+# directory for compiled Scheme files also known as @code{.go} files
+# (usually something like
+# PREFIX/lib/guile/@var{GUILE_EFFECTIVE_VERSION}/site-ccache).
+# @var{GUILE_EXTENSION} will be set to the directory for compiled C extensions
+# (usually something like
+# PREFIX/lib/guile/@var{GUILE_EFFECTIVE_VERSION}/extensions). The latter two
+# are set to blank if the particular version of Guile does not support
+# them.  Note that this macro will run the macros @code{GUILE_PKG} and
+# @code{GUILE_PROGS} if they have not already been run.
+#
+# The variables are marked for substitution, as by @code{AC_SUBST}.
+#
+AC_DEFUN([GUILE_SITE_DIR],
+ [AC_REQUIRE([GUILE_PKG])
+  AC_REQUIRE([GUILE_PROGS])
+  AC_MSG_CHECKING(for Guile site directory)
+  GUILE_SITE=`$PKG_CONFIG --print-errors --variable=sitedir guile-$GUILE_EFFECTIVE_VERSION`
+  AC_MSG_RESULT($GUILE_SITE)
+  if test "$GUILE_SITE" = ""; then
+     AC_MSG_FAILURE(sitedir not found)
+  fi
+  AC_SUBST(GUILE_SITE)
+  AC_MSG_CHECKING([for Guile site-ccache directory using pkgconfig])
+  GUILE_SITE_CCACHE=`$PKG_CONFIG --variable=siteccachedir guile-$GUILE_EFFECTIVE_VERSION`
+  if test "$GUILE_SITE_CCACHE" = ""; then
+    AC_MSG_RESULT(no)
+    AC_MSG_CHECKING([for Guile site-ccache directory using interpreter])
+    GUILE_SITE_CCACHE=`$GUILE -c "(display (if (defined? '%site-ccache-dir) (%site-ccache-dir) \"\"))"`
+    if test $? != "0" -o "$GUILE_SITE_CCACHE" = ""; then
+      AC_MSG_RESULT(no)
+      GUILE_SITE_CCACHE=""
+      AC_MSG_WARN([siteccachedir not found])
+    fi
+  fi
+  AC_MSG_RESULT($GUILE_SITE_CCACHE)
+  AC_SUBST([GUILE_SITE_CCACHE])
+  AC_MSG_CHECKING(for Guile extensions directory)
+  GUILE_EXTENSION=`$PKG_CONFIG --print-errors --variable=extensiondir guile-$GUILE_EFFECTIVE_VERSION`
+  AC_MSG_RESULT($GUILE_EXTENSION)
+  if test "$GUILE_EXTENSION" = ""; then
+    GUILE_EXTENSION=""
+    AC_MSG_WARN(extensiondir not found)
+  fi
+  AC_SUBST(GUILE_EXTENSION)
+ ])
+
+# GUILE_PROGS -- set paths to Guile interpreter, config and tool programs
+#
+# Usage: GUILE_PROGS([VERSION])
+#
+# This macro looks for programs @code{guile} and @code{guild}, setting
+# variables @var{GUILE} and @var{GUILD} to their paths, respectively.
+# The macro will attempt to find @code{guile} with the suffix of
+# @code{-X.Y}, followed by looking for it with the suffix @code{X.Y}, and
+# then fall back to looking for @code{guile} with no suffix. If
+# @code{guile} is still not found, signal an error. The suffix, if any,
+# that was required to find @code{guile} will be used for @code{guild}
+# as well.
+#
+# By default, this macro will search for the latest stable version of
+# Guile (e.g. 2.2). x.y or x.y.z versions can be specified. If an older
+# version is found, the macro will signal an error.
+#
+# The effective version of the found @code{guile} is set to
+# @var{GUILE_EFFECTIVE_VERSION}.  This macro ensures that the effective
+# version is compatible with the result of a previous invocation of
+# @code{GUILE_FLAGS}, if any.
+#
+# As a legacy interface, it also looks for @code{guile-config} and
+# @code{guile-tools}, setting @var{GUILE_CONFIG} and @var{GUILE_TOOLS}.
+#
+# The variables are marked for substitution, as by @code{AC_SUBST}.
+#
+AC_DEFUN([GUILE_PROGS],
+ [_guile_required_version="m4_default([$1], [$GUILE_EFFECTIVE_VERSION])"
+  if test -z "$_guile_required_version"; then
+    _guile_required_version=2.2
+  fi
+
+  _guile_candidates=guile
+  _tmp=
+  for v in `echo "$_guile_required_version" | tr . ' '`; do
+    if test -n "$_tmp"; then _tmp=$_tmp.; fi
+    _tmp=$_tmp$v
+    _guile_candidates="guile-$_tmp guile$_tmp $_guile_candidates"
+  done
+
+  AC_PATH_PROGS(GUILE,[$_guile_candidates])
+  if test -z "$GUILE"; then
+      AC_MSG_ERROR([guile required but not found])
+  fi
+
+  _guile_suffix=`echo "$GUILE" | sed -e 's,^.*/guile\(.*\)$,\1,'`
+  _guile_effective_version=`$GUILE -c "(display (effective-version))"`
+  if test -z "$GUILE_EFFECTIVE_VERSION"; then
+    GUILE_EFFECTIVE_VERSION=$_guile_effective_version
+  elif test "$GUILE_EFFECTIVE_VERSION" != "$_guile_effective_version"; then
+    AC_MSG_ERROR([found development files for Guile $GUILE_EFFECTIVE_VERSION, but $GUILE has effective version $_guile_effective_version])
+  fi
+
+  _guile_major_version=`$GUILE -c "(display (major-version))"`
+  _guile_minor_version=`$GUILE -c "(display (minor-version))"`
+  _guile_micro_version=`$GUILE -c "(display (micro-version))"`
+  _guile_prog_version="$_guile_major_version.$_guile_minor_version.$_guile_micro_version"
+
+  AC_MSG_CHECKING([for Guile version >= $_guile_required_version])
+  _major_version=`echo $_guile_required_version | cut -d . -f 1`
+  _minor_version=`echo $_guile_required_version | cut -d . -f 2`
+  _micro_version=`echo $_guile_required_version | cut -d . -f 3`
+  if test "$_guile_major_version" -gt "$_major_version"; then
+    true
+  elif test "$_guile_major_version" -eq "$_major_version"; then
+    if test "$_guile_minor_version" -gt "$_minor_version"; then
+      true
+    elif test "$_guile_minor_version" -eq "$_minor_version"; then
+      if test -n "$_micro_version"; then
+        if test "$_guile_micro_version" -lt "$_micro_version"; then
+          AC_MSG_ERROR([Guile $_guile_required_version required, but $_guile_prog_version found])
+        fi
+      fi
+    elif test "$GUILE_EFFECTIVE_VERSION" = "$_major_version.$_minor_version" -a -z "$_micro_version"; then
+      # Allow prereleases that have the right effective version.
+      true
+    else
+      as_fn_error $? "Guile $_guile_required_version required, but $_guile_prog_version found" "$LINENO" 5
+    fi
+  elif test "$GUILE_EFFECTIVE_VERSION" = "$_major_version.$_minor_version" -a -z "$_micro_version"; then
+    # Allow prereleases that have the right effective version.
+    true
+  else
+    AC_MSG_ERROR([Guile $_guile_required_version required, but $_guile_prog_version found])
+  fi
+  AC_MSG_RESULT([$_guile_prog_version])
+
+  AC_PATH_PROG(GUILD,[guild$_guile_suffix])
+  AC_SUBST(GUILD)
+
+  AC_PATH_PROG(GUILE_CONFIG,[guile-config$_guile_suffix])
+  AC_SUBST(GUILE_CONFIG)
+  if test -n "$GUILD"; then
+    GUILE_TOOLS=$GUILD
+  else
+    AC_PATH_PROG(GUILE_TOOLS,[guile-tools$_guile_suffix])
+  fi
+  AC_SUBST(GUILE_TOOLS)
+ ])
+
+# GUILE_CHECK -- evaluate Guile Scheme code and capture the return value
+#
+# Usage: GUILE_CHECK_RETVAL(var,check)
+#
+# @var{var} is a shell variable name to be set to the return value.
+# @var{check} is a Guile Scheme expression, evaluated with "$GUILE -c", and
+#    returning either 0 or non-#f to indicate the check passed.
+#    Non-0 number or #f indicates failure.
+#    Avoid using the character "#" since that confuses autoconf.
+#
+AC_DEFUN([GUILE_CHECK],
+ [AC_REQUIRE([GUILE_PROGS])
+  $GUILE -c "$2" > /dev/null 2>&1
+  $1=$?
+ ])
+
+# GUILE_MODULE_CHECK -- check feature of a Guile Scheme module
+#
+# Usage: GUILE_MODULE_CHECK(var,module,featuretest,description)
+#
+# @var{var} is a shell variable name to be set to "yes" or "no".
+# @var{module} is a list of symbols, like: (ice-9 common-list).
+# @var{featuretest} is an expression acceptable to GUILE_CHECK, q.v.
+# @var{description} is a present-tense verb phrase (passed to AC_MSG_CHECKING).
+#
+AC_DEFUN([GUILE_MODULE_CHECK],
+         [AC_MSG_CHECKING([if $2 $4])
+	  GUILE_CHECK($1,(use-modules $2) (exit ((lambda () $3))))
+	  if test "$$1" = "0" ; then $1=yes ; else $1=no ; fi
+          AC_MSG_RESULT($$1)
+         ])
+
+# GUILE_MODULE_AVAILABLE -- check availability of a Guile Scheme module
+#
+# Usage: GUILE_MODULE_AVAILABLE(var,module)
+#
+# @var{var} is a shell variable name to be set to "yes" or "no".
+# @var{module} is a list of symbols, like: (ice-9 common-list).
+#
+AC_DEFUN([GUILE_MODULE_AVAILABLE],
+         [GUILE_MODULE_CHECK($1,$2,0,is available)
+         ])
+
+# GUILE_MODULE_REQUIRED -- fail if a Guile Scheme module is unavailable
+#
+# Usage: GUILE_MODULE_REQUIRED(symlist)
+#
+# @var{symlist} is a list of symbols, WITHOUT surrounding parens,
+# like: ice-9 common-list.
+#
+AC_DEFUN([GUILE_MODULE_REQUIRED],
+         [GUILE_MODULE_AVAILABLE(ac_guile_module_required, ($1))
+          if test "$ac_guile_module_required" = "no" ; then
+              AC_MSG_ERROR([required guile module not found: ($1)])
+          fi
+         ])
+
+# GUILE_MODULE_EXPORTS -- check if a module exports a variable
+#
+# Usage: GUILE_MODULE_EXPORTS(var,module,modvar)
+#
+# @var{var} is a shell variable to be set to "yes" or "no".
+# @var{module} is a list of symbols, like: (ice-9 common-list).
+# @var{modvar} is the Guile Scheme variable to check.
+#
+AC_DEFUN([GUILE_MODULE_EXPORTS],
+ [GUILE_MODULE_CHECK($1,$2,$3,exports `$3')
+ ])
+
+# GUILE_MODULE_REQUIRED_EXPORT -- fail if a module doesn't export a variable
+#
+# Usage: GUILE_MODULE_REQUIRED_EXPORT(module,modvar)
+#
+# @var{module} is a list of symbols, like: (ice-9 common-list).
+# @var{modvar} is the Guile Scheme variable to check.
+#
+AC_DEFUN([GUILE_MODULE_REQUIRED_EXPORT],
+ [GUILE_MODULE_EXPORTS(guile_module_required_export,$1,$2)
+  if test "$guile_module_required_export" = "no" ; then
+      AC_MSG_ERROR([module $1 does not export $2; required])
+  fi
+ ])
+
 
 # iconv.m4 serial 19 (gettext-0.18.2)
 dnl Copyright (C) 2000-2002, 2007-2014, 2016 Free Software Foundation, Inc.
@@ -1691,7 +2050,7 @@ AS_VAR_COPY([$1], [pkg_cv_][$1])
 AS_VAR_IF([$1], [""], [$5], [$4])dnl
 ])dnl PKG_CHECK_VAR
 
-# Copyright (C) 2002-2014 Free Software Foundation, Inc.
+# Copyright (C) 2002-2018 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -1703,10 +2062,10 @@ AS_VAR_IF([$1], [""], [$5], [$4])dnl
 # generated from the m4 files accompanying Automake X.Y.
 # (This private macro should not be called outside this file.)
 AC_DEFUN([AM_AUTOMAKE_VERSION],
-[am__api_version='1.15'
+[am__api_version='1.16'
 dnl Some users find AM_AUTOMAKE_VERSION and mistake it for a way to
 dnl require some minimum version.  Point them to the right macro.
-m4_if([$1], [1.15], [],
+m4_if([$1], [1.16.1], [],
       [AC_FATAL([Do not call $0, use AM_INIT_AUTOMAKE([$1]).])])dnl
 ])
 
@@ -1722,12 +2081,12 @@ m4_define([_AM_AUTOCONF_VERSION], [])
 # Call AM_AUTOMAKE_VERSION and AM_AUTOMAKE_VERSION so they can be traced.
 # This function is AC_REQUIREd by AM_INIT_AUTOMAKE.
 AC_DEFUN([AM_SET_CURRENT_AUTOMAKE_VERSION],
-[AM_AUTOMAKE_VERSION([1.15])dnl
+[AM_AUTOMAKE_VERSION([1.16.1])dnl
 m4_ifndef([AC_AUTOCONF_VERSION],
   [m4_copy([m4_PACKAGE_VERSION], [AC_AUTOCONF_VERSION])])dnl
 _AM_AUTOCONF_VERSION(m4_defn([AC_AUTOCONF_VERSION]))])
 
-# Copyright (C) 2011-2014 Free Software Foundation, Inc.
+# Copyright (C) 2011-2018 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -1789,7 +2148,7 @@ AC_SUBST([AR])dnl
 
 # AM_AUX_DIR_EXPAND                                         -*- Autoconf -*-
 
-# Copyright (C) 2001-2014 Free Software Foundation, Inc.
+# Copyright (C) 2001-2018 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -1841,7 +2200,7 @@ am_aux_dir=`cd "$ac_aux_dir" && pwd`
 
 # AM_CONDITIONAL                                            -*- Autoconf -*-
 
-# Copyright (C) 1997-2014 Free Software Foundation, Inc.
+# Copyright (C) 1997-2018 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -1872,7 +2231,7 @@ AC_CONFIG_COMMANDS_PRE(
 Usually this means the macro was only invoked conditionally.]])
 fi])])
 
-# Copyright (C) 1999-2014 Free Software Foundation, Inc.
+# Copyright (C) 1999-2018 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -2063,12 +2422,11 @@ _AM_SUBST_NOTMAKE([am__nodep])dnl
 
 # Generate code to set up dependency tracking.              -*- Autoconf -*-
 
-# Copyright (C) 1999-2014 Free Software Foundation, Inc.
+# Copyright (C) 1999-2018 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
 # with or without modifications, as long as this notice is preserved.
-
 
 # _AM_OUTPUT_DEPENDENCY_COMMANDS
 # ------------------------------
@@ -2077,49 +2435,41 @@ AC_DEFUN([_AM_OUTPUT_DEPENDENCY_COMMANDS],
   # Older Autoconf quotes --file arguments for eval, but not when files
   # are listed without --file.  Let's play safe and only enable the eval
   # if we detect the quoting.
-  case $CONFIG_FILES in
-  *\'*) eval set x "$CONFIG_FILES" ;;
-  *)   set x $CONFIG_FILES ;;
-  esac
+  # TODO: see whether this extra hack can be removed once we start
+  # requiring Autoconf 2.70 or later.
+  AS_CASE([$CONFIG_FILES],
+          [*\'*], [eval set x "$CONFIG_FILES"],
+          [*], [set x $CONFIG_FILES])
   shift
-  for mf
+  # Used to flag and report bootstrapping failures.
+  am_rc=0
+  for am_mf
   do
     # Strip MF so we end up with the name of the file.
-    mf=`echo "$mf" | sed -e 's/:.*$//'`
-    # Check whether this is an Automake generated Makefile or not.
-    # We used to match only the files named 'Makefile.in', but
-    # some people rename them; so instead we look at the file content.
-    # Grep'ing the first line is not enough: some people post-process
-    # each Makefile.in and add a new line on top of each file to say so.
-    # Grep'ing the whole file is not good either: AIX grep has a line
+    am_mf=`AS_ECHO(["$am_mf"]) | sed -e 's/:.*$//'`
+    # Check whether this is an Automake generated Makefile which includes
+    # dependency-tracking related rules and includes.
+    # Grep'ing the whole file directly is not great: AIX grep has a line
     # limit of 2048, but all sed's we know have understand at least 4000.
-    if sed -n 's,^#.*generated by automake.*,X,p' "$mf" | grep X >/dev/null 2>&1; then
-      dirpart=`AS_DIRNAME("$mf")`
-    else
-      continue
-    fi
-    # Extract the definition of DEPDIR, am__include, and am__quote
-    # from the Makefile without running 'make'.
-    DEPDIR=`sed -n 's/^DEPDIR = //p' < "$mf"`
-    test -z "$DEPDIR" && continue
-    am__include=`sed -n 's/^am__include = //p' < "$mf"`
-    test -z "$am__include" && continue
-    am__quote=`sed -n 's/^am__quote = //p' < "$mf"`
-    # Find all dependency output files, they are included files with
-    # $(DEPDIR) in their names.  We invoke sed twice because it is the
-    # simplest approach to changing $(DEPDIR) to its actual value in the
-    # expansion.
-    for file in `sed -n "
-      s/^$am__include $am__quote\(.*(DEPDIR).*\)$am__quote"'$/\1/p' <"$mf" | \
-	 sed -e 's/\$(DEPDIR)/'"$DEPDIR"'/g'`; do
-      # Make sure the directory exists.
-      test -f "$dirpart/$file" && continue
-      fdir=`AS_DIRNAME(["$file"])`
-      AS_MKDIR_P([$dirpart/$fdir])
-      # echo "creating $dirpart/$file"
-      echo '# dummy' > "$dirpart/$file"
-    done
+    sed -n 's,^am--depfiles:.*,X,p' "$am_mf" | grep X >/dev/null 2>&1 \
+      || continue
+    am_dirpart=`AS_DIRNAME(["$am_mf"])`
+    am_filepart=`AS_BASENAME(["$am_mf"])`
+    AM_RUN_LOG([cd "$am_dirpart" \
+      && sed -e '/# am--include-marker/d' "$am_filepart" \
+        | $MAKE -f - am--depfiles]) || am_rc=$?
   done
+  if test $am_rc -ne 0; then
+    AC_MSG_FAILURE([Something went wrong bootstrapping makefile fragments
+    for automatic dependency tracking.  Try re-running configure with the
+    '--disable-dependency-tracking' option to at least be able to build
+    the package (albeit without support for automatic dependency tracking).])
+  fi
+  AS_UNSET([am_dirpart])
+  AS_UNSET([am_filepart])
+  AS_UNSET([am_mf])
+  AS_UNSET([am_rc])
+  rm -f conftest-deps.mk
 }
 ])# _AM_OUTPUT_DEPENDENCY_COMMANDS
 
@@ -2128,18 +2478,17 @@ AC_DEFUN([_AM_OUTPUT_DEPENDENCY_COMMANDS],
 # -----------------------------
 # This macro should only be invoked once -- use via AC_REQUIRE.
 #
-# This code is only required when automatic dependency tracking
-# is enabled.  FIXME.  This creates each '.P' file that we will
-# need in order to bootstrap the dependency handling code.
+# This code is only required when automatic dependency tracking is enabled.
+# This creates each '.Po' and '.Plo' makefile fragment that we'll need in
+# order to bootstrap the dependency handling code.
 AC_DEFUN([AM_OUTPUT_DEPENDENCY_COMMANDS],
 [AC_CONFIG_COMMANDS([depfiles],
      [test x"$AMDEP_TRUE" != x"" || _AM_OUTPUT_DEPENDENCY_COMMANDS],
-     [AMDEP_TRUE="$AMDEP_TRUE" ac_aux_dir="$ac_aux_dir"])
-])
+     [AMDEP_TRUE="$AMDEP_TRUE" MAKE="${MAKE-make}"])])
 
 # Do all the work for Automake.                             -*- Autoconf -*-
 
-# Copyright (C) 1996-2014 Free Software Foundation, Inc.
+# Copyright (C) 1996-2018 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -2226,8 +2575,8 @@ AC_REQUIRE([AM_PROG_INSTALL_STRIP])dnl
 AC_REQUIRE([AC_PROG_MKDIR_P])dnl
 # For better backward compatibility.  To be removed once Automake 1.9.x
 # dies out for good.  For more background, see:
-# <http://lists.gnu.org/archive/html/automake/2012-07/msg00001.html>
-# <http://lists.gnu.org/archive/html/automake/2012-07/msg00014.html>
+# <https://lists.gnu.org/archive/html/automake/2012-07/msg00001.html>
+# <https://lists.gnu.org/archive/html/automake/2012-07/msg00014.html>
 AC_SUBST([mkdir_p], ['$(MKDIR_P)'])
 # We need awk for the "check" target (and possibly the TAP driver).  The
 # system "awk" is bad on some platforms.
@@ -2294,7 +2643,7 @@ END
 Aborting the configuration process, to ensure you take notice of the issue.
 
 You can download and install GNU coreutils to get an 'rm' implementation
-that behaves properly: <http://www.gnu.org/software/coreutils/>.
+that behaves properly: <https://www.gnu.org/software/coreutils/>.
 
 If you want to complete the configuration process using your problematic
 'rm' anyway, export the environment variable ACCEPT_INFERIOR_RM_PROGRAM
@@ -2336,7 +2685,7 @@ for _am_header in $config_headers :; do
 done
 echo "timestamp for $_am_arg" >`AS_DIRNAME(["$_am_arg"])`/stamp-h[]$_am_stamp_count])
 
-# Copyright (C) 2001-2014 Free Software Foundation, Inc.
+# Copyright (C) 2001-2018 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -2357,7 +2706,7 @@ if test x"${install_sh+set}" != xset; then
 fi
 AC_SUBST([install_sh])])
 
-# Copyright (C) 2003-2014 Free Software Foundation, Inc.
+# Copyright (C) 2003-2018 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -2378,7 +2727,7 @@ AC_SUBST([am__leading_dot])])
 
 # Check to see how 'make' treats includes.	            -*- Autoconf -*-
 
-# Copyright (C) 2001-2014 Free Software Foundation, Inc.
+# Copyright (C) 2001-2018 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -2386,49 +2735,42 @@ AC_SUBST([am__leading_dot])])
 
 # AM_MAKE_INCLUDE()
 # -----------------
-# Check to see how make treats includes.
+# Check whether make has an 'include' directive that can support all
+# the idioms we need for our automatic dependency tracking code.
 AC_DEFUN([AM_MAKE_INCLUDE],
-[am_make=${MAKE-make}
-cat > confinc << 'END'
+[AC_MSG_CHECKING([whether ${MAKE-make} supports the include directive])
+cat > confinc.mk << 'END'
 am__doit:
-	@echo this is the am__doit target
+	@echo this is the am__doit target >confinc.out
 .PHONY: am__doit
 END
-# If we don't find an include directive, just comment out the code.
-AC_MSG_CHECKING([for style of include used by $am_make])
 am__include="#"
 am__quote=
-_am_result=none
-# First try GNU make style include.
-echo "include confinc" > confmf
-# Ignore all kinds of additional output from 'make'.
-case `$am_make -s -f confmf 2> /dev/null` in #(
-*the\ am__doit\ target*)
-  am__include=include
-  am__quote=
-  _am_result=GNU
-  ;;
-esac
-# Now try BSD make style include.
-if test "$am__include" = "#"; then
-   echo '.include "confinc"' > confmf
-   case `$am_make -s -f confmf 2> /dev/null` in #(
-   *the\ am__doit\ target*)
-     am__include=.include
-     am__quote="\""
-     _am_result=BSD
-     ;;
-   esac
-fi
-AC_SUBST([am__include])
-AC_SUBST([am__quote])
-AC_MSG_RESULT([$_am_result])
-rm -f confinc confmf
-])
+# BSD make does it like this.
+echo '.include "confinc.mk" # ignored' > confmf.BSD
+# Other make implementations (GNU, Solaris 10, AIX) do it like this.
+echo 'include confinc.mk # ignored' > confmf.GNU
+_am_result=no
+for s in GNU BSD; do
+  AM_RUN_LOG([${MAKE-make} -f confmf.$s && cat confinc.out])
+  AS_CASE([$?:`cat confinc.out 2>/dev/null`],
+      ['0:this is the am__doit target'],
+      [AS_CASE([$s],
+          [BSD], [am__include='.include' am__quote='"'],
+          [am__include='include' am__quote=''])])
+  if test "$am__include" != "#"; then
+    _am_result="yes ($s style)"
+    break
+  fi
+done
+rm -f confinc.* confmf.*
+AC_MSG_RESULT([${_am_result}])
+AC_SUBST([am__include])])
+AC_SUBST([am__quote])])
 
 # Fake the existence of programs that GNU maintainers use.  -*- Autoconf -*-
 
-# Copyright (C) 1997-2014 Free Software Foundation, Inc.
+# Copyright (C) 1997-2018 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -2467,7 +2809,7 @@ fi
 
 # Helper functions for option handling.                     -*- Autoconf -*-
 
-# Copyright (C) 2001-2014 Free Software Foundation, Inc.
+# Copyright (C) 2001-2018 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -2496,7 +2838,7 @@ AC_DEFUN([_AM_SET_OPTIONS],
 AC_DEFUN([_AM_IF_OPTION],
 [m4_ifset(_AM_MANGLE_OPTION([$1]), [$2], [$3])])
 
-# Copyright (C) 1999-2014 Free Software Foundation, Inc.
+# Copyright (C) 1999-2018 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -2543,7 +2885,7 @@ AC_LANG_POP([C])])
 # For backward compatibility.
 AC_DEFUN_ONCE([AM_PROG_CC_C_O], [AC_REQUIRE([AC_PROG_CC])])
 
-# Copyright (C) 2001-2014 Free Software Foundation, Inc.
+# Copyright (C) 2001-2018 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -2562,7 +2904,7 @@ AC_DEFUN([AM_RUN_LOG],
 
 # Check to make sure that the build environment is sane.    -*- Autoconf -*-
 
-# Copyright (C) 1996-2014 Free Software Foundation, Inc.
+# Copyright (C) 1996-2018 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -2643,7 +2985,7 @@ AC_CONFIG_COMMANDS_PRE(
 rm -f conftest.file
 ])
 
-# Copyright (C) 2009-2014 Free Software Foundation, Inc.
+# Copyright (C) 2009-2018 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -2703,7 +3045,7 @@ AC_SUBST([AM_BACKSLASH])dnl
 _AM_SUBST_NOTMAKE([AM_BACKSLASH])dnl
 ])
 
-# Copyright (C) 2001-2014 Free Software Foundation, Inc.
+# Copyright (C) 2001-2018 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -2731,7 +3073,7 @@ fi
 INSTALL_STRIP_PROGRAM="\$(install_sh) -c -s"
 AC_SUBST([INSTALL_STRIP_PROGRAM])])
 
-# Copyright (C) 2006-2014 Free Software Foundation, Inc.
+# Copyright (C) 2006-2018 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -2750,7 +3092,7 @@ AC_DEFUN([AM_SUBST_NOTMAKE], [_AM_SUBST_NOTMAKE($@)])
 
 # Check how to create a tarball.                            -*- Autoconf -*-
 
-# Copyright (C) 2004-2014 Free Software Foundation, Inc.
+# Copyright (C) 2004-2018 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -2886,362 +3228,3 @@ m4_include([m4/ltoptions.m4])
 m4_include([m4/ltsugar.m4])
 m4_include([m4/ltversion.m4])
 m4_include([m4/lt~obsolete.m4])
-
-# serial 10
-
-
-
-
-# GUILE_PKG -- find Guile development files
-#
-# Usage: GUILE_PKG([VERSIONS])
-#
-# This macro runs the @code{pkg-config} tool to find development files
-# for an available version of Guile.
-#
-# By default, this macro will search for the latest stable version of
-# Guile (e.g. 2.2), falling back to the previous stable version
-# (e.g. 2.0) if it is available.  If no guile-@var{VERSION}.pc file is
-# found, an error is signalled.  The found version is stored in
-# @var{GUILE_EFFECTIVE_VERSION}.
-#
-# If @code{GUILE_PROGS} was already invoked, this macro ensures that the
-# development files have the same effective version as the Guile
-# program.
-#
-# @var{GUILE_EFFECTIVE_VERSION} is marked for substitution, as by
-# @code{AC_SUBST}.
-#
-AC_DEFUN([GUILE_PKG],
- [PKG_PROG_PKG_CONFIG
-  _guile_versions_to_search="m4_default([$1], [2.2 2.0 1.8])"
-  if test -n "$GUILE_EFFECTIVE_VERSION"; then
-    _guile_tmp=""
-    for v in $_guile_versions_to_search; do
-      if test "$v" = "$GUILE_EFFECTIVE_VERSION"; then
-        _guile_tmp=$v
-      fi
-    done
-    if test -z "$_guile_tmp"; then
-      AC_MSG_FAILURE([searching for guile development files for versions $_guile_versions_to_search, but previously found $GUILE version $GUILE_EFFECTIVE_VERSION])
-    fi
-    _guile_versions_to_search=$GUILE_EFFECTIVE_VERSION
-  fi
-  GUILE_EFFECTIVE_VERSION=""
-  _guile_errors=""
-  for v in $_guile_versions_to_search; do
-    if test -z "$GUILE_EFFECTIVE_VERSION"; then
-      AC_MSG_NOTICE([checking for guile $v])
-      PKG_CHECK_EXISTS([guile-$v], [GUILE_EFFECTIVE_VERSION=$v], [])
-    fi
-  done
-
-  if test -z "$GUILE_EFFECTIVE_VERSION"; then
-    AC_MSG_ERROR([
-No Guile development packages were found.
-
-Please verify that you have Guile installed.  If you installed Guile
-from a binary distribution, please verify that you have also installed
-the development packages.  If you installed it yourself, you might need
-to adjust your PKG_CONFIG_PATH; see the pkg-config man page for more.
-])
-  fi
-  AC_MSG_NOTICE([found guile $GUILE_EFFECTIVE_VERSION])
-  AC_SUBST([GUILE_EFFECTIVE_VERSION])
- ])
-
-# GUILE_FLAGS -- set flags for compiling and linking with Guile
-#
-# Usage: GUILE_FLAGS
-#
-# This macro runs the @code{pkg-config} tool to find out how to compile
-# and link programs against Guile.  It sets four variables:
-# @var{GUILE_CFLAGS}, @var{GUILE_LDFLAGS}, @var{GUILE_LIBS}, and
-# @var{GUILE_LTLIBS}.
-#
-# @var{GUILE_CFLAGS}: flags to pass to a C or C++ compiler to build code that
-# uses Guile header files.  This is almost always just one or more @code{-I}
-# flags.
-#
-# @var{GUILE_LDFLAGS}: flags to pass to the compiler to link a program
-# against Guile.  This includes @code{-lguile-@var{VERSION}} for the
-# Guile library itself, and may also include one or more @code{-L} flag
-# to tell the compiler where to find the libraries.  But it does not
-# include flags that influence the program's runtime search path for
-# libraries, and will therefore lead to a program that fails to start,
-# unless all necessary libraries are installed in a standard location
-# such as @file{/usr/lib}.
-#
-# @var{GUILE_LIBS} and @var{GUILE_LTLIBS}: flags to pass to the compiler or to
-# libtool, respectively, to link a program against Guile.  It includes flags
-# that augment the program's runtime search path for libraries, so that shared
-# libraries will be found at the location where they were during linking, even
-# in non-standard locations.  @var{GUILE_LIBS} is to be used when linking the
-# program directly with the compiler, whereas @var{GUILE_LTLIBS} is to be used
-# when linking the program is done through libtool.
-#
-# The variables are marked for substitution, as by @code{AC_SUBST}.
-#
-AC_DEFUN([GUILE_FLAGS],
- [AC_REQUIRE([GUILE_PKG])
-  PKG_CHECK_MODULES(GUILE, [guile-$GUILE_EFFECTIVE_VERSION])
-
-  dnl GUILE_CFLAGS and GUILE_LIBS are already defined and AC_SUBST'd by
-  dnl PKG_CHECK_MODULES.  But GUILE_LIBS to pkg-config is GUILE_LDFLAGS
-  dnl to us.
-
-  GUILE_LDFLAGS=$GUILE_LIBS
-
-  dnl Determine the platform dependent parameters needed to use rpath.
-  dnl AC_LIB_LINKFLAGS_FROM_LIBS is defined in gnulib/m4/lib-link.m4 and needs
-  dnl the file gnulib/build-aux/config.rpath.
-  AC_LIB_LINKFLAGS_FROM_LIBS([GUILE_LIBS], [$GUILE_LDFLAGS], [])
-  GUILE_LIBS="$GUILE_LDFLAGS $GUILE_LIBS"
-  AC_LIB_LINKFLAGS_FROM_LIBS([GUILE_LTLIBS], [$GUILE_LDFLAGS], [yes])
-  GUILE_LTLIBS="$GUILE_LDFLAGS $GUILE_LTLIBS"
-
-  AC_SUBST([GUILE_EFFECTIVE_VERSION])
-  AC_SUBST([GUILE_CFLAGS])
-  AC_SUBST([GUILE_LDFLAGS])
-  AC_SUBST([GUILE_LIBS])
-  AC_SUBST([GUILE_LTLIBS])
- ])
-
-# GUILE_SITE_DIR -- find path to Guile site directories
-#
-# Usage: GUILE_SITE_DIR
-#
-# This looks for Guile's "site" directories.  The variable @var{GUILE_SITE} will
-# be set to Guile's "site" directory for Scheme source files (usually something
-# like PREFIX/share/guile/site).  @var{GUILE_SITE_CCACHE} will be set to the
-# directory for compiled Scheme files also known as @code{.go} files
-# (usually something like
-# PREFIX/lib/guile/@var{GUILE_EFFECTIVE_VERSION}/site-ccache).
-# @var{GUILE_EXTENSION} will be set to the directory for compiled C extensions
-# (usually something like
-# PREFIX/lib/guile/@var{GUILE_EFFECTIVE_VERSION}/extensions). The latter two
-# are set to blank if the particular version of Guile does not support
-# them.  Note that this macro will run the macros @code{GUILE_PKG} and
-# @code{GUILE_PROGS} if they have not already been run.
-#
-# The variables are marked for substitution, as by @code{AC_SUBST}.
-#
-AC_DEFUN([GUILE_SITE_DIR],
- [AC_REQUIRE([GUILE_PKG])
-  AC_REQUIRE([GUILE_PROGS])
-  AC_MSG_CHECKING(for Guile site directory)
-  GUILE_SITE=`$PKG_CONFIG --print-errors --variable=sitedir guile-$GUILE_EFFECTIVE_VERSION`
-  AC_MSG_RESULT($GUILE_SITE)
-  if test "$GUILE_SITE" = ""; then
-     AC_MSG_FAILURE(sitedir not found)
-  fi
-  AC_SUBST(GUILE_SITE)
-  AC_MSG_CHECKING([for Guile site-ccache directory using pkgconfig])
-  GUILE_SITE_CCACHE=`$PKG_CONFIG --variable=siteccachedir guile-$GUILE_EFFECTIVE_VERSION`
-  if test "$GUILE_SITE_CCACHE" = ""; then
-    AC_MSG_RESULT(no)
-    AC_MSG_CHECKING([for Guile site-ccache directory using interpreter])
-    GUILE_SITE_CCACHE=`$GUILE -c "(display (if (defined? '%site-ccache-dir) (%site-ccache-dir) \"\"))"`
-    if test $? != "0" -o "$GUILE_SITE_CCACHE" = ""; then
-      AC_MSG_RESULT(no)
-      GUILE_SITE_CCACHE=""
-      AC_MSG_WARN([siteccachedir not found])
-    fi
-  fi
-  AC_MSG_RESULT($GUILE_SITE_CCACHE)
-  AC_SUBST([GUILE_SITE_CCACHE])
-  AC_MSG_CHECKING(for Guile extensions directory)
-  GUILE_EXTENSION=`$PKG_CONFIG --print-errors --variable=extensiondir guile-$GUILE_EFFECTIVE_VERSION`
-  AC_MSG_RESULT($GUILE_EXTENSION)
-  if test "$GUILE_EXTENSION" = ""; then
-    GUILE_EXTENSION=""
-    AC_MSG_WARN(extensiondir not found)
-  fi
-  AC_SUBST(GUILE_EXTENSION)
- ])
-
-# GUILE_PROGS -- set paths to Guile interpreter, config and tool programs
-#
-# Usage: GUILE_PROGS([VERSION])
-#
-# This macro looks for programs @code{guile} and @code{guild}, setting
-# variables @var{GUILE} and @var{GUILD} to their paths, respectively.
-# The macro will attempt to find @code{guile} with the suffix of
-# @code{-X.Y}, followed by looking for it with the suffix @code{X.Y}, and
-# then fall back to looking for @code{guile} with no suffix. If
-# @code{guile} is still not found, signal an error. The suffix, if any,
-# that was required to find @code{guile} will be used for @code{guild}
-# as well.
-#
-# By default, this macro will search for the latest stable version of
-# Guile (e.g. 2.2). x.y or x.y.z versions can be specified. If an older
-# version is found, the macro will signal an error.
-#
-# The effective version of the found @code{guile} is set to
-# @var{GUILE_EFFECTIVE_VERSION}.  This macro ensures that the effective
-# version is compatible with the result of a previous invocation of
-# @code{GUILE_FLAGS}, if any.
-#
-# As a legacy interface, it also looks for @code{guile-config} and
-# @code{guile-tools}, setting @var{GUILE_CONFIG} and @var{GUILE_TOOLS}.
-#
-# The variables are marked for substitution, as by @code{AC_SUBST}.
-#
-AC_DEFUN([GUILE_PROGS],
- [_guile_required_version="m4_default([$1], [$GUILE_EFFECTIVE_VERSION])"
-  if test -z "$_guile_required_version"; then
-    _guile_required_version=2.2
-  fi
-
-  _guile_candidates=guile
-  _tmp=
-  for v in `echo "$_guile_required_version" | tr . ' '`; do
-    if test -n "$_tmp"; then _tmp=$_tmp.; fi
-    _tmp=$_tmp$v
-    _guile_candidates="guile-$_tmp guile$_tmp $_guile_candidates"
-  done
-
-  AC_PATH_PROGS(GUILE,[$_guile_candidates])
-  if test -z "$GUILE"; then
-      AC_MSG_ERROR([guile required but not found])
-  fi
-
-  _guile_suffix=`echo "$GUILE" | sed -e 's,^.*/guile\(.*\)$,\1,'`
-  _guile_effective_version=`$GUILE -c "(display (effective-version))"`
-  if test -z "$GUILE_EFFECTIVE_VERSION"; then
-    GUILE_EFFECTIVE_VERSION=$_guile_effective_version
-  elif test "$GUILE_EFFECTIVE_VERSION" != "$_guile_effective_version"; then
-    AC_MSG_ERROR([found development files for Guile $GUILE_EFFECTIVE_VERSION, but $GUILE has effective version $_guile_effective_version])
-  fi
-
-  _guile_major_version=`$GUILE -c "(display (major-version))"`
-  _guile_minor_version=`$GUILE -c "(display (minor-version))"`
-  _guile_micro_version=`$GUILE -c "(display (micro-version))"`
-  _guile_prog_version="$_guile_major_version.$_guile_minor_version.$_guile_micro_version"
-
-  AC_MSG_CHECKING([for Guile version >= $_guile_required_version])
-  _major_version=`echo $_guile_required_version | cut -d . -f 1`
-  _minor_version=`echo $_guile_required_version | cut -d . -f 2`
-  _micro_version=`echo $_guile_required_version | cut -d . -f 3`
-  if test "$_guile_major_version" -gt "$_major_version"; then
-    true
-  elif test "$_guile_major_version" -eq "$_major_version"; then
-    if test "$_guile_minor_version" -gt "$_minor_version"; then
-      true
-    elif test "$_guile_minor_version" -eq "$_minor_version"; then
-      if test -n "$_micro_version"; then
-        if test "$_guile_micro_version" -lt "$_micro_version"; then
-          AC_MSG_ERROR([Guile $_guile_required_version required, but $_guile_prog_version found])
-        fi
-      fi
-    elif test "$GUILE_EFFECTIVE_VERSION" = "$_major_version.$_minor_version" -a -z "$_micro_version"; then
-      # Allow prereleases that have the right effective version.
-      true
-    else
-      as_fn_error $? "Guile $_guile_required_version required, but $_guile_prog_version found" "$LINENO" 5
-    fi
-  elif test "$GUILE_EFFECTIVE_VERSION" = "$_major_version.$_minor_version" -a -z "$_micro_version"; then
-    # Allow prereleases that have the right effective version.
-    true
-  else
-    AC_MSG_ERROR([Guile $_guile_required_version required, but $_guile_prog_version found])
-  fi
-  AC_MSG_RESULT([$_guile_prog_version])
-
-  AC_PATH_PROG(GUILD,[guild$_guile_suffix])
-  AC_SUBST(GUILD)
-
-  AC_PATH_PROG(GUILE_CONFIG,[guile-config$_guile_suffix])
-  AC_SUBST(GUILE_CONFIG)
-  if test -n "$GUILD"; then
-    GUILE_TOOLS=$GUILD
-  else
-    AC_PATH_PROG(GUILE_TOOLS,[guile-tools$_guile_suffix])
-  fi
-  AC_SUBST(GUILE_TOOLS)
- ])
-
-# GUILE_CHECK -- evaluate Guile Scheme code and capture the return value
-#
-# Usage: GUILE_CHECK_RETVAL(var,check)
-#
-# @var{var} is a shell variable name to be set to the return value.
-# @var{check} is a Guile Scheme expression, evaluated with "$GUILE -c", and
-#    returning either 0 or non-#f to indicate the check passed.
-#    Non-0 number or #f indicates failure.
-#    Avoid using the character "#" since that confuses autoconf.
-#
-AC_DEFUN([GUILE_CHECK],
- [AC_REQUIRE([GUILE_PROGS])
-  $GUILE -c "$2" > /dev/null 2>&1
-  $1=$?
- ])
-
-# GUILE_MODULE_CHECK -- check feature of a Guile Scheme module
-#
-# Usage: GUILE_MODULE_CHECK(var,module,featuretest,description)
-#
-# @var{var} is a shell variable name to be set to "yes" or "no".
-# @var{module} is a list of symbols, like: (ice-9 common-list).
-# @var{featuretest} is an expression acceptable to GUILE_CHECK, q.v.
-# @var{description} is a present-tense verb phrase (passed to AC_MSG_CHECKING).
-#
-AC_DEFUN([GUILE_MODULE_CHECK],
-         [AC_MSG_CHECKING([if $2 $4])
-	  GUILE_CHECK($1,(use-modules $2) (exit ((lambda () $3))))
-	  if test "$$1" = "0" ; then $1=yes ; else $1=no ; fi
-          AC_MSG_RESULT($$1)
-         ])
-
-# GUILE_MODULE_AVAILABLE -- check availability of a Guile Scheme module
-#
-# Usage: GUILE_MODULE_AVAILABLE(var,module)
-#
-# @var{var} is a shell variable name to be set to "yes" or "no".
-# @var{module} is a list of symbols, like: (ice-9 common-list).
-#
-AC_DEFUN([GUILE_MODULE_AVAILABLE],
-         [GUILE_MODULE_CHECK($1,$2,0,is available)
-         ])
-
-# GUILE_MODULE_REQUIRED -- fail if a Guile Scheme module is unavailable
-#
-# Usage: GUILE_MODULE_REQUIRED(symlist)
-#
-# @var{symlist} is a list of symbols, WITHOUT surrounding parens,
-# like: ice-9 common-list.
-#
-AC_DEFUN([GUILE_MODULE_REQUIRED],
-         [GUILE_MODULE_AVAILABLE(ac_guile_module_required, ($1))
-          if test "$ac_guile_module_required" = "no" ; then
-              AC_MSG_ERROR([required guile module not found: ($1)])
-          fi
-         ])
-
-# GUILE_MODULE_EXPORTS -- check if a module exports a variable
-#
-# Usage: GUILE_MODULE_EXPORTS(var,module,modvar)
-#
-# @var{var} is a shell variable to be set to "yes" or "no".
-# @var{module} is a list of symbols, like: (ice-9 common-list).
-# @var{modvar} is the Guile Scheme variable to check.
-#
-AC_DEFUN([GUILE_MODULE_EXPORTS],
- [GUILE_MODULE_CHECK($1,$2,$3,exports `$3')
- ])
-
-# GUILE_MODULE_REQUIRED_EXPORT -- fail if a module doesn't export a variable
-#
-# Usage: GUILE_MODULE_REQUIRED_EXPORT(module,modvar)
-#
-# @var{module} is a list of symbols, like: (ice-9 common-list).
-# @var{modvar} is the Guile Scheme variable to check.
-#
-AC_DEFUN([GUILE_MODULE_REQUIRED_EXPORT],
- [GUILE_MODULE_EXPORTS(guile_module_required_export,$1,$2)
-  if test "$guile_module_required_export" = "no" ; then
-      AC_MSG_ERROR([module $1 does not export $2; required])
-  fi
- ])
-
-
