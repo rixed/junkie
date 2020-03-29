@@ -107,6 +107,7 @@ void slog(int priority, char const *filename, char const *funcname, char *fmt, .
         va_list aq;
         va_copy(aq, ap);
         vsystem_log(priority, fmt, aq);
+        va_end(aq);
     }
 
     if (log_fd >= 0) {

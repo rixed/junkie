@@ -141,7 +141,8 @@ static void *my_realloc(void *ptr_, size_t new_size_)
 
     SLOG(LOG_DEBUG, "Realloc %p from %zu bytes to %zu", ptr_, prev_size, new_size);
     if (new_size < prev_size) {
-        void *end = ((char *)ptr_) + new_size;
+        // Note: munmap requires the address to be page aligned:
+        void *end = ((char *)ptr_) + round_up_to_page_size(new_size);
         if (0 != munmap(end, prev_size - new_size)) {
             SLOG(LOG_CRIT, "Cannot munmap(%p) for realloc: %s", ptr_, strerror(errno));
         }

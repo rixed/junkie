@@ -175,24 +175,20 @@ static int netflow_receive(struct sock unused_ *sock, size_t len, uint8_t const 
 
 int netflow_listen(char const *service, netflow_callback *cb)
 {
-    int err = -1;
-
     struct sock *sock = sock_udp_server_new(service, 0);
     if (! sock) return -1;
     sock->receiver = netflow_receive;
     sock->user_data = cb;
 
-    while (sock) {
+    while (true) {
         fd_set set;
-        if (0 != sock_select_single(sock, &set)) goto quit;
-        if (0 != sock->ops->recv(sock, &set)) goto quit;
+        if (0 != sock_select_single(sock, &set)) break;
+        if (0 != sock->ops->recv(sock, &set)) break;
     }
 
-    err = 0;
-quit:
-    SLOG(LOG_NOTICE, "Quitting netflow listener (err=%d)", err);
+    SLOG(LOG_NOTICE, "Quitting netflow listener");
     sock->ops->del(sock);
-    return err;
+    return -1;
 }
 
 /*

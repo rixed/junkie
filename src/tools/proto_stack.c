@@ -51,7 +51,7 @@ static bool update_if_deeper(struct proto_stack *stack, size_t *len, unsigned de
 
     if (! update_if_deeper(stack, len, depth+1, last->parent)) return false;
 
-    if (*len < sizeof(stack->name) && last->parent /* Skip 'Capture' */) {
+    if (*len < sizeof(stack->name)-1 && last->parent /* Skip 'Capture' */) {
         // Copy name up to '\0' or '\/'
         char const *name = proto_name(last);
         if (*len > 0) stack->name[(*len)++] = '/';

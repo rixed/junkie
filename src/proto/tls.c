@@ -76,6 +76,7 @@ char const *openssl_errors_2_str(void)
             ERR_lib_error_string(err),
             ERR_func_error_string(err),
             ERR_reason_error_string(err));
+        first = false;
     }
     return str;
 }

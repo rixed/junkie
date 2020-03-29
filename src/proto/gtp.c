@@ -152,10 +152,12 @@ static enum proto_parse_status parse_gpdu(struct mux_parser *mux_parser, struct 
     // Search our IP subparser for this TEID
     struct mux_subparser *subparser = mux_subparser_lookup(mux_parser, proto_ip, proto_gtp, &info->teid, now);
 
-    enum proto_parse_status status = proto_parse(subparser->parser, &info->info, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
+    if (subparser) {
+        enum proto_parse_status status = proto_parse(subparser->parser, &info->info, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
 
-    if (subparser) mux_subparser_unref(&subparser);
-    if (status == PROTO_OK) return status;
+        mux_subparser_unref(&subparser);
+        if (status == PROTO_OK) return status;
+    }
 
     return proto_parse(NULL, &info->info, way, packet, cap_len, wire_len, now, tot_cap_len, tot_packet);
 }

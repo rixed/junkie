@@ -24,7 +24,8 @@ int cmp_ber_time(struct ber_time const *t1, struct ber_time const *t2);
 enum proto_parse_status ber_extract_time(struct cursor *, struct ber_time *);
 
 struct ber_uint {
-    uint8_t num[20];
+#   define BER_UINT_MAXLEN 20
+    uint8_t num[BER_UINT_MAXLEN];
     uint8_t len;
 };
 

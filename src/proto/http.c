@@ -17,6 +17,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with Junkie.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
@@ -374,6 +375,7 @@ static void copy_token_in_strs(struct http_proto_info *info, unsigned *offset, s
 static int http_set_method(enum http_method method, struct liner *liner, void *info_)
 {
     struct http_proto_info *info = info_;
+    assert(info->free_strs <= HTTP_STRS_SIZE);
     info->set_values |= HTTP_METHOD_SET;
     info->method = method;
     // URL is the next token
@@ -863,6 +865,7 @@ static enum proto_parse_status http_parse_chunk_trailer(struct http_parser *http
 
 static enum proto_parse_status http_sbuf_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
+    assert(payload || !cap_len);
     struct http_parser *http_parser = DOWNCAST(parser, parser, http_parser);
 
     if (! timeval_is_set(&http_parser->state[way].first)) {

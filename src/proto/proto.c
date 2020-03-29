@@ -678,7 +678,7 @@ struct mux_subparser *mux_subparser_lookup(struct mux_parser *mux_parser, struct
         num_colls ++;
     }
 
-    if (subparser && now) {
+    if (subparser) {
         /* Promote this children both to the head of the h_list (for performance)
          * and the tail of the timeout_queue (since it is used). */
         subparser->last_used = *now;
@@ -705,7 +705,7 @@ struct mux_subparser *mux_subparser_lookup(struct mux_parser *mux_parser, struct
 
     mutex_unlock(mutex);
 
-    mux_proto->last_used = now->tv_sec;  // give time to timeouter thread (no need to lock as long as writting a time_t is atomic)
+    mux_proto->last_used = now->tv_sec;  // give time to timeouter thread (no need to lock as long as writing a time_t is atomic)
 
 #   ifdef __GNUC__
     (void)__sync_add_and_fetch(&mux_proto->num_lookups, 1);

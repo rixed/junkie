@@ -150,7 +150,7 @@ static void nettop_key_ctor(struct nettop_key *k, struct proto_info const *last)
     if (use_dev) k->dev_id = cap ? (int)cap->dev_id : -1;
     if (use_vlan) k->vlan_id = eth ? eth->vlan_id : -1;
     unsigned min = 0;
-    if (bidirectional) min = memcmp(eth->addr+0, eth->addr+1, ETH_ADDR_LEN) <= 0 ? 0:1;
+    if (bidirectional && eth) min = memcmp(eth->addr+0, eth->addr+1, ETH_ADDR_LEN) <= 0 ? 0:1;
     if (use_mac_src && eth) memcpy(k->mac_src, eth->addr[ min], ETH_ADDR_LEN);
     if (use_mac_dst && eth) memcpy(k->mac_dst, eth->addr[!min], ETH_ADDR_LEN);
     if (use_mac_proto) k->mac_proto = eth ? (int)eth->protocol:-1;

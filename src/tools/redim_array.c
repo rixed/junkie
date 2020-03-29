@@ -62,6 +62,8 @@ static struct redim_array_chunk *chunk_new(struct redim_array *ra)
     unsigned const num_malloced = ra->alloc_size * ra->num_chunks;    // first chunk is alloc_size entries long, second is twice this, third is 3 times this, and so on
 
     struct redim_array_chunk *chunk = MALLOC(redim_array, sizeof(*chunk) + num_malloced * ra->entry_size);
+    if (! chunk) return chunk;
+
     SLOG(LOG_DEBUG, "New chunk@%p of %zu bytes for array %s@%p", chunk, (num_malloced * ra->entry_size), ra->name, ra);
 
     TAILQ_INSERT_TAIL(&ra->chunks, chunk, entry);

@@ -17,6 +17,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with Junkie.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include "junkie/cpp.h"
@@ -40,7 +41,7 @@ struct cert {
     TAILQ_ENTRY(cert) top_entry; // Top cert
     // For the key we build the string representation of the serial number,
     // cleared with 0s at the end.
-#   define MAX_KEY_SIZE (20*2 + 1)
+#   define MAX_KEY_SIZE (BER_UINT_MAXLEN*2 + 1)
     char key[MAX_KEY_SIZE];
     struct tls_cert_info info;
     // TODO: a hash?
@@ -55,6 +56,8 @@ static HASH_TABLE(certs, cert) certs;
 
 static void key_ctor(char *key, struct tls_cert_info const *info)
 {
+    assert(info->serial_number.len <= NB_ELEMS(info->serial_number.num));
+
     for (unsigned d = 0; d < MAX_KEY_SIZE; d ++) {
         if (d/2 >= info->serial_number.len) {
             key[d] = '\0';

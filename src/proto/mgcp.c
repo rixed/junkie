@@ -130,8 +130,8 @@ static char const *mgcp_params_2_str(struct mgcp_proto_info const *info)
         info->dialed[0] != '\0' ? info->dialed:"",
         info->cnx_id[0] != '\0' ? " cnxId=":"",
         info->cnx_id[0] != '\0' ? info->cnx_id:"",
-        info->cnx_id[0] != '\0' ? " callId=":"",
-        info->cnx_id[0] != '\0' ? info->call_id:"");
+        info->call_id[0] != '\0' ? " callId=":"",
+        info->call_id[0] != '\0' ? info->call_id:"");
 }
 
 static void const *mgcp_info_addr(struct proto_info const *info_, size_t *size)

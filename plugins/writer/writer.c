@@ -249,7 +249,7 @@ static size_t free_conf(SCM conf_smob)
 {
     struct capture_conf *conf = (struct capture_conf *)SCM_SMOB_DATA(conf_smob);
     capture_conf_dtor(conf);
-    scm_gc_free(conf, sizeof(conf), "capture-conf");
+    scm_gc_free(conf, sizeof(*conf), "capture-conf");
     return 0;
 }
 
