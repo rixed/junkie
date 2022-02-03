@@ -216,6 +216,7 @@ static char const *nettop_key_2_str(struct nettop_key const *k, unsigned proto_l
     }
 
     // Source
+    assert(addr_len > 0);
     size_t src_len = addr_len;
     char src_str[src_len];
     src_str[0] = '\0';

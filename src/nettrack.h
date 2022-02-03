@@ -10,7 +10,7 @@
 #include "junkie/tools/mutex.h"
 #include "junkie/netmatch.h"
 
-LOG_CATEGORY_DEC(nettrack);
+extern LOG_CATEGORY_DEC(nettrack);
 
 struct nt_state {
     LIST_ENTRY(nt_state) same_parent;   // entry on children list

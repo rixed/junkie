@@ -43,10 +43,10 @@ struct dedup_proto_info {
 
 /** Delay, in microseconds, after which a dup cannot be a dup any more but
  * must be considered a retransmission, and the other way around. */
-unsigned max_dup_delay;
+extern unsigned max_dup_delay;
 
 /// To be called each time a duplicate frame is found
-struct hook dup_hook;
+extern struct hook dup_hook;
 
 void digest_init(void);
 void digest_fini(void);

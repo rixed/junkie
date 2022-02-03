@@ -8,9 +8,9 @@
 #include "junkie/tools/queue.h"
 #include "junkie/tools/mutex.h"
 
-struct mutex plugins_mutex;  // protects the plugins list
+extern struct mutex plugins_mutex;  // protects the plugins list
 
-LIST_HEAD(plugins, plugin) plugins;
+extern LIST_HEAD(plugins, plugin) plugins;
 
 struct plugin {
     LIST_ENTRY(plugin) entry;
