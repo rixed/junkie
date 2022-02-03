@@ -23,10 +23,10 @@
  * called until the hole in the stream is filled in.  When the pending packets
  * are discarded, the subparser is not called but the subscribers of the last
  * proto_info are, which imply that the subscibers may be called for packets
- * which cap->tv are no more ascending.
+ * which cap->tv are no longer ascending.
  *
  * This simple scheme leads to some difficulties since, for performance
- * reasons, all data that are build by the parsers for the callbacks are stored
+ * reasons, all data that is build by the parsers for the callbacks are stored
  * on the stack.  Thus, when suspending the parse of a packet we must copy the
  * proto_info structures from the stack to the heap, taking care of the
  * pointers in them.  Another problem, easier to solve but probably more
@@ -40,7 +40,7 @@
  *
  * Additionally, a queued packet can be set to wait for another waiting list
  * reaching a given offset. This is useful for TCP since we do not want to parse
- * in a direction ahead in time of the other direction.
+ * in a direction ahead of time compared to the other direction.
  */
 
 /// A Waiting Packet.
@@ -86,7 +86,7 @@ struct pkt_wait {
 
 struct pkt_wl_config {
     struct pkt_wl_config_list {
-        /// The list of struct pkt_wait_list in no particular order (but on 10 different lists, considered for timeout at 1s interval - a low tech way to timeout incrementaly)
+        /// The list of struct pkt_wait_list in no particular order (but on 10 different lists, considered for timeout at 1s interval - a low tech way to timeout incrementally)
         LIST_HEAD(pkt_wait_list_list, pkt_wait_list) list[10];
         /// The mutex that protects the above list
         struct supermutex mutex;
@@ -180,7 +180,9 @@ void pkt_wait_list_dtor(struct pkt_wait_list *);
  * offset looks erroneous (ie. either in the past or too much in the future -
  * more than the defined acceptable gap).
  * Set can_parse to false if you want to prevent all call to subparser
- * (erroneous packets will still be "parsed", though). */
+ * (erroneous packets will still be "parsed", though).
+ * If the parser fails it will be destroyed (unreferenced, rather, in both
+ * directions). */
 enum proto_parse_status pkt_wait_list_add(
     struct pkt_wait_list *pkt_wl,   ///< The packet list where to insert this packet
     unsigned offset,                ///< Offset in the stream of this packet

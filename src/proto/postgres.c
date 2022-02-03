@@ -580,10 +580,7 @@ static enum proto_parse_status pg_sbuf_parse(struct parser *parser, struct proto
 static enum proto_parse_status pg_parse(struct parser *parser, struct proto_info *parent, unsigned way, uint8_t const *payload, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {
     struct pgsql_parser *pg_parser = DOWNCAST(parser, parser, pgsql_parser);
-
-    enum proto_parse_status const status = streambuf_add(&pg_parser->sbuf, parser, parent, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
-
-    return status;
+    return streambuf_add(&pg_parser->sbuf, parser, parent, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
 }
 
 /*

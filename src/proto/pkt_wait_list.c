@@ -113,7 +113,7 @@ void pkt_wait_del(struct pkt_wait *pkt, struct pkt_wait_list *pkt_wl)
  *       never try to parse pending fragments. We should, instead:
  *       1) recreate a parser when we need one (ie. we are not given a parser but a proto)
  *       2) instead when we are finalizing packets from our destructor (because we do not want
- *          to submit proto stack infos from the past when deleted bu doomer thread)
+ *          to submit proto stack infos from the past when deleted by doomer thread)
  */
 static enum proto_parse_status proto_parse_or_die(struct parser **parser, struct proto_info *parent, unsigned way, uint8_t const *packet, size_t cap_len, size_t wire_len, struct timeval const *now, size_t tot_cap_len, uint8_t const *tot_packet)
 {

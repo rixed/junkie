@@ -497,6 +497,8 @@ enum proto_parse_status tcp_parse(struct parser *parser, struct proto_info *pare
         } else {
             SLOG(LOG_DEBUG, "No suitable subparser for this payload");
         }
+        /* Note: A new instance of the very same proto might be created all
+         * over again for the next paquet. Maybe quarantine it for a bit? */
         mux_subparser_deindex(subparser);
     }
     mux_subparser_unref(&subparser);

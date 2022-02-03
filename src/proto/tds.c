@@ -257,9 +257,7 @@ static enum proto_parse_status tds_parse(struct parser *parser, struct proto_inf
     struct tds_parser *tds_parser = DOWNCAST(parser, parser, tds_parser);
 
     if (cap_len == 0 && wire_len > 0) return PROTO_TOO_SHORT;   // We do not know how to handle pure gaps
-    enum proto_parse_status const status = streambuf_add(&tds_parser->sbuf, parser, parent, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
-
-    return status;
+    return streambuf_add(&tds_parser->sbuf, parser, parent, way, payload, cap_len, wire_len, now, tot_cap_len, tot_packet);
 }
 
 
