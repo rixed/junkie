@@ -6,7 +6,7 @@
 #include <stdbool.h>
 #include <junkie/proto/proto.h>
 
-extern LOG_CATEGORY_DEC(proto_tds);
+LOG_CATEGORY_DEC(proto_tds);
 
 /** @file
  * @brief TDS "transport" protocol

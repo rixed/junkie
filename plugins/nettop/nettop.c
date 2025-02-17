@@ -183,6 +183,7 @@ static char const *nettop_key_2_str(struct nettop_key const *k, unsigned proto_l
     // Protocol
     bool mac_proto_needed = true;
     bool ip_proto_needed = true;
+    assert(proto_len > 0);
     char proto_str[proto_len];
     proto_str[0] = '\0';
     size_t proto_o = 0;

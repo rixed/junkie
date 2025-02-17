@@ -107,7 +107,7 @@ static struct report *report_new(enum report_type type, char const *name)
 }
 #endif
 
-static char const *report_name(struct report *report)
+static char const unused_ *report_name(struct report *report)
 {
 #   ifdef WITH_BENCH
     switch (report->type) {
@@ -121,7 +121,7 @@ static char const *report_name(struct report *report)
 }
 
 // Same as below but do not report it (useful for bench_event and report itself)
-static void bench_atomic_event_dtor_(struct bench_atomic_event *e)
+static void unused_ bench_atomic_event_dtor_(struct bench_atomic_event *e)
 {
 #   ifdef WITH_BENCH
     // Destruct

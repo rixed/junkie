@@ -75,7 +75,7 @@ struct log_category {
 extern SLIST_HEAD(log_categories, log_category) log_categories;
 
 #define LOG_CATEGORY_DEC(cat_name) \
-struct log_category cat_name##_log_category
+extern struct log_category cat_name##_log_category
 
 #define LOG_CATEGORY_DEF(cat_name) \
 struct log_category cat_name##_log_category = { .name = #cat_name, .level = LOG_WARNING }; \
@@ -89,7 +89,7 @@ static void log_category_##cat_name##_fini(void) \
 }
 
 // We have a "global" log category, used by default by SLOG if LOG_CAT is not redefined
-extern LOG_CATEGORY_DEC(global);
+LOG_CATEGORY_DEC(global);
 
 /** Set log_level of some category.
  * @param level the new log level
