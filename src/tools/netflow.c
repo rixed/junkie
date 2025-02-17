@@ -153,7 +153,7 @@ ssize_t netflow_decode_msg(struct nf_msg *msg, void const *src, size_t size)
 
 static int netflow_receive(struct sock unused_ *sock, size_t len, uint8_t const *buf, struct ip_addr const *sender)
 {
-    if (len == sizeof(buf)) {
+    if (len > MAX_NETFLOW_PDU) {
         SLOG(LOG_ERR, "Received a PDU that's bigger than expected. Bailing out!");
         return -1;
     }
