@@ -1,11 +1,9 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
-AC_PREREQ([2.61])
+AC_PREREQ([2.71])
 
 # These git commands will disapear from the generated configure script
-AC_INIT([junkie],
-    m4_esyscmd([build-aux/git-version-gen .tarball-version | tr -d '\n']),
-    rixed-github@happyleptic.org, , http://github.com/rixed/junkie)
+AC_INIT([junkie],[m4_esyscmd(build-aux/git-version-gen .tarball-version | tr -d '\n')],[rixed-github@happyleptic.org],[],[http://github.com/rixed/junkie])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_MACRO_DIR([m4])
 AM_INIT_AUTOMAKE([-Wno-gnu -Wno-portability foreign subdir-objects])
@@ -23,7 +21,7 @@ AC_ARG_VAR(GUILE_LOAD_PATH, Where to find the required guile modules (apart from
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_MAKE_SET
-AC_PROG_LIBTOOL
+LT_INIT
 
 # Checks for libraries.
 PKG_CHECK_MODULES([OPENSSL], openssl)
@@ -86,7 +84,7 @@ AS_IF([test "x$LDFLAGS_PLUGIN" = x], [LDFLAGS_PLUGIN="$DEFAULT_LDFLAGS_PLUGIN"])
 AC_ARG_VAR([PLUGIN_EXT], Extension of plugins)
 AS_IF([test "x$PLUGIN_EXT" = x], [PLUGIN_EXT="$DEFAULT_PLUGIN_EXT"])
 
-AC_ARG_ENABLE(bench, AC_HELP_STRING([--enable-bench], [Include benchmarking code]), [AC_DEFINE([WITH_BENCH], [], [Include benchmarking code])], [])
+AC_ARG_ENABLE(bench, AS_HELP_STRING([--enable-bench],[Include benchmarking code]), [AC_DEFINE([WITH_BENCH], [], [Include benchmarking code])], [])
 
 # Check for PTHREAD_MUTEX_ADAPTIVE_NP
 AC_MSG_CHECKING([for PTHREAD_MUTEX_ADAPTIVE_NP])
