@@ -781,8 +781,8 @@ static char const *tls_handshake_2_str(unsigned set_values, struct tls_info_hand
 
     if (set_values & NB_CERTS_SET) {
         size_t len = strlen(s);
-        for (unsigned c = 0; c < info->num_certs && c < NB_ELEMS(info->certs); c++) {
-            len += snprintf(s+len, TEMPSTR_SIZE, ", %s", tls_cert_info_2_str(info->certs+c, c));
+        for (unsigned c = 0; c < info->num_certs && c < NB_ELEMS(info->certs) && len < TEMPSTR_SIZE; c++) {
+            len += snprintf(s+len, TEMPSTR_SIZE-len, ", %s", tls_cert_info_2_str(info->certs+c, c));
         }
     }
 
